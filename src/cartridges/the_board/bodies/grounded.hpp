@@ -349,60 +349,6 @@ struct ActivePalm {
     float cached_ground_y = 0.0f;
 };
 
-// ═══ VOCABULARY: CACTUS ══════════════════════════════════════════
-
-enum class CactusTier : uint32_t { FINGER = 0, SAGUARO = 1, CANDELABRA = 2, COUNT = 3 };
-inline constexpr uint32_t CACTUS_TIER_COUNT = static_cast<uint32_t>(CactusTier::COUNT);
-
-// ── Color Palette ────────────────────────────────────────────────
-inline constexpr float CACTUS_BODY_BASE[3] = { 0.30f, 0.45f, 0.25f };
-inline constexpr float CACTUS_RIB_BASE[3] = { 0.35f, 0.55f, 0.30f };
-
-// ── Spawn Configuration ──────────────────────────────────────────
-struct CactusConfig {
-    static constexpr float SPAWN_CHANCE = 0.100f;
-    static constexpr float POSITION_JITTER = 0.35f;
-};
-
-// ── Property Index Registry ──────────────────────────────────────
-struct CactusProp {
-    static constexpr uint32_t SPAWN_ROLL = 1000u;
-    static constexpr uint32_t POSITION_X = 1001u;
-    static constexpr uint32_t POSITION_Z = 1002u;
-    static constexpr uint32_t ROTATION = 1003u;
-    static constexpr uint32_t TIER = 1004u;
-    static constexpr uint32_t HEIGHT = 1010u;
-    static constexpr uint32_t RADIUS = 1011u;
-    static constexpr uint32_t TAPER = 1012u;
-    static constexpr uint32_t RIBS = 1013u;
-    static constexpr uint32_t RIB_DEPTH = 1014u;
-    static constexpr uint32_t LEAN = 1015u;
-    static constexpr uint32_t LEAN_DIR = 1016u;
-    static constexpr uint32_t CAP_ROUND = 1017u;
-    static constexpr uint32_t ARM_COUNT = 1020u;
-    static constexpr uint32_t ARM_HEIGHT = 1021u;
-    static constexpr uint32_t ARM_LENGTH = 1022u;
-    static constexpr uint32_t ARM_RADIUS = 1023u;
-    static constexpr uint32_t ARM_CURVE = 1024u;
-    static constexpr uint32_t COLOR_OVER = 1030u;
-    static constexpr uint32_t COLOR_VAR_R = 1031u;
-    static constexpr uint32_t COLOR_VAR_G = 1032u;
-    static constexpr uint32_t COLOR_VAR_B = 1033u;
-};
-
-// ── Active Cactus Tracking ───────────────────────────────────────
-struct ActiveCactus {
-    int32_t patch_gx = 0, patch_gz = 0;
-    int32_t host_gx = 0, host_gz = 0;
-    bool active = false;
-    bool draw_visible = true;
-    float world_x = 0.0f, world_z = 0.0f;
-    float height = 0.0f;
-    float radius = 0.0f;
-    uint32_t tier_idx = 0;
-    float cached_ground_y = 0.0f;
-};
-
 // ═══ VOCABULARY: PYRAMID ═════════════════════════════════════════
 
 enum class PyramidTier : uint32_t {
@@ -472,11 +418,6 @@ struct EntitiesState {
     bool       palm_mesh_gen_pending = false;
     float      palm_mesh_gen_since = -1.0f;
 
-    // ── Cactus ───────────────────────────────────────────────────
-    ActiveCactus cacti[Dim::MAX_CACTUS_INSTANCES]{};
-    bool         cactus_mesh_gen_pending = false;
-    float        cactus_mesh_gen_since = -1.0f;
-
     // ── Pyramid ──────────────────────────────────────────────────
     ActivePyramid   pyramids[Dim::MAX_PYRAMID_INSTANCES]{};
     GPUPyramidArray cpu_pyramids{};                 // CPU mirror for heightfield baking
@@ -485,7 +426,6 @@ struct EntitiesState {
 // ═══ MESH-GEN PREPARERS — DECLARATIONS ════════════════════════════
 
 bool prepare_palm_mesh_gen(EntitiesState& es, MachineCtx* c, wgpu::Queue& queue);
-bool prepare_cactus_mesh_gen(EntitiesState& es, MachineCtx* c, wgpu::Queue& queue);
 bool prepare_column_mesh_gen(EntitiesState& es, MachineCtx* c, wgpu::Queue& queue);
 bool prepare_arch_mesh_gen(EntitiesState& es, MachineCtx* c, wgpu::Queue& queue);
 
@@ -496,15 +436,11 @@ void evict_arch(MachineCtx* self, uint32_t slot, wgpu::Queue& queue);
 void evict_column(MachineCtx* self, uint32_t slot, wgpu::Queue& queue);
 void evict_antenna(MachineCtx* self, uint32_t slot, wgpu::Queue& queue);
 void evict_palm(MachineCtx* self, uint32_t slot, wgpu::Queue& queue);
-void evict_cactus(MachineCtx* self, uint32_t slot, wgpu::Queue& queue);
-// Dispatch funnels for the clean pair (table-shaped; defined below
-// beside their recipes)
+// Dispatch funnels for the clean one (table-shaped; defined below
+// beside its recipes)
 bool dispatch_select_palm_generic(MachineCtx* self, int32_t gx, int32_t gz, EntityQueueEntry& e);
 bool dispatch_place_palm_generic(MachineCtx* self, EntityQueueEntry& e, PlacementEntry& pe);
 void dispatch_commit_palm_generic(MachineCtx* self, PlacementEntry& pe, wgpu::Queue& queue);
-bool dispatch_select_cactus_generic(MachineCtx* self, int32_t gx, int32_t gz, EntityQueueEntry& e);
-bool dispatch_place_cactus_generic(MachineCtx* self, EntityQueueEntry& e, PlacementEntry& pe);
-void dispatch_commit_cactus_generic(MachineCtx* self, PlacementEntry& pe, wgpu::Queue& queue);
 void teardown_entities(MachineCtx* c, wgpu::Queue& queue);
 
 // ═══ THE ARCH FORCE-SPAWN AUTHOR (the portal channel) ═══════════
@@ -572,20 +508,6 @@ inline bool prepare_palm_mesh_gen(EntitiesState& es, MachineCtx* c, wgpu::Queue&
     }
     c->gpuState_.set_palm_index_count(anyActive
         ? (maxSlot + 1) * Dim::PALMG_MAX_INDICES_PER_SLOT : 0);
-    return true;
-}
-
-inline bool prepare_cactus_mesh_gen(EntitiesState& es, MachineCtx* c, wgpu::Queue& queue) {
-    (void)queue;
-    if (!mesh_gen_settled(es.cactus_mesh_gen_pending, es.cactus_mesh_gen_since,
-                          c->time_state_, c->world_state_)) return false;
-    uint32_t maxSlot = 0;
-    bool anyActive = false;
-    for (uint32_t i = 0; i < Dim::MAX_CACTUS_INSTANCES; i++) {
-        if (es.cacti[i].active) { maxSlot = i; anyActive = true; }
-    }
-    c->gpuState_.set_cactus_index_count(anyActive
-        ? (maxSlot + 1) * Dim::CACTUSG_MAX_INDICES_PER_SLOT : 0);
     return true;
 }
 
@@ -822,17 +744,7 @@ inline void evict_palm(MachineCtx* self,
     self->world_state_.ground_entries_dirty = true;
 }
 
-inline void evict_cactus(MachineCtx* self,
-    uint32_t slot, wgpu::Queue& queue)
-{
-    unregister_footprint_for(self, PopFamily::CACTUS, slot);   // the hand that claims is the hand that frees
-    self->entities_state_.cacti[slot].active = false;
-    { GPUCactusMeshParams ep{}; self->gpuState_.upload_cactus_mesh_params_slot(queue, slot, ep); }
-    self->entities_state_.cactus_mesh_gen_pending = true;
-    self->world_state_.ground_entries_dirty = true;
-}
-
-// ═══ THE CLEAN PAIR — PALM / CACTUS RECIPES ══════════════════════
+// ═══ THE CLEAN ONE — PALM RECIPES ════════════════════════════════
 //
 // Per-family tier tables, traits, adapters, and dispatch funnels.
 // Each funnels into the machine's generic three-phase verbs via
@@ -1082,223 +994,10 @@ inline void dispatch_commit_palm_generic(MachineCtx* self, PlacementEntry& pe, w
     else { unregister_footprint_for(self, PopFamily::PALM, pe.generic.slot); self->entities_state_.palms[pe.generic.slot].active = false; }
 }
 
-// ═══ FAMILY: CACTUS ═══════════════════════════════════════════════
-
-struct CactusIdx {
-    static constexpr uint32_t HEIGHT     = 0;
-    static constexpr uint32_t RADIUS     = 1;
-    static constexpr uint32_t TAPER      = 2;
-    static constexpr uint32_t RIBS       = 3;
-    static constexpr uint32_t RIB_DEPTH  = 4;
-    static constexpr uint32_t LEAN       = 5;
-    static constexpr uint32_t LEAN_DIR   = 6;
-    static constexpr uint32_t CAP_ROUND  = 7;
-    static constexpr uint32_t ARM_COUNT  = 8;
-    static constexpr uint32_t ARM_HEIGHT = 9;
-    static constexpr uint32_t ARM_LENGTH = 10;
-    static constexpr uint32_t ARM_RADIUS = 11;
-    static constexpr uint32_t ARM_CURVE  = 12;
-    static constexpr uint32_t COUNT      = 13;
-};
-
-inline constexpr TierParamDef CACTUS_PARAM_DEFS[] = {
-    { CactusProp::HEIGHT,     1.0f, 1e30f,  false, ParamDist::GAUSSIAN },
-    { CactusProp::RADIUS,     0.05f, 1e30f, false, ParamDist::GAUSSIAN },
-    { CactusProp::TAPER,      0.5f, 1e30f,  false, ParamDist::GAUSSIAN },
-    { CactusProp::RIBS,       4.0f, 1e30f,  true,  ParamDist::GAUSSIAN },
-    { CactusProp::RIB_DEPTH,  0.0f, 1e30f,  false, ParamDist::GAUSSIAN },
-    { CactusProp::LEAN,       0.0f, 1e30f,  false, ParamDist::GAUSSIAN },
-    { CactusProp::LEAN_DIR,   0.0f, 1e30f,  false, ParamDist::UNIFORM_TAU },
-    { CactusProp::CAP_ROUND,  0.0f, 1e30f,  false, ParamDist::GAUSSIAN },
-    { CactusProp::ARM_COUNT,  0.0f, 1e30f,  true,  ParamDist::GAUSSIAN },
-    { CactusProp::ARM_HEIGHT, 0.1f, 1e30f,  false, ParamDist::GAUSSIAN },
-    { CactusProp::ARM_LENGTH, 0.5f, 1e30f,  false, ParamDist::GAUSSIAN },
-    { CactusProp::ARM_RADIUS, 0.03f, 1e30f, false, ParamDist::GAUSSIAN },
-    { CactusProp::ARM_CURVE,  0.0f, 1e30f,  false, ParamDist::GAUSSIAN },
-};
-inline constexpr uint32_t CACTUS_PARAM_COUNT = sizeof(CACTUS_PARAM_DEFS) / sizeof(TierParamDef);
-static_assert(CACTUS_PARAM_COUNT == CactusIdx::COUNT,
-    "F-4: CACTUS_PARAM_DEFS must cover CactusIdx exactly (row order IS the index)");
-
-// params[] order MUST match CACTUS_PARAM_DEFS:
-//   [0]HEIGHT [1]RADIUS [2]TAPER [3]RIBS [4]RIB_DEPTH [5]LEAN
-//   [6]LEAN_DIR(uniform — {0,0}) [7]CAP_ROUND [8]ARM_COUNT
-//   [9]ARM_HEIGHT [10]ARM_LENGTH [11]ARM_RADIUS [12]ARM_CURVE
-struct CactusTierRow {
-    TierProfile profile;
-    float       color_over;
-    uint32_t    trunk_segs;
-    uint32_t    arm_segs;
-};
-
-// ── Cactus tier table ──────────────────────────────────────────────
-// Row = CactusTier order (0 FINGER / 1 SAGUARO / 2 CANDELABRA); each
-// row = { weight, color_var, { 13 {μ,σ} pairs in CactusIdx order, wrapped:
-//   line 1: HEIGHT  RADIUS  TAPER  RIBS  RIB_DEPTH
-//   line 2: LEAN  LEAN_DIR  CAP_ROUND  ARM_COUNT
-//   line 3: ARM_HEIGHT  ARM_LENGTH  ARM_RADIUS  ARM_CURVE } },
-//   then: color_over, trunk_segs, arm_segs.
-// UNITS: lengths = wu; TAPER/CAP_ROUND = multipliers; RIBS/ARM_COUNT =
-//   counts (do_round); LEAN/ARM_CURVE = radians; LEAN_DIR row is a
-//   {0,0} PLACEHOLDER (ParamDist::UNIFORM_TAU ignores μ/σ); weight =
-//   tier-selection weight; color_over = probability; segs = mesh
-//   tessellation.
-// CONSUMERS: cactus_get_tier_profile (generic sampling); segs at
-//   cactus write_active. Biography determinant — frozen biography (§12).
-inline constexpr CactusTierRow CACTUS_TIERS[] = {
-    /* FINGER     */ {
-        { 0.45f, 0.06f, { {9.0f, 1.0f},   {0.40f, 0.06f}, {0.90f, 0.08f}, {8.0f, 1.0f},   {0.12f, 0.03f},
-                   {0.26f, 0.03f}, {0.0f, 0.0f},   {0.60f, 0.10f}, {1.0f, 1.0f},
-                   {0.40f, 0.10f}, {2.0f, 0.30f},  {0.29f, 0.03f}, {1.0f, 0.30f} }},
-        0.15f, 12, 8
-    },
-    /* SAGUARO    */ {
-        { 0.35f, 0.06f, { {13.0f, 2.5f},  {0.55f, 0.10f}, {0.75f, 0.06f}, {12.0f, 2.0f},  {0.15f, 0.04f},
-                   {0.04f, 0.02f}, {0.0f, 0.0f},   {0.65f, 0.10f}, {2.0f, 1.0f},
-                   {0.45f, 0.12f}, {4.5f, 0.80f},  {0.40f, 0.06f}, {1.0f, 0.15f} }},
-        0.20f, 14, 10
-    },
-    /* CANDELABRA */ {
-        { 0.20f, 0.08f, { {20.0f, 4.0f},  {0.75f, 0.12f}, {0.80f, 0.05f}, {14.0f, 2.0f},  {0.18f, 0.04f},
-                   {0.03f, 0.02f}, {0.0f, 0.0f},   {0.70f, 0.10f}, {4.0f, 1.0f},
-                   {0.40f, 0.10f}, {7.0f, 1.20f},  {0.50f, 0.06f}, {1.0f, 0.12f} }},
-        0.25f, 16, 10
-    },
-};
-static_assert(sizeof(CACTUS_TIERS) / sizeof(CactusTierRow) == static_cast<uint32_t>(CactusTier::COUNT),
-    "F-5: CACTUS_TIERS must have exactly one row per CactusTier");
-
-inline const TierProfile& cactus_get_tier_profile(uint32_t tier_idx) {
-    return CACTUS_TIERS[tier_idx].profile;
-}
-
-inline constexpr ColorPartDef CACTUS_COLOR_PARTS[] = {
-    { {0.30f,0.45f,0.25f}, 0.0f, CactusProp::COLOR_VAR_R, 0 },   // body
-    { {0.35f,0.55f,0.30f}, 0.0f, CactusProp::COLOR_VAR_R, 10 },  // rib
-};
-
-inline constexpr EntityFamilyTraits CACTUS_TRAITS = {
-    PopFamily::CACTUS, Dim::MAX_CACTUS_INSTANCES,
-    true,                 // grounded
-    CactusProp::SPAWN_ROLL, CactusConfig::SPAWN_CHANCE,
-    mood_mult_for(PopFamily::CACTUS), CactusConfig::POSITION_JITTER,
-    CACTUS_TIER_COUNT, CactusProp::TIER,
-    CACTUS_PARAM_DEFS, CACTUS_PARAM_COUNT,
-    CactusProp::POSITION_X, CactusProp::POSITION_Z, CactusProp::ROTATION,
-    2, CACTUS_COLOR_PARTS,
-};
-
-// ── Cactus adapter functions ──
-
-inline SpawnGateOutput cactus_run_gate(MachineCtx* c, int32_t gx, int32_t gz) {
-    return gate_from_traits(c, gx, gz, CACTUS_TRAITS, c->entities_state_.cacti);
-}
-
-
-inline void cactus_compute_solid_half(EntityInstance& inst, const TierProfile&) {
-    inst.solid_half = inst.params[CactusIdx::RADIUS] + 0.5f;
-    inst.burial = 0.0f;
-}
-
-inline void cactus_write_active(MachineCtx* c, const EntityInstance& inst) {
-    auto& ac = c->entities_state_.cacti[inst.slot];
-    ac.patch_gx = inst.trigger_gx; ac.patch_gz = inst.trigger_gz;
-    ac.host_gx = inst.host_gx; ac.host_gz = inst.host_gz;
-    ac.active = true; ac.draw_visible = true;
-    ac.world_x = inst.cx; ac.world_z = inst.cz;
-    ac.height = inst.params[CactusIdx::HEIGHT];
-    ac.radius = inst.params[CactusIdx::RADIUS];
-    ac.tier_idx = inst.tier_idx;
-    ac.cached_ground_y = inst.cached_ground_y;
-}
-
-inline void cactus_write_gpu(MachineCtx* c, const EntityInstance& inst, wgpu::Queue& queue) {
-    const auto& tp = CACTUS_TIERS[inst.tier_idx];
-    GPUCactusMeshParams mp{};
-    mp.center_x   = inst.cx;
-    mp.center_z   = inst.cz;
-    mp.height     = inst.params[CactusIdx::HEIGHT];
-    mp.radius     = inst.params[CactusIdx::RADIUS];
-    mp.taper      = inst.params[CactusIdx::TAPER];
-    mp.ribs       = inst.params[CactusIdx::RIBS];
-    mp.rib_depth  = inst.params[CactusIdx::RIB_DEPTH];
-    mp.lean       = inst.params[CactusIdx::LEAN];
-    mp.lean_dir   = inst.params[CactusIdx::LEAN_DIR];
-    mp.cap_round  = inst.params[CactusIdx::CAP_ROUND];
-    mp.arm_count  = inst.params[CactusIdx::ARM_COUNT];
-    mp.arm_height = inst.params[CactusIdx::ARM_HEIGHT];
-    mp.arm_length = inst.params[CactusIdx::ARM_LENGTH];
-    mp.arm_radius = inst.params[CactusIdx::ARM_RADIUS];
-    mp.arm_curve  = inst.params[CactusIdx::ARM_CURVE];
-    mp.body_r = inst.colors[0]; mp.body_g = inst.colors[1]; mp.body_b = inst.colors[2];
-    mp.rib_r  = inst.colors[3]; mp.rib_g  = inst.colors[4]; mp.rib_b  = inst.colors[5];
-    mp.trunk_segs = tp.trunk_segs;
-    mp.arm_segs   = tp.arm_segs;
-    mp.is_active  = 1;
-    mp.seed       = inst.seed;
-    c->gpuState_.upload_cactus_mesh_params_slot(queue, inst.slot, mp);
-    c->entities_state_.cactus_mesh_gen_pending = true;
-}
-
-inline constexpr uint32_t CACTUS_INDOOR_RESCALE_PARAMS[] = {
-    CactusIdx::HEIGHT, CactusIdx::RADIUS,
-    CactusIdx::ARM_LENGTH, CactusIdx::ARM_RADIUS,
-    // TAPER/CAP_ROUND/RIB_DEPTH (multipliers on a radius), RIBS/ARM_COUNT
-    // (counts), LEAN (a fraction of HEIGHT — lean_mag = lean * height * t²),
-    // LEAN_DIR/ARM_CURVE (angle and blend) intentionally not scaled.
-};
-
-// Cactus policy: CAP (INDOOR_TREATMENT) — outdoor size stands unless taller
-// than the cap. current_h = HEIGHT: the trunk ring walk puts y = t * height,
-// with no jitter above the param, so HEIGHT is the trunk's true top.
-//
-// The arms fork at height * arm_height and rise by at most arm_length. AT
-// THE TIER MEANS the trunk wins everywhere — FINGER 9.0 vs 3.6+2.0,
-// SAGUARO 13.0 vs 5.9+4.5, CANDELABRA 20.0 vs 8.0+7.0 — but that is a
-// statement about means, NOT an invariant: arm_height, arm_length and the
-// fork jitter are all seeded, and at the ±3σ corner the arms do pass the
-// trunk (SAGUARO 26.4 vs 20.5, CANDELABRA 37.5 vs 32.0). Taking the trunk
-// is the palm-mirror choice the ruling asked for, and it under-caps that
-// corner rather than over-capping the common case.
-inline void cactus_apply_indoor_rescale(EntityInstance& inst, float ceiling_h) {
-    cap_to_ceiling(inst, ceiling_h, INDOOR_LIVE.height_cap_fraction,
-        /*current_h*/ inst.params[CactusIdx::HEIGHT],
-        CACTUS_INDOOR_RESCALE_PARAMS);
-}
-
-inline constexpr EntityFamilyAdapter CACTUS_ADAPTER = {
-    cactus_run_gate,
-    cactus_apply_indoor_rescale,          // CAP (INDOOR_TREATMENT) — TUNE_1 A8
-    cactus_compute_solid_half, nullptr,   // compute_colors → use generic (Q24)
-    cactus_write_active, cactus_write_gpu, nullptr,
-    cactus_get_tier_profile,
-};
-
-// ── Cactus dispatch wrappers ──
-
-inline bool dispatch_select_cactus_generic(MachineCtx* self, int32_t gx, int32_t gz, EntityQueueEntry& e) {
-    EntityInstance inst{};
-    if (!generic_select(self, CACTUS_TRAITS, CACTUS_ADAPTER, gx, gz, inst)) return false;
-    e.family = PopFamily::CACTUS; e.gx = gx; e.gz = gz; e.generic = inst; return true;
-}
-inline bool dispatch_place_cactus_generic(MachineCtx* self, EntityQueueEntry& e, PlacementEntry& pe) {
-    pe.family = e.family; pe.gx = e.gx; pe.gz = e.gz;
-    if (generic_place(self, CACTUS_TRAITS, e.generic)) { pe.generic = e.generic; return true; }
-    self->entities_state_.cacti[e.generic.slot].active = false; return false;
-}
-inline void dispatch_commit_cactus_generic(MachineCtx* self, PlacementEntry& pe, wgpu::Queue& queue) {
-    auto* host = find_patch(self, pe.generic.host_gx, pe.generic.host_gz);
-    if (host) { generic_commit(self, CACTUS_TRAITS, CACTUS_ADAPTER, pe.generic, queue); host->record_entity(PopFamily::CACTUS, pe.generic.slot); }
-    // HOST PATCH GONE. The footprint was registered at place; its host
-    // vanished before commit. Release by OWNER — the one release path.
-    else { unregister_footprint_for(self, PopFamily::CACTUS, pe.generic.slot); self->entities_state_.cacti[pe.generic.slot].active = false; }
-}
-
-
 // ─── Teardown (owner verb) ────────────────────────────────────────
 // The grounded families' half of the world-teardown sweep — CPU slot
-// clears + GPU param-slot clears + mesh-gen re-arm, six families in
-// their one organ. UNGATED by design: the six families share this
+// clears + GPU param-slot clears + mesh-gen re-arm, five families in
+// their one organ. UNGATED by design: the five families share this
 // organ, and per-family gating buys nothing (empty arrays clear to
 // empty). The arch clear announces the portal-set change on the
 // standing flag channel (mood_state_.portals_dirty).
@@ -1346,19 +1045,6 @@ inline void teardown_entities(MachineCtx* c, wgpu::Queue& queue) {
             c->gpuState_.upload_palm_mesh_params_slot(queue, i, emptyParams);
         }
         c->entities_state_.palm_mesh_gen_pending = true;
-    }
-
-    // Cacti
-    for (uint32_t i = 0; i < Dim::MAX_CACTUS_INSTANCES; i++) {
-        c->entities_state_.cacti[i] = ActiveCactus{};
-    }
-    c->gpuState_.set_cactus_index_count(0);
-    {
-        GPUCactusMeshParams emptyParams{};
-        for (uint32_t i = 0; i < Dim::MAX_CACTUS_INSTANCES; i++) {
-            c->gpuState_.upload_cactus_mesh_params_slot(queue, i, emptyParams);
-        }
-        c->entities_state_.cactus_mesh_gen_pending = true;
     }
 
     // Pyramids

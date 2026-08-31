@@ -74,7 +74,7 @@ inline constexpr float GLOBAL_ENTITY_DENSITY = 1.0f;
 //   radii first, then adds this gap on top (and may shrink it by
 //   PROXIMITY_GAP_REDUCTION × affinity for clustering families).
 // ORDER: rows and columns both follow PopFamily order (PYRAMID=0 …
-//   GOL=9), PINNED by the F-1 static_assert at roster.hpp —
+//   GOL=8), PINNED by the F-1 static_assert at roster.hpp —
 //   renumbering a family is a compile error, not a silent re-column.
 // CONSUMER: check_position(), machine/spawn_engine.hpp (sole reader).
 // SENTINEL: 0.0 = no gap constraint for that pair (only the radii sum
@@ -82,7 +82,7 @@ inline constexpr float GLOBAL_ENTITY_DENSITY = 1.0f;
 // Placement determinant — frozen biography (§12): changing a number
 // changes which candidate positions survive, i.e. changes worlds.
 //
-// NON-PARTICIPANTS — SPHERE (6) and CUBE (8), ruling 21/23. Both are
+// NON-PARTICIPANTS — SPHERE (5) and CUBE (7), ruling 21/23. Both are
 //   unreachable in BOTH directions and no number in either line can change
 //   anything:
 //     · their ROWS never execute — negotiate_position skips check_position
@@ -104,17 +104,16 @@ inline constexpr float GLOBAL_ENTITY_DENSITY = 1.0f;
 //   the footprint. If floaters ever claim ground again, the values are in git
 //   and this note is what tells you they were deliberate.
 inline constexpr float MIN_SEPARATION[PopFamily::COUNT][PopFamily::COUNT] = {
-    //                near:  Pyr    Arch   Col    Ant    Palm   Cact   Sph    Ribn   Cube   GoL
-    /* placing Pyramid  */ { 65.0f, 60.0f,  5.0f, 55.0f,  5.0f,  5.0f,  0.0f,  0.0f,  0.0f,  0.0f },
-    /* placing Arch     */ { 60.0f, 20.0f, 10.0f, 60.0f,  8.0f,  5.0f,  0.0f,  0.0f,  0.0f,  0.0f },
-    /* placing Column   */ {  5.0f, 10.0f,  8.0f,  6.0f,  5.0f,  5.0f,  0.0f,  0.0f,  0.0f,  0.0f },
-    /* placing Antenna  */ { 55.0f, 60.0f,  6.0f, 12.0f,  5.0f,  5.0f,  0.0f,  0.0f,  0.0f,  0.0f },
-    /* placing Palm     */ {  5.0f,  8.0f,  5.0f,  5.0f,  8.0f,  5.0f,  0.0f,  0.0f,  0.0f,  0.0f },
-    /* placing Cactus   */ {  5.0f,  5.0f,  5.0f,  5.0f,  5.0f,  8.0f,  0.0f,  0.0f,  0.0f,  0.0f },
-    /* placing Sphere   */ {  0.0f,  0.0f,  0.0f,  0.0f,  0.0f,  0.0f,  0.0f,  0.0f,  0.0f,  0.0f },   // ruling 22: self-sep retired with the footprint (was 20)
-    /* placing Ribbon   */ {  0.0f,  0.0f,  0.0f,  0.0f,  0.0f,  0.0f,  0.0f, 40.0f,  0.0f,  0.0f },
-    /* placing Cube     */ {  0.0f,  0.0f,  0.0f,  0.0f,  0.0f,  0.0f,  0.0f,  0.0f,  0.0f,  0.0f },   // ruling 22: self-sep retired with the footprint (was 15)
-    /* placing GoL      */ { 10.0f, 10.0f,  5.0f,  5.0f,  0.0f,  0.0f,  0.0f,  0.0f,  0.0f, 60.0f },
+    //                near:  Pyr    Arch   Col    Ant    Palm   Sph    Ribn   Cube   GoL
+    /* placing Pyramid  */ { 65.0f, 60.0f,  5.0f, 55.0f,  5.0f,  0.0f,  0.0f,  0.0f,  0.0f },
+    /* placing Arch     */ { 60.0f, 20.0f, 10.0f, 60.0f,  8.0f,  0.0f,  0.0f,  0.0f,  0.0f },
+    /* placing Column   */ {  5.0f, 10.0f,  8.0f,  6.0f,  5.0f,  0.0f,  0.0f,  0.0f,  0.0f },
+    /* placing Antenna  */ { 55.0f, 60.0f,  6.0f, 12.0f,  5.0f,  0.0f,  0.0f,  0.0f,  0.0f },
+    /* placing Palm     */ {  5.0f,  8.0f,  5.0f,  5.0f,  8.0f,  0.0f,  0.0f,  0.0f,  0.0f },
+    /* placing Sphere   */ {  0.0f,  0.0f,  0.0f,  0.0f,  0.0f,  0.0f,  0.0f,  0.0f,  0.0f },   // ruling 22: self-sep retired with the footprint (was 20)
+    /* placing Ribbon   */ {  0.0f,  0.0f,  0.0f,  0.0f,  0.0f,  0.0f, 40.0f,  0.0f,  0.0f },
+    /* placing Cube     */ {  0.0f,  0.0f,  0.0f,  0.0f,  0.0f,  0.0f,  0.0f,  0.0f,  0.0f },   // ruling 22: self-sep retired with the footprint (was 15)
+    /* placing GoL      */ { 10.0f, 10.0f,  5.0f,  5.0f,  0.0f,  0.0f,  0.0f,  0.0f, 60.0f },
 };
 
 // ── Arch vocabulary (graduated with the decl tier: read by entities'

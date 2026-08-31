@@ -5873,7 +5873,7 @@ struct ArchVertexInput {
     // bitcast<f32>(u32)). slot < 64 (census C-12); seed < 65536 →
     // enc < 2^22, f32-exact. Families that never paint write seed 0 —
     // their bytes are unchanged and their VSes keep the plain u32()
-    // read (identity on a bare slot: palm/cactus untouched).
+    // read (identity on a bare slot: palm untouched).
     // Painted families (arch, column) and their shadow twins decode
     // via entity_index_decode below.
     @location(3) arch_index: f32,
@@ -7133,7 +7133,6 @@ const GROUND_ATLAS_COLUMN: i32   = 16;
 // slots 48..55: A DOCUMENTED HOLE. Do NOT re-pack — these offsets are
 // hand-mirrored with state.hpp Dim::GROUND_ATLAS_*.
 const GROUND_ATLAS_PALM: i32     = 56;
-const GROUND_ATLAS_CACTUS: i32   = 80;
 
 // --- The ribbon room (ribbonStateLayout_; RIBBON_1)
 // ring_xforms: written by ribbon_body, read by the render rooms as 143.
@@ -11385,8 +11384,8 @@ struct PalmGroundEntry {
     is_active: u32,
     _pad0: f32, _pad1: f32, _pad2: f32, _pad3: f32,
 }
-// Combined plant ground for compute Y-correction: palm[0..23] + cactus[24..43]
-@group(2) @binding(83) var<storage, read_write> plant_ground: array<PalmGroundEntry, 44>;
+// Plant ground for compute Y-correction: palm[0..23]
+@group(2) @binding(83) var<storage, read_write> plant_ground: array<PalmGroundEntry, 24>;
 
 // Entity ground atlas — compute writes corrected ground_y (r32float, 256×1)
 @group(3) @binding(80) var entity_ground_atlas_write: texture_storage_2d<r32float, write>;
@@ -11501,10 +11500,10 @@ fn sample_terrain_grad_at(world_xz: vec2<f32>) -> vec2<f32> {
 //
 // Arch: 2-point min at the leg positions + pier_height offset (the legs' visual height).
 // Pyramid: 5-point min at center + 4 rotated corners.
-// Column/antenna, palm, cactus: single-point center.
+// Column/antenna, palm: single-point center.
 //
 // b2b — WORLD-ANCHORED OVERLAY RIDE. The surface-STANDING
-// families (column/antenna, palm/cactus, arch feet) add
+// families (column/antenna, palm, arch feet) add
 // contrib_gol_zones_at so they sit on the LIVE zone surface the mesh
 // renders, not the baked static height — the sink/float fix. Raw GoL, no
 // pawn suppression (structures are not movers). PYRAMIDS are EXCLUDED:
@@ -11544,17 +11543,6 @@ fn compute_entity_placement() {
             // b2b: + world-anchored GoL (see column).
             plant_ground[i].ground_y = sample_terrain_y_at(xz) + sample_live_card_gol(xz);
             textureStore(entity_ground_atlas_write, vec2<i32>(i32(i) + GROUND_ATLAS_PALM, 0), vec4<f32>(plant_ground[i].ground_y, 0.0, 0.0, 0.0));
-        }
-    }
-
-    // --- Cactus: plant_ground[24..43]
-    for (var i = 0u; i < 20u; i++) {
-        let slot = 24u + i;
-        if (plant_ground[slot].is_active != 0u) {
-            let xz = vec2(plant_ground[slot].center_x, plant_ground[slot].center_z);
-            // b2b: + world-anchored GoL (see column).
-            plant_ground[slot].ground_y = sample_terrain_y_at(xz) + sample_live_card_gol(xz);
-            textureStore(entity_ground_atlas_write, vec2<i32>(i32(i) + GROUND_ATLAS_CACTUS, 0), vec4<f32>(plant_ground[slot].ground_y, 0.0, 0.0, 0.0));
         }
     }
 
@@ -11780,7 +11768,7 @@ fn frustum_cull_patches(@builtin(global_invocation_id) id: vec3<u32>) {
 // lanes. Output is byte-identical to the serial kernel's.
 //
 // LOOP-CARRIED STATE STAYS INSIDE A LANE. Where an outer iteration
-// accumulates (the cactus arm's `apx/apy/apz` walk), that loop is the
+// accumulates (a swept-arm walk over `apx/apy/apz`), that loop is the
 // strided one and a lane walks its whole arm serially, exactly as before.
 // This is why the stride is the OUTER loop and never the vertex.
 //
@@ -13110,409 +13098,6 @@ fn palm_vs(in: ArchVertexInput) -> EntityVarying {
 fn shadow_palm_vs(in: ArchVertexInput) -> ShadowVarying {
     let idx = u32(in.arch_index);
     let ground_y = textureLoad(entity_ground_atlas, vec2<i32>(i32(idx) + GROUND_ATLAS_PALM, 0), 0).r;
-    var world_pos = in.pos + vec3(0.0, ground_y, 0.0);
-    world_pos.y += sample_live_card(world_pos.xz).x;
-    var out: ShadowVarying;
-    out.clip_pos = shadow_light_vp() * vec4(world_pos, 1.0);
-    return out;
-}
-
-// ─── §9.4 CACTUS MESH GENERATION (ribbed columnar trunk + forking arms) ──
-//
-// CactusMeshParams MUST match state.hpp::GPUCactusMeshParams (size: 128 bytes).
-// If this struct gains/loses a field, the CPU side and
-// its state.hpp sizeof static_assert must be updated together.
-
-// 21 floats + 4 uint32_t + 7 pad floats = 32 fields × 4 = 128 bytes
-struct CactusMeshParams {
-    center_x: f32, center_z: f32,              // 1-2
-    height: f32, radius: f32, taper: f32,      // 3-5
-    ribs: f32, rib_depth: f32,                 // 6-7
-    lean: f32, lean_dir: f32,                  // 8-9
-    cap_round: f32,                            // 10
-    arm_count: f32,                            // 11
-    arm_height: f32, arm_length: f32, arm_radius: f32,  // 12-14
-    arm_curve: f32,                            // 15
-    body_r: f32, body_g: f32, body_b: f32,     // 16-18
-    rib_r: f32, rib_g: f32, rib_b: f32,        // 19-21
-    trunk_segs: u32, arm_segs: u32,            // 22-23
-    is_active: u32,                            // 24
-    seed: u32,                                 // 25
-    _pad0: f32, _pad1: f32, _pad2: f32, _pad3: f32, _pad4: f32, _pad5: f32, _pad6: f32,  // 26-32 = 128 bytes
-}
-
-const CACTUSG_MAX_VERTS_PER_SLOT: u32 = 1500u;
-const CACTUSG_MAX_INDICES_PER_SLOT: u32 = 7998u;
-const CACTUSG_FLOATS_PER_VERTEX: u32 = 10u;
-const CACTUSG_MAX_SLOTS: u32 = 20u;
-
-@group(2) @binding(180) var<storage, read>       cactusg_params: array<CactusMeshParams, 20>;
-@group(2) @binding(181) var<storage, read_write>  cactusg_vertices: array<f32>;
-@group(2) @binding(182) var<storage, read_write>  cactusg_indices: array<u32>;
-
-fn cactusg_write_vertex(abs_idx: u32, px: f32, py: f32, pz: f32,
-                        nx: f32, ny: f32, nz: f32,
-                        cr: f32, cg: f32, cb: f32, entity_idx: u32) {
-    let base = abs_idx * CACTUSG_FLOATS_PER_VERTEX;
-    cactusg_vertices[base + 0u] = px;
-    cactusg_vertices[base + 1u] = py;
-    cactusg_vertices[base + 2u] = pz;
-    cactusg_vertices[base + 3u] = nx;
-    cactusg_vertices[base + 4u] = ny;
-    cactusg_vertices[base + 5u] = nz;
-    cactusg_vertices[base + 6u] = cr;
-    cactusg_vertices[base + 7u] = cg;
-    cactusg_vertices[base + 8u] = cb;
-    cactusg_vertices[base + 9u] = f32(entity_idx);
-}
-
-fn cactus_hash(seed: u32, prop: u32) -> f32 {
-    var h = seed * 747796405u + prop * 2891336453u + 1u;
-    h = ((h >> 16u) ^ h) * 2654435769u;
-    h = ((h >> 16u) ^ h) * 2654435769u;
-    h = (h >> 16u) ^ h;
-    return f32(h) / 4294967295.0;
-}
-
-@compute @workgroup_size(MESHGEN_LANES)
-fn cactus_mesh_gen(
-    @builtin(workgroup_id) wid: vec3<u32>,
-    @builtin(local_invocation_id) lid: vec3<u32>
-) {
-    // ONE WORKGROUP PER SLOT (LATTICE_2). Dispatch shape unchanged.
-    // R3 LIVES HERE: the arm path accumulates (apx/apy/apz) down its
-    // length, so the ARM loop is the strided one and a lane walks its whole
-    // arm serially, exactly as the single thread did.
-    let slot = wid.x;
-    let lane = lid.x;
-    if (slot >= CACTUSG_MAX_SLOTS) { return; }
-
-    let p = cactusg_params[slot];
-    let vb_base = slot * CACTUSG_MAX_VERTS_PER_SLOT;
-    let ib_base = slot * CACTUSG_MAX_INDICES_PER_SLOT;
-
-    if (p.is_active == 0u) {
-        for (var i = lane; i < CACTUSG_MAX_INDICES_PER_SLOT; i += MESHGEN_LANES) {
-            cactusg_indices[ib_base + i] = vb_base;
-        }
-        return;
-    }
-
-    let cx = p.center_x;
-    let cz = p.center_z;
-    let lean_cos = cos(p.lean_dir);
-    let lean_sin = sin(p.lean_dir);
-
-    let ribs = u32(max(4.0, p.ribs));
-    let around = min(max(ribs * 2u, 12u), 20u);
-    let trunk_steps = min(u32(p.trunk_segs), 20u);
-
-    // THE SECTION BASES (LATTICE_2). Pure in (trunk_steps, around), both
-    // uniform per workgroup. `top_ring_vi` was already named below for the
-    // cap fan; it moves here so the trunk's totals derive from it.
-    let top_ring_vi = trunk_steps * around;        // first vertex of the trunk's last ring
-    let cap_tip_vi  = top_ring_vi + around;        // the single tip vertex
-    let cap_fan_ii  = trunk_steps * around * 6u;   // ii at the cap fan
-
-    // ── TRUNK: ribbed surface of revolution ──
-    // vi was ring * around + seg.
-
-    for (var ring = lane; ring <= trunk_steps; ring += MESHGEN_LANES) {
-        let t = f32(ring) / f32(trunk_steps);
-        let r_base = p.radius * (1.0 + (p.taper - 1.0) * t);
-
-        let cap_start = 1.0 - p.cap_round * 0.3;
-        let cap_t = max(0.0, (t - cap_start) / (p.cap_round * 0.3 + 0.001));
-        let cap_scale = select(1.0, cos(cap_t * PI * 0.5), cap_t > 0.0);
-
-        let lean_mag = p.lean * p.height * t * t;
-        let lx = lean_mag * lean_cos;
-        let lz = lean_mag * lean_sin;
-        let y = t * p.height;
-        let shade = 0.85 + 0.15 * t;
-
-        for (var seg = 0u; seg < around; seg++) {
-            let angle = f32(seg) / f32(around) * 2.0 * PI;
-            let rib_phase = angle * f32(ribs) / (2.0 * PI);
-            let rib_mod = 1.0 + cos(rib_phase * 2.0 * PI) * p.rib_depth;
-            let r = r_base * rib_mod * cap_scale;
-
-            let ca = cos(angle);
-            let sa = sin(angle);
-
-            let rib_frac = (cos(rib_phase * 2.0 * PI) + 1.0) * 0.5;
-            let cr = (p.body_r + (p.rib_r - p.body_r) * rib_frac * 0.6) * shade;
-            let cg = (p.body_g + (p.rib_g - p.body_g) * rib_frac * 0.6) * shade;
-            let cb = (p.body_b + (p.rib_b - p.body_b) * rib_frac * 0.6) * shade;
-
-            cactusg_write_vertex(vb_base + ring * around + seg,
-                cx + lx + ca * r, y, cz + lz + sa * r,
-                ca, 0.0, sa, cr, cg, cb, slot);
-        }
-    }
-
-    // Trunk indices — ii was (ring * around + seg) * 6u + j.
-    for (var ring = lane; ring < trunk_steps; ring += MESHGEN_LANES) {
-        for (var seg = 0u; seg < around; seg++) {
-            let next_seg = (seg + 1u) % around;
-            let row0 = ring * around;
-            let row1 = (ring + 1u) * around;
-
-            let ii = ib_base + (ring * around + seg) * 6u;
-            cactusg_indices[ii + 0u] = vb_base + row0 + seg;
-            cactusg_indices[ii + 1u] = vb_base + row1 + seg;
-            cactusg_indices[ii + 2u] = vb_base + row1 + next_seg;
-            cactusg_indices[ii + 3u] = vb_base + row0 + seg;
-            cactusg_indices[ii + 4u] = vb_base + row1 + next_seg;
-            cactusg_indices[ii + 5u] = vb_base + row0 + next_seg;
-        }
-    }
-
-    // ── TRUNK CAP (stitched to top ring) ──
-
-    let top_lean = p.lean * p.height;
-    let cap_cx = cx + top_lean * lean_cos;
-    let cap_cz = cz + top_lean * lean_sin;
-    let cap_y = p.height;
-    let cap_r = p.radius * p.taper * 0.6;
-    let cap_col_r = p.body_r * 0.6 + p.rib_r * 0.4;
-    let cap_col_g = p.body_g * 0.6 + p.rib_g * 0.4;
-    let cap_col_b = p.body_b * 0.6 + p.rib_b * 0.4;
-
-    // Single tip vertex above center — ONE VERTEX, so lane 0 writes it.
-    if (lane == 0u) {
-        cactusg_write_vertex(vb_base + cap_tip_vi,
-            cap_cx, cap_y + cap_r * 0.6, cap_cz,
-            0.0, 1.0, 0.0,
-            cap_col_r, cap_col_g, cap_col_b, slot);
-    }
-
-    // Fan from tip to trunk's existing top ring — no separate cap ring
-    for (var seg = lane; seg < around; seg += MESHGEN_LANES) {
-        let next = (seg + 1u) % around;
-        let ii = ib_base + cap_fan_ii + seg * 3u;
-        cactusg_indices[ii + 0u] = vb_base + cap_tip_vi;
-        cactusg_indices[ii + 1u] = vb_base + top_ring_vi + seg;
-        cactusg_indices[ii + 2u] = vb_base + top_ring_vi + next;
-    }
-
-    // ── ARMS: ribbed columns along upward-curving paths ──
-
-    let golden_angle = PI * (3.0 - sqrt(5.0));
-    let arm_segs_u = min(u32(p.arm_segs), 12u);
-    let arm_ribs = max(4u, ribs - 2u);
-    let arm_around = min(max(arm_ribs * 2u, 8u), 12u);
-
-    // THE SLOT IS THE AUTHORITY (mirrors the palm's frond ceiling). Every
-    // other quantity feeding the arm loops is clamped — arm_segs_u,
-    // arm_around, around, trunk_steps — and the TRIP COUNT was the one
-    // thing that was not, while ARM_COUNT carries 1e30f as its parameter
-    // ceiling. An unbounded loop writing into a fixed slot is a hole whose
-    // probability is a property of the current table, not of the code: a
-    // later table edit moves it with no warning.
-    //
-    // Costs are read from the loops, POST-F5. Trunk: rings are inclusive
-    // (ring <= trunk_steps) over `around` segs, plus ONE top-cap tip that
-    // fans to the existing top ring rather than emitting its own — which
-    // is precisely the pattern the arm tip lacked until F5. Per arm: the
-    // body rings are inclusive too, plus the single cap tip.
-    // n_arms moves BELOW arm_segs_u and arm_around because the ceiling
-    // depends on both. No floor to preserve — zero arms is a valid Finger.
-    let trunk_verts   = cap_tip_vi + 1u;              // (trunk_steps+1)*around + the tip
-    let trunk_indices = cap_fan_ii + around * 3u;     // the trunk quads + the cap fan
-    let verts_per_arm   = (arm_segs_u + 1u) * arm_around + 1u;
-    let indices_per_arm = arm_segs_u * arm_around * 6u + arm_around * 3u;
-    let arm_verts_left   = CACTUSG_MAX_VERTS_PER_SLOT   - min(trunk_verts,   CACTUSG_MAX_VERTS_PER_SLOT);
-    let arm_indices_left = CACTUSG_MAX_INDICES_PER_SLOT - min(trunk_indices, CACTUSG_MAX_INDICES_PER_SLOT);
-    let arm_ceiling = min(arm_verts_left / max(verts_per_arm, 1u),
-                          arm_indices_left / max(indices_per_arm, 1u));
-
-    let n_arms = min(u32(max(0.0, p.arm_count)), arm_ceiling);
-
-    // A LANE OWNS A WHOLE ARM (R3). The body below is verbatim — the
-    // apx/apy/apz path walk accumulates down the arm, and it accumulates
-    // inside one lane exactly as it did inside the one thread. Every arm
-    // is the same size (arm_segs_u and arm_around are per-slot), so the
-    // base is a product, not a prefix.
-    for (var a = lane; a < n_arms; a += MESHGEN_LANES) {
-        var vi = trunk_verts + a * verts_per_arm;
-        var ii = trunk_indices + a * indices_per_arm;
-
-        let arm_az = f32(a) * golden_angle + cactus_hash(p.seed, 1050u + a) * 0.5;
-        let fork_frac = p.arm_height + (cactus_hash(p.seed, 1060u + a) - 0.5) * 0.15;
-        let fork_y = p.height * fork_frac;
-        let arm_len = p.arm_length * (0.8 + cactus_hash(p.seed, 1070u + a) * 0.4);
-        let arm_r = p.arm_radius * (0.85 + cactus_hash(p.seed, 1080u + a) * 0.3);
-
-        let lean_at_fork = p.lean * p.height * fork_frac * fork_frac;
-        // The fork rides the trunk's FULL lean. The trunk centre at
-        // fork_y is displaced by lean_at_fork; taking 0.3 of it left the
-        // arm growing out of a point the trunk is not at, and the error
-        // scales with lean. The designer's 2D preview applies the whole
-        // offset, and the designer is the shape authority.
-        let fork_x = cx + cos(arm_az) * p.radius * p.taper * 0.9 + lean_at_fork * lean_cos;
-        let fork_z = cz + sin(arm_az) * p.radius * p.taper * 0.9 + lean_at_fork * lean_sin;
-
-        let out_x = cos(arm_az);
-        let out_z = sin(arm_az);
-
-        var apx = fork_x;
-        var apy = fork_y;
-        var apz = fork_z;
-        let seg_len = arm_len / f32(arm_segs_u);
-
-        let arm_vi_start = vi;
-
-        for (var s = 0u; s <= arm_segs_u; s++) {
-            let t = f32(s) / f32(arm_segs_u);
-            let blend = t * p.arm_curve;
-            let dx = out_x * (1.0 - blend);
-            let dy = blend;
-            let dz = out_z * (1.0 - blend);
-            let dl = sqrt(dx * dx + dy * dy + dz * dz);
-            let ndx = dx / max(dl, 0.001);
-            let ndy = dy / max(dl, 0.001);
-            let ndz = dz / max(dl, 0.001);
-
-            let seg_r = arm_r * (1.0 - t * 0.3);
-
-            // THE ARM'S PLANE IS FIXED. The path lies entirely in the
-            // vertical plane spanned by out = (cos az, 0, sin az) and world
-            // up, so ONE horizontal perpendicular serves every ring. The
-            // runtime branch it replaces flipped the reference axis mid-arm
-            // whenever |ndy| passed 0.95 — which arm_curve mu 1.00 now
-            // reaches around t ~ 0.75 (the old designer defaults peaked at
-            // 0.949, one hundredth below it). out is already unit, so this
-            // is too: no re-normalisation.
-            let rx = out_z;
-            let rz = -out_x;
-            let fx = 0.0 - rz * ndy;
-            let fy = rz * ndx - rx * ndz;
-            let fz = rx * ndy;
-
-            let arm_shade = 0.85 + 0.15 * t;
-
-            for (var seg = 0u; seg < arm_around; seg++) {
-                let angle = f32(seg) / f32(arm_around) * 2.0 * PI;
-                let ca = cos(angle);
-                let sa = sin(angle);
-
-                let arm_rib_phase = angle * f32(arm_ribs) / (2.0 * PI);
-                let arm_rib_mod = 1.0 + cos(arm_rib_phase * 2.0 * PI) * p.rib_depth * 0.8;
-                let r = seg_r * arm_rib_mod;
-
-                let vx = apx + (rx * ca + fx * sa) * r;
-                let vy = apy + fy * sa * r;
-                let vz = apz + (rz * ca + fz * sa) * r;
-
-                let arm_rib_frac = (cos(arm_rib_phase * 2.0 * PI) + 1.0) * 0.5;
-                let cr = (p.body_r + (p.rib_r - p.body_r) * arm_rib_frac * 0.6) * arm_shade;
-                let cg = (p.body_g + (p.rib_g - p.body_g) * arm_rib_frac * 0.6) * arm_shade;
-                let cb = (p.body_b + (p.rib_b - p.body_b) * arm_rib_frac * 0.6) * arm_shade;
-
-                // The normal takes the SAME basis as the position above.
-                // (ca, 0, sa) is the ring's local parameter, not a world
-                // direction — correct for the trunk, whose rings are
-                // horizontal circles about a vertical axis, and wrong here,
-                // where the ring lives in (r, f). r and f are orthonormal by
-                // construction (f = r x nd, both unit), so this is unit and
-                // needs no normalisation.
-                cactusg_write_vertex(vb_base + vi,
-                    vx, vy, vz,
-                    rx * ca + fx * sa, fy * sa, rz * ca + fz * sa,
-                    cr, cg, cb, slot);
-                vi++;
-            }
-
-            if (s < arm_segs_u) {
-                apx += ndx * seg_len;
-                apy += ndy * seg_len;
-                apz += ndz * seg_len;
-            }
-        }
-
-        // Arm indices
-        for (var s = 0u; s < arm_segs_u; s++) {
-            for (var seg = 0u; seg < arm_around; seg++) {
-                let next_seg = (seg + 1u) % arm_around;
-                let row0 = arm_vi_start + s * arm_around;
-                let row1 = arm_vi_start + (s + 1u) * arm_around;
-
-                cactusg_indices[ib_base + ii] = vb_base + row0 + seg; ii++;
-                cactusg_indices[ib_base + ii] = vb_base + row1 + seg; ii++;
-                cactusg_indices[ib_base + ii] = vb_base + row1 + next_seg; ii++;
-                cactusg_indices[ib_base + ii] = vb_base + row0 + seg; ii++;
-                cactusg_indices[ib_base + ii] = vb_base + row1 + next_seg; ii++;
-                cactusg_indices[ib_base + ii] = vb_base + row0 + next_seg; ii++;
-            }
-        }
-
-        // ── Arm cap: the tip fans DIRECTLY to the last body ring ──
-        // The cap used to emit its OWN ring at arm_r * 0.6 while the last
-        // body ring sat at arm_r * 0.7 with rib modulation — two concentric
-        // rings at the same height, unstitched, leaving an open annulus all
-        // the way round every arm tip. Fanning to the body ring closes it
-        // and deletes the ring's vertices outright.
-        //
-        // THE FAN USES arm_around, NOT the old min(arm_around, 8u). Those
-        // two differ at every tier's mu (arm_around 12 against a cap of 8),
-        // so a fan over the cap count would have skipped a third of the
-        // ring it is stitching to.
-        //
-        // Winding is taken from the body's own quad, not guessed: the body
-        // writes (row0+seg, row1+seg, row1+next) then (row0+seg, row1+next,
-        // row0+next). The tip plays row1, so the first triangle degenerates
-        // and the second is what survives — (last+seg, tip, last+next). That
-        // is the OPPOSITE cyclic order from the deleted cap fan, which wound
-        // against its own separate ring.
-        let arm_cap_r = arm_r * 0.6;
-        let arm_cap_tip = vi;
-        cactusg_write_vertex(vb_base + vi,
-            apx, apy + arm_cap_r * 0.6, apz,
-            0.0, 1.0, 0.0,
-            cap_col_r, cap_col_g, cap_col_b, slot);
-        vi++;
-
-        let arm_last_ring = arm_vi_start + arm_segs_u * arm_around;
-        for (var seg = 0u; seg < arm_around; seg++) {
-            let next = (seg + 1u) % arm_around;
-            cactusg_indices[ib_base + ii] = vb_base + arm_last_ring + seg;  ii++;
-            cactusg_indices[ib_base + ii] = vb_base + arm_cap_tip;          ii++;
-            cactusg_indices[ib_base + ii] = vb_base + arm_last_ring + next; ii++;
-        }
-    }
-
-    // Zero remaining indices — `used` was the final ii, which no lane holds.
-    let used = trunk_indices + n_arms * indices_per_arm;
-    for (var i = used + lane; i < CACTUSG_MAX_INDICES_PER_SLOT; i += MESHGEN_LANES) {
-        cactusg_indices[ib_base + i] = vb_base;
-    }
-}
-
-// ─── Cactus vertex shaders ──────────────────────────────────────────
-
-@vertex
-fn cactus_vs(in: ArchVertexInput) -> EntityVarying {
-    let idx = u32(in.arch_index);
-    let ground_y = textureLoad(entity_ground_atlas, vec2<i32>(i32(idx) + GROUND_ATLAS_CACTUS, 0), 0).r;
-    var world_pos = in.pos + vec3(0.0, ground_y, 0.0);
-    world_pos.y += sample_live_card(world_pos.xz).x;
-    var out: EntityVarying;
-    out.clip_pos = frame_r.vp.m * vec4(world_pos, 1.0);
-    out.world_pos = world_pos;
-    out.normal = in.normal;
-    out.entity_color = in.color;
-    // THE RING (draw authority) — see palm_vs: per-vertex kill beyond the ring.
-    if (distance(world_pos.xz, vec2(config.lod_point_x, config.lod_point_z)) > config.veil_ring) {
-        out.clip_pos = vec4(0.0, 0.0, -1e4, 1.0);
-    }
-    return out;
-}
-
-@vertex
-fn shadow_cactus_vs(in: ArchVertexInput) -> ShadowVarying {
-    let idx = u32(in.arch_index);
-    let ground_y = textureLoad(entity_ground_atlas, vec2<i32>(i32(idx) + GROUND_ATLAS_CACTUS, 0), 0).r;
     var world_pos = in.pos + vec3(0.0, ground_y, 0.0);
     world_pos.y += sample_live_card(world_pos.xz).x;
     var out: ShadowVarying;

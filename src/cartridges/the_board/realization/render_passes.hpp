@@ -106,12 +106,11 @@ inline void upload_ground_entries(MachineCtx* c, wgpu::Queue& queue) {
     }
     c->gpuState_.upload_column_origins(queue, columnOrigins, Dim::MAX_COLUMN_INSTANCES);
 
-    // ── Plant ground entries (palm + cactus) ──
-    // Combined compute buffer: [0..23] palm, [24..43] cactus.
+    // ── Plant ground entries (palm) ──
+    // Compute buffer: [0..23] palm.
     // Individual render uniform buffers kept for VS bindings (383, 384, 385).
     static constexpr uint32_t PALM_OFF = 0;
-    static constexpr uint32_t CACT_OFF = Dim::MAX_PALM_INSTANCES;
-    static constexpr uint32_t PLANT_COUNT = CACT_OFF + Dim::MAX_CACTUS_INSTANCES;
+    static constexpr uint32_t PLANT_COUNT = PALM_OFF + Dim::MAX_PALM_INSTANCES;
 
     GPUPalmGroundEntry plantOrigins[PLANT_COUNT]{};
 
@@ -121,13 +120,6 @@ inline void upload_ground_entries(MachineCtx* c, wgpu::Queue& queue) {
         plantOrigins[PALM_OFF + i].center_z = c->entities_state_.palms[i].world_z;
         plantOrigins[PALM_OFF + i].is_active = 1;
         plantOrigins[PALM_OFF + i].ground_y = c->entities_state_.palms[i].cached_ground_y;
-    }
-    for (uint32_t i = 0; i < Dim::MAX_CACTUS_INSTANCES; i++) {
-        if (!c->entities_state_.cacti[i].active) continue;
-        plantOrigins[CACT_OFF + i].center_x = c->entities_state_.cacti[i].world_x;
-        plantOrigins[CACT_OFF + i].center_z = c->entities_state_.cacti[i].world_z;
-        plantOrigins[CACT_OFF + i].is_active = 1;
-        plantOrigins[CACT_OFF + i].ground_y = c->entities_state_.cacti[i].cached_ground_y;
     }
 
     // One write to the combined compute storage buffer
@@ -177,7 +169,6 @@ inline void stage_draw_ledger(MachineCtx* c, OrbsState& orbs_state_) {
     g.stage_draw_indexed(GPUState::DR_ARCH,   g.arch_index_count(),   1u);
     g.stage_draw_indexed(GPUState::DR_COLUMN, g.column_index_count(), 1u);
     g.stage_draw_indexed(GPUState::DR_PALM,   g.palm_index_count(),   1u);
-    g.stage_draw_indexed(GPUState::DR_CACTUS, g.cactus_index_count(), 1u);
     g.stage_draw_indexed(GPUState::DR_SHELL,  g.shell_index_count(),  1u);
 
     // The ribbon: RIBBON_1's live vertex count, and its liveness. A ribbon

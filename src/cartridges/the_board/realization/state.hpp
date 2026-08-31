@@ -141,7 +141,7 @@ namespace t7 {
             // (LATTICE_4 R-A). Every entity VS samples the card at its
             // VERTEX position, and a mesh reaches past its anchor. The
             // binding case is the arch: `arch_vs` has NO ring gate (unlike
-            // palm/cactus, which kill per vertex beyond veil_ring), so
+            // palm, which kills per vertex beyond veil_ring), so
             // an arch anywhere in the allocation window is drawn and read at
             // every vertex. Its per-axis reach is half_span + half_depth,
             // and cpu_sample_gaussian clamps z to ±3, so the widest is
@@ -354,13 +354,6 @@ namespace t7 {
             constexpr uint32_t PALMG_TOTAL_VERTICES = MAX_PALM_INSTANCES * PALMG_MAX_VERTS_PER_SLOT;   // 28800
             constexpr uint32_t PALMG_TOTAL_INDICES = MAX_PALM_INSTANCES * PALMG_MAX_INDICES_PER_SLOT; // 144000
 
-            // Generative cacti — GPU mesh gen (slot-based addressing)
-            constexpr uint32_t MAX_CACTUS_INSTANCES = 20;
-            constexpr uint32_t CACTUSG_MAX_VERTS_PER_SLOT = 1500;
-            constexpr uint32_t CACTUSG_MAX_INDICES_PER_SLOT = 7998;  // must be divisible by 3!
-            constexpr uint32_t CACTUSG_TOTAL_VERTICES = MAX_CACTUS_INSTANCES * CACTUSG_MAX_VERTS_PER_SLOT;
-            constexpr uint32_t CACTUSG_TOTAL_INDICES = MAX_CACTUS_INSTANCES * CACTUSG_MAX_INDICES_PER_SLOT;
-
             // Entity ground atlas (r32float, 256×1 — VS reads ground_y via textureLoad)
             constexpr uint32_t GROUND_ATLAS_WIDTH = 256;
             constexpr uint32_t GROUND_ATLAS_ARCH = 0;    // 16 slots
@@ -369,8 +362,7 @@ namespace t7 {
             // cut, then the write path — the ground-atlas residue). Do NOT re-pack; the
             // offsets below are hand-mirrored with world.wgsl's atlas table.
             constexpr uint32_t GROUND_ATLAS_PALM = 56;   // 24 slots
-            constexpr uint32_t GROUND_ATLAS_CACTUS = 80;   // 20 slots
-            constexpr uint32_t GROUND_ATLAS_USED = 100;
+            constexpr uint32_t GROUND_ATLAS_USED = 80;
 
             // GoL zone system — per-zone automaton grids
             constexpr uint32_t MAX_GOL_ZONES = 8;
@@ -1415,40 +1407,6 @@ namespace t7 {
         };
         static_assert(sizeof(GPUPalmGroundEntry) == 32, "GPUPalmGroundEntry must be 32 bytes");
 
-        // ─── Cactus GPU structs ──────────────────────────────────────────
-        //
-        // MUST match world.wgsl::CactusMeshParams (§9.4).
-        // If this struct gains/loses a field, the WGSL side and
-        // its sizeof static_assert must be updated together.
-        // 21 floats + 4 uint32_t = 100 bytes data + 28 bytes pad = 128
-        struct alignas(16) GPUCactusMeshParams {
-            float center_x, center_z;                    // 2 floats
-            float height, radius, taper;                 // 3 floats
-            float ribs, rib_depth;                       // 2 floats
-            float lean, lean_dir;                        // 2 floats
-            float cap_round;                             // 1 float
-            float arm_count;                             // 1 float
-            float arm_height, arm_length, arm_radius;    // 3 floats
-            float arm_curve;                             // 1 float
-            float body_r, body_g, body_b;                // 3 floats
-            float rib_r, rib_g, rib_b;                   // 3 floats  = 21 floats
-            uint32_t trunk_segs, arm_segs;               // 2 uint32
-            uint32_t is_active;                          // 1 uint32
-            uint32_t seed;                               // 1 uint32  = 4 uint32 = 25 fields = 100 bytes
-            float _pad0, _pad1, _pad2, _pad3, _pad4, _pad5, _pad6;  // 7 pad = 128 bytes
-        };
-        static_assert(sizeof(GPUCactusMeshParams) == 128,
-            "GPUCactusMeshParams must be 128 bytes — keep in sync with world.wgsl::CactusMeshParams");
-
-        struct alignas(16) GPUCactusGroundEntry {
-            float center_x;
-            float center_z;
-            float ground_y;
-            uint32_t is_active;
-            float _pad0, _pad1, _pad2, _pad3;
-        };
-        static_assert(sizeof(GPUCactusGroundEntry) == 32, "GPUCactusGroundEntry must be 32 bytes");
-
         // GoL zone config — per-zone parameters for compute + fragment shader
         struct alignas(16) GPUGoLZoneConfig {
             float origin[2];
@@ -2097,7 +2055,7 @@ namespace t7 {
         // arrayStride the render/shadow pipelines declare — the stride is ALSO the WGSL
         // ArchVertexInput/ShellVertexInput layout, so this is the C++<->WGSL contract that
         // was previously unguarded. ArchVertex is the
-        // SHARED format for five families (arch/column/palm/cactus/pyramid mesh-gen).
+        // SHARED format for four families (arch/column/palm/pyramid mesh-gen).
         static_assert(sizeof(ArchVertex) == 40, "ArchVertex must be 40 bytes (arch/shadow VBL arrayStride = 40; WGSL ArchVertexInput)");
         static_assert(sizeof(ShellVertex) == 36, "ShellVertex must be 36 bytes (shell/shadow VBL arrayStride = 36; WGSL ShellVertexInput)");
         static_assert(sizeof(GPUPatchParams) == 16, "LATTICE_1: the twin is 16 bytes");
@@ -2163,7 +2121,7 @@ namespace t7 {
             // (GPUState::DR_ARCH). The ledger's own prose lives with its
             // methods, beside reset_frustum_indirect.
             enum DrawRecord : uint32_t {
-                DR_ARCH, DR_COLUMN, DR_PALM, DR_CACTUS, DR_SHELL,
+                DR_ARCH, DR_COLUMN, DR_PALM, DR_SHELL,
                 DR_RIBBON, DR_ORBS,
                 DR_SHADOW_TERRAIN,          // both bands at LOD1 density, ONE draw
                 DR_COUNT
@@ -2331,12 +2289,8 @@ namespace t7 {
             wgpu::Buffer palmMeshParamsBuffer_;
             uint32_t palmIndexCount_ = 0;
 
-            wgpu::Buffer cactusVertexBuffer_, cactusIndexBuffer_;
-            wgpu::Buffer cactusMeshParamsBuffer_;
-            uint32_t cactusIndexCount_ = 0;
-
-            // Combined palm+cactus ground buffer for compute Y-correction.
-            // [0..23] palm, [24..43] cactus.  One storage binding.
+            // The palm ground buffer for compute Y-correction.
+            // [0..23] palm.  One storage binding.
             wgpu::Buffer plantComputeGroundBuffer_;
 
             wgpu::Buffer pyramidInstancesBuffer_;  // GPU-side pyramid array for heightfield baking (LIVE)
@@ -2386,7 +2340,6 @@ namespace t7 {
             wgpu::BindGroup meshgenStateGroup_;
             wgpu::BindGroup meshgenStateColumnGroup_;
             wgpu::BindGroup meshgenStatePalmGroup_;
-            wgpu::BindGroup meshgenStateCactusGroup_;
             wgpu::BindGroup orbsAStateGroup_;
             wgpu::BindGroup orbsBStateGroup_;
             wgpu::BindGroup patchgenStateGroup_;
@@ -2859,7 +2812,6 @@ namespace t7 {
             wgpu::BindGroup meshgen_state_group() const { return meshgenStateGroup_; }
             wgpu::BindGroup meshgen_state_column_group() const { return meshgenStateColumnGroup_; }
             wgpu::BindGroup meshgen_state_palm_group() const { return meshgenStatePalmGroup_; }
-            wgpu::BindGroup meshgen_state_cactus_group() const { return meshgenStateCactusGroup_; }
             wgpu::BindGroup orbs_a_state_group() const { return orbsAStateGroup_; }
             wgpu::BindGroup orbs_b_state_group() const { return orbsBStateGroup_; }
             wgpu::BindGroup patchgen_state_group() const { return patchgenStateGroup_; }
@@ -3335,15 +3287,6 @@ namespace t7 {
                 writeSlot(queue, palmMeshParamsBuffer_, slot, params);
             }
 
-
-            // --- Cactus accessors and upload ---
-            wgpu::Buffer cactus_vertex_buffer() const { return cactusVertexBuffer_; }
-            wgpu::Buffer cactus_index_buffer() const { return cactusIndexBuffer_; }
-            uint32_t cactus_index_count() const { return cactusIndexCount_; }
-            void set_cactus_index_count(uint32_t count) { cactusIndexCount_ = count; }
-            void upload_cactus_mesh_params_slot(wgpu::Queue& queue, uint32_t slot, const GPUCactusMeshParams& params) {
-                writeSlot(queue, cactusMeshParamsBuffer_, slot, params);
-            }
 
             wgpu::Buffer plant_compute_ground_buffer() const { return plantComputeGroundBuffer_; }
 
@@ -4273,7 +4216,7 @@ namespace t7 {
                     q.WriteBuffer(patchIndexBufferLOD1_, 0, idx.data(), ib_bytes_u16(patchIndexCountRingZoned_));
                 }
 
-                return createSphereMesh() && createMonolithMesh() && createArchMesh() && createColumnMesh() && createPalmMesh() && createCactusMesh() && createPyramidMesh() && createShellMesh() && createGoLZoneBuffers();
+                return createSphereMesh() && createMonolithMesh() && createArchMesh() && createColumnMesh() && createPalmMesh() && createPyramidMesh() && createShellMesh() && createGoLZoneBuffers();
             }
 
             bool createSphereMesh() {
@@ -4473,7 +4416,7 @@ namespace t7 {
             }
 
             bool createPalmMesh() {
-                // LATENT[gate-a-shared] palm (SH·dc): VB/IB/params exclusive+droppable, but co-owns plantComputeGroundBuffer_ (palm+cactus) and draw_palm isn't self-count-gated. Retire = draw self-gate, then skip.
+                // LATENT[gate-a-shared] palm (SH·dc): VB/IB/params exclusive+droppable, and it now solely owns plantComputeGroundBuffer_ (allocated below); draw_palm isn't self-count-gated. Retire = draw self-gate, then skip.
                 palmVertexBuffer_ = makeBuffer("Palm VB (GPU mesh gen)",
                     Dim::PALMG_TOTAL_VERTICES * sizeof(ArchVertex),
                     wgpu::BufferUsage::Vertex | wgpu::BufferUsage::CopyDst | wgpu::BufferUsage::Storage);
@@ -4497,38 +4440,11 @@ namespace t7 {
                     std::vector<uint8_t> zeros(Dim::PALMG_TOTAL_VERTICES * sizeof(ArchVertex), 0);
                     device_.GetQueue().WriteBuffer(palmVertexBuffer_, 0, zeros.data(), zeros.size());
                 }
-                return true;
-            }
 
-            bool createCactusMesh() {
-                // LATENT[gate-a-shared] cactus (SH·dc): VB/IB/params exclusive+droppable, but co-owns plantComputeGroundBuffer_ (palm+cactus, allocated below) and draw_cactus isn't self-count-gated. Retire = draw self-gate, then skip.
-                cactusVertexBuffer_ = makeBuffer("Cactus VB (GPU mesh gen)",
-                    Dim::CACTUSG_TOTAL_VERTICES * sizeof(ArchVertex),
-                    wgpu::BufferUsage::Vertex | wgpu::BufferUsage::CopyDst | wgpu::BufferUsage::Storage);
-                cactusIndexBuffer_ = makeBuffer("Cactus IB (GPU mesh gen)",
-                    Dim::CACTUSG_TOTAL_INDICES * sizeof(uint32_t),
-                    wgpu::BufferUsage::Index | wgpu::BufferUsage::CopyDst | wgpu::BufferUsage::Storage);
-                cactusMeshParamsBuffer_ = makeBuffer("Cactus Mesh Params",
-                    Dim::MAX_CACTUS_INSTANCES * sizeof(GPUCactusMeshParams),
-                    wgpu::BufferUsage::Storage | wgpu::BufferUsage::CopyDst);
-                if (!cactusVertexBuffer_ || !cactusIndexBuffer_ ||
-                    !cactusMeshParamsBuffer_) return false;
-                cactusIndexCount_ = 0;
-                {
-                    GPUCactusMeshParams emptyParams[Dim::MAX_CACTUS_INSTANCES]{};
-                    device_.GetQueue().WriteBuffer(cactusMeshParamsBuffer_, 0, emptyParams,
-                        sizeof(GPUCactusMeshParams) * Dim::MAX_CACTUS_INSTANCES);
-                }
-                {
-                    std::vector<uint8_t> zeros(Dim::CACTUSG_TOTAL_VERTICES * sizeof(ArchVertex), 0);
-                    device_.GetQueue().WriteBuffer(cactusVertexBuffer_, 0, zeros.data(), zeros.size());
-                }
-
-                // Combined plant ground buffer for compute (palm + cactus).
-                // Allocated by the LAST plant creator in the boot chain, so the
-                // organ outlives any one plant but never outlives them all.
-                static constexpr uint32_t PLANT_GROUND_COUNT =
-                    Dim::MAX_PALM_INSTANCES + Dim::MAX_CACTUS_INSTANCES;
+                // The plant ground buffer for compute. Allocated by the LAST
+                // plant creator in the boot chain, so the organ outlives any
+                // one plant but never outlives them all.
+                static constexpr uint32_t PLANT_GROUND_COUNT = Dim::MAX_PALM_INSTANCES;
                 plantComputeGroundBuffer_ = makeBuffer("Plant Compute Ground Y",
                     PLANT_GROUND_COUNT * sizeof(GPUPalmGroundEntry),
                     wgpu::BufferUsage::Storage | wgpu::BufferUsage::CopyDst);

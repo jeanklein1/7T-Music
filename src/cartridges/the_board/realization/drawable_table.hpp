@@ -11,7 +11,7 @@
 // PIXEL-SAFETY. Every drawable IN THIS TABLE is OPAQUE (depth-tested,
 // depth-write, no blend — or an alpha=1.0 output that makes SrcAlpha a
 // no-op): terrain(fork), pawn, sphere, monolith, ribbon, arch,
-// column, palm, cactus, shell. Draw
+// column, palm, shell. Draw
 // order among OPAQUE geometry is immaterial — the depth test resolves
 // visibility identically regardless of order — so the ONE canonical order
 // (the shadow order) reproduces every pass pixel-for-pixel, and the ribbon
@@ -134,13 +134,6 @@ inline void dt_palm(Renderer& r, GPUState& g, Enc& p, const DrawBind& b) {
                                   g.draw_ledger_buffer(), GPUState::draw_record_offset(GPUState::DR_PALM));
 }
 template <class Enc>
-inline void dt_cactus(Renderer& r, GPUState& g, Enc& p, const DrawBind& b) {
-    if (b.shadow) r.draw_shadow_cactus(p, g.cactus_vertex_buffer(), g.cactus_index_buffer(),
-                                  g.draw_ledger_buffer(), GPUState::draw_record_offset(GPUState::DR_CACTUS));
-    else          r.draw_cactus       (p, g.cactus_vertex_buffer(), g.cactus_index_buffer(),
-                                  g.draw_ledger_buffer(), GPUState::draw_record_offset(GPUState::DR_CACTUS));
-}
-template <class Enc>
 inline void dt_shell(Renderer& r, GPUState& g, Enc& p, const DrawBind& b) {
     if (b.shadow) r.draw_shadow_shell(p, g.shell_vertex_buffer(), g.shell_index_buffer(),
                                   g.draw_ledger_buffer(), GPUState::draw_record_offset(GPUState::DR_SHELL));
@@ -159,7 +152,6 @@ inline const Drawable<Enc> DRAWABLES[] = {
     { "arch",     DRAW_SHADOW | DRAW_MAIN, dt_arch<Enc>     },
     { "column",   DRAW_SHADOW | DRAW_MAIN, dt_column<Enc>   },
     { "palm",     DRAW_SHADOW | DRAW_MAIN, dt_palm          },
-    { "cactus",   DRAW_SHADOW | DRAW_MAIN, dt_cactus        },
     { "shell",    DRAW_SHADOW | DRAW_MAIN, dt_shell<Enc>    },
 };
 

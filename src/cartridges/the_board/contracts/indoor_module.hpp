@@ -68,7 +68,6 @@ inline constexpr IndoorTreatment INDOOR_TREATMENT[PopFamily::COUNT] = {
     /* column  */ { IndoorSize::EXACT,   IndoorBounds::MARGIN },  // architectural: touches the ceiling
     /* antenna */ { IndoorSize::CAP,     IndoorBounds::MARGIN },
     /* palm    */ { IndoorSize::CAP,     IndoorBounds::MARGIN },
-    /* cactus  */ { IndoorSize::CAP,     IndoorBounds::MARGIN },  // TUNE_1 A8: was NATURAL
     /* sphere  */ { IndoorSize::CAP,     IndoorBounds::MARGIN },
     /* ribbon  */ { IndoorSize::CAP,     IndoorBounds::FULL   },  // pre-scaled by RIBBON_INDOOR_SCALE; stays inside
     /* cube    */ { IndoorSize::CAP,     IndoorBounds::MARGIN },
@@ -77,12 +76,11 @@ inline constexpr IndoorTreatment INDOOR_TREATMENT[PopFamily::COUNT] = {
 
 static_assert(PopFamily::PYRAMID == 0 && PopFamily::ARCH    == 1
            && PopFamily::COLUMN  == 2 && PopFamily::ANTENNA == 3
-           && PopFamily::PALM    == 4 && PopFamily::CACTUS  == 5
-           && PopFamily::SPHERE  == 6 && PopFamily::RIBBON  == 7
-           && PopFamily::CUBE    == 8 && PopFamily::GOL     == 9
-           && PopFamily::COUNT   == 10,
+           && PopFamily::PALM    == 4 && PopFamily::SPHERE  == 5
+           && PopFamily::RIBBON  == 6 && PopFamily::CUBE    == 7
+           && PopFamily::GOL     == 8 && PopFamily::COUNT   == 9,
     "INDOOR_TREATMENT rows ride F-1's PopFamily order — pyramid, arch, "
-    "column, antenna, palm, cactus, sphere, ribbon, cube, "
+    "column, antenna, palm, sphere, ribbon, cube, "
     "gol: re-row this table in lockstep before renumbering any family");
 
 // ─── THE CAP LAW (shared) ────────────────────────────────────────

@@ -219,7 +219,7 @@ inline void generic_commit(MachineCtx* c,
     c->world_state_.ground_entries_dirty = true;
 }
 
-// ═══ FAMILIES: PALM / CACTUS — RELOCATED ═════════════════════════
+// ═══ FAMILY: PALM — RELOCATED ════════════════════════════════════
 
 // ═══ FAMILY: COLUMN + ANTENNA ═════════════════════════════════════
 
@@ -1163,7 +1163,6 @@ T7_GATE_PIN(ARCH_TRAITS,    PopFamily::ARCH,    Dim::MAX_ARCH_INSTANCES,    true
 T7_GATE_PIN(COLUMN_TRAITS,  PopFamily::COLUMN,  Dim::MAX_COLUMN_ONLY,       true,  ColumnProp::SPAWN_ROLL,  ColumnConfig::SPAWN_CHANCE,      0u);
 T7_GATE_PIN(ANTENNA_TRAITS, PopFamily::ANTENNA, Dim::MAX_ANTENNA_ONLY,      true,  AntennaProp::SPAWN_ROLL, AntennaConfig::SPAWN_CHANCE,     0u);
 T7_GATE_PIN(PALM_TRAITS,    PopFamily::PALM,    Dim::MAX_PALM_INSTANCES,    true,  PalmProp::SPAWN_ROLL,    PalmConfig::SPAWN_CHANCE,        3u);
-T7_GATE_PIN(CACTUS_TRAITS,  PopFamily::CACTUS,  Dim::MAX_CACTUS_INSTANCES,  true,  CactusProp::SPAWN_ROLL,  CactusConfig::SPAWN_CHANCE,      2u);
 T7_GATE_PIN(SPHERE_TRAITS,  PopFamily::SPHERE,  Dim::MAX_SPHERE_INSTANCES,  false, SphereProp::SPAWN_ROLL,  SphereConfig::SPAWN_CHANCE,      0u);
 T7_GATE_PIN(CUBE_TRAITS,    PopFamily::CUBE,    Dim::MAX_CUBE_INSTANCES,    false, CubeProp::SPAWN_ROLL,    CubeConfig::SPAWN_CHANCE,        0u);
 
@@ -1176,7 +1175,6 @@ static_assert(ARCH_TRAITS.color_parts    == nullptr,            "ARCH_TRAITS col
 static_assert(COLUMN_TRAITS.color_parts  == nullptr,            "COLUMN_TRAITS color_parts");
 static_assert(ANTENNA_TRAITS.color_parts == nullptr,            "ANTENNA_TRAITS color_parts");
 static_assert(PALM_TRAITS.color_parts    == PALM_COLOR_PARTS,   "PALM_TRAITS color_parts");
-static_assert(CACTUS_TRAITS.color_parts  == CACTUS_COLOR_PARTS, "CACTUS_TRAITS color_parts");
 static_assert(SPHERE_TRAITS.color_parts  == nullptr,            "SPHERE_TRAITS color_parts");
 static_assert(CUBE_TRAITS.color_parts    == nullptr,            "CUBE_TRAITS color_parts");
 

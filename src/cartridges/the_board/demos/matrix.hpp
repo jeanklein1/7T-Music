@@ -53,8 +53,8 @@ namespace the_board {
 // pins the count.
 namespace Piece {
 enum : uint32_t {
-    // 10 families (PopFamily order)
-    pyramid, arch, column, antenna, palm, cactus,
+    // 9 families (PopFamily order)
+    pyramid, arch, column, antenna, palm,
     sphere, ribbon, cube, gol,
     // 7 features
     pawn_aura, orbs, spot_lights, indoor_shell, portal, transitions, wanderers,
@@ -80,7 +80,6 @@ inline constexpr bool GRID[Piece::COUNT][static_cast<uint32_t>(DemoCol::COUNT)] 
     /* column         */  {  true,  false },
     /* antenna        */  {  true,  false },
     /* palm           */  {  true,  false },
-    /* cactus         */  {  true,  false },
     /* sphere         */  {  true,  false },
     /* ribbon         */  {  true,  false },
     /* cube           */  {  true,  false },
@@ -111,7 +110,7 @@ constexpr Roster column_to_roster(DemoCol d) {
     const uint32_t c = static_cast<uint32_t>(d);
     return Roster{
         GRID[Piece::pyramid][c], GRID[Piece::arch][c], GRID[Piece::column][c],
-        GRID[Piece::antenna][c], GRID[Piece::palm][c], GRID[Piece::cactus][c],
+        GRID[Piece::antenna][c], GRID[Piece::palm][c],
         GRID[Piece::sphere][c], GRID[Piece::ribbon][c],
         GRID[Piece::cube][c], GRID[Piece::gol][c],
         GRID[Piece::pawn_aura][c], GRID[Piece::orbs][c], GRID[Piece::spot_lights][c],
@@ -133,8 +132,8 @@ constexpr DemoConfig demo_config(DemoCol d) {
 // (1) the row count equals Roster's field count — the field-order
 //     mapping in column_to_roster is total. (Add a field to Roster ⇒
 //     add a Piece row ⇒ this trips until they agree.)
-static_assert(Piece::COUNT == 17,
-    "matrix: Piece row count must equal Roster's 17 fields (10 families + 7 features)");
+static_assert(Piece::COUNT == 16,
+    "matrix: Piece row count must equal Roster's 16 fields (9 families + 7 features)");
 
 // (2) THE BYTE-EQUIVALENCE GOLDEN (Jean's mandatory gate). The two
 //     migrated columns are pinned to the retired headers' exact values,

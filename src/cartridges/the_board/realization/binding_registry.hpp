@@ -9,12 +9,12 @@
 // four strata of the LOOM_2 recut — WORLD, FRAME, FAMILY-STATE,
 // FAMILY-TEXTURES), and ONE CONSTANT PER SLOT; a slot may carry
 // several declarations (the fc_ cull aliases; the MESHGEN
-// convergence, where four kernels' scratch trios share three
-// numbers so three families fit one layout).
+// convergence, where three kernels' scratch trios share three
+// numbers so two families fit one layout).
 //
-// The WGSL @binding literals in world.wgsl (78 declarations over 66 slots;
+// The WGSL @binding literals in world.wgsl (75 declarations over 66 slots;
 // aliases: fc_config, fc_patches, fc_vp,
-// and the 9 MESHGEN convergence names)
+// and the 6 MESHGEN convergence names)
 // are a MIRROR of this file, kept in lockstep by boot-time
 // validation and by binding_gen.py --check. The render = compute
 // + 200 witness band is RETIRED — its epitaph closes this file.
@@ -109,9 +109,9 @@ namespace t7 {
                 inline constexpr uint32_t ribbon_body_read            = 145;  // the agents' room's read of the same home: the mount reads .saddle, the field reads .emit
 
                 // MESHGEN (180–199)
-                inline constexpr uint32_t amg_params                  = 180;  // aka cactusg_params / cmg_params / palmg_params
-                inline constexpr uint32_t amg_vertices                = 181;  // aka cactusg_vertices / cmg_vertices / palmg_vertices
-                inline constexpr uint32_t amg_indices                 = 182;  // aka cactusg_indices / cmg_indices / palmg_indices
+                inline constexpr uint32_t amg_params                  = 180;  // aka cmg_params / palmg_params
+                inline constexpr uint32_t amg_vertices                = 181;  // aka cmg_vertices / palmg_vertices
+                inline constexpr uint32_t amg_indices                 = 182;  // aka cmg_indices / palmg_indices
                 inline constexpr uint32_t cmg_config                  = 183;  // DesignConfig view for the cmg kernel (the ceiling gate)
 
                 // SCENE (200–219)
