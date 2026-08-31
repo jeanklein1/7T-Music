@@ -340,7 +340,6 @@ PIPELINES = {
     'shadowArchPipeline_': {'label': 'Shadow Catenary Arch', 'kind': 'render', 'layouts': ['worldLayout_', 'frameRLayout_', 'shadowStateLayout_', 'shadowTexturesLayout_'], 'vs': 'shadow_arch_vs', 'fs': None, 'cs': None, 'vertex_buffers': 1, 'vertex_attributes': 4, 'color_targets': 0, 'roster_gate': 'ROSTER.arch'},
     'shadowShellPipeline_': {'label': 'Shadow Indoor Shell', 'kind': 'render', 'layouts': ['worldLayout_', 'frameRLayout_', 'shadowStateLayout_', 'shadowTexturesLayout_'], 'vs': 'shadow_shell_vs', 'fs': None, 'cs': None, 'vertex_buffers': 1, 'vertex_attributes': 3, 'color_targets': 0, 'roster_gate': 'ROSTER.indoor_shell'},
     'shadowRibbonPipeline_': {'label': 'Shadow Sky Ribbon', 'kind': 'render', 'layouts': ['worldLayout_', 'frameRLayout_', 'shadowStateLayout_', 'shadowTexturesLayout_'], 'vs': 'shadow_ribbon_vs', 'fs': None, 'cs': None, 'vertex_buffers': 0, 'vertex_attributes': 0, 'color_targets': 0, 'roster_gate': 'ROSTER.ribbon'},
-    'fadeOverlayPipeline_': {'label': 'Fade Overlay', 'kind': 'render', 'layouts': ['worldLayout_', 'emptyLayout_', 'emptyLayout_', 'emptyLayout_'], 'vs': 'fade_overlay_vs', 'fs': 'fade_overlay_fs', 'cs': None, 'vertex_buffers': 0, 'vertex_attributes': 0, 'color_targets': 1, 'roster_gate': ''},
 }
 
 REGISTRY_FILE_BANNER = [

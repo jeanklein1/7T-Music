@@ -230,12 +230,6 @@ ORGAN_PARAM_RO(CONFIG, GPUDesignConfig, checker_resultant,      VEC3, "Atmospher
 ORGAN_PARAM_RO(CONFIG, GPUDesignConfig, checker_music_amount,   F32,  "Atmosphere · Checker", "amount (driven)")
 ORGAN_PARAM_RO(CONFIG, GPUDesignConfig, checker_music_variance, F32,  "Atmosphere · Checker", "variance (driven)")
 
-// ─── Atmosphere · Transition (witnesses only) ───────────────────
-// The transition fade is authored per frame by the transition system, so
-// a dial here would fight an author and lose confusingly.
-ORGAN_PARAM_RO(CONFIG, GPUDesignConfig, fade_alpha,       F32,  "Atmosphere · Transition", "fade alpha (driven)")
-ORGAN_PARAM_RO(CONFIG, GPUDesignConfig, fade_color,       VEC3, "Atmosphere · Transition", "fade colour (driven)")
-
 
 // ─── Atmosphere · Fog envelope ──────────────────────────────────
 // CANVAS_LIVE (coupling/canvas_surface.hpp), block 9. An ENVELOPE

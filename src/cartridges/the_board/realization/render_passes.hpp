@@ -662,9 +662,10 @@ inline void render_main_pass(MachineCtx* c, wgpu::CommandEncoder& encoder,
     // Group 1 carries the shadow_slot dynamic seat, so the bind passes
     // one offset; nothing outside the shadow atlas reads it.
     // BUNDLE_1: the opaque list is one recorded bundle, head binds included
-    // — ExecuteBundles resets pass state, so the bundle carries its own and
-    // the fade below rebinds for itself. The direct arm cannot drift from
-    // the bundle: both call encode_main_opaque.
+    // — ExecuteBundles resets pass state, so the bundle carries its own.
+    // Nothing draws after it now (ONE_WORLD-I took the fade), so the reset
+    // is the pass's last word. The direct arm cannot drift from the
+    // bundle: both call encode_main_opaque.
     if (c->renderer_.main_bundle_ready()) {
         wgpu::RenderBundle mb = c->renderer_.main_bundle();
         pass.ExecuteBundles(1, &mb);
@@ -675,35 +676,11 @@ inline void render_main_pass(MachineCtx* c, wgpu::CommandEncoder& encoder,
         encode_main_opaque(c, pass, orbs_state_, orbs_deps_);
     }
 
-    // THE FADE REBINDS FOR ITSELF. ExecuteBundles resets every bind, so
-    // group 0 — which used to come from the pass head — is restated here
-    // with the three EMPTY strata the fade's layout wants.
-    pass.SetBindGroup(0, c->gpuState_.world_group());
-
-    // The fade's own bit — the one mask read that stays in the pass,
-    // because the fade is the one draw that stays out of the bundle.
-    const uint32_t dmask = c->gpuState_.config().draw_mask;
-
-    // Fade overlay (drawn last, alpha blended over everything)
-    // LOOM_2: the fade overlay binds WORLD only; its other strata are
-    // the shared EMPTY filler (A5).
-    pass.SetBindGroup(1, c->gpuState_.empty_group());
-    pass.SetBindGroup(2, c->gpuState_.empty_group());
-    pass.SetBindGroup(3, c->gpuState_.empty_group());
-    // ONE FACT, ONE HOME (LATTICE_4). The gate inside draw_fade_overlay
-    // decides whether the blend can move a pixel, and the shader reads
-    // config.fade_alpha — so the gate reads the STAGED value, never a
-    // CPU-side field it was staged from. NOTHING STAGES IT ANY MORE
-    // (ONE_WORLD-I): the transition machine's fade alpha was the only
-    // driver, set_fade lost its last caller with it, and the field rests
-    // at the zero initialize() pins. The gate below therefore refuses
-    // every frame. The law stands for whatever drives it next; the
-    // overlay itself is the sweep's to rule on.
-    if (dmask & DrawBit::FADE)
-    c->renderer_.draw_fade_overlay(
-        pass,
-        c->gpuState_.config().fade_alpha
-    );
+    // THE FADE REBOUND FOR ITSELF HERE — a world_group() restatement after
+    // ExecuteBundles, the three EMPTY strata its layout wanted, its own
+    // draw_mask read and the LATTICE_4 rest gate. All of it left with the
+    // overlay (ONE_WORLD-I). The bundle's binds are the pass's last word
+    // now, and nothing draws after it.
 
     pass.End();
 }

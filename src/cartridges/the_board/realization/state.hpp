@@ -514,7 +514,9 @@ namespace t7 {
                                                              // subtracted through DrawBind, not
                                                              // by skipping the table
             inline constexpr uint32_t ORBS      = 1u << 6;
-            inline constexpr uint32_t FADE      = 1u << 7;
+            // bit 7 was FADE, the transition veil's draw — retired with the
+            // overlay at ONE_WORLD-I. A hole, like bit 5: the bit VALUES are
+            // the mask's contract with the console and do not re-pack.
         }
         namespace ShadowBit {
             inline constexpr uint32_t TERRAIN = 1u << 0;
@@ -553,10 +555,6 @@ namespace t7 {
             float fog_density;                // exponential fog coefficient (default 0.003)
             uint32_t _pad_fog[2];             // ditto
             float fog_color[3];               // fog/sky color RGB
-
-            // ─── Transition overlay ─────────────────────────────────
-            float fade_alpha;                 // 0.0 = no overlay, 1.0 = fully opaque
-            float fade_color[3];              // transition overlay RGB
 
             // ─── World structure ────────────────────────────────────
             uint32_t _pad_pier_retired;       // pier_count's slot (BATCH G erasure). WGSL's
@@ -1773,7 +1771,7 @@ namespace t7 {
         // 624 -> 672. Both rooms, same commit.
         // RIBBON_2: the wander brain's four join them — one pad consumed,
         // three appended, one fresh pad; 672 -> 688. Both rooms, same commit.
-        static_assert(sizeof(GPUDesignConfig) == 720,
+        static_assert(sizeof(GPUDesignConfig) == 704,
             "GPUDesignConfig must be 720 bytes. PRUNING_1 P3 removed nine "
             "zero-read fields (44 B) and added 12 B of DECLARED PAD: WGSL "
             "aligns vec3 to 16 while C++ packs float[3] at 4, and dropping "
@@ -1793,14 +1791,17 @@ namespace t7 {
             "and the trailing pad is spent. The witness's two presence dials "
             "met that: no pad to reuse, two appended, two fresh pads to the "
             "boundary; 688 -> 704. PANORAMA_1: the two subtraction masks — one pad consumed IN PLACE, one appended, three fresh pads to the "
-            "boundary; 704 -> 720. PANORAMA_1: the PCF tap count consumes one of those three pads IN PLACE — 720 unmoved.)");
+            "boundary; 704 -> 720. PANORAMA_1: the PCF tap count consumes one of those three pads IN PLACE — 720 unmoved. "
+            "ONE_WORLD-I: the transition veil's two knobs LEFT — fade_alpha "
+            "(4 B) and fade_color (12 B) were one contiguous 16 B spanning "
+            "two mirror rows, so every offset after them drops exactly 16 "
+            "and every vec3 keeps its boundary; 720 -> 704.)");
         // THE ALIGNMENT LAW (L4, docs/LAWS.md). These four are the only
         // offsets where the two rooms can disagree, and no witness here fires
         // when they do — grow at the TAIL (after checker_resultant's group) or
         // pad. The trailing 4-byte pad is spent, so the next knob meets this.
         static_assert(offsetof(GPUDesignConfig, sun_direction)     % 16 == 0
                    && offsetof(GPUDesignConfig, fog_color)         % 16 == 0
-                   && offsetof(GPUDesignConfig, fade_color)        % 16 == 0
                    && offsetof(GPUDesignConfig, checker_resultant) % 16 == 0,
             "every float[3] whose WGSL twin is vec3<f32> must sit on a 16-byte "
             "boundary — WGSL rounds vec3 up to align 16 and C++ does not, so an "
@@ -2443,8 +2444,8 @@ namespace t7 {
             // frame so the GPU frustum-cull shader uses the same POINT position as the
             // CPU's LOD banding (eliminates LOD0/LOD1 boundary flicker).
             void upload_lod_point(wgpu::Queue& queue) {
-                static_assert(offsetof(GPUDesignConfig, lod_point_x) == 352,
-                    "lod_point_x offset must be 384 for targeted upload");
+                static_assert(offsetof(GPUDesignConfig, lod_point_x) == 336,
+                    "lod_point_x offset must be 336 for targeted upload");
                 queue.WriteBuffer(configBuffer_,
                     offsetof(GPUDesignConfig, lod_point_x),
                     &config_.lod_point_x, sizeof(float) * 2);
@@ -2889,15 +2890,6 @@ namespace t7 {
                 config_.band_phase_origin_5 = phase_origin[5];
                 configDirty_ = true;
             }
-            void set_fade(float alpha, float r, float g, float b) {
-                if (config_.fade_alpha != alpha ||
-                    config_.fade_color[0] != r || config_.fade_color[1] != g || config_.fade_color[2] != b) {
-                    config_.fade_alpha = alpha;
-                    config_.fade_color[0] = r; config_.fade_color[1] = g; config_.fade_color[2] = b;
-                    configDirty_ = true;
-                }
-            }
-
             // ─── Musical animation mode parameters ───────────────────────
             void set_mode_color_shift(float v) {
                 if (config_.mode_color_shift != v) { config_.mode_color_shift = v; configDirty_ = true; }
@@ -4658,10 +4650,6 @@ namespace t7 {
                 config_.fog_color[0] = 0.85f;
                 config_.fog_color[1] = 0.78f;
                 config_.fog_color[2] = 0.72f;
-                config_.fade_alpha = 0.0f;
-                config_.fade_color[0] = 0.0f;
-                config_.fade_color[1] = 0.0f;
-                config_.fade_color[2] = 0.0f;
                 config_.mode_gol_tick_scale = 1.0f;
                 config_.mode_gol_height_scale = 1.0f;
                 config_.pulse_count = 0;

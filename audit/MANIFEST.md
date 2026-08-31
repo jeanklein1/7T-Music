@@ -63,8 +63,6 @@ the header.
 | Shadow Catenary Arch | `shadowArchPipeline_` | V | 4 / 8 | 4 / 4 | 3 / 13 | 2 / 14 | 0 / 4 |
 | Shadow Indoor Shell | `shadowShellPipeline_` | V | 4 / 8 | 4 / 4 | 3 / 13 | 2 / 14 | 0 / 4 |
 | Shadow Sky Ribbon | `shadowRibbonPipeline_` | V | 4 / 8 | 4 / 4 | 3 / 13 | 2 / 14 | 0 / 4 |
-| Fade Overlay | `fadeOverlayPipeline_` | V | 1 / 11 | 0 / 8 | 0 / 16 | 0 / 16 | 0 / 4 |
-| Fade Overlay | `fadeOverlayPipeline_` | F | 2 / 10 | 0 / 8 | 0 / 16 | 0 / 16 | 0 / 4 |
 
 ## Wallet summary — worst row per lane, program-wide
 
@@ -151,7 +149,7 @@ declaration alone — no hand-authored field.
 
 ## Witness M-1
 
-Lane sums equal per-seat counts on every one of the 49
+Lane sums equal per-seat counts on every one of the 47
 (pipeline, stage) rows — the channel classification partitions
 the seats. Recomputed from the schema at every emit; a mismatch
 fails the run before this file is written. PASS.

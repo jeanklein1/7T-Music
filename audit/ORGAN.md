@@ -132,8 +132,6 @@ generator, so the book and the manifest cannot disagree. `driven` is an
 | Atmosphere · Checker | colour (driven) | `CONFIG.checker_resultant` | CONFIG | VEC3 | — | — | driven | none | • |
 | Atmosphere · Checker | amount (driven) | `CONFIG.checker_music_amount` | CONFIG | F32 | — | — | driven | none | • |
 | Atmosphere · Checker | variance (driven) | `CONFIG.checker_music_variance` | CONFIG | F32 | — | — | driven | none | • |
-| Atmosphere · Transition | fade alpha (driven) | `CONFIG.fade_alpha` | CONFIG | F32 | — | — | driven | none | • |
-| Atmosphere · Transition | fade colour (driven) | `CONFIG.fade_color` | CONFIG | VEC3 | — | — | driven | none | • |
 | Atmosphere · Fog envelope | field glide (beats) | `CANVAS.fog_span` | CANVAS | F32 | 0 … 8 | 0.04 | live | none |  |
 | Atmosphere · Checker cadence | read span (beats) | `CANVAS.checker_read_span` | CANVAS | F32 | 0.25 … 32 | 0.25 | live | none |  |
 | Atmosphere · Checker cadence | attack (beats) | `CANVAS.checker_attack` | CANVAS | F32 | 0.25 … 32 | 0.25 | live | none |  |
@@ -409,14 +407,14 @@ generator, so the book and the manifest cannot disagree. `driven` is an
 
 | | |
 | --- | --- |
-| entries | **381** |
-| by section | Agents 118 · Atmosphere 73 · Ribbon 55 · Sky & Light 42 · Terrain 42 · Interaction 23 · Pawn 18 · Debug 4 · Camera 3 · Measure 3 |
-| by cadence | boundary 188 · driven 20 · gen 42 · live 131 |
-| by macro form | PARAM 135 · PARAM_DEF 110 · PARAM_DEFONLY 74 · PARAM_GEN 42 · PARAM_RO 20 |
-| definition kinds | BEHAVIOR 78 · MOOD 55 · NONE 197 · ORB_MOOD 19 · TIER 32 |
-| witnesses (`ro`) | 20 |
+| entries | **379** |
+| by section | Agents 118 · Atmosphere 71 · Ribbon 55 · Sky & Light 42 · Terrain 42 · Interaction 23 · Pawn 18 · Debug 4 · Camera 3 · Measure 3 |
+| by cadence | boundary 188 · driven 18 · gen 42 · live 131 |
+| by macro form | PARAM 135 · PARAM_DEF 110 · PARAM_DEFONLY 74 · PARAM_GEN 42 · PARAM_RO 18 |
+| definition kinds | BEHAVIOR 78 · MOOD 55 · NONE 195 · ORB_MOOD 19 · TIER 32 |
+| witnesses (`ro`) | 18 |
 | blocks and sentinels used | AGENT_ROOM, CANVAS, CONFIG, DRIVERS, INDOOR, LIGHTING, NONE (255), NONE_ORB (254), ORBS, PANEL, PAWN, RIBBON, RIBBON_SPAWN, WORLD |
-| namespaces | canvas 15 · the_board 366 |
+| namespaces | canvas 15 · the_board 364 |
 
 ### Doors
 
@@ -485,7 +483,7 @@ THE ANSWER, ROW BY ROW
 ------------------------------------------------------------------------
   proved    280   a declared reader names the field
   SUSPECT     0   no declared reader names it
-  witness    20   an _RO meter: the question is inverted (blind spot 5)
+  witness    18   an _RO meter: the question is inverted (blind spot 5)
   scope      81   GPU-side or whole-struct (blind spots 2, 3)
 
 NO SUSPECTS. Every enrolled dial's field is named in the body of

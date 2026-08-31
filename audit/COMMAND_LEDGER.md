@@ -5,19 +5,19 @@ Read-only: a census of the program's pass and submit surface.
 
 ## Provenance
 
-Last commit touching any scanned file: `1d974936f82d6d6bf70f367b80ca6ff2d316190a`
-(ONE_WORLD-I U1: transitions — the machine that moved between worlds)
+Last commit touching any scanned file: `a19e4f42ee23b00fa8b658ee7cad780552d8b14e`
+(ONE_WORLD-I U1a: two citations U1's own sweep missed)
 
 | file scanned | sha256 |
 |---|---|
-| `src/cartridges/the_board/realization/render_passes.hpp` | `sha256:1d091946e67cc03049832865ad47246f140dbaefa53108271d51f834d81c19ed` |
-| `src/cartridges/the_board/realization/renderer.hpp` | `sha256:ab82116c0d73d9919697685e0f08dda166150d9fee65dd0bf8480da45a0a1497` |
-| `src/cartridges/the_board/cartridge.hpp` | `sha256:5d1f8e895242d2017d7568fd09b4e385176126eeb952819c6a7906781bfb4b82` |
+| `src/cartridges/the_board/realization/render_passes.hpp` | `sha256:ae6f287db64575f7f0c8b1d278f53f5839d1e26e75e5bc4f91e79f2d7aa60295` |
+| `src/cartridges/the_board/realization/renderer.hpp` | `sha256:cc2f43816c15cd5b97537f316f6dd6c156088a18b27fa379e6195fb78ff9d1af` |
+| `src/cartridges/the_board/cartridge.hpp` | `sha256:47d6393becbf5bea9f5fd557f4930a93ea7ecb4e52d772a8989912c99bd12309` |
 | `src/cartridges/the_board/surface/patch_system.hpp` | `sha256:4c2b6e47ed4fccefbbbdc3a3ea9d383db2d9d3b32964279b9acd8716ee73e54c` |
 | `src/cartridges/the_board/bodies/gol_zones.hpp` | `sha256:4bd7091667bbab0a92e94011c5ab37b2b4f5c1d5b0d688c69a44e6fc95c74339` |
 | `src/cartridges/the_board/bodies/pawn.hpp` | `sha256:bac566779a35e46048585b51426d4bfe7b971093ea5e38e9b0219150774b3fbf` |
 | `src/cartridges/the_board/bodies/orbs.hpp` | `sha256:a3bde8f506af81f67844572f51e88f2f0cb9336b9cfbddbc946883faef8d4a0c` |
-| `src/the_board.cpp` | `sha256:6fb1c8e32f0aeb91e76cb61cde13f16f2bee5037f0d7bf69e9116aea3125451b` |
+| `src/the_board.cpp` | `sha256:98f6d39ea0c27c5c11c339b091492fa6a58cdfdd8f284f418702317d25b46f4c` |
 | `src/console/console.hpp` | `sha256:de4577d58c8e6e1d73c3e814db79aa08b99c895190ea717f2fed06047cf17d29` |
 
 The handoff named `render_passes.hpp` and `renderer.hpp`; the
@@ -38,7 +38,7 @@ in `console.hpp`.
 | 4 | Shadow Atlas | render | `render_shadow_pass` | `src/cartridges/the_board/realization/render_passes.hpp:338` | (none: depth-only) | Clear/Store, readOnly (absent) → `(tex == 0) ? c->gpuState_.shadow_map_view() : c->gpuState_.spot_shadow_map_view()` | (no stencil aspect) |
 | 5 | Shadow Pass | render | `render_shadow_pass` | `src/cartridges/the_board/realization/render_passes.hpp:382` | (none: depth-only) | Clear/Store, readOnly (absent) → `c->gpuState_.shadow_map_view()` | (no stencil aspect) |
 | 6 | Rasterized Scene | render | `render_main_pass` | `src/cartridges/the_board/realization/render_passes.hpp:654` | Clear/Store or Discard → `backbuffer or msaaColor` resolve → `backbuffer` | Clear/Discard, readOnly (absent) → `depth` | (no stencil aspect) |
-| 7 | Entity Mesh Gen | compute | `phase_entity_mesh_gen` | `src/cartridges/the_board/cartridge.hpp:1938` | — | — | — |
+| 7 | Entity Mesh Gen | compute | `phase_entity_mesh_gen` | `src/cartridges/the_board/cartridge.hpp:1937` | — | — | — |
 | 8 | Patch Bake (fused) | compute | `generate_patch_batch` | `src/cartridges/the_board/surface/patch_system.hpp:184` | — | — | — |
 | 9 | Zone Derive Params | compute | `flush_zone_derive_requests` | `src/cartridges/the_board/bodies/gol_zones.hpp:822` | — | — | — |
 | 10 | GoL Zone Sync | compute | `dispatch_zone_sync` | `src/cartridges/the_board/bodies/gol_zones.hpp:910` | — | — | — |
@@ -73,8 +73,8 @@ console.hpp's depth buffer, neither of which this census reads.
 
 | # | label | colour | depth | samples | recorded in | site |
 |---|---|---|---|---|---|---|
-| 1 | `"Main Bundle"` | 1 x `&colorFormat_` | `depthFormat_` | `effective_msaa()` | `make_main_bundle_encoder` | `src/cartridges/the_board/realization/renderer.hpp:290` |
-| 2 | `"Shadow Sun Bundle"` | 0 x `nullptr` | `kShadowDepthFormat` | `1` | `make_shadow_sun_bundle_encoder` | `src/cartridges/the_board/realization/renderer.hpp:299` |
+| 1 | `"Main Bundle"` | 1 x `&colorFormat_` | `depthFormat_` | `effective_msaa()` | `make_main_bundle_encoder` | `src/cartridges/the_board/realization/renderer.hpp:283` |
+| 2 | `"Shadow Sun Bundle"` | 0 x `nullptr` | `kShadowDepthFormat` | `1` | `make_shadow_sun_bundle_encoder` | `src/cartridges/the_board/realization/renderer.hpp:292` |
 
 ### Encoder-creation sites (the label law, DOMESDAY_1 A9)
 

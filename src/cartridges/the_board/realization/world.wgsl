@@ -1662,8 +1662,6 @@ struct DesignConfig {
     pawn_aura_height: f32,
     fog_density: f32,             // exponential fog coefficient (default 0.003)
     fog_color: vec3<f32>,         // fog/sky color RGB
-    fade_alpha: f32,              // 0.0 = no overlay, 1.0 = fully opaque
-    fade_color: vec3<f32>,        // transition overlay RGB
     // (pier_count's slot: retired in BATCH G — vec2 align re-pads here,
     //  offsets unmoved; the C++ twin carries the explicit pad.)
     world_bound_min: vec2<f32>,   // XZ min clamp (0,0 = infinite)
@@ -6893,28 +6891,11 @@ fn shadow_ribbon_vs(@builtin(vertex_index) vid: u32) -> ShadowVarying {
     return out;
 }
 
-// §6.6 FADE OVERLAY
-// Fullscreen triangle for transition fade. Drawn last with alpha blending.
-// Reads fade_alpha and fade_color from DesignConfig.
-
-struct FadeVarying {
-    @builtin(position) pos: vec4<f32>,
-}
-
-@vertex
-fn fade_overlay_vs(@builtin(vertex_index) vid: u32) -> FadeVarying {
-    // Fullscreen triangle from vertex ID (covers clip space)
-    let x = f32(i32(vid & 1u)) * 4.0 - 1.0;
-    let y = f32(i32(vid >> 1u)) * 4.0 - 1.0;
-    var out: FadeVarying;
-    out.pos = vec4(x, y, 0.0, 1.0);
-    return out;
-}
-
-@fragment
-fn fade_overlay_fs(in: FadeVarying) -> @location(0) vec4<f32> {
-    return vec4(config.fade_color, config.fade_alpha);
-}
+// §6.6 stood here: THE FADE OVERLAY — a fullscreen triangle, alpha-blended
+// last, reading fade_alpha and fade_color from DesignConfig. It was the
+// transition veil, and it left with the machine that drove it
+// (ONE_WORLD-I). Nothing crossfades between worlds now; a rebirth is a
+// hard cut.
 
 // §7.0 GLOBAL BINDINGS
 

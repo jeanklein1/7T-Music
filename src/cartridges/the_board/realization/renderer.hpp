@@ -70,10 +70,6 @@ namespace t7 {
             // GPU Entity Mesh Gen (Phase 2: Arches — pyramid mesh-gen CUT)
             constexpr const char* ARCH_MESH_GEN = "arch_mesh_gen";
 
-            // Fade overlay (fullscreen transition)
-            constexpr const char* FADE_OVERLAY_VS = "fade_overlay_vs";
-            constexpr const char* FADE_OVERLAY_FS = "fade_overlay_fs";
-
             // Orb sky layer (luminous points on a dome)
             constexpr const char* ORB_INIT           = "orb_init";             // 1D compute
             constexpr const char* ORB_DYNAMICS       = "orb_dynamics";         // 1D compute
@@ -243,9 +239,6 @@ namespace t7 {
             // Zone parameter derivation (shares the GoL compute layout; one
             // workgroup per pending derive request)
             wgpu::ComputePipeline zoneDeriveParamsPipeline_;
-
-            // Fade overlay (fullscreen alpha-blended triangle)
-            wgpu::RenderPipeline fadeOverlayPipeline_;
 
             // GPU entity mesh gen (Phase 2: arches — pyramid mesh-gen CUT)
             wgpu::ComputePipeline archMeshGenPipeline_;
@@ -891,32 +884,6 @@ namespace t7 {
                 draw_indexed_mesh_indirect(pass, shellPipeline_,
                     vertexBuffer, indexBuffer, ledger, ledgerOffset);
             }
-
-            // HALF AN LSB IS THE BOUND (LATTICE_4 R4). The overlay is a
-            // fullscreen alpha blend over an 8-bit target: at
-            // fadeAlpha < 0.5/255 every channel's blend quantizes back to
-            // the destination, so the skipped draw is PIXEL-IDENTICAL to the
-            // drawn one — not approximately, exactly. The 0.001 that stood
-            // here was an arbitrary epsilon that happened to be smaller;
-            // this is the number the argument actually rests on.
-            //
-            // The caller passes config().fade_alpha — the same value
-            // fade_overlay_fs reads — so the gate and the shader cannot
-            // disagree about whether the frame is at rest. THE ROSTER GATE
-            // LEFT WITH ITS BIT (ONE_WORLD-I): transitions was the bit, and
-            // the overlay's one driver — the machine's fade alpha — left with
-            // it. The pipeline is built unconditionally now and the rest gate
-            // below is what keeps it off the frame.
-            template <class Enc>
-            void draw_fade_overlay(
-                Enc& pass,
-                float fadeAlpha
-            ) {
-                if (fadeAlpha < 0.5f / 255.0f) return;
-                pass.SetPipeline(fadeOverlayPipeline_);
-                pass.Draw(3);  // fullscreen triangle from vertex ID
-            }
-
 
             // Shared helper for all "indexed mesh" shadow draws. Per-family
             // wrappers below differ only in pipeline + (rarely) instance count.
@@ -2187,52 +2154,6 @@ namespace t7 {
                         nullptr, wgpu::CullMode::None, shadowRibbonPipeline_)) return false;
                     }
 
-                }
-
-                // ─── Fade Overlay Pipeline ───────────────────────────────────────
-                // Fullscreen triangle, alpha blending, no depth write.
-                // Binds WORLD only (config) — the fade overlay's whole surface.
-                {
-                    wgpu::PipelineLayoutDescriptor pld{};
-                    wgpu::PipelineLayout layout = strataLayoutFor("fadeOverlayLayout", emptyLayout_, emptyLayout_, emptyLayout_);
-
-                    wgpu::ColorTargetState colorTarget{};
-                    colorTarget.format = colorFormat_;
-                    colorTarget.writeMask = wgpu::ColorWriteMask::All;
-
-                    wgpu::BlendState blend{};
-                    blend.color.srcFactor = wgpu::BlendFactor::SrcAlpha;
-                    blend.color.dstFactor = wgpu::BlendFactor::OneMinusSrcAlpha;
-                    blend.alpha.srcFactor = wgpu::BlendFactor::One;
-                    blend.alpha.dstFactor = wgpu::BlendFactor::OneMinusSrcAlpha;
-                    colorTarget.blend = &blend;
-
-                    wgpu::FragmentState frag{};
-                    frag.module = shaderModule_;
-                    frag.entryPoint = Entry::FADE_OVERLAY_FS;
-                    frag.targetCount = 1;
-                    frag.targets = &colorTarget;
-
-                    wgpu::RenderPipelineDescriptor desc{};
-                    desc.label = "Fade Overlay";
-                    desc.layout = layout;
-                    desc.vertex.module = shaderModule_;
-                    desc.vertex.entryPoint = Entry::FADE_OVERLAY_VS;
-                    desc.vertex.bufferCount = 0;
-                    desc.primitive.topology = wgpu::PrimitiveTopology::TriangleList;
-                    desc.fragment = &frag;
-                    desc.multisample.count = effective_msaa();   // B10: 1 = the default, byte-identical descriptor
-
-                    wgpu::DepthStencilState fadeDepth{};
-                    fadeDepth.format = depthFormat_;
-                    fadeDepth.depthWriteEnabled = false;
-                    fadeDepth.depthCompare = wgpu::CompareFunction::Always;
-                    desc.depthStencil = &fadeDepth;
-
-                    if (!tPipe("fade_overlay", [&]() {
-                        fadeOverlayPipeline_ = device_.CreateRenderPipeline(&desc);
-                        return fadeOverlayPipeline_ != nullptr;
-                    })) return false;
                 }
 
                 return true;

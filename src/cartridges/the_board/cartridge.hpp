@@ -851,7 +851,7 @@ namespace t7 {
             enum FaceTag : uint32_t {
                 F_NONE = 0,
                 F_SIGNAL = 1u << 0,   // the GPU signal buffer (clock/input/stats)
-                F_CONFIG = 1u << 1,   // the GPU config buffer (fog/world/fade/...)
+                F_CONFIG = 1u << 1,   // the GPU config buffer (fog/world/bands/...)
                 F_CLOCK = 1u << 2,   // time_state_ (beats/seconds/dt/prev_beats)
                 F_WITNESS = 1u << 3,   // the readback record (agent/floater/camera)
                 F_GROUND = 1u << 4,   // ground-entries / placement dirty cascade
@@ -1353,9 +1353,8 @@ namespace t7 {
             // U8 — THE TWO UPLOADS (O-5b/c). upload_signal then upload_config
             // AFTER all staging setters — the O-5b/c face law, enforced by
             // validate_spine at boot. The fade staging that shared this phase
-            // left with the transition machine (ONE_WORLD-I): its one driver
-            // was the machine's fade alpha, and config.fade_alpha now rests
-            // at its boot zero.
+            // left with the transition machine (ONE_WORLD-I), and the veil it
+            // staged for followed it out of the config mirror.
             void phase_stage_upload(UpdateCtx& c) {
                 auto& gpuSignal = c.gpuSignal;
                 auto& queue = c.queue;
