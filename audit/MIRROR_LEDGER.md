@@ -15,8 +15,8 @@ carry those facts, or leave them in place and patch around them.
 
 | field | value |
 |---|---|
-| source commit | `b67ff751b168e3b6dcd68da1b31d6e13b3ae3057` |
-| | PRUNE_2 U5: the sweep — prose probate, orphans, the convergence |
+| source commit | `db9a679f4462f79289d88427ebecfc54e990df54` |
+| | PRUNE_2 U6b: regenerate the audit room |
 | `src/cartridges/the_board/realization/binding_registry.hpp` | `sha256:379c8cdde983304785920fece7fd88bb9d542d77afb18dff7caf80c7d9ad1d79` |
 | `src/cartridges/the_board/realization/world.wgsl` | `sha256:a7b88638c05de66583bb5d4bb56437e723f5cbe51725c499fc4cbc5e52bfc389` |
 | `src/cartridges/the_board/realization/state.hpp` | `sha256:5a6649bee9b2d3c72b4cbe259e1d85e7a6a7eefc26789a61c8e99c7095647f4a` |
