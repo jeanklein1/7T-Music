@@ -2220,7 +2220,6 @@ namespace t7 {
             wgpu::BindGroup frameKStateGroup_;
             wgpu::BindGroup frameKTexturesGroup_;
             wgpu::BindGroup meshgenStateGroup_;
-            wgpu::BindGroup meshgenStateColumnGroup_;
             wgpu::BindGroup orbsAStateGroup_;
             wgpu::BindGroup orbsBStateGroup_;
             wgpu::BindGroup patchgenStateGroup_;
@@ -2691,7 +2690,6 @@ namespace t7 {
             wgpu::BindGroup frame_k_state_group() const { return frameKStateGroup_; }
             wgpu::BindGroup frame_k_textures_group() const { return frameKTexturesGroup_; }
             wgpu::BindGroup meshgen_state_group() const { return meshgenStateGroup_; }
-            wgpu::BindGroup meshgen_state_column_group() const { return meshgenStateColumnGroup_; }
             wgpu::BindGroup orbs_a_state_group() const { return orbsAStateGroup_; }
             wgpu::BindGroup orbs_b_state_group() const { return orbsBStateGroup_; }
             wgpu::BindGroup patchgen_state_group() const { return patchgenStateGroup_; }

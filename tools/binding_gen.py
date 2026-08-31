@@ -3214,15 +3214,15 @@ def recut_registry(R, P):
         "// The shape of the table: numbers are GROUP-SCOPED (g0..g3 are the",
         "// four strata of the LOOM_2 recut — WORLD, FRAME, FAMILY-STATE,",
         "// FAMILY-TEXTURES), and ONE CONSTANT PER SLOT; a slot may carry",
-        "// several declarations (the fc_ cull aliases; the MESHGEN",
-        "// convergence, where five kernels' scratch trios share three",
-        "// numbers so four families fit one layout).",
+        "// several declarations (the fc_ cull aliases). The MESHGEN",
+        "// convergence CONVERGED: five kernels shared three numbers so",
+        "// four families could ride one layout, and PRUNE_2 excised all",
+        "// four. The arch's trio is the sole occupant now and holds the",
+        "// numbers under its own names.",
         "//",
         "// The WGSL @binding literals in world.wgsl (%d declarations over "
         "%d slots;" % (len(new_decls), n_slots),
-        "// aliases: %s," % ", ".join(a for a in aliases if a.startswith("fc_")),
-        "// and the %d MESHGEN convergence names)"
-        % sum(1 for a in aliases if not a.startswith("fc_")),
+        "// aliases: %s)" % ", ".join(a for a in aliases if a.startswith("fc_")),
         "// are a MIRROR of this file, kept in lockstep by boot-time",
         "// validation and by binding_gen.py --check. The render = compute",
         "// + 200 witness band is RETIRED — its epitaph closes this file.",
@@ -3278,9 +3278,10 @@ def emit_plan(P, out_path):
     A("  width %d in roster order (%s) within groups 2 and 3;" % (
         RECUT_BAND, ", ".join(RECUT_FAMILIES)))
     A("  home slots ascend by old number; aliases keep shared numbers;")
-    A("  the five MESHGEN scratch trios CONVERGE onto one params, one")
-    A("  vertices, one indices slot (MESHGEN3; column adds its ground")
-    A("  read as MESHGEN4).")
+    A("  the five MESHGEN scratch trios CONVERGED onto one params, one")
+    A("  vertices, one indices slot (MESHGEN3; the column added its")
+    A("  ground read as MESHGEN4). PRUNE_2 excised the four riders and")
+    A("  the column's ground seat; the arch trio holds the numbers alone.")
     A("- fade_overlay binds WORLD only. Render families derive from")
     A("  today's layout lists: gallery-entity users are GALLERY,")
     A("  depth-only are SHADOW, the fade overlay is FADE, the rest are")

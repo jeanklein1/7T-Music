@@ -15,7 +15,7 @@
 //
 // SEAM[spawn_engine:P11] home of pattern P11 (templated active-array
 //   helper) — run_spawn_preamble<C, ActiveT> is the canonical
-//   instance. One implementation, ten callers.
+//   instance. One implementation, four callers.
 // The EntityQueueEntry / PlacementEntry unions and every type they
 //   embed live in entity_types.hpp (the contract home); this module
 //   holds only the queues and loops. spawn_engine stays ONE pair.
@@ -197,9 +197,9 @@ struct SpawnEngineState {
 // SEAM[spawn_engine:P11] the canonical templated active-array helper.
 // THE TEMPLATE KEYHOLE, retired to a doorway:
 // every instantiation now deduces C = MachineCtx (the machine face);
-// the DECLARATION lives in contracts/spawn_services.hpp so the ten
+// the DECLARATION lives in contracts/spawn_services.hpp so the
 // pre-tail callers bind here at end-of-TU instantiation. The typename
-// C stays — one implementation, ten callers, the active-array type
+// C stays — one implementation, four callers, the active-array type
 // still varies per family (ActiveT).
 template<typename C, typename ActiveT>
 SpawnGatePreambleResult run_spawn_preamble(C* c,
@@ -252,7 +252,7 @@ SpawnGatePreambleResult run_spawn_preamble(C* c,
 
 // ── The generic gate: one law, one per-family fact ─────────────────
 //
-// Nine families ran identical bodies here, each restating five constants that
+// The generic families ran identical bodies here, each restating five constants that
 // its own TRAITS row already declares — max_instances, spawn_roll_prop,
 // spawn_chance, mood_multiplier, family_id — around one call. The restating
 // was why four of those fields read as DEAD: the row was the right home and
@@ -579,7 +579,7 @@ inline void dump_entity_census(MachineCtx* c, const char* trigger) {
     // that disagreement is exactly what the delta column exists to catch.
     uint32_t claimed[PopFamily::COUNT] = {};
     uint32_t arrived[PopFamily::COUNT] = {};
-    uint32_t claimed_total = 0;   // sum over the eleven families
+    uint32_t claimed_total = 0;   // sum over the six families
     uint32_t arrived_total = 0;
     uint32_t occupancy = 0;       // every live slot, family or not
     for (uint32_t i = 0; i < MAX_FOOTPRINTS; i++) {
@@ -661,7 +661,7 @@ inline void dump_entity_census(MachineCtx* c, const char* trigger) {
     // sixteen slots. Same table, opposite conclusion, and the only thing
     // that tells them apart is printed here.
     //
-    // ALL ELEVEN ROWS, not the grounded ten. The dash convention above is
+    // ALL SIX ROWS, not the grounded four. The dash convention above is
     // for FOOTPRINT-derived columns, and a family that claims no ground
     // genuinely has nothing to report there. These columns are
     // ARRAY-derived: every family has an instance array with a bound, so

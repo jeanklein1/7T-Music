@@ -775,6 +775,5 @@ inline void compute_spot_light_vp(const GPUSpotLight& light, float* view_proj_ou
 }
 
 
-
 } // namespace the_board
 } // namespace t7

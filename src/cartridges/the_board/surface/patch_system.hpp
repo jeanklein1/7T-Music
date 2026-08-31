@@ -305,8 +305,8 @@ inline bool in_priority_window(MachineCtx* c, int32_t gx, int32_t gz, int32_t cx
 // capacity a function of the CANDIDATE COUNT, and the fullRegen arm hands
 // this function all 49 patches of the priority window in one call — so the
 // queue overflowed at boot and at every portal, and what it dropped was the
-// tail of PLACEMENT_ORDER: galleries first, then arches, cubes, columns,
-// GoL. The birth of every world was being truncated by a bound that called
+// tail of PLACEMENT_ORDER — whatever the order listed last, dropped first.
+// The birth of every world was being truncated by a bound that called
 // itself proven.
 //
 // Draining per patch makes the bound true instead of arguing it: at most one

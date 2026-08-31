@@ -218,7 +218,7 @@ inline constexpr ArchTierRow ARCH_TIERS[] = {
 // DEFINED in machine/spawn_engine.hpp (merged, cohort tail): the
 // engine reaches the machine face for the root organs (world/time/
 // mood/themes/tile state, entities_state_, the GPU wire) and routes
-// the eleven families through FAMILY_DISPATCH.
+// the six families through FAMILY_DISPATCH.
 
 // ═══ THE COMPOSITION LAW — the collapse ═════════════════════
 // ONE stack, authored once, called by both spawn authors (the
@@ -302,7 +302,7 @@ SpawnGatePreambleResult run_spawn_preamble(C* c,
     uint32_t family);
 
 // The generic gate — DECLARATION only; defined beside run_spawn_preamble at
-// the cohort tail. Same binding law: the nine family run_gates that call it
+// the cohort tail. Same binding law: the family run_gates that call it
 // (grounded.hpp, spheres.hpp, cube_behaviors.hpp all precede spawn_engine.hpp
 // in the cohort) bind by end-of-TU instantiation.
 //

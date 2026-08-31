@@ -159,7 +159,7 @@ struct GoLColorMode {
 
 // ═══ CONWAY ALGORITHM ════════════════════════════════════════════
 
-// ── Tier Profile (mean+sigma, matches ColumnTierParams pattern) ──
+// ── Tier Profile (mean+sigma, the per-family TierRow pattern) ──
 inline constexpr uint32_t GOL_TIER_COUNT = 10;
 
 struct GoLTierProfile {

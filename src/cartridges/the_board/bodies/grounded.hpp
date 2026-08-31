@@ -10,7 +10,7 @@
 // Vocabulary for the grounded entity families that share the generic dispatch pipeline.
 //
 // SEAM[entities:P10] this block is the canonical home of pattern P10
-//   (per-family vocabulary block). Seven family applications follow.
+//   (per-family vocabulary block). Two family applications follow.
 //   Each block has the same structural template: TierEnum / Color
 //   palette / Config / Prop registry / Active tracking. Don't fight
 //   the cookie-cutter — it's intentional specificity per family.
@@ -21,7 +21,7 @@
 // Tier sampling profiles + extras live as a single per-family TierRow
 //   struct in machine/entity_pipeline.hpp (single source of truth, no
 //   converters, no derived tables). The tier enum classes (ArchTier,
-//   ColumnTier, etc.) stay here — they're indexing semantics, not data.
+//   ArchTier, PyramidTier) stay here — they're indexing semantics, not data.
 // ─────────────────────────────────────────────────────────────────
 
 #include <algorithm>   // std::max (portal-arch burial floor)   // (impl, merged)

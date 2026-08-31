@@ -229,7 +229,6 @@ fn sw_motor_point(m: Motor, p: Point) -> Point {
 }
 
 
-
 // §1.3 COORDINATE SYSTEMS
 
 // Patch system — streaming terrain
@@ -963,7 +962,6 @@ struct AgentBehaviorParams {
     speed_cap:       f32,  // max speed
     aux:             f32,  // ATRIUM_4: behaviour-specific scalar (PASSER = the band, wu; 0 elsewhere). Was _pad.
 }
-
 
 
 struct AgentTierParams {
@@ -2224,7 +2222,6 @@ fn unpack_cell_tag_mode(alpha: f32) -> u32 {
 }
 
 
-
 // --- Game of Life Zone Config
 const GOL_ZONE_SEED_BAND: u32      = 250u;      // lattice seed for zone decisions
 const GOL_ZONE_PROP_SPAWN: u32     = 920u;      // spawn roll
@@ -3196,9 +3193,6 @@ const POLICY_WALKER_AGENT         : u32 = 4u;
 const POLICY_WALKER_WITNESS       : u32 = 6u;
 
 
-
-
-
 // Combined height + complexity — avoids evaluating terrain lattice waves twice.
 // terrain_height_and_complexity does the same lattice work as terrain_height_at
 // but also accumulates the complexity metric. Used by the patch bake.
@@ -3331,8 +3325,6 @@ struct QueryInputs {
     consumer_pos: vec3<f32>,
     t_seconds:    f32,
 }
-
-
 
 
 // --- Baked heightfield: all static, no dynamic, no deformation ---
@@ -3552,7 +3544,6 @@ fn query_ground_walker_witness(xz: vec2<f32>, qi: QueryInputs) -> f32 {
     return manifold_overlay_stack(xz, qi, sample_live_card_gol(xz) * (1.0 - supp))
          + aura;
 }
-
 
 
 // ════════════════════════════════════════════════════════════════
@@ -5370,7 +5361,6 @@ fn pawn_profile_radius(t: f32) -> f32 {
     let u = (t - 0.95) / 0.05;
     return mix(0.15, 0.0, smoothstep(0.0, 1.0, u));
 }
-
 
 
 // --- Pawn figure helpers (CLOSURE_PAWN) --------------------------------
@@ -9792,7 +9782,6 @@ fn update_sphere() {
 // limit; beyond that drift overshoots before damping catches it).
 
 
-
 // ─ Force: Stationary ─────────────────────────────────────────────
 // No-op. Drift sits at zero, pos == home, identical to pre-Phase-3
 // hover-bob visual. Default for every spawn.
@@ -11453,7 +11442,7 @@ fn compute_entity_placement() {
 // Shadow pass uses direct patch_instances[instance_index] (no frustum cull).
 
 const FRUSTUM_PATCH_Y_MIN: f32 = -50.0;   // widened: terrain amplitude + entity heights
-const FRUSTUM_PATCH_Y_MAX: f32 = 200.0;   // widened: tall entities (towers, antennas, ribbons)
+const FRUSTUM_PATCH_Y_MAX: f32 = 200.0;   // widened: tall entities (arches, ribbons)
 // The LOD0 gate reads fc_config.lod0_radius — the SAME config value the
 // CPU band reads, so the radius has one spelling in the whole program.
 
@@ -11593,8 +11582,6 @@ fn frustum_cull_patches(@builtin(global_invocation_id) id: vec3<u32>) {
         else { atomicSub(&fc_indirect[11], 1u); }
     }
 }
-
-
 
 
 // ═══════════════════════════════════════════════════════════════════════
