@@ -536,6 +536,19 @@ inline void unregister_footprint_for(MachineCtx* c, uint32_t family, uint32_t sl
 
 inline const char* family_short_name(uint32_t family) {
     static const char* NAMES[] = { "pyr", "arch", "sph", "ribn", "cube", "gol" };
+    // F-1's ELEVENTH positional table, and until PRUNE_2 the only one with
+    // no compile-time tie to PopFamily::COUNT. The runtime bound below reads
+    // COUNT, not this array, so the two could disagree in silence: trim
+    // COUNT without trimming NAMES and the tail rows go unnameable; trim
+    // NAMES without trimming COUNT and NAMES[family] reads OUT OF BOUNDS —
+    // and F-2's boot name-check would then compare against garbage, reaching
+    // UB BEFORE the abort that exists to catch exactly that. PRUNE_2 trimmed
+    // this array five times by hand with nothing checking it; this is the
+    // check.
+    static_assert(sizeof(NAMES) / sizeof(NAMES[0]) == PopFamily::COUNT,
+        "F-1: family_short_name's NAMES[] is PopFamily-positional — re-column "
+        "it with the other ten tables before renumbering any family (F-2's "
+        "boot name-check indexes it by family id)");
     return (family < PopFamily::COUNT) ? NAMES[family] : "???";
 }
 

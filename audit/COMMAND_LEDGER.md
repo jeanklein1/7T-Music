@@ -5,8 +5,8 @@ Read-only: a census of the program's pass and submit surface.
 
 ## Provenance
 
-Last commit touching any scanned file: `b67ff751b168e3b6dcd68da1b31d6e13b3ae3057`
-(PRUNE_2 U5: the sweep — prose probate, orphans, the convergence)
+Last commit touching any scanned file: `1888e6faf77dbee73030283ccdf247271c978919`
+(PRUNE_2 U5c: six the sweep missed — an erased ruling, a dead constant, two stale sizes and three stale counts)
 
 | file scanned | sha256 |
 |---|---|

@@ -14,8 +14,8 @@ merge rows the API charges separately.
 | field | value |
 |---|---|
 | demo column censused | `full` |
-| source commit | `7cb41336b656ccdd44a49d3b5d2d97d283f80c67` |
-| | PRUNE_2 U5b: sky_shell — the orphan U5 missed and U6a froze |
+| source commit | `1888e6faf77dbee73030283ccdf247271c978919` |
+| | PRUNE_2 U5c: six the sweep missed — an erased ruling, a dead constant, two stale sizes and three stale counts |
 | `src/cartridges/the_board/realization/state.hpp` | `sha256:127d4fbfe4ac9c023aefec0fc65c375bc9d89ac03fa2fd9891a991e9671a29f4` |
 | `src/cartridges/the_board/realization/binding_surface.gen.inc` | `sha256:10db23b94bbbf533075648ba609f61817195e9bbd1da45d0931bb18f1ef4b253` |
 | `src/cartridges/the_board/realization/binding_registry.hpp` | `sha256:b87c7d6fd8d95fdebab27c7bfbf235d6217edcef17a4c834e685558e2280889c` |

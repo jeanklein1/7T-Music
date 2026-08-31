@@ -59,12 +59,15 @@ struct PopFamily {
     static constexpr uint32_t COUNT = 6;
 };
 
-// F-1: the family ORDER is load-bearing — ten
-// spawn tables are POSITIONAL in it (MIN_SEPARATION, the four PROXIMITY_*
+// F-1: the family ORDER is load-bearing — ELEVEN
+// tables are POSITIONAL in it (MIN_SEPARATION, the four PROXIMITY_*
 // vectors, PROXIMITY_AFFINITY, THEMES[].spawn_weight, MOOD_SPAWN_MULT,
-// TilePopulation::spatial_density and INDOOR_TREATMENT), as is
+// TilePopulation::spatial_density, INDOOR_TREATMENT, and
+// family_short_name's NAMES[] — the eleventh, which PRUNE_2 found outside
+// this roll call and pinned to COUNT where it lives), as is
 // FAMILY_DISPATCH (whose rows are
-// additionally name-checked at boot by validate_spine, F-2). AND (charter
+// additionally name-checked at boot by validate_spine, F-2, THROUGH that
+// same NAMES[]) and PLACEMENT_ORDER (pinned by F-6 below). AND (charter
 // extended): the enum order IS PLACEMENT
 // PRIORITY — select_entities_for_patch loops f=0..COUNT and the queue
 // places in push order, so within a patch PYRAMID's footprint registers
@@ -82,7 +85,7 @@ struct PopFamily {
 // PRUNE_2 IS THE OTHER KIND. It excises MID-TABLE families, so every
 // family above the cut renumbers and every one of the ten positional
 // tables loses that column. The fear bites, and the answer is not to
-// dodge it: each excision commit re-columns all ten tables AND
+// dodge it: each excision commit re-columns all eleven tables AND
 // FAMILY_DISPATCH in the same commit, and rewrites this assert to the
 // surviving pins. Relative order among survivors is preserved — the cut
 // closes ranks, it never reshuffles — so placement priority among the
@@ -92,7 +95,7 @@ static_assert(PopFamily::PYRAMID == 0 && PopFamily::ARCH    == 1
            && PopFamily::CUBE    == 4 && PopFamily::GOL     == 5
            && PopFamily::COUNT   == 6,
     "PopFamily ORDER is the spawn tables' row/column contract (F-1): "
-    "re-column all ten PopFamily-ordered tables + FAMILY_DISPATCH "
+    "re-column all eleven PopFamily-ordered tables + FAMILY_DISPATCH "
     "before renumbering any family");
 
 // ═══ PLACEMENT ORDER ═════════════════════════════════════════════
@@ -104,7 +107,7 @@ static_assert(PopFamily::PYRAMID == 0 && PopFamily::ARCH    == 1
 //
 // It was previously the loop counter itself (`for f = 0..COUNT`), which
 // welded placement priority to the enum. But the enum is ALSO the column
-// order of ten positional tables and the row order of FAMILY_DISPATCH
+// order of eleven positional tables and the row order of FAMILY_DISPATCH
 // (F-1), so re-ranking priority meant re-columning everything. Splitting the
 // two lets priority be re-ranked here, alone, without touching a single
 // table — PopFamily stays pinned.

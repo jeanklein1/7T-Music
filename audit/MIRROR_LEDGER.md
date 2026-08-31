@@ -15,15 +15,15 @@ carry those facts, or leave them in place and patch around them.
 
 | field | value |
 |---|---|
-| source commit | `7cb41336b656ccdd44a49d3b5d2d97d283f80c67` |
-| | PRUNE_2 U5b: sky_shell — the orphan U5 missed and U6a froze |
+| source commit | `1888e6faf77dbee73030283ccdf247271c978919` |
+| | PRUNE_2 U5c: six the sweep missed — an erased ruling, a dead constant, two stale sizes and three stale counts |
 | `src/cartridges/the_board/realization/binding_registry.hpp` | `sha256:b87c7d6fd8d95fdebab27c7bfbf235d6217edcef17a4c834e685558e2280889c` |
 | `src/cartridges/the_board/realization/world.wgsl` | `sha256:da003011b3efc1fb069a164652231d5cccea7a27daa9f37ddf45aa1febea6429` |
 | `src/cartridges/the_board/realization/state.hpp` | `sha256:127d4fbfe4ac9c023aefec0fc65c375bc9d89ac03fa2fd9891a991e9671a29f4` |
 | `src/cartridges/the_board/realization/binding_surface.gen.inc` | `sha256:10db23b94bbbf533075648ba609f61817195e9bbd1da45d0931bb18f1ef4b253` |
 | `src/cartridges/the_board/realization/renderer.hpp` | `sha256:676fb29a4f8f8d3e49bf76256aa15e12fa8430ca6cf97346b57bdc8653c4967b` |
 | `tools/binding_ledger.py` | `sha256:a3c75bab894774eb0302686e5efd52275b280e14abfcf4e8753b28d5b5086692` |
-| `audit/BINDING_LEDGER.md` | `sha256:49a02fce7af52bcca552e596c822e3cfc379829b976bca805e2ed249a60f7ebe` |
+| `audit/BINDING_LEDGER.md` | `sha256:335fc5e622da3e74230835d47cbdecc417f39d678f5b30d39e0ca36371fe2b78` |
 
 `tools/binding_ledger.py` is an input because its parsers are IMPORTED,
 not copied — one parse, two artifacts, no drift between instruments.
