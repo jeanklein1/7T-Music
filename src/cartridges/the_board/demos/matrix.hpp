@@ -53,9 +53,8 @@ namespace the_board {
 // pins the count.
 namespace Piece {
 enum : uint32_t {
-    // 8 families (PopFamily order)
-    pyramid, arch, column, antenna,
-    sphere, ribbon, cube, gol,
+    // 6 families (PopFamily order)
+    pyramid, arch, sphere, ribbon, cube, gol,
     // 7 features
     pawn_aura, orbs, spot_lights, indoor_shell, portal, transitions, wanderers,
     COUNT,
@@ -77,8 +76,6 @@ inline constexpr bool GRID[Piece::COUNT][static_cast<uint32_t>(DemoCol::COUNT)] 
     //                       full  minimal
     /* pyramid        */  {  true,  false },
     /* arch           */  {  true,  false },
-    /* column         */  {  true,  false },
-    /* antenna        */  {  true,  false },
     /* sphere         */  {  true,  false },
     /* ribbon         */  {  true,  false },
     /* cube           */  {  true,  false },
@@ -108,8 +105,7 @@ inline constexpr uint32_t DEMO_BOOT_MOOD[static_cast<uint32_t>(DemoCol::COUNT)] 
 constexpr Roster column_to_roster(DemoCol d) {
     const uint32_t c = static_cast<uint32_t>(d);
     return Roster{
-        GRID[Piece::pyramid][c], GRID[Piece::arch][c], GRID[Piece::column][c],
-        GRID[Piece::antenna][c],
+        GRID[Piece::pyramid][c], GRID[Piece::arch][c],
         GRID[Piece::sphere][c], GRID[Piece::ribbon][c],
         GRID[Piece::cube][c], GRID[Piece::gol][c],
         GRID[Piece::pawn_aura][c], GRID[Piece::orbs][c], GRID[Piece::spot_lights][c],
@@ -131,8 +127,8 @@ constexpr DemoConfig demo_config(DemoCol d) {
 // (1) the row count equals Roster's field count — the field-order
 //     mapping in column_to_roster is total. (Add a field to Roster ⇒
 //     add a Piece row ⇒ this trips until they agree.)
-static_assert(Piece::COUNT == 15,
-    "matrix: Piece row count must equal Roster's 15 fields (8 families + 7 features)");
+static_assert(Piece::COUNT == 13,
+    "matrix: Piece row count must equal Roster's 13 fields (6 families + 7 features)");
 
 // (2) THE BYTE-EQUIVALENCE GOLDEN (Jean's mandatory gate). The two
 //     migrated columns are pinned to the retired headers' exact values,

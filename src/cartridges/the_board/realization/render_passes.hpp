@@ -84,27 +84,6 @@ inline void upload_ground_entries(MachineCtx* c, wgpu::Queue& queue) {
         archOrigins[i].pier_correction_right = 0.0f;
     }
     c->gpuState_.upload_arch_origins(queue, archOrigins, Dim::MAX_ARCH_INSTANCES);
-
-    // ── Column + Antenna ground entries (shared GPU buffer, split arrays) ──
-    GPUColumnGroundEntry columnOrigins[Dim::MAX_COLUMN_INSTANCES]{};
-    for (uint32_t i = 0; i < Dim::MAX_COLUMN_ONLY; i++) {
-        if (!c->entities_state_.columns[i].active) continue;
-        columnOrigins[i].center_x = c->entities_state_.columns[i].world_x;
-        columnOrigins[i].center_z = c->entities_state_.columns[i].world_z;
-        columnOrigins[i].is_active = 1;
-        columnOrigins[i].ground_y = c->entities_state_.columns[i].cached_ground_y;
-        columnOrigins[i].pier_correction = 0.0f;
-    }
-    for (uint32_t i = 0; i < Dim::MAX_ANTENNA_ONLY; i++) {
-        if (!c->entities_state_.antennas[i].active) continue;
-        uint32_t gpu_slot = i + Dim::ANTENNA_SLOT_OFFSET;
-        columnOrigins[gpu_slot].center_x = c->entities_state_.antennas[i].world_x;
-        columnOrigins[gpu_slot].center_z = c->entities_state_.antennas[i].world_z;
-        columnOrigins[gpu_slot].is_active = 1;
-        columnOrigins[gpu_slot].ground_y = c->entities_state_.antennas[i].cached_ground_y;
-        columnOrigins[gpu_slot].pier_correction = 0.0f;
-    }
-    c->gpuState_.upload_column_origins(queue, columnOrigins, Dim::MAX_COLUMN_INSTANCES);
 }
 
 inline void dispatch_placement_correction(MachineCtx* c, wgpu::CommandEncoder& encoder) {
@@ -147,7 +126,6 @@ inline void stage_draw_ledger(MachineCtx* c, OrbsState& orbs_state_) {
     // The five generated families + the shell: their index counts are
     // (maxSlot + 1) * MAX_INDICES_PER_SLOT, zero when nothing is active.
     g.stage_draw_indexed(GPUState::DR_ARCH,   g.arch_index_count(),   1u);
-    g.stage_draw_indexed(GPUState::DR_COLUMN, g.column_index_count(), 1u);
     g.stage_draw_indexed(GPUState::DR_SHELL,  g.shell_index_count(),  1u);
 
     // The ribbon: RIBBON_1's live vertex count, and its liveness. A ribbon

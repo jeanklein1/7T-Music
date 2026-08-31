@@ -8,13 +8,14 @@
 // The shape of the table: numbers are GROUP-SCOPED (g0..g3 are the
 // four strata of the LOOM_2 recut — WORLD, FRAME, FAMILY-STATE,
 // FAMILY-TEXTURES), and ONE CONSTANT PER SLOT; a slot may carry
-// several declarations (the fc_ cull aliases; the MESHGEN
-// convergence, where two kernels' scratch trios share three
-// numbers so one family rides the other layout).
+// several declarations (the fc_ cull aliases). The MESHGEN
+// convergence CONVERGED: five kernels shared three numbers so
+// four families could ride one layout, and PRUNE_2 excised all
+// four. The arch's trio is the sole occupant now and holds the
+// numbers under its own names.
 //
-// The WGSL @binding literals in world.wgsl (71 declarations over 65 slots;
-// aliases: fc_config, fc_patches, fc_vp,
-// and the 3 MESHGEN convergence names)
+// The WGSL @binding literals in world.wgsl (65 declarations over 62 slots;
+// aliases: fc_config, fc_patches, fc_vp)
 // are a MIRROR of this file, kept in lockstep by boot-time
 // validation and by binding_gen.py --check. The render = compute
 // + 200 witness band is RETIRED — its epitaph closes this file.
@@ -53,7 +54,7 @@ namespace t7 {
             namespace g2 {
                 // AGENTS (0–19)
                 inline constexpr uint32_t agent_state                 = 0;
-                inline constexpr uint32_t agent_room                  = 1;  // AgentRoomConstants — CHORD_1: portals + behaviors + tier_gains + occupier_cmg + occupier_amg, one uniform block at world/mood cadence (6960 B)
+                inline constexpr uint32_t agent_room                  = 1;  // AgentRoomConstants — CHORD_1: portals + behaviors + tier_gains + occupier_amg, one uniform block at world/mood cadence (6960 B)
                 inline constexpr uint32_t floating_entities           = 2;
                 inline constexpr uint32_t render_agents               = 5;
                 inline constexpr uint32_t render_floating             = 6;
@@ -83,8 +84,6 @@ namespace t7 {
 
                 // PLACE (80–99)
                 inline constexpr uint32_t arch_ground                 = 81;
-                inline constexpr uint32_t column_ground               = 82;
-                inline constexpr uint32_t cmg_column_ground           = 84;  // read-only column_ground view (the terrain delta)
 
                 // ZONES (100–119)
                 inline constexpr uint32_t zone_config                 = 101;
@@ -108,10 +107,9 @@ namespace t7 {
                 inline constexpr uint32_t ribbon_body_read            = 145;  // the agents' room's read of the same home: the mount reads .saddle, the field reads .emit
 
                 // MESHGEN (180–199)
-                inline constexpr uint32_t amg_params                  = 180;  // aka cmg_params
-                inline constexpr uint32_t amg_vertices                = 181;  // aka cmg_vertices
-                inline constexpr uint32_t amg_indices                 = 182;  // aka cmg_indices
-                inline constexpr uint32_t cmg_config                  = 183;  // DesignConfig view for the cmg kernel (the ceiling gate)
+                inline constexpr uint32_t amg_params                  = 180;
+                inline constexpr uint32_t amg_vertices                = 181;
+                inline constexpr uint32_t amg_indices                 = 182;
 
                 // SCENE (200–219)
                 inline constexpr uint32_t scene_constants             = 200;  // SceneConstants — CHORD_4: tier_gains + figure_profiles + ribbon, one uniform block at world/mood cadence (4336 B, render VS only; bound by the scene AND shadow layouts)

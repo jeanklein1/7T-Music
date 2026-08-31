@@ -52,8 +52,6 @@ namespace t7 {
             constexpr const char* SHADOW_RIBBON_VS = "shadow_ribbon_vs";
             constexpr const char* ARCH_VS = "arch_vs";
             constexpr const char* SHADOW_ARCH_VS = "shadow_arch_vs";
-            constexpr const char* COLUMN_VS = "column_vs";
-            constexpr const char* SHADOW_COLUMN_VS = "shadow_column_vs";
             // PYRAMID_VS / SHADOW_PYRAMID_VS CUT — pyramid mesh never drawn
             constexpr const char* SHELL_VS = "shell_vs";
             constexpr const char* SHADOW_SHELL_VS = "shadow_shell_vs";
@@ -69,9 +67,8 @@ namespace t7 {
             constexpr const char* ZONE_GOL_EVOLVE = "zone_gol_evolve";
             constexpr const char* ZONE_DERIVE_PARAMS = "zone_derive_params";
 
-            // GPU Entity Mesh Gen (Phase 2: Arches, Phase 3: Columns — pyramid mesh-gen CUT)
+            // GPU Entity Mesh Gen (Phase 2: Arches — pyramid mesh-gen CUT)
             constexpr const char* ARCH_MESH_GEN = "arch_mesh_gen";
-            constexpr const char* COLUMN_MESH_GEN = "column_mesh_gen";
 
             // Fade overlay (fullscreen transition)
             constexpr const char* FADE_OVERLAY_VS = "fade_overlay_vs";
@@ -201,7 +198,6 @@ namespace t7 {
             wgpu::RenderPipeline monolithPipeline_;      // Monolith entity
             wgpu::RenderPipeline ribbonPipeline_;        // Sky ribbon entity
             wgpu::RenderPipeline archPipeline_;          // Catenary arch entity
-            wgpu::RenderPipeline columnPipeline_;        // Generative column entity
             // pyramidPipeline_ CUT — pyramid mesh never drawn
             wgpu::RenderPipeline shellPipeline_;         // Indoor shell (ceiling + walls)
 
@@ -211,7 +207,6 @@ namespace t7 {
             wgpu::RenderPipeline shadowMonolithPipeline_;
             wgpu::RenderPipeline shadowRibbonPipeline_;
             wgpu::RenderPipeline shadowArchPipeline_;
-            wgpu::RenderPipeline shadowColumnPipeline_;
             // shadowPyramidPipeline_ CUT
             wgpu::RenderPipeline shadowShellPipeline_;
 
@@ -252,9 +247,8 @@ namespace t7 {
             // Fade overlay (fullscreen alpha-blended triangle)
             wgpu::RenderPipeline fadeOverlayPipeline_;
 
-            // GPU entity mesh gen (Phase 2: arches, Phase 3: columns — pyramid mesh-gen CUT)
+            // GPU entity mesh gen (Phase 2: arches — pyramid mesh-gen CUT)
             wgpu::ComputePipeline archMeshGenPipeline_;
-            wgpu::ComputePipeline columnMeshGenPipeline_;
 
         public:
             // ═══ THE BUNDLES (BUNDLE_1) ═══════════════════════════════════
@@ -697,20 +691,6 @@ namespace t7 {
                 pass.DispatchWorkgroups(Dim::MAX_ARCH_INSTANCES, 4, 1);
             }
 
-            // GPU column mesh gen — all 32 slots in one dispatch, one
-            // workgroup each (LATTICE_2).
-            void dispatch_column_mesh_gen(
-                wgpu::ComputePassEncoder& pass,
-                wgpu::BindGroup stateGroup,
-                wgpu::BindGroup texGroup
-            ) {
-                if constexpr (!(ROSTER.column || ROSTER.antenna)) return;  // ROSTER-GATE column+antenna (shared pipelines) (a') — pipeline never created; the holder tolerates
-                pass.SetPipeline(columnMeshGenPipeline_);
-                pass.SetBindGroup(2, stateGroup);
-                pass.SetBindGroup(3, texGroup);
-                pass.DispatchWorkgroups(Dim::MAX_COLUMN_INSTANCES, 1, 1);
-            }
-
             // THE DRAW PLAN: one helper, three invocations — the args slot
             // rides the offset (0 / 20 / 40 bytes into the 3 x 5-u32 args
             // buffer). OIL_1 U13 (ledger: R19, C7): the three plan slots
@@ -894,19 +874,6 @@ namespace t7 {
                     vertexBuffer, indexBuffer, ledger, ledgerOffset);
             }
 
-            template <class Enc>
-            void draw_column(
-                Enc& pass,
-                wgpu::Buffer vertexBuffer,
-                wgpu::Buffer indexBuffer,
-                wgpu::Buffer ledger,
-                uint64_t ledgerOffset
-            ) {
-                if constexpr (!(ROSTER.column || ROSTER.antenna)) return;  // ROSTER-GATE column+antenna (shared pipelines) (a') — pipeline never created; the holder tolerates
-                draw_indexed_mesh_indirect(pass, columnPipeline_,
-                    vertexBuffer, indexBuffer, ledger, ledgerOffset);
-            }
-
             // draw_pyramid CUT — caller-free; pyramid mesh never drawn
 
             template <class Enc>
@@ -1076,19 +1043,6 @@ namespace t7 {
                     vertexBuffer, indexBuffer, ledger, ledgerOffset);
             }
 
-            template <class Enc>
-            void draw_shadow_column(
-                Enc& pass,
-                wgpu::Buffer vertexBuffer,
-                wgpu::Buffer indexBuffer,
-                wgpu::Buffer ledger,
-                uint64_t ledgerOffset
-            ) {
-                if constexpr (!(ROSTER.column || ROSTER.antenna)) return;  // ROSTER-GATE column+antenna (shared pipelines) (a') — pipeline never created; the holder tolerates
-                draw_shadow_indexed_mesh_indirect(pass, shadowColumnPipeline_,
-                    vertexBuffer, indexBuffer, ledger, ledgerOffset);
-            }
-
             // draw_shadow_pyramid CUT — caller-free
 
             template <class Enc>
@@ -1113,7 +1067,6 @@ namespace t7 {
                 if (!(ROSTER.cube)) n += 3;
                 if (!(ROSTER.ribbon)) n += 3;
                 if (!(ROSTER.arch)) n += 3;
-                if (!(ROSTER.column || ROSTER.antenna)) n += 3;
                 // pyramid: 0 pipelines (mesh-gen + render + shadow all cut)
                 if (!(ROSTER.gol)) n += 7;
                 if (!(ROSTER.orbs)) n += 5;
@@ -1467,13 +1420,6 @@ namespace t7 {
                         pl, Entry::ARCH_MESH_GEN, archMeshGenPipeline_)) return false;
                 }
 
-                if constexpr (ROSTER.column || ROSTER.antenna) {  // ROSTER-GATE column+antenna (shared pipelines) (a') — shader compile skipped when disabled
-                    wgpu::PipelineLayout pl = strataLayoutFor("meshgenComputeLayout", frameCLayout_, meshgenStateLayout_, emptyLayout_);  // bindings 196-198
-                    if (!pl) return false;
-                    if (!makeComputePipeline("column_mesh_gen", "Column Mesh Gen",
-                        pl, Entry::COLUMN_MESH_GEN, columnMeshGenPipeline_)) return false;
-                }
-
                 return true;
             }
 
@@ -1502,7 +1448,7 @@ namespace t7 {
                 // The genuine forks are parameters: the VS entry (passed VERBATIM), the
                 // vertex-buffer layout (nullptr = bufferless, GPU-generated from vertex_index),
                 // and cullMode — a REAL per-pipeline field, NOT noise: single-sided frond/
-                // column quads disable backface cull (None), solids keep Back. Same
+                // single-sided quads disable backface cull (None), solids keep Back. Same
                 // shared desc the originals mutated in place, rebuilt fresh per call
                 // (byte-identical result). Captures renderLayout/depthStencil/colorTarget.
                 auto makeEntity = [&](const char* label, const char* dbgLabel, const char* vsEntry,
@@ -1677,16 +1623,12 @@ namespace t7 {
                     archVBL.attributeCount = archAttrs.size();
                     archVBL.attributes = archAttrs.data();
 
-                    // Arch/column/pyramid — same ArchVertex format; differ by
-                    // VS + cull. Single-sided column quads disable backface
+                    // Arch/pyramid — same ArchVertex format; differ by
+                    // VS + cull. Single-sided quads disable backface
                     // cull (None); arch + pyramid are solids (Back). (cullMode is a real fork.)
                     if constexpr (ROSTER.arch) {  // ROSTER-GATE arch (a') — shader compile skipped when disabled
                     if (!makeEntity("arch", "Catenary Arch (Rasterized)", Entry::ARCH_VS,
                         &archVBL, wgpu::CullMode::Back, archPipeline_)) return false;
-                    }
-                    if constexpr (ROSTER.column || ROSTER.antenna) {  // ROSTER-GATE column+antenna (shared pipelines) (a') — shader compile skipped when disabled
-                    if (!makeEntity("column", "Generative Column (Rasterized)", Entry::COLUMN_VS,
-                        &archVBL, wgpu::CullMode::None, columnPipeline_)) return false;
                     }
                     // pyramid render pipeline CUT — mesh never drawn
                 }
@@ -2043,7 +1985,7 @@ namespace t7 {
                     // from makeEntity (not one with an isShadow flag): color-vs-depth is a
                     // real category boundary (different layout, different depth state, no FS).
                     // Forks are parameters: shadow-VS (verbatim), VBL, cullMode — same
-                    // Back/None split as the entity family (single-sided column/
+                    // Back/None split as the entity family (single-sided
                     // pawn/ribbon/shell → None; solids → Back).
                     // TWO BIAS PROFILES (PENUMBRA_3 C2). The profile rides the
                     // existing cullMode fork as a DEFAULTED 7th parameter, so the
@@ -2198,16 +2140,12 @@ namespace t7 {
                         shadowArchVBL.attributeCount = shadowArchAttrs.size();
                         shadowArchVBL.attributes = shadowArchAttrs.data();
 
-                        // arch/column shadows — same ArchVertex
+                        // arch shadows — same ArchVertex
                         // format; cull matches the color pass (arch Back, the
-                        // single-sided column None). pyramid shadow cut.
+                        // pyramid shadow cut.
                         if constexpr (ROSTER.arch) {  // ROSTER-GATE arch (a') — shader compile skipped when disabled
                         if (!makeShadow("shadow_arch", "Shadow Catenary Arch", Entry::SHADOW_ARCH_VS,
                             &shadowArchVBL, wgpu::CullMode::Back, shadowArchPipeline_)) return false;
-                        }
-                        if constexpr (ROSTER.column || ROSTER.antenna) {  // ROSTER-GATE column+antenna (shared pipelines) (a') — shader compile skipped when disabled
-                        if (!makeShadow("shadow_column", "Shadow Generative Column", Entry::SHADOW_COLUMN_VS,
-                            &shadowArchVBL, wgpu::CullMode::None, shadowColumnPipeline_)) return false;
                         }
                         // shadow_pyramid pipeline CUT — mesh never drawn
                     }

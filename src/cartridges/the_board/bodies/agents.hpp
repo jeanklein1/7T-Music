@@ -12,7 +12,9 @@
 //
 // Unified entity registry: the control panel for the agent system.
 //
-// The impl additionally reads COLUMN_PALETTE (grounded.hpp).
+// The walkers' color palette lives here (AGENT_PALETTE) — it graduated
+// from the column family's vocabulary when PRUNE_2 excised that family
+// and left the agents its only reader.
 // ─────────────────────────────────────────────────────────────────
 
 #include <cmath>      // std::sqrt, std::cos, std::sin   // (impl, merged)
@@ -314,8 +316,30 @@ void dump_passer_census(const AgentState& as, const AgentsDeps* c);   // ATRIUM_
 
 // ═══ IMPL:
 // bodies deref agent_state_(own) + gpu/player/transitionPhase/world/time
-// via AgentsDeps; read COLUMN_PALETTE (entities). COHORT: after entities
-// (COLUMN_PALETTE) + patch_system (WorldState) + spine/state. No machine.
+// via AgentsDeps. COHORT: after patch_system (WorldState) + spine/state.
+// No machine.
+
+// ── THE WALKERS' PALETTE (graduated, PRUNE_2 U4) ─────────────────
+// Ten authored colors, rolled per agent at authoring time. It arrived
+// here as COLUMN_PALETTE, in the column family's vocabulary block, and
+// outlived that family: when PRUNE_2 excised COLUMN and ANTENNA the
+// agents were its only surviving reader, so it moved to the reader and
+// took the reader's name. The VALUES are untouched — same ten swatches,
+// same order, same modulus — so every agent color is byte-identical to
+// the one it rolled before the move.
+inline constexpr float AGENT_PALETTE[][3] = {
+    { 0.937f, 0.902f, 0.831f },   // 0: sand      #EFE6D4
+    { 0.882f, 0.827f, 0.714f },   // 1: bone      #E1D3B6
+    { 0.129f, 0.118f, 0.110f },   // 2: ink       #211E1C
+    { 0.353f, 0.333f, 0.298f },   // 3: ink-soft  #5A554C
+    { 0.431f, 0.608f, 0.753f },   // 4: sky       #6E9BC0
+    { 0.863f, 0.596f, 0.482f },   // 5: coral     #DC987B
+    { 0.878f, 0.635f, 0.306f },   // 6: gold      #E0A24E
+    { 0.616f, 0.631f, 0.467f },   // 7: olive     #9DA177
+    { 0.635f, 0.620f, 0.686f },   // 8: lavender  #A29EAF
+    { 0.753f, 0.325f, 0.184f },   // 9: orb       #C0532F
+};
+inline constexpr uint32_t AGENT_PALETTE_COUNT = 10;
 
 // ═══ REGISTRY UPLOAD (CPU table → GPU buffer, once at world-init) ═
 //
@@ -427,10 +451,10 @@ inline void populate_agent_slot_(const AgentState& as,
     out.is_active      = 1u;
     out.portal_trigger = -1;
 
-    uint32_t ci = cpu_hash(agent_seed, 7u) % COLUMN_PALETTE_COUNT;
-    out.color_r = COLUMN_PALETTE[ci][0];
-    out.color_g = COLUMN_PALETTE[ci][1];
-    out.color_b = COLUMN_PALETTE[ci][2];
+    uint32_t ci = cpu_hash(agent_seed, 7u) % AGENT_PALETTE_COUNT;
+    out.color_r = AGENT_PALETTE[ci][0];
+    out.color_g = AGENT_PALETTE[ci][1];
+    out.color_b = AGENT_PALETTE[ci][2];
     // ── Roll figure (skin_id) — global distribution, deterministic from seed ──
     // Family weighted by FIGURE_SHARES (salt 8u); member uniform within family
     // (salt 9u). Independent of the behavior/tier rolls (distinct salts).

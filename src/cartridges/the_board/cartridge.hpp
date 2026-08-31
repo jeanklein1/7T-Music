@@ -69,7 +69,7 @@
 #include "cartridges/the_board/contracts/surface_services.hpp"  // THE SURFACE'S DECL TIER: WorldState + the patch registry + budgets/visibility + PatchSystemState + the surface service decls (bodies ride surface/patch_system.hpp at the cohort tail)
 #include "cartridges/the_board/surface/tile_world.hpp"          // S2: archetypes + tokens + TileState/cache + TileWorldDeps + impl — MERGED single file; after patch_system for WorldState/Dim::PATCH_EXTENT
 #include "cartridges/the_board/bodies/grounded.hpp"             // grounded-family vocabulary + EntitiesState + impl — MERGED; after entity_pipeline for generic_*
-#include "cartridges/the_board/bodies/agents.hpp"               // AgentState + AgentsDeps + impl — MERGED; after entities for COLUMN_PALETTE
+#include "cartridges/the_board/bodies/agents.hpp"               // AgentState + AgentsDeps + impl — MERGED; AGENT_PALETTE lives here
 #include "cartridges/the_board/bodies/cube_behaviors.hpp"       // CubeBehaviorsState + CubeDeps + impl — MERGED; after agents for AgentState
 #include "cartridges/the_board/bodies/spheres.hpp"              // SphereState + SphereDeps + impl — MERGED single file; after entity_pipeline for the generic funnels
 #include "cartridges/the_board/realization/renderer.hpp"
@@ -469,13 +469,6 @@ namespace t7 {
                 self->renderer_.dispatch_arch_mesh_gen(pass, self->gpuState_.meshgen_state_group(), self->gpuState_.empty_group());
             }
 
-            static bool dispatch_prepare_mesh_column(MachineCtx* self, wgpu::Queue& queue) {
-                return prepare_column_mesh_gen(self->entities_state_, self, queue);
-            }
-            static void dispatch_mesh_gen_column(MachineCtx* self, wgpu::ComputePassEncoder& pass) {
-                self->renderer_.dispatch_column_mesh_gen(pass, self->gpuState_.meshgen_state_column_group(), self->gpuState_.empty_group());
-            }
-
             // ── The dispatch table (FAMILY_DISPATCH) is defined at file
             //    scope after the class, beside the shared no-op adapters
             //    (declared in entity_types.hpp). ──
@@ -744,7 +737,6 @@ namespace t7 {
                         if (!enabled) { if (!off.empty()) off += ", "; off += name; }
                         };
                     mark(ROSTER.pyramid, "pyramid");     mark(ROSTER.arch, "arch");
-                    mark(ROSTER.column, "column");       mark(ROSTER.antenna, "antenna");
                     mark(ROSTER.sphere, "sphere");
                     mark(ROSTER.ribbon, "ribbon");       mark(ROSTER.cube, "cube");
                     mark(ROSTER.gol, "gol");
@@ -1985,14 +1977,6 @@ namespace t7 {
                     dirty[PopFamily::ARCH] = FAMILY_DISPATCH[PopFamily::ARCH].prepare_mesh(&machine_ctx_, queue);
                     anyDirty = anyDirty || dirty[PopFamily::ARCH];
                 }
-                if constexpr (ROSTER.column) {    // ROSTER-GATE column (b)
-                    dirty[PopFamily::COLUMN] = FAMILY_DISPATCH[PopFamily::COLUMN].prepare_mesh(&machine_ctx_, queue);
-                    anyDirty = anyDirty || dirty[PopFamily::COLUMN];
-                }
-                if constexpr (ROSTER.antenna) {   // ROSTER-GATE antenna (b)
-                    dirty[PopFamily::ANTENNA] = FAMILY_DISPATCH[PopFamily::ANTENNA].prepare_mesh(&machine_ctx_, queue);
-                    anyDirty = anyDirty || dirty[PopFamily::ANTENNA];
-                }
                 if constexpr (ROSTER.sphere) {    // ROSTER-GATE sphere (b)
                     dirty[PopFamily::SPHERE] = FAMILY_DISPATCH[PopFamily::SPHERE].prepare_mesh(&machine_ctx_, queue);
                     anyDirty = anyDirty || dirty[PopFamily::SPHERE];
@@ -2210,41 +2194,12 @@ namespace t7 {
                 if (world_state_.placement_dirty) {
                     world_state_.placement_dirty = false;
                     dispatch_placement_correction(&machine_ctx_, encoder);
-                    // THE RE-RAISE (COLUMN CEILING FIT): this frame's
-                    // correction rewrites column ground_y; the cmg kernel
-                    // bakes ceiling-relative height from it, so a corrected
-                    // ground demands ONE rebake — bake raw at N, correct at
-                    // N's R16, rebake true at N+1's R8. Gated on an active
-                    // column (the population the fit touches; antennas are
-                    // tier-gated out in the kernel) and on the SAME dirty
-                    // consumption that dispatched the correction — NEVER
-                    // unconditional: a perpetual rebake is the failure mode
-                    // (idle rig = zero mesh-gen dispatches at steady state).
-                    //
-                    // AND ONLY WHERE A CEILING READS IT (PANORAMA_1). The fit
-                    // is what makes ground_y an INPUT to the mesh, and it is
-                    // the only thing that does: the kernel's height is
-                    //   select(p.height, max(ceiling - ground_y, MIN),
-                    //          ceiling_height > 0.0 && tier < ANTENNA)
-                    // so outdoors, where set_ceiling_height writes 0, the
-                    // false arm keeps p.height and every output byte of the
-                    // rebake equals the last bake's. The re-raise was firing
-                    // on every corrected frame in an open world and paying a
-                    // whole-family regeneration for a result it could not
-                    // change — 378 of 498 firings in one 1,300-frame window,
-                    // which is what the mesh-gen count was built to see.
-                    //
-                    // The condition is the SAME FIELD the kernel selects on,
-                    // read from the CPU side of the same uniform, so the gate
-                    // and the select cannot disagree.
-                    if (gpuState_.config().ceiling_height > 0.0f) {
-                        for (uint32_t i = 0; i < Dim::MAX_COLUMN_ONLY; i++) {
-                            if (entities_state_.columns[i].active) {
-                                entities_state_.column_mesh_gen_pending = true;
-                                break;
-                            }
-                        }
-                    }
+                    // THE RE-RAISE went with the column (PRUNE_2 U4). It
+                    // existed for one law — the COLUMN CEILING FIT, which
+                    // made ground_y an INPUT to the mesh and so demanded one
+                    // rebake after each correction. No surviving family reads
+                    // corrected ground back into its geometry, so the
+                    // correction now ends where it lands.
                 }
             }
 
@@ -2969,9 +2924,9 @@ namespace t7 {
         // brevity — it makes three standing traps structurally unreachable:
         //   · MAX_RIBBON_INSTANCES is a t7::the_board namespace constant,
         //     NOT a Dim:: member. Nothing here has to know that.
-        //   · Dim::ANTENNA_SLOT_OFFSET (16) / Dim::CUBE_SLOT_OFFSET (8) are
-        //     GPU-side only; both CPU arrays are 0-based. No offset can leak
-        //     in, because no index arithmetic is written.
+        //   · Dim::CUBE_SLOT_OFFSET (8) is GPU-side only; the CPU array is
+        //     0-based. No offset can leak in, because no index arithmetic is
+        //     written.
         //   · gol_state_.active_slot_count and cpu_pyramids.count are
         //     HIGH-WATER MARKS (highest active slot + 1), not populations.
         //     Both are live-read, which is what makes them tempting; neither
@@ -2980,13 +2935,13 @@ namespace t7 {
         //     is no longer "close enough" but "the same word". It is still
         //     the wrong number — those two fields are maintained for their
         //     own consumers, on their own cadence, for two families out of
-        //     eleven. The census scans; it does not borrow.
+        //     six. The census scans; it does not borrow.
         //
         // ROSTER-disabled families are NOT special-cased: a disabled family is
         // never selected, so its array stays empty and it reads zero on both
         // sides. That agreement is itself a check.
 
-        // One implementation, eleven callers (the P11 shape).
+        // One implementation, six callers (the P11 shape).
         template<typename T, size_t N>
         inline uint32_t census_scan_active(const T (&arr)[N]) {
             uint32_t n = 0;
@@ -2998,13 +2953,13 @@ namespace t7 {
         // N is the capacity: that is the ONLY way the ceiling reaches the
         // census without a constant being named here, which is what keeps the
         // three traps above unreachable — the ribbon bound is not a
-        // Dim:: member, and the antenna/cube slot offsets are GPU-side.
+        // Dim:: member, and the cube slot offset is GPU-side.
         //
         // Deliberately a SECOND pass over the array, not a merge with
         // census_scan_active. The two numbers must be able to disagree: `live`
         // feeds the delta column that catches ground/body leaks, and a
         // diagnostic that silently re-derived it would put the leak check
-        // downstream of itself. Eleven arrays at ≤288 entries, once per
+        // downstream of itself. Six arrays at ≤288 entries, once per
         // census dump — the cost is not measurable beside the print.
         template<typename T, size_t N>
         inline SlotCensus census_scan_slots(const T (&arr)[N]) {
@@ -3019,21 +2974,17 @@ namespace t7 {
 
         inline uint32_t active_count_pyramid(const MachineCtx* c) { return census_scan_active(c->entities_state_.pyramids); }
         inline uint32_t active_count_arch   (const MachineCtx* c) { return census_scan_active(c->entities_state_.arches); }
-        inline uint32_t active_count_column (const MachineCtx* c) { return census_scan_active(c->entities_state_.columns); }
-        inline uint32_t active_count_antenna(const MachineCtx* c) { return census_scan_active(c->entities_state_.antennas); }
         inline uint32_t active_count_sphere (const MachineCtx* c) { return census_scan_active(c->sphere_state_.activeSpheres_); }
         inline uint32_t active_count_ribbon (const MachineCtx* c) { return census_scan_active(c->ribbon_state_.active); }
         inline uint32_t active_count_cube   (const MachineCtx* c) { return census_scan_active(c->cube_behaviors_state_.activeCubes_); }
         inline uint32_t active_count_gol    (const MachineCtx* c) { return census_scan_active(c->gol_state_.zones); }
 
-        // The slot_census row — the SAME eleven arrays, named once more so the
+        // The slot_census row — the SAME six arrays, named once more so the
         // capacity travels with the population. Any divergence between these
         // two lists is a family reporting its live count off one array and its
         // ceiling off another, so they are kept adjacent on purpose.
         inline SlotCensus slot_census_pyramid(const MachineCtx* c) { return census_scan_slots(c->entities_state_.pyramids); }
         inline SlotCensus slot_census_arch   (const MachineCtx* c) { return census_scan_slots(c->entities_state_.arches); }
-        inline SlotCensus slot_census_column (const MachineCtx* c) { return census_scan_slots(c->entities_state_.columns); }
-        inline SlotCensus slot_census_antenna(const MachineCtx* c) { return census_scan_slots(c->entities_state_.antennas); }
         inline SlotCensus slot_census_sphere (const MachineCtx* c) { return census_scan_slots(c->sphere_state_.activeSpheres_); }
         inline SlotCensus slot_census_ribbon (const MachineCtx* c) { return census_scan_slots(c->ribbon_state_.active); }
         inline SlotCensus slot_census_cube   (const MachineCtx* c) { return census_scan_slots(c->cube_behaviors_state_.activeCubes_); }
@@ -3041,8 +2992,8 @@ namespace t7 {
 
         // ─── The table ─────────────────────────────────────────────────────
         // AXES: one row per family, POSITIONAL in PopFamily order (PYRAMID=0,
-        //   ARCH, COLUMN, ANTENNA, SPHERE, RIBBON, CUBE,
-        //   GOL=7) — the enum values are pinned at roster.hpp (F-1)
+        //   ARCH, SPHERE, RIBBON, CUBE,
+        //   GOL=5) — the enum values are pinned at roster.hpp (F-1)
         //   and every row's trailing name string is boot-checked against
         //   family_short_name by validate_spine (F-2), so a row swap fails
         //   LOUD. Row columns (FamilyDispatch, entity_types.hpp):
@@ -3065,18 +3016,6 @@ namespace t7 {
               slot_census_arch,
               ARCH_TRAITS.grounded,
               "arch" },
-            { dispatch_select_column_generic, dispatch_place_column_generic, dispatch_commit_column_generic,
-              evict_column,  Cartridge::dispatch_prepare_mesh_column,  Cartridge::dispatch_mesh_gen_column,
-              active_count_column,
-              slot_census_column,
-              COLUMN_TRAITS.grounded,
-              "col" },
-            { dispatch_select_antenna_generic, dispatch_place_antenna_generic, dispatch_commit_antenna_generic,
-              evict_antenna, Cartridge::dispatch_prepare_mesh_column,  Cartridge::dispatch_mesh_gen_column,
-              active_count_antenna,
-              slot_census_antenna,
-              ANTENNA_TRAITS.grounded,
-              "ant" },
             { dispatch_select_sphere_generic, dispatch_place_sphere_generic, dispatch_commit_sphere_generic,
               evict_sphere, dispatch_prepare_mesh_none, dispatch_mesh_gen_none,
               active_count_sphere,

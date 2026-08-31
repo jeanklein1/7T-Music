@@ -22,7 +22,7 @@
 //
 // Depends on cohort include order: roster.hpp (PopFamily),
 // entity_types.hpp (queue unions), state.hpp (GPU mesh params),
-// grounded.hpp (ActiveColumn/EntitiesState — COMPLETE, the merged
+// grounded.hpp (EntitiesState — COMPLETE, the merged
 // bodies deref them), patch_system.hpp (Dim::PATCH_EXTENT — the preamble
 // template reads it at definition), renderer.hpp. MERGED at the
 // cohort tail (the B ruling): the decl tier
@@ -45,7 +45,7 @@ namespace the_board {
 //                                            the whole band → invisible exit)
 // Both toggle edges are behind the icing — materialize inside the fade.
 inline constexpr float ENTITY_CULL_HYSTERESIS     = 40.0f;   // toggle band, wholly beyond the ring
-inline constexpr float ENTITY_THIN_EXTENT         = 5.0f;    // columns/antennas: conservative horizontal half-reach
+inline constexpr float ENTITY_THIN_EXTENT         = 5.0f;    // thin bodies: conservative horizontal half-reach
 
 // ── Footprint registry vocabulary ──────────────────────────────────
 
@@ -75,16 +75,15 @@ inline constexpr uint32_t CENSUS_LISTING_MAX = 12;
 //   attractor footprints (a) MULTIPLY its spawn chance (boost) and
 //   (b) SHRINK its required separation gap (gap reduction).
 // AXES: the four vectors are indexed by the PLACING family; the matrix
-//   is PROXIMITY_AFFINITY[placing][existing-neighbor] — e.g.
-//   [Col][Col]=0.4 means a column being placed is drawn to standing
-//   columns.
+//   is PROXIMITY_AFFINITY[placing][existing-neighbor]: a non-zero
+//   [X][Y] means an X being placed is drawn to standing Ys.
 // UNITS: RADIUS = wu (neighbor-scan distance around the candidate);
 //   MAX_BOOST = multiplier ceiling on the spawn-chance boost;
 //   THRESHOLD = count (minimum qualifying neighbors before any boost);
 //   GAP_REDUCTION = fraction 0-1 of MIN_SEPARATION removed, scaled by
 //   the pair's affinity; AFFINITY = dimensionless weight 0-1, summed
 //   over neighbors into boost = min(1 + Σaff, MAX_BOOST).
-// ORDER: every axis follows PopFamily order (PYRAMID=0 … GOL=7),
+// ORDER: every axis follows PopFamily order (PYRAMID=0 … GOL=5),
 //   PINNED by the F-1 static_assert at roster.hpp.
 // CONSUMERS: proximity_affinity_boost() below (RADIUS/MAX_BOOST/
 //   THRESHOLD/AFFINITY → the adj_mod spawn multiplier);
@@ -96,26 +95,27 @@ inline constexpr uint32_t CENSUS_LISTING_MAX = 12;
 //   short-circuits the whole mechanism for that family.
 // Spawn + placement determinant — frozen biography (§12): these numbers
 // shape both the rate and the geometry of every cluster ever born.
-// Only COLUMN clusters today.
+// No surviving family clusters today.
 
-//                              Pyr    Arch   Col    Ant    Sph    Ribn   Cube   GoL
-inline constexpr float    PROXIMITY_RADIUS[PopFamily::COUNT] = { 0.0f,  0.0f, 60.0f,  0.0f,  0.0f,  0.0f,  0.0f,  0.0f };   // wu; 0 = never scans
-inline constexpr float    PROXIMITY_MAX_BOOST[PopFamily::COUNT] = { 1.0f,  1.0f,  2.0f,  1.0f,  1.0f,  1.0f,  1.0f,  1.0f };   // ×ceiling; 1 = no boost
-inline constexpr uint32_t PROXIMITY_THRESHOLD[PopFamily::COUNT] = { 0,     0,     2,     0,     0,     0,     0,     0 };   // min neighbors; 0 = none
-inline constexpr float    PROXIMITY_GAP_REDUCTION[PopFamily::COUNT] = { 0.0f, 0.0f, 0.3f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f };   // fraction of MIN_SEPARATION; 0 = keep full gap
+//                              Pyr    Arch   Sph    Ribn   Cube   GoL
+inline constexpr float    PROXIMITY_RADIUS[PopFamily::COUNT] = { 0.0f,  0.0f,  0.0f,  0.0f,  0.0f,  0.0f };   // wu; 0 = never scans
+inline constexpr float    PROXIMITY_MAX_BOOST[PopFamily::COUNT] = { 1.0f,  1.0f,  1.0f,  1.0f,  1.0f,  1.0f };   // ×ceiling; 1 = no boost
+inline constexpr uint32_t PROXIMITY_THRESHOLD[PopFamily::COUNT] = { 0,     0,     0,     0,     0,     0 };   // min neighbors; 0 = none
+inline constexpr float    PROXIMITY_GAP_REDUCTION[PopFamily::COUNT] = { 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f };   // fraction of MIN_SEPARATION; 0 = keep full gap
 
-// AFFINITY[placing][existing]: rows follow PopFamily; only Col has a
-// non-zero row (all others never cluster).
+// AFFINITY[placing][existing]: rows follow PopFamily. Every row is zero
+// since PRUNE_2 — the clustering families were COLUMN and the flora, and
+// all four left. The mechanism stands, unexercised, for the next family
+// that wants it: proximity_row_active() folds to false for all six and
+// the whole path short-circuits at compile time.
 inline constexpr float PROXIMITY_AFFINITY[PopFamily::COUNT][PopFamily::COUNT] = {
-    //           near: Pyr   Arch  Col   Ant   Sph   Ribn  Cube  GoL
-    /* Pyr   */ { 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f },
-    /* Arch  */ { 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f },
-    /* Col   */ { 0.0f, 0.0f, 0.4f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f },
-    /* Ant   */ { 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f },
-    /* Sph   */ { 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f },
-    /* Ribn  */ { 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f },
-    /* Cube  */ { 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f },
-    /* GoL   */ { 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f },
+    //           near: Pyr   Arch  Sph   Ribn  Cube  GoL
+    /* Pyr   */ { 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f },
+    /* Arch  */ { 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f },
+    /* Sph   */ { 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f },
+    /* Ribn  */ { 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f },
+    /* Cube  */ { 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f },
+    /* GoL   */ { 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f },
 };
 
 // Precomputed: does this family have any non-zero affinity?
@@ -189,7 +189,7 @@ struct SpawnEngineState {
 // DECLARATIONS live in contracts/spawn_services.hpp (the
 // machine's decl tier) with the boundary DTOs
 // (SpawnGatePreambleResult / PositionResult / SpawnPreamble), the
-// ActiveColumn fwd, MIN_SEPARATION, and GLOBAL_ENTITY_DENSITY (gol
+// MIN_SEPARATION and GLOBAL_ENTITY_DENSITY (gol
 // reads it pre-tail). Definitions are all below.
 
 // ── Helper 1: SpawnGatePreamble ──────────────────────────────
@@ -405,7 +405,7 @@ inline PositionResult negotiate_position(MachineCtx* c,
 
 // ═══ MESH GEN PREPARERS + CULLING ════════════════════════════════
 
-// ─── Column / Arch / Pyramid mesh-gen preparers ───────────────
+// ─── Arch / Pyramid mesh-gen preparers ────────────────────────
 
 // Rebuild GPUArchMeshParams from cached ActiveArch data.
 inline GPUArchMeshParams build_arch_mesh_params(MachineCtx* c, uint32_t slot) {
@@ -430,52 +430,6 @@ inline GPUArchMeshParams build_arch_mesh_params(MachineCtx* c, uint32_t slot) {
     return p;
 }
 
-// Rebuild GPUColumnMeshParams from cached ActiveColumn data.
-inline GPUColumnMeshParams build_column_mesh_params_from(const ActiveColumn& c) {
-    GPUColumnMeshParams p{};
-    p.center_x = c.world_x;
-    p.center_z = c.world_z;
-    p.height = c.height;
-    p.shaft_radius = c.shaft_radius;
-    p.taper = c.taper;
-    p.entasis = c.entasis;
-    p.base_height = c.base_height;
-    p.base_overhang = c.base_overhang;
-    p.capital_height = c.cap_height;
-    p.capital_overhang = c.cap_overhang;
-    p.burial = c.burial;
-    p.color_r = c.col_r;
-    p.color_g = c.col_g;
-    p.color_b = c.col_b;
-    p.mosaic_seed = c.mosaic_seed;   // MOSAIC_1 — the Q3 one-producer: commit + reupload/cull both ride this; antennas arrive plain (zeroed ActiveColumn)
-    p.base_layers = c.base_layers;
-    p.capital_layers = c.cap_layers;
-    p.segs_around = c.segs_around;
-    p.shaft_rings = c.shaft_rings;
-    p.is_active = 1;
-    p.tier = c.tier_idx;
-    p.drum_color_r1 = c.drum_colors[0];
-    p.drum_color_g1 = c.drum_colors[1];
-    p.drum_color_b1 = c.drum_colors[2];
-    p.drum_color_r2 = c.drum_colors[3];
-    p.drum_color_g2 = c.drum_colors[4];
-    p.drum_color_b2 = c.drum_colors[5];
-    p.drum_color_r3 = c.drum_colors[6];
-    p.drum_color_g3 = c.drum_colors[7];
-    p.drum_color_b3 = c.drum_colors[8];
-    return p;
-}
-
-inline GPUColumnMeshParams build_column_mesh_params(MachineCtx* c, uint32_t slot) {
-    return build_column_mesh_params_from(c->entities_state_.columns[slot]);
-}
-
-// Scan all active entities, toggle draw_visible with hysteresis,
-// and upload mesh param changes. Returns count of currently hidden entities.
-// THE RING is the correctness gate (re-ruled): draw membership = any part
-// of the entity inside the live ring (center − extent ≤ ring). Anchor: the
-// point (readback — the same yardstick as the terrain band). Both toggle
-// edges sit at/beyond the ring where the icing is already 1 — invisible.
 inline uint32_t update_entity_draw_visibility(MachineCtx* c, wgpu::Queue& queue) {
     uint32_t culled = 0;
 
@@ -507,63 +461,6 @@ inline uint32_t update_entity_draw_visibility(MachineCtx* c, wgpu::Queue& queue)
         }
 
         if (!c->entities_state_.arches[i].draw_visible) culled++;
-    }
-
-    // Columns
-    for (uint32_t i = 0; i < Dim::MAX_COLUMN_ONLY; i++) {
-        if (!c->entities_state_.columns[i].active) continue;
-        const auto& col = c->entities_state_.columns[i];
-        float dx = col.world_x - c->point_.x;
-        float dz = col.world_z - c->point_.z;
-        float dist = std::sqrt(dx * dx + dz * dz);
-
-        float nearest = dist - std::max(col.shaft_radius, ENTITY_THIN_EXTENT);
-        bool should_show = col.draw_visible
-            ? (nearest <= ring + ENTITY_CULL_HYSTERESIS)
-            : (nearest <= ring);
-
-        if (should_show != col.draw_visible) {
-            c->entities_state_.columns[i].draw_visible = should_show;
-            if (should_show) {
-                c->gpuState_.upload_column_mesh_params_slot(queue, i, build_column_mesh_params(c, i));
-            }
-            else {
-                GPUColumnMeshParams empty{};
-                c->gpuState_.upload_column_mesh_params_slot(queue, i, empty);
-            }
-            c->entities_state_.column_mesh_gen_pending = true;
-        }
-
-        if (!c->entities_state_.columns[i].draw_visible) culled++;
-    }
-
-    // Antennas
-    for (uint32_t i = 0; i < Dim::MAX_ANTENNA_ONLY; i++) {
-        if (!c->entities_state_.antennas[i].active) continue;
-        const auto& ant = c->entities_state_.antennas[i];
-        float dx = ant.world_x - c->point_.x;
-        float dz = ant.world_z - c->point_.z;
-        float dist = std::sqrt(dx * dx + dz * dz);
-        uint32_t gpu_slot = i + Dim::ANTENNA_SLOT_OFFSET;
-
-        float nearest = dist - ENTITY_THIN_EXTENT;   // antennas are thin masts
-        bool should_show = ant.draw_visible
-            ? (nearest <= ring + ENTITY_CULL_HYSTERESIS)
-            : (nearest <= ring);
-
-        if (should_show != ant.draw_visible) {
-            c->entities_state_.antennas[i].draw_visible = should_show;
-            if (should_show) {
-                c->gpuState_.upload_column_mesh_params_slot(queue, gpu_slot, build_column_mesh_params_from(ant));
-            }
-            else {
-                GPUColumnMeshParams empty{};
-                c->gpuState_.upload_column_mesh_params_slot(queue, gpu_slot, empty);
-            }
-            c->entities_state_.column_mesh_gen_pending = true;
-        }
-
-        if (!c->entities_state_.antennas[i].draw_visible) culled++;
     }
 
     return culled;
@@ -633,7 +530,7 @@ inline void unregister_footprint_for(MachineCtx* c, uint32_t family, uint32_t sl
 // ═══ ENTITY CENSUS ═══════════════════════════════════════════════
 
 inline const char* family_short_name(uint32_t family) {
-    static const char* NAMES[] = { "pyr", "arch", "col", "ant", "sph", "ribn", "cube", "gol" };
+    static const char* NAMES[] = { "pyr", "arch", "sph", "ribn", "cube", "gol" };
     return (family < PopFamily::COUNT) ? NAMES[family] : "???";
 }
 

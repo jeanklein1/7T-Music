@@ -65,8 +65,9 @@ enum class ArchTier : uint32_t {
 
 // ── Color Palette ────────────────────────────────────────────────
 // A QUARRIED vocabulary (MOSAIC_2d), deliberately distinct from the two
-// sets already in the tree: COLUMN_PALETTE is painted (sky, coral,
-// lavender), MOSAIC_MEDIANS is ceramic. Index 0 is the incumbent grey
+// sets already in the tree: AGENT_PALETTE (bodies/agents.hpp) is
+// painted (sky, coral, lavender), MOSAIC_MEDIANS is ceramic. Index 0 is
+// the incumbent grey
 // unchanged, so every existing arch that rolled palette keeps a color
 // it could already have had. ARCH_SANDSTONE_BASE is deliberately NOT
 // duplicated here — it has one home.
@@ -151,146 +152,6 @@ struct ActiveArch {
     uint32_t mosaic_seed = 0;   // MOSAIC_1 — frozen at spawn; 0 = plain
 };
 
-// ═══ VOCABULARY: COLUMN ══════════════════════════════════════════
-
-enum class ColumnTier : uint32_t {
-    PILLAR = 0,        // thick sturdy post, minimal ornamentation
-    DORIC = 1,         // classical proportions, no base, subtle taper
-    ORNATE = 2,        // monumental, entasis, layered base + capital
-    COUNT = 3
-};
-inline constexpr uint32_t COLUMN_TIER_COUNT = static_cast<uint32_t>(ColumnTier::COUNT);
-
-// ── Color Palette ────────────────────────────────────────────────
-inline constexpr float COLUMN_PALETTE[][3] = {
-    { 0.937f, 0.902f, 0.831f },   // 0: sand      #EFE6D4
-    { 0.882f, 0.827f, 0.714f },   // 1: bone      #E1D3B6
-    { 0.129f, 0.118f, 0.110f },   // 2: ink       #211E1C
-    { 0.353f, 0.333f, 0.298f },   // 3: ink-soft  #5A554C
-    { 0.431f, 0.608f, 0.753f },   // 4: sky       #6E9BC0
-    { 0.863f, 0.596f, 0.482f },   // 5: coral     #DC987B
-    { 0.878f, 0.635f, 0.306f },   // 6: gold      #E0A24E
-    { 0.616f, 0.631f, 0.467f },   // 7: olive     #9DA177
-    { 0.635f, 0.620f, 0.686f },   // 8: lavender  #A29EAF
-    { 0.753f, 0.325f, 0.184f },   // 9: orb       #C0532F
-};
-inline constexpr uint32_t COLUMN_PALETTE_COUNT = 10;
-inline constexpr float COLUMN_SANDSTONE_BASE[3] = { 0.75f, 0.68f, 0.60f };
-// MOSAIC_2d: the column's own paths took the spread law, but this
-// survives with ONE reader — antenna_compute_colors, which the campaign
-// deliberately leaves alone (three decorrelated drums is a different
-// concept from one body color; the ruling is Horizon's).
-inline constexpr float COLUMN_SANDSTONE_VARIANCE = 0.04f;
-
-// ── Spawn Configuration ──────────────────────────────────────────
-struct ColumnConfig {
-    static constexpr float SPAWN_CHANCE = 0.030f;
-    static constexpr float POSITION_JITTER = 0.35f;
-};
-
-// ── Property Index Registry ──────────────────────────────────────
-struct ColumnProp {
-    static constexpr uint32_t SPAWN_ROLL = 700u;
-    static constexpr uint32_t POSITION_X = 701u;
-    static constexpr uint32_t POSITION_Z = 702u;
-    static constexpr uint32_t TIER = 703u;
-    static constexpr uint32_t HEIGHT = 710u;
-    static constexpr uint32_t SHAFT_RADIUS = 711u;
-    static constexpr uint32_t TAPER = 712u;
-    static constexpr uint32_t ENTASIS = 713u;
-    static constexpr uint32_t BASE_LAYERS = 714u;
-    static constexpr uint32_t BASE_HEIGHT = 715u;
-    static constexpr uint32_t BASE_OVERHANG = 716u;
-    static constexpr uint32_t CAPITAL_LAYERS = 720u;
-    static constexpr uint32_t CAPITAL_HEIGHT = 721u;
-    static constexpr uint32_t CAPITAL_OVERHANG = 722u;
-    static constexpr uint32_t SOLID_PADDING = 730u;
-    static constexpr uint32_t SOLID_HEIGHT = 731u;
-    static constexpr uint32_t EDGE_BLEND = 732u;
-    static constexpr uint32_t COLOR_OVER = 740u;
-    static constexpr uint32_t COLOR_VAR_R = 741u;
-    static constexpr uint32_t COLOR_VAR_G = 742u;
-    static constexpr uint32_t COLOR_VAR_B = 743u;
-    static constexpr uint32_t COLOR_SPREAD = 744u;  // MOSAIC_2: how far THIS body sits from its median
-    static constexpr uint32_t MOSAIC_ROLL = 750u;   // MOSAIC_2: the tier's ceramic roll
-    static constexpr uint32_t MOSAIC_SEED = 751u;   // MOSAIC_1: 16-bit paint identity
-};
-
-// ═══ VOCABULARY: ANTENNA ═════════════════════════════════════════
-
-enum class AntennaTier : uint32_t {
-    ANTENNA = 0,       // tall post with stacked drum elements
-    SQUAT = 1,         // wider post + wider/shorter drums
-    COLOSSAL = 2,      // massive tower-scale antenna
-    COUNT = 3
-};
-inline constexpr uint32_t ANTENNA_TIER_COUNT = static_cast<uint32_t>(AntennaTier::COUNT);
-
-// ── Spawn Configuration ──────────────────────────────────────────
-struct AntennaConfig {
-    static constexpr float SPAWN_CHANCE = 0.025f;
-    static constexpr float POSITION_JITTER = 0.35f;
-};
-
-// ── Property Index Registry ──────────────────────────────────────
-struct AntennaProp {
-    static constexpr uint32_t SPAWN_ROLL = 900u;
-    static constexpr uint32_t POSITION_X = 901u;
-    static constexpr uint32_t POSITION_Z = 902u;
-    static constexpr uint32_t TIER = 903u;
-    static constexpr uint32_t HEIGHT = 910u;
-    static constexpr uint32_t SHAFT_RADIUS = 911u;
-    static constexpr uint32_t TAPER = 912u;
-    static constexpr uint32_t ENTASIS = 913u;
-    static constexpr uint32_t BASE_LAYERS = 914u;
-    static constexpr uint32_t BASE_HEIGHT = 915u;
-    static constexpr uint32_t BASE_OVERHANG = 916u;
-    static constexpr uint32_t CAPITAL_LAYERS = 920u;
-    static constexpr uint32_t CAPITAL_HEIGHT = 921u;
-    static constexpr uint32_t CAPITAL_OVERHANG = 922u;
-    static constexpr uint32_t SOLID_PADDING = 930u;
-    static constexpr uint32_t SOLID_HEIGHT = 931u;
-    static constexpr uint32_t EDGE_BLEND = 932u;
-    static constexpr uint32_t COLOR_OVER = 940u;
-    static constexpr uint32_t COLOR_VAR_R = 941u;
-    static constexpr uint32_t COLOR_VAR_G = 942u;
-    static constexpr uint32_t COLOR_VAR_B = 943u;
-};
-
-// ── Active Column Tracking (shared by Column and Antenna) ────────
-struct ActiveColumn {
-    int32_t patch_gx = 0, patch_gz = 0;   // trigger patch (idempotency)
-    int32_t host_gx = 0, host_gz = 0;     // actual patch covering entity position (eviction)
-    bool active = false;
-    bool draw_visible = true;    // false = mesh zeroed for distance culling
-
-    // Cached mesh parameters (set at spawn, read by rebuild)
-    float world_x = 0.0f, world_z = 0.0f;
-    float height = 0.0f;
-    float shaft_radius = 0.0f;
-    float taper = 1.0f;
-    float entasis = 0.0f;
-    uint32_t base_layers = 0;
-    float base_height = 0.0f;
-    float base_overhang = 0.0f;
-    uint32_t cap_layers = 0;
-    float cap_height = 0.0f;
-    float cap_overhang = 0.0f;
-    float solid_height = 0.0f;
-    float burial = 0.0f;
-    uint32_t segs_around = 12;
-    uint32_t shaft_rings = 4;
-    float col_r = 0.75f, col_g = 0.68f, col_b = 0.60f;
-    uint32_t tier_idx = 0;
-    // Antenna drum colors (cached for rebuild)
-    float drum_colors[9] = {};  // 3 drums × RGB
-
-    // Placement (computed once at spawn, immutable)
-    float cached_ground_y = 0.0f;         // absolute ground Y for VS offset
-
-    uint32_t mosaic_seed = 0;   // MOSAIC_1 — frozen at spawn; 0 = plain
-};
-
 // ═══ VOCABULARY: PYRAMID ═════════════════════════════════════════
 
 enum class PyramidTier : uint32_t {
@@ -349,12 +210,6 @@ struct EntitiesState {
     bool       arch_mesh_gen_pending = false;
     float      arch_mesh_gen_since = -1.0f;   // the settle's stamp (PANORAMA_1)
 
-    // ── Column + Antenna (sibling families, shared mesh-gen flag) ─
-    ActiveColumn columns[Dim::MAX_COLUMN_ONLY]{};
-    ActiveColumn antennas[Dim::MAX_ANTENNA_ONLY]{};
-    bool         column_mesh_gen_pending = false;  // shared by column + antenna
-    float        column_mesh_gen_since = -1.0f;
-
     // ── Pyramid ──────────────────────────────────────────────────
     ActivePyramid   pyramids[Dim::MAX_PYRAMID_INSTANCES]{};
     GPUPyramidArray cpu_pyramids{};                 // CPU mirror for heightfield baking
@@ -362,15 +217,12 @@ struct EntitiesState {
 
 // ═══ MESH-GEN PREPARERS — DECLARATIONS ════════════════════════════
 
-bool prepare_column_mesh_gen(EntitiesState& es, MachineCtx* c, wgpu::Queue& queue);
 bool prepare_arch_mesh_gen(EntitiesState& es, MachineCtx* c, wgpu::Queue& queue);
 
 // ═══ THE EVICTORS — DECLARATIONS ═══════════════════════════════════
 
 void evict_pyramid(MachineCtx* self, uint32_t slot, wgpu::Queue& queue);
 void evict_arch(MachineCtx* self, uint32_t slot, wgpu::Queue& queue);
-void evict_column(MachineCtx* self, uint32_t slot, wgpu::Queue& queue);
-void evict_antenna(MachineCtx* self, uint32_t slot, wgpu::Queue& queue);
 void teardown_entities(MachineCtx* c, wgpu::Queue& queue);
 
 // ═══ THE ARCH FORCE-SPAWN AUTHOR (the portal channel) ═══════════
@@ -426,27 +278,6 @@ inline bool mesh_gen_settled(bool& pending, float& since, const TimeState& ts,
     return true;
 }
 
-
-inline bool prepare_column_mesh_gen(EntitiesState& es, MachineCtx* c, wgpu::Queue& queue) {
-    (void)queue;
-    if (!mesh_gen_settled(es.column_mesh_gen_pending, es.column_mesh_gen_since,
-                          c->time_state_, c->world_state_)) return false;
-
-    uint32_t maxSlot = 0;
-    bool anyActive = false;
-    for (uint32_t i = 0; i < Dim::MAX_COLUMN_ONLY; i++) {
-        if (es.columns[i].active) { maxSlot = i; anyActive = true; }
-    }
-    for (uint32_t i = 0; i < Dim::MAX_ANTENNA_ONLY; i++) {
-        if (es.antennas[i].active) {
-            maxSlot = i + Dim::ANTENNA_SLOT_OFFSET;
-            anyActive = true;
-        }
-    }
-    c->gpuState_.set_column_index_count(anyActive
-        ? (maxSlot + 1) * Dim::CMG_MAX_INDICES_PER_SLOT : 0);
-    return true;
-}
 
 inline bool prepare_arch_mesh_gen(EntitiesState& es, MachineCtx* c, wgpu::Queue& queue) {
     (void)queue;
@@ -631,29 +462,10 @@ inline void evict_arch(MachineCtx* self,
     self->entities_state_.arch_mesh_gen_pending = true;
 }
 
-inline void evict_column(MachineCtx* self,
-    uint32_t slot, wgpu::Queue& queue)
-{
-    unregister_footprint_for(self, PopFamily::COLUMN, slot);   // the hand that claims is the hand that frees
-    self->entities_state_.columns[slot].active = false;
-    { GPUColumnMeshParams ep{}; self->gpuState_.upload_column_mesh_params_slot(queue, slot, ep); }
-    self->entities_state_.column_mesh_gen_pending = true;
-}
-
-inline void evict_antenna(MachineCtx* self,
-    uint32_t slot, wgpu::Queue& queue)
-{
-    unregister_footprint_for(self, PopFamily::ANTENNA, slot);   // the hand that claims is the hand that frees
-    uint32_t gpu_slot = slot + Dim::ANTENNA_SLOT_OFFSET;
-    self->entities_state_.antennas[slot].active = false;
-    { GPUColumnMeshParams ep{}; self->gpuState_.upload_column_mesh_params_slot(queue, gpu_slot, ep); }
-    self->entities_state_.column_mesh_gen_pending = true;
-}
-
 // ─── Teardown (owner verb) ────────────────────────────────────────
 // The grounded families' half of the world-teardown sweep — CPU slot
-// clears + GPU param-slot clears + mesh-gen re-arm, four families in
-// their one organ. UNGATED by design: the four families share this
+// clears + GPU param-slot clears + mesh-gen re-arm, two families in
+// their one organ. UNGATED by design: the two families share this
 // organ, and per-family gating buys nothing (empty arrays clear to
 // empty). The arch clear announces the portal-set change on the
 // standing flag channel (mood_state_.portals_dirty).
@@ -671,23 +483,6 @@ inline void teardown_entities(MachineCtx* c, wgpu::Queue& queue) {
             c->gpuState_.upload_arch_mesh_params_slot(queue, i, emptyParams);
         }
         c->entities_state_.arch_mesh_gen_pending = true;
-    }
-
-    // Columns + Antennas
-    for (uint32_t i = 0; i < Dim::MAX_COLUMN_ONLY; i++) {
-        c->entities_state_.columns[i] = ActiveColumn{};
-    }
-    for (uint32_t i = 0; i < Dim::MAX_ANTENNA_ONLY; i++) {
-        c->entities_state_.antennas[i] = ActiveColumn{};
-    }
-    c->gpuState_.set_column_index_count(0);
-    // Clear all column mesh gen param slots
-    {
-        GPUColumnMeshParams emptyParams{};
-        for (uint32_t i = 0; i < Dim::MAX_COLUMN_INSTANCES; i++) {
-            c->gpuState_.upload_column_mesh_params_slot(queue, i, emptyParams);
-        }
-        c->entities_state_.column_mesh_gen_pending = true;
     }
 
     // Pyramids

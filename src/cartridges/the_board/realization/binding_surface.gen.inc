@@ -380,30 +380,19 @@
 
                 // Meshgen State Layout — stratum 2 (Meshgen family) of the LOOM_2 recut.
                 {
-                    std::array<wgpu::BindGroupLayoutEntry, 5> entries{};
+                    std::array<wgpu::BindGroupLayoutEntry, 3> entries{};
 
-                    entries[0].binding = bind::g2::cmg_column_ground;  // column_ground, read-only view
+                    entries[0].binding = bind::g2::amg_params;  // amg_params (read-only storage)
                     entries[0].visibility = wgpu::ShaderStage::Compute;
                     entries[0].buffer.type = wgpu::BufferBindingType::ReadOnlyStorage;
 
-                    entries[1].binding = bind::g2::amg_params;  // amg_params (read-only storage)
+                    entries[1].binding = bind::g2::amg_vertices;  // amg_vertices (storage, rw)
                     entries[1].visibility = wgpu::ShaderStage::Compute;
-                    entries[1].buffer.type = wgpu::BufferBindingType::ReadOnlyStorage;
+                    entries[1].buffer.type = wgpu::BufferBindingType::Storage;
 
-                    entries[2].binding = bind::g2::amg_vertices;  // amg_vertices (storage, rw)
+                    entries[2].binding = bind::g2::amg_indices;  // amg_indices (storage, rw)
                     entries[2].visibility = wgpu::ShaderStage::Compute;
                     entries[2].buffer.type = wgpu::BufferBindingType::Storage;
-
-                    entries[3].binding = bind::g2::amg_indices;  // amg_indices (storage, rw)
-                    entries[3].visibility = wgpu::ShaderStage::Compute;
-                    entries[3].buffer.type = wgpu::BufferBindingType::Storage;
-
-                    // COLUMN CEILING FIT: the kernel derives effective column
-                    // height = ceiling − ground_y (indoors), so the cmg strip
-                    // reads the design config + the correction pass's output.
-                    entries[4].binding = bind::g2::cmg_config;  // DesignConfig (the ceiling gate)
-                    entries[4].visibility = wgpu::ShaderStage::Compute;
-                    entries[4].buffer.type = wgpu::BufferBindingType::Uniform;
 
                     wgpu::BindGroupLayoutDescriptor desc{};
                     desc.label = "Meshgen State Layout";
@@ -515,7 +504,7 @@
 
                 // Place State Layout — stratum 2 (Place family) of the LOOM_2 recut.
                 {
-                    std::array<wgpu::BindGroupLayoutEntry, 3> entries{};
+                    std::array<wgpu::BindGroupLayoutEntry, 2> entries{};
 
                     entries[0].binding = bind::g2::patch_grid;  // patch_grid (O(1) spatial index for sample_terrain_y_at)
                     entries[0].visibility = wgpu::ShaderStage::Compute;
@@ -524,10 +513,6 @@
                     entries[1].binding = bind::g2::arch_ground;
                     entries[1].visibility = wgpu::ShaderStage::Compute;
                     entries[1].buffer.type = wgpu::BufferBindingType::Storage;
-
-                    entries[2].binding = bind::g2::column_ground;
-                    entries[2].visibility = wgpu::ShaderStage::Compute;
-                    entries[2].buffer.type = wgpu::BufferBindingType::Storage;
 
                     wgpu::BindGroupLayoutDescriptor desc{};
                     desc.label = "Place State Layout";
@@ -613,12 +598,13 @@
                     entries[3].visibility = wgpu::ShaderStage::Compute;
                     entries[3].buffer.type = wgpu::BufferBindingType::Storage;
 
-                    // THE SKY RULE reads what STANDS: agent_room carries the two
-                    // occupier windows (occupier_cmg 0–15 columns, 16–31 antennas;
-                    // occupier_amg the arches) and the tier registry the walkers’
-                    // contact radii come from. A WINDOW, not a home — the same block
-                    // the agents’ room binds at g2:1.
-                    entries[4].binding = bind::g2::agent_room;  // agent_room (uniform, 6960 B — the shafts, the arches, the tiers)
+                    // THE SKY RULE reads what STANDS: agent_room carries the
+                    // occupier window (occupier_amg, the arches) and the tier
+                    // registry the walkers’ contact radii come from. A WINDOW, not a
+                    // home — the same block the agents’ room binds at g2:1. (There
+                    // were TWO windows; the shafts’ occupier_cmg left with COLUMN and
+                    // ANTENNA in PRUNE_2 U4.)
+                    entries[4].binding = bind::g2::agent_room;  // agent_room (uniform, 2864 B — the arches, the tiers)
                     entries[4].visibility = wgpu::ShaderStage::Compute;
                     entries[4].buffer.type = wgpu::BufferBindingType::Uniform;
 
@@ -1202,30 +1188,23 @@
                 }
 
                 // Projected from: archMeshGenBindGroup_.
+                // PRUNE_2 U4: the two R1 ruled fills (cmg_column_ground, cmg_config)
+                // went with the column meshgen room. The layout is the arch trio now,
+                // so the group is complete over it with nothing inert left to fill.
                 {
-                    std::array<wgpu::BindGroupEntry, 5> entries{};
+                    std::array<wgpu::BindGroupEntry, 3> entries{};
 
-                    // R1 ruled fill: inert but present — a group is complete over its layout.
-                    entries[0].binding = bind::g2::cmg_column_ground;
-                    entries[0].buffer = columnGroundBuffer_;
-                    entries[0].size = sizeof(GPUColumnGroundEntry) * Dim::MAX_COLUMN_INSTANCES;
+                    entries[0].binding = bind::g2::amg_params;
+                    entries[0].buffer = archMeshParamsBuffer_;
+                    entries[0].size = sizeof(GPUArchMeshParams) * Dim::MAX_ARCH_INSTANCES;
 
-                    entries[1].binding = bind::g2::amg_params;
-                    entries[1].buffer = archMeshParamsBuffer_;
-                    entries[1].size = sizeof(GPUArchMeshParams) * Dim::MAX_ARCH_INSTANCES;
+                    entries[1].binding = bind::g2::amg_vertices;
+                    entries[1].buffer = archVertexBuffer_;
+                    entries[1].size = Dim::AMG_TOTAL_VERTICES * sizeof(ArchVertex);
 
-                    entries[2].binding = bind::g2::amg_vertices;
-                    entries[2].buffer = archVertexBuffer_;
-                    entries[2].size = Dim::AMG_TOTAL_VERTICES * sizeof(ArchVertex);
-
-                    entries[3].binding = bind::g2::amg_indices;
-                    entries[3].buffer = archIndexBuffer_;
-                    entries[3].size = Dim::AMG_TOTAL_INDICES * sizeof(uint32_t);
-
-                    // R1 ruled fill: inert but present — a group is complete over its layout.
-                    entries[4].binding = bind::g2::cmg_config;
-                    entries[4].buffer = configBuffer_;
-                    entries[4].size = sizeof(GPUDesignConfig);
+                    entries[2].binding = bind::g2::amg_indices;
+                    entries[2].buffer = archIndexBuffer_;
+                    entries[2].size = Dim::AMG_TOTAL_INDICES * sizeof(uint32_t);
 
                     wgpu::BindGroupDescriptor desc{};
                     desc.label = "Meshgen State BindGroup";
@@ -1234,39 +1213,6 @@
                     desc.entries = entries.data();
                     meshgenStateGroup_ = device_.CreateBindGroup(&desc);
                     if (!meshgenStateGroup_) return false;
-                }
-
-                // Projected from: columnMeshGenBindGroup_.
-                {
-                    std::array<wgpu::BindGroupEntry, 5> entries{};
-
-                    entries[0].binding = bind::g2::cmg_column_ground;
-                    entries[0].buffer = columnGroundBuffer_;
-                    entries[0].size = sizeof(GPUColumnGroundEntry) * Dim::MAX_COLUMN_INSTANCES;
-
-                    entries[1].binding = bind::g2::amg_params;
-                    entries[1].buffer = columnMeshParamsBuffer_;
-                    entries[1].size = sizeof(GPUColumnMeshParams) * Dim::MAX_COLUMN_INSTANCES;
-
-                    entries[2].binding = bind::g2::amg_vertices;
-                    entries[2].buffer = columnVertexBuffer_;
-                    entries[2].size = Dim::CMG_TOTAL_VERTICES * sizeof(ArchVertex);
-
-                    entries[3].binding = bind::g2::amg_indices;
-                    entries[3].buffer = columnIndexBuffer_;
-                    entries[3].size = Dim::CMG_TOTAL_INDICES * sizeof(uint32_t);
-
-                    entries[4].binding = bind::g2::cmg_config;
-                    entries[4].buffer = configBuffer_;
-                    entries[4].size = sizeof(GPUDesignConfig);
-
-                    wgpu::BindGroupDescriptor desc{};
-                    desc.label = "Meshgen State BindGroup (Column)";
-                    desc.layout = meshgenStateLayout_;
-                    desc.entryCount = entries.size();
-                    desc.entries = entries.data();
-                    meshgenStateColumnGroup_ = device_.CreateBindGroup(&desc);
-                    if (!meshgenStateColumnGroup_) return false;
                 }
 
                 // A8b: the A face set — orb_state rw / config / prev ro. Faces of one
@@ -1363,7 +1309,7 @@
 
                 // Projected from: entityPlacementComputeBindGroup_.
                 {
-                    std::array<wgpu::BindGroupEntry, 3> entries{};
+                    std::array<wgpu::BindGroupEntry, 2> entries{};
 
                     entries[0].binding = bind::g2::patch_grid;
                     entries[0].buffer = patchGridBuffer_;
@@ -1372,10 +1318,6 @@
                     entries[1].binding = bind::g2::arch_ground;
                     entries[1].buffer = archGroundBuffer_;
                     entries[1].size = sizeof(GPUArchGroundEntry) * Dim::MAX_ARCH_INSTANCES;
-
-                    entries[2].binding = bind::g2::column_ground;
-                    entries[2].buffer = columnGroundBuffer_;
-                    entries[2].size = sizeof(GPUColumnGroundEntry) * Dim::MAX_COLUMN_INSTANCES;
 
                     wgpu::BindGroupDescriptor desc{};
                     desc.label = "Place State BindGroup";

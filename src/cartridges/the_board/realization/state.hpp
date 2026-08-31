@@ -130,7 +130,7 @@ namespace t7 {
             //   +x/+z : EXTENT/2 − PATCH_CELL_SIZE = 496.875 wu
             //   −x/−z : EXTENT/2                   = 500.0   wu
             // What it must cover is NOT the EXIST ring. Agents and floaters
-            // are EXIST-gated at 350, but flora, columns and arches are
+            // are EXIST-gated at 350, but arches and pyramids are
             // PATCH-lifetime: they live as long as their host
             // patch, out to the allocation window, which reaches
             // (PATCH_PREGEN_RADIUS + 1) · PATCH_EXTENT = 400 wu per axis
@@ -140,8 +140,8 @@ namespace t7 {
             // AND THAT IS WHERE AN ANCHOR CAN BE, NOT WHERE A READ CAN BE
             // (LATTICE_4 R-A). Every entity VS samples the card at its
             // VERTEX position, and a mesh reaches past its anchor. The
-            // binding case is the arch: `arch_vs` has NO ring gate (unlike
-            // column_vs, which kills per vertex beyond veil_ring), so
+            // binding case is the arch: `arch_vs` has NO ring gate (the
+            // per-vertex ring kill left with the families that had one), so
             // an arch anywhere in the allocation window is drawn and read at
             // every vertex. Its per-axis reach is half_span + half_depth,
             // and cpu_sample_gaussian clamps z to ±3, so the widest is
@@ -332,17 +332,6 @@ namespace t7 {
             constexpr uint32_t AMG_TOTAL_VERTICES = MAX_ARCH_INSTANCES * AMG_MAX_VERTS_PER_SLOT;   // 32000
             constexpr uint32_t AMG_TOTAL_INDICES = MAX_ARCH_INSTANCES * AMG_MAX_INDICES_PER_SLOT; // 120000
 
-            // Generative columns — GPU mesh gen (slot-based addressing)
-            constexpr uint32_t MAX_COLUMN_INSTANCES = 32;
-            constexpr uint32_t MAX_COLUMN_ONLY = 16;            // classical columns: slots 0-15
-            constexpr uint32_t MAX_ANTENNA_ONLY = 16;            // antennas: slots 16-31
-            constexpr uint32_t ANTENNA_SLOT_OFFSET = 16;         // GPU slot offset for antenna family
-            static_assert(MAX_COLUMN_ONLY + MAX_ANTENNA_ONLY == MAX_COLUMN_INSTANCES);
-            constexpr uint32_t CMG_MAX_VERTS_PER_SLOT = 1500;  // ornate worst case: 1249
-            constexpr uint32_t CMG_MAX_INDICES_PER_SLOT = 6000;  // ornate worst case: 5880 (divisible by 3)
-            constexpr uint32_t CMG_TOTAL_VERTICES = MAX_COLUMN_INSTANCES * CMG_MAX_VERTS_PER_SLOT;   // 48000
-            constexpr uint32_t CMG_TOTAL_INDICES = MAX_COLUMN_INSTANCES * CMG_MAX_INDICES_PER_SLOT; // 192000
-
             // Generative pyramids — the instance array IS terrain
             // (contrib_pyramids_at); there is no mesh-gen scratch.
             constexpr uint32_t MAX_PYRAMID_INSTANCES = 8;
@@ -350,11 +339,7 @@ namespace t7 {
             // Entity ground atlas (r32float, 256×1 — VS reads ground_y via textureLoad)
             constexpr uint32_t GROUND_ATLAS_WIDTH = 256;
             constexpr uint32_t GROUND_ATLAS_ARCH = 0;    // 16 slots
-            constexpr uint32_t GROUND_ATLAS_COLUMN = 16;   // 32 slots
-            // slots 48..55: DOCUMENTED HOLE — the retired pyramid range (readers
-            // cut, then the write path — the ground-atlas residue). Do NOT re-pack; the
-            // offsets below are hand-mirrored with world.wgsl's atlas table.
-            constexpr uint32_t GROUND_ATLAS_USED = 56;
+            constexpr uint32_t GROUND_ATLAS_USED = 16;
 
             // GoL zone system — per-zone automaton grids
             constexpr uint32_t MAX_GOL_ZONES = 8;
@@ -1261,20 +1246,6 @@ namespace t7 {
         };
         static_assert(sizeof(GPUArchGroundEntry) == 32, "GPUArchGroundEntry must be 32 bytes");
 
-        // Per-column ground truth: CPU writes center XZ + active flag;
-        // GPU compute writes ground_y from the heightfield.
-        struct alignas(16) GPUColumnGroundEntry {
-            float center_x;
-            float center_z;
-            float ground_y;         // written by GPU compute from heightfield - correction
-            uint32_t is_active;
-            float pier_correction;  // retired (always 0 — the pier bake is gone)
-            float _pad0;
-            float _pad1;
-            float _pad2;
-        };
-        static_assert(sizeof(GPUColumnGroundEntry) == 32, "GPUColumnGroundEntry must be 32 bytes");
-
         // Generative pyramids — tapered height function baked into heightfield.
         // Pawn blocked by step-height on steep faces (no separate collision).
         struct alignas(16) GPUPyramidInstance {
@@ -1330,40 +1301,6 @@ namespace t7 {
             "GPUArchMeshParams must be 80 bytes — keep in sync with world.wgsl::ArchMeshParams (MOSAIC_1: 64 → 80)");
 
         //
-        // MUST match world.wgsl::ColumnMeshParams (§9.2).
-        // If this struct gains/loses a field, the WGSL side and
-        // its sizeof static_assert must be updated together.
-        struct alignas(16) GPUColumnMeshParams {
-            float center_x;
-            float center_z;
-            float height;
-            float shaft_radius;
-            float taper;
-            float entasis;
-            float base_height;
-            float base_overhang;
-            float capital_height;
-            float capital_overhang;
-            float burial;
-            float color_r;
-            float color_g;
-            float color_b;
-            uint32_t base_layers;
-            uint32_t capital_layers;
-            uint32_t segs_around;
-            uint32_t shaft_rings;
-            uint32_t is_active;
-            uint32_t tier;              // 0=Pillar, 1=Doric, 2=Ornate, 3=Antenna
-            // ─── Antenna drum colors (3 drums × RGB) ─────────────
-            float drum_color_r1, drum_color_g1, drum_color_b1;
-            float drum_color_r2, drum_color_g2, drum_color_b2;
-            float drum_color_r3, drum_color_g3, drum_color_b3;
-            uint32_t mosaic_seed;       // MOSAIC_1 — first pad repurposed (the indoor_height_cap precedent); 0 = plain
-            float _pad128[2];           // pad to 128 bytes
-        };
-        static_assert(sizeof(GPUColumnMeshParams) == 128,
-            "GPUColumnMeshParams must be 128 bytes — keep in sync with world.wgsl::ColumnMeshParams");
-
         // GoL zone config — per-zone parameters for compute + fragment shader
         struct alignas(16) GPUGoLZoneConfig {
             float origin[2];
@@ -1888,22 +1825,23 @@ namespace t7 {
         // world.wgsl::AgentRoomConstants BYTE-FOR-BYTE; the asserts below
         // are the handshake (L3 — both rooms, same commit).
         //
-        // WINDOWS, NOT HOMES (docs/CHORD.md): tier_gains and the two
-        // occupier arrays each have exactly one CPU home and one authoring
-        // site; this block is a transport window onto them, and the
-        // authoring site writes every window it owns.
+        // WINDOWS, NOT HOMES (docs/CHORD.md): tier_gains and the occupier
+        // array each have exactly one CPU home and one authoring site; this
+        // block is a transport window onto them, and the authoring site
+        // writes every window it owns. (There were TWO occupier arrays —
+        // the second was the column/antenna shafts', and it left with those
+        // families in PRUNE_2 U4. Nothing wrote it after they went, and the
+        // agent loops that read it could only ever have found is_active 0.)
         struct alignas(16) GPUAgentRoomConstants {
             GPUPortalArray      portals;                                  //    0
             GPUAgentBehaviorDef behaviors[GPU_AGENT_BEHAVIOR_COUNT];      // 1040 (ATRIUM_4: 11 rows, +32 B)
             GPUAgentTierDef     tier_gains[GPU_AGENT_TIER_COUNT];         // 1392
-            GPUColumnMeshParams occupier_cmg[Dim::MAX_COLUMN_INSTANCES];  // 1584
-            GPUArchMeshParams   occupier_amg[Dim::MAX_ARCH_INSTANCES];    // 5680
+            GPUArchMeshParams   occupier_amg[Dim::MAX_ARCH_INSTANCES];    // 1584
         };
-        static_assert(sizeof(GPUAgentRoomConstants) == 6960);
+        static_assert(sizeof(GPUAgentRoomConstants) == 2864);
         static_assert(offsetof(GPUAgentRoomConstants, behaviors)    == 1040);
         static_assert(offsetof(GPUAgentRoomConstants, tier_gains)   == 1392);
-        static_assert(offsetof(GPUAgentRoomConstants, occupier_cmg) == 1584);
-        static_assert(offsetof(GPUAgentRoomConstants, occupier_amg) == 5680);
+        static_assert(offsetof(GPUAgentRoomConstants, occupier_amg) == 1584);
         // The two registries are contiguous, which is what lets
         // upload_agent_registries spend ONE write on both.
         static_assert(offsetof(GPUAgentRoomConstants, behaviors)
@@ -2012,7 +1950,7 @@ namespace t7 {
         // arrayStride the render/shadow pipelines declare — the stride is ALSO the WGSL
         // ArchVertexInput/ShellVertexInput layout, so this is the C++<->WGSL contract that
         // was previously unguarded. ArchVertex is the
-        // SHARED format for three families (arch/column/pyramid mesh-gen).
+        // SHARED format for two families (arch/pyramid mesh-gen).
         static_assert(sizeof(ArchVertex) == 40, "ArchVertex must be 40 bytes (arch/shadow VBL arrayStride = 40; WGSL ArchVertexInput)");
         static_assert(sizeof(ShellVertex) == 36, "ShellVertex must be 36 bytes (shell/shadow VBL arrayStride = 36; WGSL ShellVertexInput)");
         static_assert(sizeof(GPUPatchParams) == 16, "LATTICE_1: the twin is 16 bytes");
@@ -2078,7 +2016,7 @@ namespace t7 {
             // (GPUState::DR_ARCH). The ledger's own prose lives with its
             // methods, beside reset_frustum_indirect.
             enum DrawRecord : uint32_t {
-                DR_ARCH, DR_COLUMN, DR_SHELL,
+                DR_ARCH, DR_SHELL,
                 DR_RIBBON, DR_ORBS,
                 DR_SHADOW_TERRAIN,          // both bands at LOD1 density, ONE draw
                 DR_COUNT
@@ -2236,11 +2174,6 @@ namespace t7 {
             wgpu::Buffer archGroundBuffer_;  // per-arch ground Y correction (GPU-corrected)
             wgpu::Buffer archMeshParamsBuffer_;  // GPU mesh gen: per-slot parameters
             uint32_t archIndexCount_ = 0;
-
-            wgpu::Buffer columnVertexBuffer_, columnIndexBuffer_;
-            wgpu::Buffer columnGroundBuffer_;  // per-column ground Y correction (GPU-corrected)
-            wgpu::Buffer columnMeshParamsBuffer_;  // GPU mesh gen: per-slot parameters
-            uint32_t columnIndexCount_ = 0;
 
             wgpu::Buffer pyramidInstancesBuffer_;  // GPU-side pyramid array for heightfield baking (LIVE)
 
@@ -3202,28 +3135,6 @@ namespace t7 {
             void upload_arch_origins(wgpu::Queue& queue, const GPUArchGroundEntry* entries, uint32_t count) {
                 writeArray(queue, archGroundBuffer_, entries, std::min(count, Dim::MAX_ARCH_INSTANCES));
             }
-            wgpu::Buffer column_vertex_buffer() const { return columnVertexBuffer_; }
-            wgpu::Buffer column_index_buffer() const { return columnIndexBuffer_; }
-            wgpu::Buffer column_ground_buffer() const { return columnGroundBuffer_; }
-            uint32_t column_index_count() const { return columnIndexCount_; }
-            void set_column_index_count(uint32_t count) { columnIndexCount_ = count; }
-
-            // GPU mesh gen: write params for a single column slot (80 bytes per spawn/evict)
-            void upload_column_mesh_params_slot(wgpu::Queue& queue, uint32_t slot, const GPUColumnMeshParams& params) {
-                writeSlot(queue, columnMeshParamsBuffer_, slot, params);
-                // CHORD_1 — the occupier window on the same row (see
-                // upload_arch_mesh_params_slot for the ruling).
-                agentRoomStage_.occupier_cmg[slot] = params;
-                writeSlot(queue, agentRoomBuffer_, slot, params,
-                    offsetof(GPUAgentRoomConstants, occupier_cmg));
-            }
-
-            // Column GPU mesh gen bind group
-
-            void upload_column_origins(wgpu::Queue& queue, const GPUColumnGroundEntry* entries, uint32_t count) {
-                writeArray(queue, columnGroundBuffer_, entries, std::min(count, Dim::MAX_COLUMN_INSTANCES));
-            }
-
 
             // --- Pyramid accessors and upload --- (the instance array only:
             //   pyramids ARE terrain, so there is no mesh to generate.)
@@ -4151,7 +4062,7 @@ namespace t7 {
                     q.WriteBuffer(patchIndexBufferLOD1_, 0, idx.data(), ib_bytes_u16(patchIndexCountRingZoned_));
                 }
 
-                return createSphereMesh() && createMonolithMesh() && createArchMesh() && createColumnMesh() && createPyramidMesh() && createShellMesh() && createGoLZoneBuffers();
+                return createSphereMesh() && createMonolithMesh() && createArchMesh() && createPyramidMesh() && createShellMesh() && createGoLZoneBuffers();
             }
 
             bool createSphereMesh() {
@@ -4305,48 +4216,6 @@ namespace t7 {
                 std::cout << "[GPUState] Arch buffers (GPU mesh gen): "
                     << Dim::AMG_TOTAL_VERTICES << " vert, "
                     << Dim::AMG_TOTAL_INDICES << " index capacity\n";
-                return true;
-            }
-
-            bool createColumnMesh() {
-                // LATENT[gate-a-shared] column (SH·mb): mesh VB/IB/params + 3 pipelines droppable (antenna rides this mesh — NO-RES), but columnGroundBuffer_ is exclusive-in-Entity-Placement. Retire = re-section Entity Placement.
-                columnVertexBuffer_ = makeBuffer("Column VB (GPU mesh gen)",
-                    Dim::CMG_TOTAL_VERTICES * sizeof(ArchVertex),
-                    wgpu::BufferUsage::Vertex | wgpu::BufferUsage::CopyDst | wgpu::BufferUsage::Storage);
-                columnIndexBuffer_ = makeBuffer("Column IB (GPU mesh gen)",
-                    Dim::CMG_TOTAL_INDICES * sizeof(uint32_t),
-                    wgpu::BufferUsage::Index | wgpu::BufferUsage::CopyDst | wgpu::BufferUsage::Storage);
-                columnGroundBuffer_ = makeBuffer("Column Ground Y",
-                    Dim::MAX_COLUMN_INSTANCES * sizeof(GPUColumnGroundEntry),
-                    wgpu::BufferUsage::Storage | wgpu::BufferUsage::CopyDst);
-                columnMeshParamsBuffer_ = makeBuffer("Column Mesh Params",
-                    Dim::MAX_COLUMN_INSTANCES * sizeof(GPUColumnMeshParams),
-                    // CHORD_1: Uniform dropped — the occupier window it served
-                    // now rides agentRoomBuffer_; the mesh-gen kernels'
-                    // read-only storage face is all that is left on this buffer.
-                    wgpu::BufferUsage::Storage | wgpu::BufferUsage::CopyDst);
-
-                if (!columnVertexBuffer_ || !columnIndexBuffer_ || !columnGroundBuffer_ ||
-                    !columnMeshParamsBuffer_) return false;
-
-                columnIndexCount_ = 0;
-
-                // Zero-init params (all slots inactive)
-                {
-                    GPUColumnMeshParams emptyParams[Dim::MAX_COLUMN_INSTANCES]{};
-                    device_.GetQueue().WriteBuffer(columnMeshParamsBuffer_, 0, emptyParams,
-                        sizeof(GPUColumnMeshParams) * Dim::MAX_COLUMN_INSTANCES);
-                }
-
-                // Zero-init VB for safe degenerate vertex access
-                {
-                    std::vector<uint8_t> zeros(Dim::CMG_TOTAL_VERTICES * sizeof(ArchVertex), 0);
-                    device_.GetQueue().WriteBuffer(columnVertexBuffer_, 0, zeros.data(), zeros.size());
-                }
-
-                std::cout << "[GPUState] Column buffers (GPU mesh gen): "
-                    << Dim::CMG_TOTAL_VERTICES << " vert, "
-                    << Dim::CMG_TOTAL_INDICES << " index capacity\n";
                 return true;
             }
 

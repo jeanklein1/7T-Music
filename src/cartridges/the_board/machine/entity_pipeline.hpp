@@ -8,8 +8,8 @@
 //
 // Generic entity lifecycle for the cookie-cutter families: the
 // three-phase verbs (select → place → commit) driven per family by
-// traits + adapter rows; the welded four blocks (column, antenna,
-// pyramid, arch) live in the impl. The module owns no state — the
+// traits + adapter rows; the welded pair's blocks (pyramid, arch)
+// live in the impl. The module owns no state — the
 // queues it fills are spawn_engine's.
 //
 // SEAM[entity_pipeline:K1] tier sampling profile + extras live as a
@@ -35,9 +35,10 @@ namespace the_board {
 // hand-curated param-index lists — only LENGTH dimensions get
 // scaled, never ratios (TAPER, ENTASIS, ASPECT...), counts
 // (BASE_LAYERS, RIBS, ARM_COUNT...), or angles (LEAN_DIR,
-// FROND_DROOP...). CAP families call the shared cap_to_ceiling law;
-// column's EXACT hook snaps HEIGHT to wall_height and scales
-// every other length param by the same ratio so proportions hold.
+// FROND_DROOP...). CAP families call the shared cap_to_ceiling law.
+// (EXACT — snap HEIGHT to wall_height and scale every other length
+// param by the same ratio so proportions hold — left with the column,
+// its only practitioner; IndoorSize::EXACT stands unclaimed.)
 // Adding a new eligible family means declaring its own
 // <family>_apply_indoor_rescale (a cap_to_ceiling call + its list),
 // registering it in the adapter, and rowing INDOOR_TREATMENT.
@@ -60,9 +61,9 @@ namespace the_board {
 
 // ═══ MODULE IMPLEMENTATION ════════════════════════════════════════
 //
-// The three-phase verbs and the welded four family blocks (column,
-// antenna, pyramid, arch — the families that weld to the ground/regen
-// services). Each block keeps the same 10-element template. Reaches
+// The three-phase verbs and the welded family blocks (pyramid, arch —
+// the families that weld to the ground/regen services). Each block
+// keeps the same 10-element template. Reaches
 // the machine face for c->mood_state_ / c->world_state_ /
 // c->entities_state_ and the GPU wire (c->gpuState_); routes through
 // the spawn services (run_spawn_preamble / negotiate_position /
@@ -70,6 +71,20 @@ namespace the_board {
 
 
 // ═══ GENERIC HELPERS ═════════════════════════════════════════════
+
+// THE SPREAD LAW's one arithmetic (MOSAIC_2d) — median + jitter·spread,
+// clamped. One home for both paths (palette and sandstone), so "varied"
+// has a single definition. It sat above its first consumer, the column's
+// color derivation; PRUNE_2 excised that family and the arch is now the
+// only consumer, so the law comes up here to the generic helpers where a
+// shared arithmetic belongs and where C++ still sees it first.
+inline float entity_spread(uint32_t seed, uint32_t prop) {
+    return ENTITY_SPREAD_BASE + cpu_hash_f(seed, prop) * ENTITY_SPREAD_SPAN;
+}
+inline float entity_tint(float median, uint32_t seed, uint32_t prop, float spread) {
+    const float v = median + (cpu_hash_f(seed, prop) - 0.5f) * 2.0f * spread;
+    return v < 0.0f ? 0.0f : (v > 1.0f ? 1.0f : v);
+}
 
 // ─── Generic Color Derivation ────────────────────────────────────
 
@@ -219,483 +234,6 @@ inline void generic_commit(MachineCtx* c,
     c->world_state_.ground_entries_dirty = true;
 }
 
-
-// ═══ FAMILY: COLUMN + ANTENNA ═════════════════════════════════════
-
-// Shared param index layout (both families sample the same 13 params)
-struct ColIdx {
-    static constexpr uint32_t HEIGHT          = 0;
-    static constexpr uint32_t SHAFT_RADIUS    = 1;
-    static constexpr uint32_t TAPER           = 2;
-    static constexpr uint32_t ENTASIS         = 3;
-    static constexpr uint32_t BASE_LAYERS     = 4;
-    static constexpr uint32_t BASE_HEIGHT     = 5;
-    static constexpr uint32_t BASE_OVERHANG   = 6;
-    static constexpr uint32_t CAP_LAYERS      = 7;
-    static constexpr uint32_t CAP_HEIGHT      = 8;
-    static constexpr uint32_t CAP_OVERHANG    = 9;
-    static constexpr uint32_t SOLID_PADDING   = 10;
-    static constexpr uint32_t SOLID_HEIGHT    = 11;
-    static constexpr uint32_t EDGE_BLEND      = 12;
-    static constexpr uint32_t COUNT           = 13;
-};
-
-// Column param defs (ColumnProp indices)
-//                                                    prop                        floor   ceil   round  dist
-inline constexpr TierParamDef COLUMN_PARAM_DEFS[] = {
-    { ColumnProp::HEIGHT,          1.0f, 1e30f, false, ParamDist::GAUSSIAN },
-    { ColumnProp::SHAFT_RADIUS,    0.1f, 1e30f, false, ParamDist::GAUSSIAN },
-    { ColumnProp::TAPER,           0.5f, 1.0f,  false, ParamDist::GAUSSIAN },  // ceiling!
-    { ColumnProp::ENTASIS,         0.0f, 1e30f, false, ParamDist::GAUSSIAN },
-    { ColumnProp::BASE_LAYERS,     0.0f, 1e30f, true,  ParamDist::GAUSSIAN },
-    { ColumnProp::BASE_HEIGHT,     0.0f, 1e30f, false, ParamDist::GAUSSIAN },
-    { ColumnProp::BASE_OVERHANG,   0.0f, 1e30f, false, ParamDist::GAUSSIAN },
-    { ColumnProp::CAPITAL_LAYERS,  0.0f, 1e30f, true,  ParamDist::GAUSSIAN },
-    { ColumnProp::CAPITAL_HEIGHT,  0.0f, 1e30f, false, ParamDist::GAUSSIAN },
-    { ColumnProp::CAPITAL_OVERHANG,0.0f, 1e30f, false, ParamDist::GAUSSIAN },
-    { ColumnProp::SOLID_PADDING,   0.05f,1e30f, false, ParamDist::GAUSSIAN },
-    { ColumnProp::SOLID_HEIGHT,    0.6f, 1e30f, false, ParamDist::GAUSSIAN },
-    { ColumnProp::EDGE_BLEND,      0.1f, 1e30f, false, ParamDist::GAUSSIAN },
-};
-inline constexpr uint32_t COLUMN_PARAM_COUNT = sizeof(COLUMN_PARAM_DEFS) / sizeof(TierParamDef);
-static_assert(COLUMN_PARAM_COUNT == ColIdx::COUNT,
-    "F-4: COLUMN_PARAM_DEFS must cover ColIdx exactly (row order IS the index)");
-
-// Antenna param defs (AntennaProp indices, same layout)
-//                                                    prop                         floor   ceil   round  dist
-inline constexpr TierParamDef ANTENNA_PARAM_DEFS[] = {
-    { AntennaProp::HEIGHT,          1.0f, 1e30f, false, ParamDist::GAUSSIAN },
-    { AntennaProp::SHAFT_RADIUS,    0.1f, 1e30f, false, ParamDist::GAUSSIAN },
-    { AntennaProp::TAPER,           0.5f, 1.0f,  false, ParamDist::GAUSSIAN },
-    { AntennaProp::ENTASIS,         0.0f, 1e30f, false, ParamDist::GAUSSIAN },
-    { AntennaProp::BASE_LAYERS,     0.0f, 1e30f, true,  ParamDist::GAUSSIAN },
-    { AntennaProp::BASE_HEIGHT,     0.0f, 1e30f, false, ParamDist::GAUSSIAN },
-    { AntennaProp::BASE_OVERHANG,   0.0f, 1e30f, false, ParamDist::GAUSSIAN },
-    { AntennaProp::CAPITAL_LAYERS,  0.0f, 1e30f, true,  ParamDist::GAUSSIAN },
-    { AntennaProp::CAPITAL_HEIGHT,  0.0f, 1e30f, false, ParamDist::GAUSSIAN },
-    { AntennaProp::CAPITAL_OVERHANG,0.0f, 1e30f, false, ParamDist::GAUSSIAN },
-    { AntennaProp::SOLID_PADDING,   0.05f,1e30f, false, ParamDist::GAUSSIAN },
-    { AntennaProp::SOLID_HEIGHT,    0.6f, 1e30f, false, ParamDist::GAUSSIAN },
-    { AntennaProp::EDGE_BLEND,      0.1f, 1e30f, false, ParamDist::GAUSSIAN },
-};
-static_assert(sizeof(ANTENNA_PARAM_DEFS) / sizeof(TierParamDef) == ColIdx::COUNT,
-    "F-4: ANTENNA_PARAM_DEFS shares ColIdx — must cover it exactly");
-
-// params[] order MUST match COLUMN_PARAM_DEFS / ANTENNA_PARAM_DEFS:
-//   [0]HEIGHT [1]SHAFT_R [2]TAPER [3]ENTASIS [4]BASE_LAYERS [5]BASE_H
-//   [6]BASE_OH [7]CAP_LAYERS [8]CAP_H [9]CAP_OH [10]SOLID_PAD
-//   [11]SOLID_H [12]EDGE_BLEND
-//
-// Note: name is ColumnTierRow, not ColumnTier — grounded.hpp declares
-// `enum class ColumnTier`, occupying that name.
-struct ColumnTierRow {
-    TierProfile profile;
-    float       color_override;
-    // MOSAIC_2: is this KIND ceramic? 1.0 = every body of this tier;
-    // 0.0 = none. Orthogonal to color_override: what a body's FALLBACK
-    // color is, and whether it is ceramic, are two facts.
-    // MOSAIC_3 — ALL ROWS 1.0. The contrast ruling (plain stone beside
-    // the ceramic) is retired: every column is ceramic. Antennas are a
-    // separate family on a separate table (ANTENNA_TIERS) and stay
-    // plain; antenna_write_active zeroes their seed regardless.
-    float       mosaic_chance;
-    float       burial;
-    uint32_t    segs_around;
-    uint32_t    shaft_rings;
-};
-
-// ── Column tier table ──────────────────────────────────────────────
-// WHAT: per-tier column recipe — selection weight + Gaussian {μ,σ} per
-//   geometry parameter + mesh tessellation.
-// AXES: row = enum class ColumnTier order (0 PILLAR / 1 DORIC /
-//   2 ORNATE); the 13 {μ,σ} pairs are in ColIdx order, WRAPPED:
-//     line 1: HEIGHT  SHAFT_RADIUS  TAPER  ENTASIS
-//     line 2: BASE_LAYERS  BASE_HEIGHT  BASE_OVERHANG
-//     line 3: CAP_LAYERS   CAP_HEIGHT   CAP_OVERHANG
-//     line 4: SOLID_PADDING  SOLID_HEIGHT  EDGE_BLEND
-//   then: color_override, mosaic_chance, burial, segs_around, shaft_rings.
-// UNITS: wu except TAPER/ENTASIS (multipliers) and *_LAYERS (counts,
-//   do_round); weight = tier-selection weight; color_override =
-//   probability; burial = fraction of height sunk; segs/rings = mesh
-//   tessellation counts.
-// CONSUMERS: the generic pipeline (column_get_tier_profile → weight +
-//   {μ,σ} sampling); column_compute_solid_half (burial);
-//   column_compute_colors (color_override); column_write_active
-//   (segs_around/shaft_rings).
-// Biography determinant — frozen biography (§12): changing a number
-// changes every column ever born.
-inline constexpr ColumnTierRow COLUMN_TIERS[] = {
-    /* PILLAR */ {
-        { 0.05f, 0.0f, { {6.5f, 1.2f}, {1.80f, 0.30f}, {1.00f, 0.0f},  {0.00f, 0.0f},
-                   {1.0f, 0.3f}, {0.50f, 0.10f}, {0.20f, 0.05f},
-                   {1.0f, 0.3f}, {0.40f, 0.08f}, {0.15f, 0.04f},
-                   {0.3f, 0.08f}, {1.5f, 0.3f},  {0.4f, 0.08f} }},
-        0.85f, 1.0f, 0.25f, 16, 4
-    },
-    // DORIC — the smallest classical tier (was μ h 6.4 / r 0.38, the
-    // thin short pole; ~1/23 of PILLAR's volume). Jean's ruling: the
-    // MEANS double — twice as tall, twice as thick. The σ columns are
-    // untouched, so the spread is now relatively tighter (h 12.8±1.2,
-    // r 0.76±0.06); scale σ too if the variety should hold its old
-    // proportion. Frozen biography: this re-shapes every Doric column
-    // ever born from a given seed.
-    /* DORIC  */ {
-        { 0.20f, 0.0f, { {12.8f, 1.2f}, {0.76f, 0.06f}, {0.85f, 0.03f}, {0.02f, 0.01f},
-                   {0.0f, 0.0f}, {0.00f, 0.00f}, {0.00f, 0.00f},
-                   {2.0f, 0.5f}, {0.50f, 0.10f}, {0.15f, 0.04f},
-                   {0.2f, 0.05f}, {1.0f, 0.2f},  {0.3f, 0.05f} }},
-        0.85f, 1.0f, 0.20f, 20, 8
-    },
-    /* ORNATE */ {
-        { 0.18f, 0.0f, { {16.8f, 2.8f}, {1.35f, 0.19f}, {0.82f, 0.03f}, {0.04f, 0.01f},
-                   {2.0f, 0.5f},  {1.20f, 0.25f}, {0.30f, 0.08f},
-                   {3.0f, 0.5f},  {1.50f, 0.30f}, {0.40f, 0.10f},
-                   {0.4f, 0.10f}, {1.5f, 0.3f},   {0.5f, 0.10f} }},
-        0.85f, 1.0f, 0.20f, 28, 12
-    },
-};
-static_assert(sizeof(COLUMN_TIERS) / sizeof(ColumnTierRow) == static_cast<uint32_t>(ColumnTier::COUNT),
-    "F-5: COLUMN_TIERS must have exactly one row per ColumnTier");
-
-// ── Antenna tier table ─────────────────────────────────────────────
-// Same shape + legend as COLUMN_TIERS above (shared ColumnTierRow /
-// ColIdx wrap layout). Row = enum class AntennaTier order (0 ANTENNA /
-// 1 SQUAT / 2 COLOSSAL). LOCKSTEP HAZARD: on the GPU these rows live at
-// tier slots 3..5 — antenna_compute_solid_half adds COLUMN_TIER_COUNT
-// to tier_idx, and every antenna consumer subtracts it back.
-inline constexpr ColumnTierRow ANTENNA_TIERS[] = {
-    /* ANTENNA  */ {
-        { 0.10f, 0.0f, { {17.5f, 3.5f}, {0.30f, 0.05f}, {0.85f, 0.05f}, {0.00f, 0.0f},
-                   {2.0f, 0.5f},  {2.1f, 0.42f},  {1.5f, 0.3f},
-                   {0.0f, 0.0f},  {1.5f, 0.3f},   {0.0f, 0.0f},
-                   {0.2f, 0.05f}, {1.0f, 0.2f},   {0.3f, 0.05f} }},
-        0.40f, 0.0f, 0.20f, 16, 6
-    },
-    /* SQUAT    */ {
-        { 0.22f, 0.0f, { {32.5f, 6.5f}, {0.90f, 0.15f}, {0.85f, 0.05f}, {0.00f, 0.0f},
-                   {2.0f, 0.5f},  {2.0f, 0.4f},   {6.0f, 1.2f},
-                   {0.0f, 0.0f},  {1.5f, 0.3f},   {0.0f, 0.0f},
-                   {0.4f, 0.10f}, {1.5f, 0.3f},   {0.4f, 0.08f} }},
-        0.40f, 0.0f, 0.20f, 16, 6
-    },
-    /* COLOSSAL */ {
-        { 0.13f, 0.0f, { {125.0f, 25.0f}, {3.00f, 0.50f}, {0.85f, 0.05f}, {0.00f, 0.0f},
-                   {2.0f, 0.5f},    {7.5f, 1.5f},   {17.5f, 3.5f},
-                   {0.0f, 0.0f},    {7.5f, 1.5f},   {0.0f, 0.0f},
-                   {1.95f, 0.39f},  {12.0f, 2.4f},  {1.0f, 0.20f} }},
-        0.40f, 0.0f, 0.20f, 20, 8
-    },
-};
-static_assert(sizeof(ANTENNA_TIERS) / sizeof(ColumnTierRow) == static_cast<uint32_t>(AntennaTier::COUNT),
-    "F-5: ANTENNA_TIERS must have exactly one row per AntennaTier — "
-    "the GPU tier slots [COLUMN_TIER_COUNT..) ride this extent");
-
-inline const TierProfile& column_get_tier_profile(uint32_t tier_idx) {
-    return COLUMN_TIERS[tier_idx].profile;
-}
-inline const TierProfile& antenna_get_tier_profile(uint32_t tier_idx) {
-    return ANTENNA_TIERS[tier_idx].profile;
-}
-
-// ── Column traits ──
-
-inline constexpr EntityFamilyTraits COLUMN_TRAITS = {
-    PopFamily::COLUMN, Dim::MAX_COLUMN_ONLY,
-    true,                 // grounded
-    ColumnProp::SPAWN_ROLL, ColumnConfig::SPAWN_CHANCE,
-    mood_mult_for(PopFamily::COLUMN), ColumnConfig::POSITION_JITTER,
-    COLUMN_TIER_COUNT, ColumnProp::TIER,
-    COLUMN_PARAM_DEFS, COLUMN_PARAM_COUNT,
-    ColumnProp::POSITION_X, ColumnProp::POSITION_Z, 355u,
-    0, nullptr,  // color handled entirely by adapter
-};
-
-inline constexpr EntityFamilyTraits ANTENNA_TRAITS = {
-    PopFamily::ANTENNA, Dim::MAX_ANTENNA_ONLY,
-    true,                 // grounded
-    AntennaProp::SPAWN_ROLL, AntennaConfig::SPAWN_CHANCE,
-    mood_mult_for(PopFamily::ANTENNA), AntennaConfig::POSITION_JITTER,
-    ANTENNA_TIER_COUNT, AntennaProp::TIER,
-    ANTENNA_PARAM_DEFS, COLUMN_PARAM_COUNT,
-    AntennaProp::POSITION_X, AntennaProp::POSITION_Z, 355u,
-    0, nullptr,
-};
-
-// ── Column adapter functions ──
-
-inline SpawnGateOutput column_run_gate(MachineCtx* c, int32_t gx, int32_t gz) {
-    return gate_from_traits(c, gx, gz, COLUMN_TRAITS, c->entities_state_.columns);
-}
-
-inline constexpr uint32_t COLUMN_INDOOR_RESCALE_PARAMS[] = {
-    ColIdx::HEIGHT, ColIdx::SHAFT_RADIUS,
-    ColIdx::BASE_HEIGHT, ColIdx::BASE_OVERHANG,
-    ColIdx::CAP_HEIGHT,  ColIdx::CAP_OVERHANG,
-    ColIdx::SOLID_PADDING, ColIdx::SOLID_HEIGHT, ColIdx::EDGE_BLEND,
-    // TAPER (ratio), ENTASIS (ratio), BASE_LAYERS / CAP_LAYERS
-    // (counts) intentionally not scaled.
-};
-
-// Column policy: EXACT (INDOOR_TREATMENT) — snap to ceiling exactly.
-// The capital meets the ceiling — column reads as part of the room's
-// architecture, not a freestanding object. Does NOT use the shared
-// cap law — its scale factor is ceiling_h/current_h, cap or no cap.
-inline void column_apply_indoor_rescale(EntityInstance& inst, float ceiling_h) {
-    const float current_h = inst.params[ColIdx::HEIGHT];
-    if (current_h <= 1e-3f) return;
-    const float scale = ceiling_h / current_h;
-    for (uint32_t pi : COLUMN_INDOOR_RESCALE_PARAMS) inst.params[pi] *= scale;
-}
-
-inline void column_compute_solid_half(EntityInstance& inst, const TierProfile&) {
-    float shaft_r = inst.params[ColIdx::SHAFT_RADIUS];
-    float base_oh = inst.params[ColIdx::BASE_OVERHANG];
-    float cap_oh  = inst.params[ColIdx::CAP_OVERHANG];
-    float pad     = inst.params[ColIdx::SOLID_PADDING];
-    float blend   = inst.params[ColIdx::EDGE_BLEND];
-    float solid_h = inst.params[ColIdx::SOLID_HEIGHT];
-    inst.solid_half = shaft_r + std::max(base_oh, cap_oh) + pad + blend;
-    inst.ground_y_offset = solid_h;
-    inst.burial = std::max(0.2f, solid_h * COLUMN_TIERS[inst.tier_idx].burial);
-}
-
-// THE SPREAD LAW's one arithmetic (MOSAIC_2d) — median + jitter·spread,
-// clamped. One home for both families and both paths (palette and
-// sandstone), so "varied" has a single definition. Sited above the
-// FIRST consumer (column_compute_colors); the arch's is ~500 lines
-// below, and C++ wants the declaration before either.
-inline float entity_spread(uint32_t seed, uint32_t prop) {
-    return ENTITY_SPREAD_BASE + cpu_hash_f(seed, prop) * ENTITY_SPREAD_SPAN;
-}
-inline float entity_tint(float median, uint32_t seed, uint32_t prop, float spread) {
-    const float v = median + (cpu_hash_f(seed, prop) - 0.5f) * 2.0f * spread;
-    return v < 0.0f ? 0.0f : (v > 1.0f ? 1.0f : v);
-}
-
-inline void column_compute_colors(EntityInstance& inst, const EntityFamilyTraits&, const TierProfile& /*tier*/) {
-    // THE MOSAIC ROLL (MOSAIC_2) — a TIER fact, not a sub-roll of the
-    // palette. Orthogonal to color_over by ruling: what a body's
-    // fallback color is, and whether it is ceramic, are two facts, and
-    // nesting them capped the mosaic at 85% for no reason. A painted
-    // body never reads its fallback at any range (the far field is the
-    // passage median at variance zero), so the fallback below is now
-    // written for the PLAIN population alone.
-    if (cpu_hash_f(inst.seed, ColumnProp::MOSAIC_ROLL) < COLUMN_TIERS[inst.tier_idx].mosaic_chance) {
-        inst.mosaic_seed = 1u + (uint32_t)(cpu_hash_f(inst.seed, ColumnProp::MOSAIC_SEED) * 65534.0f);
-    }
-    // THE SPREAD (MOSAIC_2d): rolled once per body, before the branch —
-    // how far THIS column sits from whichever median it lands on. Both
-    // paths read it, so "varied" is one definition.
-    const float spread = entity_spread(inst.seed, ColumnProp::COLOR_SPREAD);
-    // Sandstone / palette override — THE PLAIN POPULATION's scheme. A
-    // mosaic column never reads this at any range (MOSAIC_2c).
-    if (cpu_hash_f(inst.seed, ColumnProp::COLOR_OVER) < COLUMN_TIERS[inst.tier_idx].color_override) {
-        uint32_t pal_idx = cpu_hash(inst.seed, ColumnProp::COLOR_OVER + 1u) % COLUMN_PALETTE_COUNT;
-        inst.colors[0] = entity_tint(COLUMN_PALETTE[pal_idx][0], inst.seed, ColumnProp::COLOR_VAR_R, spread);
-        inst.colors[1] = entity_tint(COLUMN_PALETTE[pal_idx][1], inst.seed, ColumnProp::COLOR_VAR_G, spread);
-        inst.colors[2] = entity_tint(COLUMN_PALETTE[pal_idx][2], inst.seed, ColumnProp::COLOR_VAR_B, spread);
-    } else {
-        inst.colors[0] = entity_tint(COLUMN_SANDSTONE_BASE[0], inst.seed, ColumnProp::COLOR_VAR_R, spread);
-        inst.colors[1] = entity_tint(COLUMN_SANDSTONE_BASE[1], inst.seed, ColumnProp::COLOR_VAR_G, spread);
-        inst.colors[2] = entity_tint(COLUMN_SANDSTONE_BASE[2], inst.seed, ColumnProp::COLOR_VAR_B, spread);
-    }
-    // No drum colors for classical columns
-    for (int i = 3; i < 12; i++) inst.colors[i] = 0.0f;
-}
-
-inline void column_write_active(MachineCtx* c, const EntityInstance& inst) {
-    auto& ac = c->entities_state_.columns[inst.slot];
-    ac.patch_gx = inst.trigger_gx; ac.patch_gz = inst.trigger_gz;
-    ac.host_gx = inst.host_gx; ac.host_gz = inst.host_gz;
-    ac.active = true; ac.draw_visible = true;
-    ac.world_x = inst.cx; ac.world_z = inst.cz;
-    ac.height = inst.params[ColIdx::HEIGHT];
-    ac.shaft_radius = inst.params[ColIdx::SHAFT_RADIUS];
-    ac.taper = inst.params[ColIdx::TAPER];
-    ac.entasis = inst.params[ColIdx::ENTASIS];
-    ac.base_layers = (uint32_t)inst.params[ColIdx::BASE_LAYERS];
-    ac.base_height = inst.params[ColIdx::BASE_HEIGHT];
-    ac.base_overhang = inst.params[ColIdx::BASE_OVERHANG];
-    ac.cap_layers = (uint32_t)inst.params[ColIdx::CAP_LAYERS];
-    ac.cap_height = inst.params[ColIdx::CAP_HEIGHT];
-    ac.cap_overhang = inst.params[ColIdx::CAP_OVERHANG];
-    ac.solid_height = inst.params[ColIdx::SOLID_HEIGHT];
-    ac.burial = inst.burial;
-    ac.segs_around = COLUMN_TIERS[inst.tier_idx].segs_around;
-    ac.shaft_rings = COLUMN_TIERS[inst.tier_idx].shaft_rings;
-    ac.tier_idx = inst.tier_idx;
-    ac.cached_ground_y = inst.cached_ground_y;
-    ac.mosaic_seed = inst.mosaic_seed;
-    ac.col_r = inst.colors[0]; ac.col_g = inst.colors[1]; ac.col_b = inst.colors[2];
-    std::memcpy(ac.drum_colors, &inst.colors[3], 9 * sizeof(float));
-}
-
-inline void column_write_gpu(MachineCtx* c, const EntityInstance& inst, wgpu::Queue& queue) {
-    // Q3: one builder. column_write_active (above) has already written this
-    // ActiveColumn this frame; build_column_mesh_params_from reproduces the
-    // same GPUColumnMeshParams field-for-field (verified parity), so the
-    // commit path and the reupload/cull path now share ONE producer.
-    GPUColumnMeshParams mp = build_column_mesh_params_from(c->entities_state_.columns[inst.slot]);
-    c->gpuState_.upload_column_mesh_params_slot(queue, inst.slot, mp);
-    c->entities_state_.column_mesh_gen_pending = true;
-}
-
-// The body's word is the occupier rows (world.wgsl occupier_contact):
-// since FIELD_B4b the POSSESSED PAWN's candidate is their sole
-// consumer (BATCH G's wire) — free agents part around the shaft by
-// field law now, the same law the floaters have obeyed since FIELD_3. The pier — the legacy baked
-// wall these SOLID_* params once fed — left the program in BATCH G;
-// the params live on in the footprint (solid_half) and active state.
-inline constexpr EntityFamilyAdapter COLUMN_ADAPTER = {
-    column_run_gate,
-    column_apply_indoor_rescale,
-    column_compute_solid_half, column_compute_colors,
-    column_write_active, column_write_gpu, nullptr,   // no post_commit (the pier died with the bake)
-    column_get_tier_profile,
-};
-
-// ── Column dispatch wrappers ──
-
-inline bool dispatch_select_column_generic(MachineCtx* self, int32_t gx, int32_t gz, EntityQueueEntry& e) {
-    EntityInstance inst{};
-    if (!generic_select(self, COLUMN_TRAITS, COLUMN_ADAPTER, gx, gz, inst)) return false;
-    e.family = PopFamily::COLUMN; e.gx = gx; e.gz = gz; e.generic = inst; return true;
-}
-inline bool dispatch_place_column_generic(MachineCtx* self, EntityQueueEntry& e, PlacementEntry& pe) {
-    pe.family = e.family; pe.gx = e.gx; pe.gz = e.gz;
-    if (generic_place(self, COLUMN_TRAITS, e.generic)) { pe.generic = e.generic; return true; }
-    self->entities_state_.columns[e.generic.slot].active = false; return false;
-}
-inline void dispatch_commit_column_generic(MachineCtx* self, PlacementEntry& pe, wgpu::Queue& queue) {
-    auto* host = find_patch(self, pe.generic.host_gx, pe.generic.host_gz);
-    if (host) { generic_commit(self, COLUMN_TRAITS, COLUMN_ADAPTER, pe.generic, queue); host->record_entity(PopFamily::COLUMN, pe.generic.slot); }
-    // HOST PATCH GONE. The footprint was registered at place; its host
-    // vanished before commit. Release by OWNER — the one release path.
-    else { unregister_footprint_for(self, PopFamily::COLUMN, pe.generic.slot); self->entities_state_.columns[pe.generic.slot].active = false; }
-}
-
-// ── Antenna adapter functions ──
-
-inline SpawnGateOutput antenna_run_gate(MachineCtx* c, int32_t gx, int32_t gz) {
-    return gate_from_traits(c, gx, gz, ANTENNA_TRAITS, c->entities_state_.antennas);
-}
-
-inline void antenna_apply_indoor_rescale(EntityInstance& inst, float ceiling_h) {
-    cap_to_ceiling(inst, ceiling_h, INDOOR_LIVE.height_cap_fraction,
-        /*current_h*/ inst.params[ColIdx::HEIGHT],
-        COLUMN_INDOOR_RESCALE_PARAMS);
-}
-
-inline void antenna_compute_solid_half(EntityInstance& inst, const TierProfile&) {
-    float shaft_r = inst.params[ColIdx::SHAFT_RADIUS];
-    float pad     = inst.params[ColIdx::SOLID_PADDING];
-    float blend   = inst.params[ColIdx::EDGE_BLEND];
-    float solid_h = inst.params[ColIdx::SOLID_HEIGHT];
-    inst.solid_half = shaft_r * 2.0f + pad + blend;  // antenna formula: wraps the post
-    inst.ground_y_offset = solid_h;
-    inst.burial = std::max(0.2f, solid_h * ANTENNA_TIERS[inst.tier_idx].burial);
-    // GPU tier offset: antenna tiers map to 3,4,5 on the GPU
-    inst.tier_idx = inst.tier_idx + COLUMN_TIER_COUNT;
-}
-
-inline void antenna_compute_colors(EntityInstance& inst, const EntityFamilyTraits&, const TierProfile& /*tier*/) {
-    // Sandstone / palette override (same as column)
-    if (cpu_hash_f(inst.seed, AntennaProp::COLOR_OVER) < ANTENNA_TIERS[inst.tier_idx - COLUMN_TIER_COUNT].color_override) {
-        uint32_t pal_idx = cpu_hash(inst.seed, AntennaProp::COLOR_OVER + 1u) % COLUMN_PALETTE_COUNT;
-        inst.colors[0] = COLUMN_PALETTE[pal_idx][0] + (cpu_hash_f(inst.seed, AntennaProp::COLOR_VAR_R) - 0.5f) * 0.06f;
-        inst.colors[1] = COLUMN_PALETTE[pal_idx][1] + (cpu_hash_f(inst.seed, AntennaProp::COLOR_VAR_G) - 0.5f) * 0.06f;
-        inst.colors[2] = COLUMN_PALETTE[pal_idx][2] + (cpu_hash_f(inst.seed, AntennaProp::COLOR_VAR_B) - 0.5f) * 0.06f;
-    } else {
-        inst.colors[0] = COLUMN_SANDSTONE_BASE[0] + (cpu_hash_f(inst.seed, AntennaProp::COLOR_VAR_R) - 0.5f) * COLUMN_SANDSTONE_VARIANCE * 2.0f;
-        inst.colors[1] = COLUMN_SANDSTONE_BASE[1] + (cpu_hash_f(inst.seed, AntennaProp::COLOR_VAR_G) - 0.5f) * COLUMN_SANDSTONE_VARIANCE * 2.0f;
-        inst.colors[2] = COLUMN_SANDSTONE_BASE[2] + (cpu_hash_f(inst.seed, AntennaProp::COLOR_VAR_B) - 0.5f) * COLUMN_SANDSTONE_VARIANCE * 2.0f;
-    }
-    // Drum colors: 3 palettes, decorrelated picks
-    static constexpr float DRUM_PALETTE[][3] = {
-        {0.85f,0.55f,0.35f},{0.45f,0.60f,0.70f},{0.70f,0.65f,0.45f},
-        {0.55f,0.70f,0.55f},{0.75f,0.50f,0.55f},{0.60f,0.55f,0.68f},
-    };
-    static constexpr uint32_t DRUM_PAL_COUNT = 6;
-    uint32_t d1 = cpu_hash(inst.seed, 850u) % DRUM_PAL_COUNT;
-    uint32_t d2 = (d1 + 1 + cpu_hash(inst.seed, 851u) % (DRUM_PAL_COUNT - 1)) % DRUM_PAL_COUNT;
-    uint32_t d3 = (d2 + 1 + cpu_hash(inst.seed, 852u) % (DRUM_PAL_COUNT - 2)) % DRUM_PAL_COUNT;
-    float v = 0.04f;
-    inst.colors[3]  = DRUM_PALETTE[d1][0] + (cpu_hash_f(inst.seed, 860u) - 0.5f) * v;
-    inst.colors[4]  = DRUM_PALETTE[d1][1] + (cpu_hash_f(inst.seed, 861u) - 0.5f) * v;
-    inst.colors[5]  = DRUM_PALETTE[d1][2] + (cpu_hash_f(inst.seed, 862u) - 0.5f) * v;
-    inst.colors[6]  = DRUM_PALETTE[d2][0] + (cpu_hash_f(inst.seed, 863u) - 0.5f) * v;
-    inst.colors[7]  = DRUM_PALETTE[d2][1] + (cpu_hash_f(inst.seed, 864u) - 0.5f) * v;
-    inst.colors[8]  = DRUM_PALETTE[d2][2] + (cpu_hash_f(inst.seed, 865u) - 0.5f) * v;
-    inst.colors[9]  = DRUM_PALETTE[d3][0] + (cpu_hash_f(inst.seed, 866u) - 0.5f) * v;
-    inst.colors[10] = DRUM_PALETTE[d3][1] + (cpu_hash_f(inst.seed, 867u) - 0.5f) * v;
-    inst.colors[11] = DRUM_PALETTE[d3][2] + (cpu_hash_f(inst.seed, 868u) - 0.5f) * v;
-}
-
-inline void antenna_write_active(MachineCtx* c, const EntityInstance& inst) {
-    auto& ac = c->entities_state_.antennas[inst.slot];
-    ac.patch_gx = inst.trigger_gx; ac.patch_gz = inst.trigger_gz;
-    ac.host_gx = inst.host_gx; ac.host_gz = inst.host_gz;
-    ac.active = true; ac.draw_visible = true;
-    ac.world_x = inst.cx; ac.world_z = inst.cz;
-    ac.height = inst.params[ColIdx::HEIGHT];
-    ac.shaft_radius = inst.params[ColIdx::SHAFT_RADIUS];
-    ac.taper = inst.params[ColIdx::TAPER];
-    ac.entasis = inst.params[ColIdx::ENTASIS];
-    ac.base_layers = (uint32_t)inst.params[ColIdx::BASE_LAYERS];
-    ac.base_height = inst.params[ColIdx::BASE_HEIGHT];
-    ac.base_overhang = inst.params[ColIdx::BASE_OVERHANG];
-    ac.cap_layers = (uint32_t)inst.params[ColIdx::CAP_LAYERS];
-    ac.cap_height = inst.params[ColIdx::CAP_HEIGHT];
-    ac.cap_overhang = inst.params[ColIdx::CAP_OVERHANG];
-    ac.solid_height = inst.params[ColIdx::SOLID_HEIGHT];
-    ac.burial = inst.burial;
-    ac.segs_around = ANTENNA_TIERS[inst.tier_idx - COLUMN_TIER_COUNT].segs_around;
-    ac.shaft_rings = ANTENNA_TIERS[inst.tier_idx - COLUMN_TIER_COUNT].shaft_rings;
-    ac.tier_idx = inst.tier_idx;
-    ac.cached_ground_y = inst.cached_ground_y;
-    ac.mosaic_seed = 0u;   // antennas never mosaic (v1) — a recycled slot must not inherit
-    ac.col_r = inst.colors[0]; ac.col_g = inst.colors[1]; ac.col_b = inst.colors[2];
-    std::memcpy(ac.drum_colors, &inst.colors[3], 9 * sizeof(float));
-}
-
-inline void antenna_write_gpu(MachineCtx* c, const EntityInstance& inst, wgpu::Queue& queue) {
-    uint32_t gpu_slot = inst.slot + Dim::ANTENNA_SLOT_OFFSET;
-    // Q3: one builder — antenna reuses the column GPU struct + slot; its
-    // ActiveColumn (written by antenna_write_active above, segs/rings from
-    // ANTENNA_TIERS) feeds the same build_column_mesh_params_from as the
-    // reupload path. Verified field-parity.
-    GPUColumnMeshParams mp = build_column_mesh_params_from(c->entities_state_.antennas[inst.slot]);
-    c->gpuState_.upload_column_mesh_params_slot(queue, gpu_slot, mp);
-    c->entities_state_.column_mesh_gen_pending = true;
-}
-
-inline constexpr EntityFamilyAdapter ANTENNA_ADAPTER = {
-    antenna_run_gate,
-    antenna_apply_indoor_rescale,
-    antenna_compute_solid_half, antenna_compute_colors,
-    antenna_write_active, antenna_write_gpu, nullptr, // no post_commit (the pier died with the bake)
-    antenna_get_tier_profile,
-};
-
-// ── Antenna dispatch wrappers ──
-
-inline bool dispatch_select_antenna_generic(MachineCtx* self, int32_t gx, int32_t gz, EntityQueueEntry& e) {
-    EntityInstance inst{};
-    if (!generic_select(self, ANTENNA_TRAITS, ANTENNA_ADAPTER, gx, gz, inst)) return false;
-    e.family = PopFamily::ANTENNA; e.gx = gx; e.gz = gz; e.generic = inst; return true;
-}
-inline bool dispatch_place_antenna_generic(MachineCtx* self, EntityQueueEntry& e, PlacementEntry& pe) {
-    pe.family = e.family; pe.gx = e.gx; pe.gz = e.gz;
-    if (generic_place(self, ANTENNA_TRAITS, e.generic)) { pe.generic = e.generic; return true; }
-    self->entities_state_.antennas[e.generic.slot].active = false; return false;
-}
-inline void dispatch_commit_antenna_generic(MachineCtx* self, PlacementEntry& pe, wgpu::Queue& queue) {
-    auto* host = find_patch(self, pe.generic.host_gx, pe.generic.host_gz);
-    if (host) { generic_commit(self, ANTENNA_TRAITS, ANTENNA_ADAPTER, pe.generic, queue); host->record_entity(PopFamily::ANTENNA, pe.generic.slot); }
-    // HOST PATCH GONE. The footprint was registered at place; its host
-    // vanished before commit. Release by OWNER — the one release path.
-    else { unregister_footprint_for(self, PopFamily::ANTENNA, pe.generic.slot); self->entities_state_.antennas[pe.generic.slot].active = false; }
-}
 
 // ═══ FAMILY: PYRAMID ══════════════════════════════════════════════
 
@@ -1159,8 +697,6 @@ inline void dispatch_commit_arch_generic(MachineCtx* self, PlacementEntry& pe, w
 
 T7_GATE_PIN(PYRAMID_TRAITS, PopFamily::PYRAMID, Dim::MAX_PYRAMID_INSTANCES, true,  PyramidProp::SPAWN_ROLL, PyramidConfig::SPAWN_CHANCE,     0u);
 T7_GATE_PIN(ARCH_TRAITS,    PopFamily::ARCH,    Dim::MAX_ARCH_INSTANCES,    true,  ArchProp::SPAWN_ROLL,    ArchConfig::SPAWN_CHANCE,        0u);
-T7_GATE_PIN(COLUMN_TRAITS,  PopFamily::COLUMN,  Dim::MAX_COLUMN_ONLY,       true,  ColumnProp::SPAWN_ROLL,  ColumnConfig::SPAWN_CHANCE,      0u);
-T7_GATE_PIN(ANTENNA_TRAITS, PopFamily::ANTENNA, Dim::MAX_ANTENNA_ONLY,      true,  AntennaProp::SPAWN_ROLL, AntennaConfig::SPAWN_CHANCE,     0u);
 T7_GATE_PIN(SPHERE_TRAITS,  PopFamily::SPHERE,  Dim::MAX_SPHERE_INSTANCES,  false, SphereProp::SPAWN_ROLL,  SphereConfig::SPAWN_CHANCE,      0u);
 T7_GATE_PIN(CUBE_TRAITS,    PopFamily::CUBE,    Dim::MAX_CUBE_INSTANCES,    false, CubeProp::SPAWN_ROLL,    CubeConfig::SPAWN_CHANCE,        0u);
 
@@ -1170,8 +706,6 @@ T7_GATE_PIN(CUBE_TRAITS,    PopFamily::CUBE,    Dim::MAX_CUBE_INSTANCES,    fals
 // the LAST field, so if anything above it slid, this is where it shows.
 static_assert(PYRAMID_TRAITS.color_parts == nullptr,            "PYRAMID_TRAITS color_parts");
 static_assert(ARCH_TRAITS.color_parts    == nullptr,            "ARCH_TRAITS color_parts");
-static_assert(COLUMN_TRAITS.color_parts  == nullptr,            "COLUMN_TRAITS color_parts");
-static_assert(ANTENNA_TRAITS.color_parts == nullptr,            "ANTENNA_TRAITS color_parts");
 static_assert(SPHERE_TRAITS.color_parts  == nullptr,            "SPHERE_TRAITS color_parts");
 static_assert(CUBE_TRAITS.color_parts    == nullptr,            "CUBE_TRAITS color_parts");
 

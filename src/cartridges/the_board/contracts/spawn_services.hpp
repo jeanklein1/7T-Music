@@ -25,14 +25,9 @@
 namespace t7 {
 namespace the_board {
 
-// fwd — entities vocabulary named in a declaration only (graduated
-// here with the decl that names it); the
-// definitions, at the cohort tail, see the complete type.
-struct ActiveColumn;
 // fwd — state.hpp's GPU mesh-param records (return values below; a
 // non-defining declaration tolerates the incomplete type).
 struct GPUArchMeshParams;
-struct GPUColumnMeshParams;
 
 // ── Shared spawn helper vocabulary ─────────────────────────────────
 
@@ -66,15 +61,16 @@ inline constexpr float GLOBAL_ENTITY_DENSITY = 1.0f;
 // WHAT: the extra edge-to-edge gap a candidate placement must keep from
 //   every registered footprint, per ordered family pair.
 // AXES: MIN_SEPARATION[placing][existing] — row = family being PLACED,
-//   column = the EXISTING footprint's family. ASYMMETRIC: [Antenna][Arch]
-//   = 60 (an antenna being placed keeps 60 wu from a standing arch) but
-//   [Arch][Antenna] = 8 (an arch being placed tolerates 8 wu to a
-//   standing antenna).
+//   column = the EXISTING footprint's family. ASYMMETRIC by design: the
+//   gap one family keeps from another need not be the gap the other
+//   keeps from it. (The pair that taught this — antenna vs arch, 60 one
+//   way and 8 the other — left with PRUNE_2; the asymmetry stays a
+//   property of the table, not of that pair.)
 // UNITS: world-units, ADDITIVE — the consumer sums the two footprint
 //   radii first, then adds this gap on top (and may shrink it by
 //   PROXIMITY_GAP_REDUCTION × affinity for clustering families).
 // ORDER: rows and columns both follow PopFamily order (PYRAMID=0 …
-//   GOL=7), PINNED by the F-1 static_assert at roster.hpp —
+//   GOL=5), PINNED by the F-1 static_assert at roster.hpp —
 //   renumbering a family is a compile error, not a silent re-column.
 // CONSUMER: check_position(), machine/spawn_engine.hpp (sole reader).
 // SENTINEL: 0.0 = no gap constraint for that pair (only the radii sum
@@ -82,7 +78,7 @@ inline constexpr float GLOBAL_ENTITY_DENSITY = 1.0f;
 // Placement determinant — frozen biography (§12): changing a number
 // changes which candidate positions survive, i.e. changes worlds.
 //
-// NON-PARTICIPANTS — SPHERE (4) and CUBE (6), ruling 21/23. Both are
+// NON-PARTICIPANTS — SPHERE (2) and CUBE (4), ruling 21/23. Both are
 //   unreachable in BOTH directions and no number in either line can change
 //   anything:
 //     · their ROWS never execute — negotiate_position skips check_position
@@ -104,15 +100,13 @@ inline constexpr float GLOBAL_ENTITY_DENSITY = 1.0f;
 //   the footprint. If floaters ever claim ground again, the values are in git
 //   and this note is what tells you they were deliberate.
 inline constexpr float MIN_SEPARATION[PopFamily::COUNT][PopFamily::COUNT] = {
-    //                near:  Pyr    Arch   Col    Ant    Sph    Ribn   Cube   GoL
-    /* placing Pyramid  */ { 65.0f, 60.0f,  5.0f, 55.0f,  0.0f,  0.0f,  0.0f,  0.0f },
-    /* placing Arch     */ { 60.0f, 20.0f, 10.0f, 60.0f,  0.0f,  0.0f,  0.0f,  0.0f },
-    /* placing Column   */ {  5.0f, 10.0f,  8.0f,  6.0f,  0.0f,  0.0f,  0.0f,  0.0f },
-    /* placing Antenna  */ { 55.0f, 60.0f,  6.0f, 12.0f,  0.0f,  0.0f,  0.0f,  0.0f },
-    /* placing Sphere   */ {  0.0f,  0.0f,  0.0f,  0.0f,  0.0f,  0.0f,  0.0f,  0.0f },   // ruling 22: self-sep retired with the footprint (was 20)
-    /* placing Ribbon   */ {  0.0f,  0.0f,  0.0f,  0.0f,  0.0f, 40.0f,  0.0f,  0.0f },
-    /* placing Cube     */ {  0.0f,  0.0f,  0.0f,  0.0f,  0.0f,  0.0f,  0.0f,  0.0f },   // ruling 22: self-sep retired with the footprint (was 15)
-    /* placing GoL      */ { 10.0f, 10.0f,  5.0f,  5.0f,  0.0f,  0.0f,  0.0f, 60.0f },
+    //                near:  Pyr    Arch   Sph    Ribn   Cube   GoL
+    /* placing Pyramid  */ { 65.0f, 60.0f,  0.0f,  0.0f,  0.0f,  0.0f },
+    /* placing Arch     */ { 60.0f, 20.0f,  0.0f,  0.0f,  0.0f,  0.0f },
+    /* placing Sphere   */ {  0.0f,  0.0f,  0.0f,  0.0f,  0.0f,  0.0f },   // ruling 22: self-sep retired with the footprint (was 20)
+    /* placing Ribbon   */ {  0.0f,  0.0f,  0.0f, 40.0f,  0.0f,  0.0f },
+    /* placing Cube     */ {  0.0f,  0.0f,  0.0f,  0.0f,  0.0f,  0.0f },   // ruling 22: self-sep retired with the footprint (was 15)
+    /* placing GoL      */ { 10.0f, 10.0f,  0.0f,  0.0f,  0.0f, 60.0f },
 };
 
 // ── Arch vocabulary (graduated with the decl tier: read by entities'
@@ -289,8 +283,6 @@ PositionResult negotiate_position(MachineCtx* c,
     float footprint_r, float containment_r, uint32_t family, uint32_t slot,
     uint32_t tier = 0);
 GPUArchMeshParams build_arch_mesh_params(MachineCtx* c, uint32_t slot);
-GPUColumnMeshParams build_column_mesh_params_from(const ActiveColumn& c);
-GPUColumnMeshParams build_column_mesh_params(MachineCtx* c, uint32_t slot);
 uint32_t update_entity_draw_visibility(MachineCtx* c, wgpu::Queue& queue);
 const char* family_short_name(uint32_t family);
 void dump_entity_census(MachineCtx* c, const char* trigger);

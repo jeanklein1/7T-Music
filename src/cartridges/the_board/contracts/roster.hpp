@@ -52,13 +52,11 @@ namespace the_board {
 struct PopFamily {
     static constexpr uint32_t PYRAMID = 0;
     static constexpr uint32_t ARCH = 1;
-    static constexpr uint32_t COLUMN = 2;
-    static constexpr uint32_t ANTENNA = 3;
-    static constexpr uint32_t SPHERE = 4;    // orbital spheres
-    static constexpr uint32_t RIBBON = 5;
-    static constexpr uint32_t CUBE = 6;      // hover-bob monoliths (split from legacy FLOATING)
-    static constexpr uint32_t GOL = 7;       // Game of Life / Pulse automaton zones
-    static constexpr uint32_t COUNT = 8;
+    static constexpr uint32_t SPHERE = 2;    // orbital spheres
+    static constexpr uint32_t RIBBON = 3;
+    static constexpr uint32_t CUBE = 4;      // hover-bob monoliths (split from legacy FLOATING)
+    static constexpr uint32_t GOL = 5;       // Game of Life / Pulse automaton zones
+    static constexpr uint32_t COUNT = 6;
 };
 
 // F-1: the family ORDER is load-bearing — ten
@@ -70,7 +68,7 @@ struct PopFamily {
 // extended): the enum order IS PLACEMENT
 // PRIORITY — select_entities_for_patch loops f=0..COUNT and the queue
 // places in push order, so within a patch PYRAMID's footprint registers
-// before ARCH's separation check, ARCH's before COLUMN's… the order
+// before ARCH's separation check, ARCH's before SPHERE's… the order
 // allocates GROUND, not just table columns. Renumbering ANY family
 // re-columns the tables AND reorders who wins contested ground — this
 // assert turns both into a compile error instead of a silent world-change.
@@ -90,10 +88,9 @@ struct PopFamily {
 // closes ranks, it never reshuffles — so placement priority among the
 // survivors is unchanged, exactly as in a tail cut.
 static_assert(PopFamily::PYRAMID == 0 && PopFamily::ARCH    == 1
-           && PopFamily::COLUMN  == 2 && PopFamily::ANTENNA == 3
-           && PopFamily::SPHERE  == 4 && PopFamily::RIBBON  == 5
-           && PopFamily::CUBE    == 6 && PopFamily::GOL     == 7
-           && PopFamily::COUNT   == 8,
+           && PopFamily::SPHERE  == 2 && PopFamily::RIBBON  == 3
+           && PopFamily::CUBE    == 4 && PopFamily::GOL     == 5
+           && PopFamily::COUNT   == 6,
     "PopFamily ORDER is the spawn tables' row/column contract (F-1): "
     "re-column all ten PopFamily-ordered tables + FAMILY_DISPATCH "
     "before renumbering any family");
@@ -115,9 +112,8 @@ static_assert(PopFamily::PYRAMID == 0 && PopFamily::ARCH    == 1
 // IDENTITY DEFAULT: today this is exactly PopFamily order, so behaviour is
 // unchanged. Reordering is a deliberate, isolated edit.
 inline constexpr uint32_t PLACEMENT_ORDER[PopFamily::COUNT] = {
-    PopFamily::PYRAMID, PopFamily::ARCH,   PopFamily::COLUMN, PopFamily::ANTENNA,
-    PopFamily::SPHERE,  PopFamily::RIBBON, PopFamily::CUBE,
-    PopFamily::GOL,
+    PopFamily::PYRAMID, PopFamily::ARCH,   PopFamily::SPHERE,
+    PopFamily::RIBBON,  PopFamily::CUBE,   PopFamily::GOL,
 };
 
 // F-6: PLACEMENT_ORDER must be a PERMUTATION of 0..COUNT-1 — every family
@@ -142,8 +138,7 @@ static_assert(placement_order_is_permutation(),
     "or omission silently removes a family from every spawn");
 
 struct Roster {
-    bool pyramid, arch, column, antenna,
-         sphere, ribbon, cube, gol;
+    bool pyramid, arch, sphere, ribbon, cube, gol;
     // FEATURES (7)
     bool pawn_aura;     // presence ramp + aura terrain compute
     bool orbs;          // sky dome (distinct from the sphere family)
@@ -157,8 +152,6 @@ struct Roster {
         switch (f) {
             case PopFamily::PYRAMID: return pyramid;
             case PopFamily::ARCH:    return arch;
-            case PopFamily::COLUMN:  return column;
-            case PopFamily::ANTENNA: return antenna;
             case PopFamily::SPHERE:  return sphere;
             case PopFamily::RIBBON:  return ribbon;
             case PopFamily::CUBE:    return cube;
@@ -168,8 +161,7 @@ struct Roster {
     }
 
     constexpr bool all_enabled() const {
-        return pyramid && arch && column && antenna &&
-               sphere && ribbon && cube && gol &&
+        return pyramid && arch && sphere && ribbon && cube && gol &&
                pawn_aura && orbs && spot_lights && indoor_shell && portal &&
                transitions && wanderers;
     }
@@ -179,8 +171,7 @@ struct Roster {
     // (demos/matrix.hpp), the compile-time proof that demo=minimal
     // still equals the retired minimal.hpp.
     constexpr bool none_enabled() const {
-        return !pyramid && !arch && !column && !antenna &&
-               !sphere && !ribbon && !cube && !gol &&
+        return !pyramid && !arch && !sphere && !ribbon && !cube && !gol &&
                !pawn_aura && !orbs && !spot_lights && !indoor_shell && !portal &&
                !transitions && !wanderers;
     }
