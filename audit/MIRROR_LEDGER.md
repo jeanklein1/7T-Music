@@ -15,8 +15,8 @@ carry those facts, or leave them in place and patch around them.
 
 | field | value |
 |---|---|
-| source commit | `2cfda50260693ac55c9102032657378fba0f634a` |
-| | PRUNE_2 U5e: the prose the sweep left standing, and one dead term |
+| source commit | `1d974936f82d6d6bf70f367b80ca6ff2d316190a` |
+| | ONE_WORLD-I U1: transitions — the machine that moved between worlds |
 | `src/cartridges/the_board/realization/binding_registry.hpp` | `sha256:b87c7d6fd8d95fdebab27c7bfbf235d6217edcef17a4c834e685558e2280889c` |
 | `src/cartridges/the_board/realization/world.wgsl` | `sha256:6917f93dd142384926cf243abe9de03f729d4da877041bb5968dd21fa279e2ee` |
 | `src/cartridges/the_board/realization/state.hpp` | `sha256:b50c73c199b4f04e7312222597b4f7499dab678b8bef03d661efe77ad0b94dea` |

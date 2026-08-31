@@ -5,12 +5,12 @@ Read-only: a census of the program's pass and submit surface.
 
 ## Provenance
 
-Last commit touching any scanned file: `2cfda50260693ac55c9102032657378fba0f634a`
-(PRUNE_2 U5e: the prose the sweep left standing, and one dead term)
+Last commit touching any scanned file: `1d974936f82d6d6bf70f367b80ca6ff2d316190a`
+(ONE_WORLD-I U1: transitions — the machine that moved between worlds)
 
 | file scanned | sha256 |
 |---|---|
-| `src/cartridges/the_board/realization/render_passes.hpp` | `sha256:bbeac5c7a0c4be2af2b836aea9fe2cab88e2457568275cbaa22f3b5686242982` |
+| `src/cartridges/the_board/realization/render_passes.hpp` | `sha256:1d091946e67cc03049832865ad47246f140dbaefa53108271d51f834d81c19ed` |
 | `src/cartridges/the_board/realization/renderer.hpp` | `sha256:ab82116c0d73d9919697685e0f08dda166150d9fee65dd0bf8480da45a0a1497` |
 | `src/cartridges/the_board/cartridge.hpp` | `sha256:5d1f8e895242d2017d7568fd09b4e385176126eeb952819c6a7906781bfb4b82` |
 | `src/cartridges/the_board/surface/patch_system.hpp` | `sha256:4c2b6e47ed4fccefbbbdc3a3ea9d383db2d9d3b32964279b9acd8716ee73e54c` |

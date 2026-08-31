@@ -111,7 +111,7 @@ FOUNDATIONAL_PHASES = {
 
 # ── DIRECTION A (non-frame): teardown / boot / mesh-prep / delegated ──
 # These obligations are NOT frame rows — they live inside a phase body
-# (teardown inside phase_transition_machine; mesh-prep inside
+# (teardown inside rebirth_world; mesh-prep inside
 # phase_entity_mesh_gen) or at boot (initialize) or at a module door. They
 # grep as gated call-sites, comment-tolerant. piece -> [(file, name, regex)].
 C = r'(?:\s|//[^\n]*\n|/\*.*?\*/)*'
