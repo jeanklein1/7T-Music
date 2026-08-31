@@ -5,8 +5,8 @@ Read-only: a census of the program's pass and submit surface.
 
 ## Provenance
 
-Last commit touching any scanned file: `2b8a3a52fa2545c457f968788becb39d4da7671a`
-(ONE_WORLD-I U4: the emptied rooms — the portal array and the round that walked it)
+Last commit touching any scanned file: `74a744d8d6837bb69ac13425a50607fd557f26c7`
+(ONE_WORLD-I U5: the sweep — the proximity subsystem, and what the campaign left behind)
 
 | file scanned | sha256 |
 |---|---|

@@ -14,8 +14,8 @@ merge rows the API charges separately.
 | field | value |
 |---|---|
 | demo column censused | `full` |
-| source commit | `2b8a3a52fa2545c457f968788becb39d4da7671a` |
-| | ONE_WORLD-I U4: the emptied rooms — the portal array and the round that walked it |
+| source commit | `74a744d8d6837bb69ac13425a50607fd557f26c7` |
+| | ONE_WORLD-I U5: the sweep — the proximity subsystem, and what the campaign left behind |
 | `src/cartridges/the_board/realization/state.hpp` | `sha256:154bfa9ea07a580f5293b72fd834ac88115d78f936b20786752ca154d5dfb82b` |
 | `src/cartridges/the_board/realization/binding_surface.gen.inc` | `sha256:c477d75c9d516f69314a6b96a4a225a45e4aa29e135ad3670684daef09986797` |
 | `src/cartridges/the_board/realization/binding_registry.hpp` | `sha256:0d52022e0374572d09dd65f1103dcafe148f576c46b39b9d27801be3c09cc966` |

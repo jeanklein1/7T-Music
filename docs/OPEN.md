@@ -210,6 +210,26 @@ PARKED, not done:
   consumer; the sub-ruling that the absent clamp was carried as data,
   and that ruling a clamp IN is a separate taste gate, is now moot.
 
+### ONE_WORLD-I — THE DOORS (landed)
+
+The transition machine, the portals, the ARCH family and the rooms they
+left behind, in six commits. **S3 is CLOSED** (the table above carries the
+per-finding answers); the world is one world now, and nothing in the
+program moves between worlds.
+
+| unit | what left |
+|---|---|
+| U1 | `TransitionPhase` and the machine, `phase_portal_trigger`, `request_mood_transition` and the six keys, the console's mood door, the `portal_trigger` wire in all four rooms, the `transitions` roster bit. The TEARDOWN arm GRADUATED to `rebirth_world` — the one survivor. |
+| U1a/U1b | Two stale citations the unit's own sweep missed; then the fade overlay whole (the rider ruled it in scope) and the `Controls:` line that still offered the dead mood keys. |
+| U2 | The force-spawn channel, the arch's portal identity, `PortalDestination`, the destination law (`portal_density`, `mood_weights`, the palette, the weighted walk) and sixteen organ dials, the `portal` roster bit, the census's portal column. |
+| U3 | The ARCH family whole. `PopFamily` 6 → 5 with every positional table re-columned, four pipelines, the GPU mesh-gen scratch (the converged MESHGEN trio now unallocated), the entity ground atlas and its two spine rows, `occupier_amg`. |
+| U4 | The portal room itself and the PASSER round that walked it; `GPUAgentRoomConstants` 2864 → 512 B. |
+| U5 | The proximity subsystem (five tables, unexercised since PRUNE_2), the PASSER's `route` field, the arch slack dial, and the prose probate. |
+
+**A REBIRTH IS A HARD CUT** — the crossfade left with the machine that
+drove it. `rebirth_world` has no caller by ruling; the panel's seed dial
+is the caller it waits for. FLAGGED for Jean's visual gate.
+
 ### PRUNE_2 — THE GROUNDED FIVE (landed)
 
 Five entity families left whole — BLADE, CACTUS, PALM, COLUMN,
