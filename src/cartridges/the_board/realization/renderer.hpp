@@ -902,13 +902,16 @@ namespace t7 {
             //
             // The caller passes config().fade_alpha — the same value
             // fade_overlay_fs reads — so the gate and the shader cannot
-            // disagree about whether the frame is at rest.
+            // disagree about whether the frame is at rest. THE ROSTER GATE
+            // LEFT WITH ITS BIT (ONE_WORLD-I): transitions was the bit, and
+            // the overlay's one driver — the machine's fade alpha — left with
+            // it. The pipeline is built unconditionally now and the rest gate
+            // below is what keeps it off the frame.
             template <class Enc>
             void draw_fade_overlay(
                 Enc& pass,
                 float fadeAlpha
             ) {
-                if constexpr (!(ROSTER.transitions)) return;  // ROSTER-GATE transitions (a') — pipeline never created; the holder tolerates
                 if (fadeAlpha < 0.5f / 255.0f) return;
                 pass.SetPipeline(fadeOverlayPipeline_);
                 pass.Draw(3);  // fullscreen triangle from vertex ID
@@ -1073,7 +1076,6 @@ namespace t7 {
                 if (!(ROSTER.pawn_aura)) n += 1;
                 if (!(ROSTER.indoor_shell)) n += 2;
                 if (!(ROSTER.wanderers)) n += 1;
-                if (!(ROSTER.transitions)) n += 1;
                 return n;
             }
 
@@ -2227,12 +2229,10 @@ namespace t7 {
                     fadeDepth.depthCompare = wgpu::CompareFunction::Always;
                     desc.depthStencil = &fadeDepth;
 
-                    if constexpr (ROSTER.transitions) {  // ROSTER-GATE transitions (a') — shader compile skipped when disabled
                     if (!tPipe("fade_overlay", [&]() {
                         fadeOverlayPipeline_ = device_.CreateRenderPipeline(&desc);
                         return fadeOverlayPipeline_ != nullptr;
                     })) return false;
-                    }
                 }
 
                 return true;

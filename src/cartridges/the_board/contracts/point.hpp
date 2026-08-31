@@ -64,22 +64,19 @@ enum class PointHost : uint32_t {
                   // above made real)
 };
 
-// ═══ THE BUBBLE (first field + first sensor live) ══════════
-// The bounded awareness region around the point (v3 §11): proximity,
-// the portal trigger, the coming event source. Its FIRST FIELD is the
-// radius; its FIRST SENSOR is the portal (pulled by Jean's
-// altitude question): in camera-host an arch fires only when it sits
-// within the bubble — the xz ellipse as ever, gated vertically by
-// this radius (skim over → fire; fly high → no fire). In pawn-host
-// the body's own crossing is the sensor, byte-identical to the
-// pre-point era. The trigger rides the possessed slot's wire and the
-// same P5 harvest — the wire is the realization, the bubble is the
-// semantics.
+// ═══ THE BUBBLE (first field live) ═════════════════════════
+// The bounded awareness region around the point (v3 §11): proximity
+// and the coming event source. Its FIRST FIELD is the radius. Its
+// first SENSOR was the portal trigger, and it left with the doors
+// (ONE_WORLD-I) — the region stands, the radius still reaches the
+// GPU as config.point_bubble_radius, and the point-source flee
+// trigger (CONTACT_2 C3b) reads it there. The bubble is ONE thing:
+// whatever sensor lands in it next reads this same radius.
 
-inline constexpr float POINT_BUBBLE_RADIUS = 80.0f;   // world units; boot-pinned into config.point_bubble_radius (the WGSL side reads the config field). 20 until the desk raised it 4×: the vertical gate lets an arch fire from far higher up now.
+inline constexpr float POINT_BUBBLE_RADIUS = 80.0f;   // world units; boot-pinned into config.point_bubble_radius (the WGSL side reads the config field). 20 until the desk raised it 4× for the reach the vertical gate wanted.
 
 struct PointBubble {
-    float radius = POINT_BUBBLE_RADIUS;   // the awareness bound (the portal's vertical gate today)
+    float radius = POINT_BUBBLE_RADIUS;   // the awareness bound
 };
 
 // ═══ THE WITNESS'S OWN DIALS ═══════════════════════════════════════
@@ -133,10 +130,7 @@ struct PointState {
     // leaves them held-last, as it leaves x/z.
     float   y = 0.0f;                     // THE POINT's world Y (body hosts author it)
     float   heading = 0.0f;               // THE POINT's heading (radians)
-    // ── The bubble sensor, on the possessed slot's wire in both hosts ──
-    int32_t portal_trigger = -1;
-
-    PointBubble bubble{};                 // declared whole; first sensor above
+    PointBubble bubble{};                 // declared whole; no sensor stands in it today
 };
 
 // ═══ THE MOUNT (RIBBON_1) ══════════════════════════════════════════

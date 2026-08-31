@@ -147,14 +147,16 @@ it properly should paste it here.
 Phase W — the web strip — landed first (docs/LAWS.md: WEB_SUNSET).
 **S1 and S2 are CLOSED**: PRUNE_1 took the gallery organ whole — the
 photographer, the outdoor galleries and the indoor wall art — and the
-findings that flagged them are answered below. S3 and S4 stand,
+findings that flagged them are answered below. **PRUNE_2 landed** after
+it and took the grounded five (BLADE, CACTUS, PALM, COLUMN, ANTENNA);
+its own close is below. S3 is IN FLIGHT under ONE_WORLD-I; S4 stands,
 unchanged and still FLAGGED.
 
 | unit | subject | finding |
 |---|---|---|
 | S1 | snapshot / photograph | **CLOSED (PRUNE_1).** Not separable, and it was not separated: the whole organ left in one campaign, `SEAM[gallery:dual-role]` with it. |
 | S2 | galleries, paintings, hang | **CLOSED (PRUNE_1).** Each flag answered: the veil lift now fires on the elapsed-since-`world_live` condition alone; `compute_entity_placement` lost only its painting loop and Y-corrects the KEEP flora exactly as before; `painting_slots` left `shadowStateLayout_` and the seats behind it re-indexed through `binding_schema.py`, the tool's job, verified by `binding_gen.py --check`. |
-| S3 | portals | FLAGGED — `static_assert(!ROSTER.transitions \|\| ROSTER.portal)` in `demos/demo.hpp` forbids the combination outright; `TransitionPhase`'s only ignition is `point_.portal_trigger` |
+| S3 | portals | **IN FLIGHT (ONE_WORLD-I).** Both flags are answered at U1: the `!ROSTER.transitions \|\| ROSTER.portal` edge left with the `transitions` bit it gated, and `TransitionPhase` left together with its only ignition — the machine, the request door, the six keys, the console's mood door and the `portal_trigger` wire (C++ **and** WGSL) went in one commit. The doors themselves — the portal arches, `GPUPortalArray`, the ARCH family — are U2 and U3. |
 | S4 | agent pipelines | FLAGGED — `agent_state[possessed_slot]` **is** the point; camera, veil, terrain aura, LOD streaming, the ribbon's sky rule and the shadow box all read it |
 
 `WorldDrawSurface` was to empty under S2+S3 together, under a `sizeof`
@@ -206,6 +208,29 @@ PARKED, not done:
 - **`SpawnClamp::NONE`'s absent clamp.** The value left with its one
   consumer; the sub-ruling that the absent clamp was carried as data,
   and that ruling a clamp IN is a separate taste gate, is now moot.
+
+### PRUNE_2 — THE GROUNDED FIVE (landed)
+
+Five entity families left whole — BLADE, CACTUS, PALM, COLUMN,
+ANTENNA — with their roster bits, spawn columns, mesh-gen kernels,
+render and shadow pipelines, GPU rooms and the plants' shared organ.
+`PopFamily` went from eleven members to six and the surviving five
+families were RE-COLUMNED across all eleven positional tables in their
+own subjects' commits — the mid-table renumbering F-1 exists to catch,
+machine-verified cell by cell against the pre-campaign tree.
+- **The MESHGEN convergence.** Five kernels shared bindings 180/181/182
+  through their own scratch trios; the trio converged on ARCH alone and
+  `binding_schema.py`'s recut regex narrowed with it.
+- **`occupier_cmg`.** Deleted on the argument that every reader loop
+  opens `if (cm.is_active == 0u) continue;` and nothing writes
+  `is_active` once the families are gone — behaviour-identical, not
+  merely unreachable.
+- **The sweep's two misses, found by verification, fixed in-campaign.**
+  A `sky_shell` orphan the WGSL scan would have caught, and an ERASED
+  RULING — a deletion hunk that ran into a SURVIVOR's doc block and
+  took a re-ruling with it. Both are law now: a prune may take a dead
+  subject's prose, never a live one's law, and the orphan sweep
+  includes a WGSL reference scan.
 
 ## NATIVE PRESET INGESTION (open, born at WEB_SUNSET)
 

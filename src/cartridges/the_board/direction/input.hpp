@@ -1,7 +1,6 @@
 #pragma once
 #include <cstdint>
-#include "cartridges/the_board/contracts/spine_state.hpp"      // PlayerState (the anchor's organ) + TransitionPhase (the transition channel) + InputState (graduated)
-#include "cartridges/the_board/contracts/mood_constants.hpp"   // MOOD_* IDs (the mood keys) + PortalDestination
+#include "cartridges/the_board/contracts/spine_state.hpp"      // PlayerState (the anchor's organ) + InputState (graduated)
 #include "cartridges/the_board/contracts/point.hpp"             // PointState/PointHost (the point — the driver toggles its host)
 #include "cartridges/the_board/contracts/wgpu_fwd.hpp"   // wgpu handle fwds (lockstep insurance)
 #include "cartridges/the_board/contracts/control_panel.hpp"   // ORGAN_3b — PANEL_LIVE.camera: the look/zoom controls' live surface
@@ -23,11 +22,10 @@
 // The impl reaches GLFW (<GLFW/glfw3.h>, its own include), the deps
 // face below (inputState / keys_ / mouse_ / player_ / world_state_ /
 // ribbon_state / gpuState_ / device_), the command fan's TARGET
-// organs (on_key_down's parameters — pawn / orbs / agents / cubes +
-// the transition channel), the owner command doors (pawn.hpp / orbs.hpp
-// / agents.hpp / cube_behaviors.hpp / mood.hpp's
-// request_mood_transition / patch_system.hpp's request_recenter) +
-// mood_constants.hpp's MOOD_* IDs, and the patch radii (Dim::PATCH_GRID_RADIUS /
+// organs (on_key_down's parameters — pawn / orbs / agents / cubes),
+// the owner command doors (pawn.hpp / orbs.hpp / agents.hpp /
+// cube_behaviors.hpp / patch_system.hpp's request_recenter), and the
+// patch radii (Dim::PATCH_GRID_RADIUS /
 // Dim::PATCH_PREGEN_RADIUS — patch_system.hpp vocabulary).
 // ─────────────────────────────────────────────────────────────────
 
@@ -45,7 +43,6 @@ struct PawnState;  struct PawnDeps;
 struct OrbsState;  struct OrbsDeps;
 struct AgentState; struct AgentsDeps;
 struct CubeBehaviorsState; struct CubeDeps;
-struct MoodState;
 
 // ═══ CameraControls — PARAMETER PANEL (the first panel, deliberately
 // MINIMAL — the FORM TEST for per-module
@@ -163,9 +160,7 @@ void on_key_down(InputDeps* c, int key,
     PawnState& pawn_state, PawnDeps& pawn_deps,
     OrbsState& orbs_state, OrbsDeps& orbs_deps,
     AgentState& agent_state, AgentsDeps& agents_deps,
-    CubeBehaviorsState& cube_behaviors_state, CubeDeps& cube_deps,
-    TransitionPhase& transitionPhase, PortalDestination& pendingDestination,
-    MoodState& mood_state);
+    CubeBehaviorsState& cube_behaviors_state, CubeDeps& cube_deps);
 void on_key_up(InputDeps* c, int key);
 void on_mouse_move(InputDeps* c, float dx, float dy);
 // SHIP_1 — the touch doors. Each writes the SAME organ its mouse/key
@@ -215,12 +210,6 @@ void nudge_look_sensitivity(InputDeps* c, bool up);   // KP_+ / KP_- — multipl
 #ifndef GLFW_KEY_CAPS_LOCK
 #define GLFW_KEY_CAPS_LOCK   280
 #endif
-#ifndef GLFW_KEY_4
-#define GLFW_KEY_4  52
-#endif
-#ifndef GLFW_KEY_9
-#define GLFW_KEY_9  57
-#endif
 #ifndef GLFW_KEY_W
 #define GLFW_KEY_W  87
 #endif
@@ -247,9 +236,7 @@ inline void on_key_down(InputDeps* c, int key,
     PawnState& pawn_state, PawnDeps& pawn_deps,
     OrbsState& orbs_state, OrbsDeps& orbs_deps,
     AgentState& agent_state, AgentsDeps& agents_deps,
-    CubeBehaviorsState& cube_behaviors_state, CubeDeps& cube_deps,
-    TransitionPhase& transitionPhase, PortalDestination& pendingDestination,
-    MoodState& mood_state)
+    CubeBehaviorsState& cube_behaviors_state, CubeDeps& cube_deps)
 {
     // Single queue fetch: every queue-using case below reuses this.
     wgpu::Queue q = c->device_.GetQueue();
@@ -265,12 +252,6 @@ inline void on_key_down(InputDeps* c, int key,
     // ── World / aura toggles ─────────────────────────────────────
     case GLFW_KEY_2: toggle_aura_height(pawn_state, &pawn_deps);  break;  // pawn command door
     case GLFW_KEY_3: toggle_aura(pawn_state, &pawn_deps);          break;  // pawn command door
-    case GLFW_KEY_5: request_mood_transition(transitionPhase, pendingDestination, mood_state, c->world_state_, MOOD_OPEN_SUNSET);    break;
-    case GLFW_KEY_6: request_mood_transition(transitionPhase, pendingDestination, mood_state, c->world_state_, MOOD_INDOOR_FLAT);    break;
-    case GLFW_KEY_7: request_mood_transition(transitionPhase, pendingDestination, mood_state, c->world_state_, MOOD_INDOOR_VAULT);   break;
-    case GLFW_KEY_8: request_mood_transition(transitionPhase, pendingDestination, mood_state, c->world_state_, MOOD_FINITE_OUTDOOR); break;
-    case GLFW_KEY_9: request_mood_transition(transitionPhase, pendingDestination, mood_state, c->world_state_, MOOD_OPEN_NIGHT);     break;
-    case GLFW_KEY_4: request_mood_transition(transitionPhase, pendingDestination, mood_state, c->world_state_, MOOD_OPEN_NOON);      break;
     case GLFW_KEY_0:              cycle_orb_palette(orbs_state, &orbs_deps, q);          break;
     case GLFW_KEY_LEFT_BRACKET:   set_render_radius(c, c->world_state_.active_radius - 1); break;
     case GLFW_KEY_RIGHT_BRACKET:  set_render_radius(c, c->world_state_.active_radius + 1); break;

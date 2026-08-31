@@ -32,13 +32,11 @@ namespace the_board {
 // read-only. (fwds: spine_state / patch_system types follow in the
 // cohort.)
 struct PlayerState; struct WorldState; struct TimeState;
-enum class TransitionPhase;
 class GPUState;
 struct AgentsDeps {
     GPUState&              gpuState_;
     PlayerState&           player_;         // non-const: possession door
     const PointState&      point_;          // the point's house (position mirror — respawn ring, possession search)
-    const TransitionPhase& transitionPhase_;
     const WorldState&      world_state_;
     const TimeState&       time_state_;
 };
@@ -315,7 +313,7 @@ void dump_agent_census(const AgentState& as, const AgentsDeps* c, const char* tr
 void dump_passer_census(const AgentState& as, const AgentsDeps* c);   // ATRIUM_5 — the route state, read from the mirror
 
 // ═══ IMPL:
-// bodies deref agent_state_(own) + gpu/player/transitionPhase/world/time
+// bodies deref agent_state_(own) + gpu/player/point/world/time
 // via AgentsDeps. COHORT: after patch_system (WorldState) + spine/state.
 // No machine.
 
@@ -449,7 +447,6 @@ inline void populate_agent_slot_(const AgentState& as,
     out.behavior_id    = behavior_id;
     out.tier_idx       = tier_idx;
     out.is_active      = 1u;
-    out.portal_trigger = -1;
 
     uint32_t ci = cpu_hash(agent_seed, 7u) % AGENT_PALETTE_COUNT;
     out.color_r = AGENT_PALETTE[ci][0];
@@ -493,7 +490,7 @@ inline void spawn_population_for_mood(AgentState& as, AgentsDeps* c,
     const auto& pop = AGENT_POPULATIONS[mood_id];
 
     // Zero every non-player slot before refilling. The player's body
-    // (slot PLAYER_SLOT) is preserved across mood transitions.
+    // (slot PLAYER_SLOT) is preserved across a rebirth.
     for (uint32_t s = PLAYER_SLOT + 1; s < Dim::MAX_AGENTS; s++) {
         as.slots[s] = GPUAgentState{};
     }
@@ -591,11 +588,6 @@ inline void respawn_evicted_agents(AgentState& as, AgentsDeps* c,
 // ═══ POSSESSION TRANSFER (Caps Lock) ══════════════════════════════
 
 inline void try_possess_nearest(AgentState& as, AgentsDeps* c, wgpu::Queue& queue) {
-    if (c->transitionPhase_ != TransitionPhase::IDLE) {
-        std::cout << "[Possess] Blocked (mid-transition)\n";
-        return;
-    }
-
     const uint32_t cur = c->player_.possessed_slot;
     // THE POINT: possession reaches from the point — the
     // nearest agent to where you ARE. Pawn-host value-identical (same
@@ -640,12 +632,11 @@ inline void try_possess_nearest(AgentState& as, AgentsDeps* c, wgpu::Queue& queu
         as.slots[cur].seed = cpu_hash(c->world_state_.active_seed, cur ^ 0xC11Cu);
     }
 
-    // New slot → player control. Reset velocity + portal trigger so the
-    // player's first frame on the new body is clean.
+    // New slot → player control. Reset velocity so the player's first
+    // frame on the new body is clean.
     as.slots[new_slot].behavior_id    = AGENT_BEHAVIOR_PLAYER_CONTROLLED;
     as.slots[new_slot].vel_x          = 0.0f;
     as.slots[new_slot].vel_z          = 0.0f;
-    as.slots[new_slot].portal_trigger = -1;
 
     c->gpuState_.upload_agent_slot(queue, cur, &as.slots[cur]);
     c->gpuState_.upload_agent_slot(queue, new_slot, &as.slots[new_slot]);
@@ -750,10 +741,9 @@ inline void seed_player_body(AgentState& as, AgentsDeps* c) {
     as.slots[0].behavior_id = AGENT_BEHAVIOR_PLAYER_CONTROLLED;
     as.slots[0].tier_idx = AGENT_TIER_WORKER;
     as.slots[0].skin_id = 0u;   // player is always the regular pawn
-    as.slots[0].portal_trigger = -1;
 }
 
-// Transition twin: keep the CPU mirror in sync with the GPU reset so
+// Rebirth twin: keep the CPU mirror in sync with the GPU reset so
 // patch streaming + ribbon + Caps Lock see current state; possession
 // re-anchors to slot 0 (the possessed_slot write stays with the
 // declared possession door's owner). Tier + colors + figure (skin_id)
@@ -777,7 +767,6 @@ inline void reseed_player_body(AgentState& as, AgentsDeps* c, uint32_t preserved
     as.slots[0].color_g = preserved_color_g;
     as.slots[0].color_b = preserved_color_b;
     as.slots[0].skin_id = preserved_skin;   // the figure rides with tier + color
-    as.slots[0].portal_trigger = -1;
     c->player_.possessed_slot = 0;
 }
 

@@ -63,7 +63,7 @@ PHASE_DEFS = set(re.findall(r'void (phase_\w+)\s*\(', CART))
 KNOWN_FAMILIES = {
     'pyramid', 'arch',
     'sphere', 'ribbon', 'cube', 'gol', 'pawn_aura', 'orbs',
-    'spot_lights', 'indoor_shell', 'portal', 'transitions', 'wanderers',
+    'spot_lights', 'indoor_shell', 'portal', 'wanderers',
 }
 
 def gate_families(gate):
@@ -76,7 +76,6 @@ def gate_families(gate):
 # family -> [(phase fn, {required gate families})]
 FRAME_ROWS = {
     'pawn_aura':   [('phase_motion_bodies', {'pawn_aura'}), ('phase_pawn_aura', {'pawn_aura'})],
-    'transitions': [('phase_portal_trigger', {'transitions'})],
     'wanderers':   [('phase_respawn_agents', {'wanderers'})],
     'ribbon':      [('phase_ribbon_tick', {'ribbon'})],
     'gol':         [('phase_gol_derive_flush', {'gol'}), ('phase_gol_zone_compute', {'gol'})],
@@ -93,8 +92,7 @@ FOUNDATIONAL_PHASES = {
     'phase_advance_clock':         'the tempo follower is unconditional',
     'phase_motion_drivers':        'the music driver + fog stage — atmosphere foundational (K4)',
     'phase_stage_world':           'world seed + finite bounds — surface foundational (S2)',
-    'phase_transition_machine':    'the transition machine is spine-owned (SEAM[spine:transitions])',
-    'phase_stage_fade_and_upload': 'the O-5b/c DRAIN — the sole signal/config uploader',
+    'phase_stage_upload':          'the O-5b/c DRAIN — the sole signal/config uploader',
     'phase_clear_input_deltas':    'driver bookkeeping, dead-last (O-5e)',
     'phase_witness_harvest':       'the witness harvest (P5) — spine-owned readback',
     'phase_stream_patches':        'S2 streaming conductor (SEAM[patch:spawn-trigger])',
@@ -145,7 +143,6 @@ GREP_MANIFEST = {
     'spot_lights': [('direction/mood.hpp', 'apply door', rf'if constexpr \(ROSTER\.spot_lights\)')],
     'indoor_shell':[('direction/mood.hpp', 'apply door', rf'if constexpr \(ROSTER\.indoor_shell\)')],
     'portal':      [('bodies/grounded.hpp', 'force-spawn door', rf'if constexpr \(!ROSTER\.portal\)')],
-    'transitions': [('direction/mood.hpp', 'request door #1', rf'if constexpr \(!ROSTER\.transitions\)')],
     'wanderers':   [('cartridge.hpp', 'boot population', imm(r'ROSTER\.wanderers', r'spawn_population_for_mood'))],
 }
 
@@ -221,8 +218,8 @@ def main():
     # ── DIRECTION W (m5): the witness sole-author law ──
     print('── DIRECTION W: the witness sole-author law ──')
     GUARDS = [
-        (r'readback_(?:x|z|portal_trigger)\s*=[^=]', {'cartridge.hpp', 'contracts/spine_state.hpp'},
-         'readback trio: P5 harvest + teardown reset + portal consume (spine only; the record declares its own defaults)'),
+        (r'readback_(?:x|z)\s*=[^=]', {'cartridge.hpp', 'contracts/spine_state.hpp'},
+         'readback pair: P5 harvest + rebirth reset (spine only; the record declares its own defaults)'),
         (r'player_\.possessed_slot\s*=[^=]', {'bodies/agents.hpp'},
          'possession: the agents door only (re-anchoring, v3 §9 Act III)'),
         (r'player_\.aura_presence\s*[+]?=[^=]', {'bodies/pawn.hpp'},

@@ -37,11 +37,11 @@
 // DemoConfig is untouched — seed + boot_mood are authored onto the
 // root organs in the Cartridge ctor.
 //
-// FREE TICKING: the grid encodes NO dependency edges. The roster's one
-// legality edge (transitions ⇒ portal) stays the FIRST EDGE static_assert
-// in demos/demo.hpp, riding the folded ROSTER — tick an illegal column
-// and the build fails there, as ever. The matrix FEEDS the resolver; it
-// does not reimplement it.
+// FREE TICKING: the grid encodes NO dependency edges — and since
+// ONE_WORLD-I took the transitions bit, the roster carries no legality
+// edge either: every column is legal. The mechanism stands; the FIRST
+// EDGE static_assert that rode demos/demo.hpp left with its subject.
+// The matrix FEEDS the resolver; it does not reimplement it.
 
 namespace t7 {
 namespace the_board {
@@ -55,8 +55,8 @@ namespace Piece {
 enum : uint32_t {
     // 6 families (PopFamily order)
     pyramid, arch, sphere, ribbon, cube, gol,
-    // 7 features
-    pawn_aura, orbs, spot_lights, indoor_shell, portal, transitions, wanderers,
+    // 6 features
+    pawn_aura, orbs, spot_lights, indoor_shell, portal, wanderers,
     COUNT,
 };
 }
@@ -85,7 +85,6 @@ inline constexpr bool GRID[Piece::COUNT][static_cast<uint32_t>(DemoCol::COUNT)] 
     /* spot_lights    */  {  true,  false },
     /* indoor_shell   */  {  true,  false },
     /* portal         */  {  true,  false },
-    /* transitions    */  {  true,  false },
     /* wanderers      */  {  true,  false },
 };
 
@@ -110,7 +109,7 @@ constexpr Roster column_to_roster(DemoCol d) {
         GRID[Piece::cube][c], GRID[Piece::gol][c],
         GRID[Piece::pawn_aura][c], GRID[Piece::orbs][c], GRID[Piece::spot_lights][c],
         GRID[Piece::indoor_shell][c], GRID[Piece::portal][c],
-        GRID[Piece::transitions][c], GRID[Piece::wanderers][c],
+        GRID[Piece::wanderers][c],
     };
 }
 
@@ -127,8 +126,8 @@ constexpr DemoConfig demo_config(DemoCol d) {
 // (1) the row count equals Roster's field count — the field-order
 //     mapping in column_to_roster is total. (Add a field to Roster ⇒
 //     add a Piece row ⇒ this trips until they agree.)
-static_assert(Piece::COUNT == 13,
-    "matrix: Piece row count must equal Roster's 13 fields (6 families + 7 features)");
+static_assert(Piece::COUNT == 12,
+    "matrix: Piece row count must equal Roster's 12 fields (6 families + 6 features)");
 
 // (2) THE BYTE-EQUIVALENCE GOLDEN (Jean's mandatory gate). The two
 //     migrated columns are pinned to the retired headers' exact values,

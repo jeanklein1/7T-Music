@@ -879,7 +879,7 @@ struct FrameSignal {
 
 // --- [STATE:agent] AgentState
 //
-// Unified entity state — mirrors GPUAgentState in state.hpp (96 bytes).
+// Unified entity state — mirrors GPUAgentState in state.hpp (92 bytes).
 // Slot 0 is the player's body (possessed at session start); slots 1..31
 // are mood-authored agents driven by AGENT_BEHAVIORS. Scalar fields
 // throughout so WGSL uniform/storage layout matches C++ without vec3
@@ -904,7 +904,6 @@ struct AgentState {
     behavior_id: u32,
     tier_idx: u32,
     is_active: u32,
-    portal_trigger: i32,   // only meaningful on possessed slot; -1 = none
     orient_x: f32,
     orient_y: f32,
     orient_z: f32,
@@ -8105,30 +8104,6 @@ fn behavior_player_controlled(agent_in: AgentState) -> AgentState {
         agent.orient_w = orient.w;
     }
 
-    // --- Portal ellipse detection (GPU-authoritative)
-    // Ellipse spans the arch opening: lateral = half_span, forward = depth/2.
-    //
-    // THE POINT'S BUBBLE: the portal is the bubble's FIRST
-    // SENSOR — the probe is the body's pos THIS FRAME (agent.pos, the
-    // local — byte-identical to the pre-point test; point_pos() is
-    // deliberately NOT used here: it reads the storage copy, one frame
-    // stale). The trigger stays on the possessed slot's wire, harvested
-    // by the same P5 path.
-    agent.portal_trigger = -1;
-    let probe = vec3(agent.pos_x, agent.pos_y, agent.pos_z);
-    for (var pi = 0u; pi < agent_room.portals.count; pi++) {
-        let p = agent_room.portals.portals[pi];
-        let dx = probe.x - p.x;
-        let dz = probe.z - p.z;
-        let lat = dx * p.facing_cos + dz * p.facing_sin;
-        let fwd = -dx * p.facing_sin + dz * p.facing_cos;
-        let e = lat * lat * p.inv_span_sq + fwd * fwd * p.inv_depth_sq;
-        if (e < 1.0) {
-            agent.portal_trigger = i32(p.arch_index);
-            break;
-        }
-    }
-
     // LANDING (no-teleportation): after a dismount the body eases from the
     // saddle it left (signal.mount_from) onto the walked pose computed above.
     if (signal.mount_kind == 2u && signal.mount_phase < 1.0) {
@@ -8890,19 +8865,20 @@ const FLOATER_EVICTION_RADIUS:    f32 = 800.0;
 const FLOATER_EVICTION_RADIUS_SQ: f32 = FLOATER_EVICTION_RADIUS * FLOATER_EVICTION_RADIUS;
 
 // POINT_BUBBLE_RADIUS — the point's bounded awareness (v3 §11; the
-// bubble's first field). Sensors: the portal's vertical gate in
-// camera-host, AND (CONTACT_2 C3b) the point-source flee trigger.
+// bubble's first field). Sensor: (CONTACT_2 C3b) the point-source flee
+// trigger. The portal's vertical gate was the first, and it left with
+// the doors (ONE_WORLD-I).
 // REST MIRROR: the value is 20.0, now boot-pinned into
 // config.point_bubble_radius from contracts/point.hpp POINT_BUBBLE_RADIUS
 // (the source of truth) via set_point_bubble_radius — a runtime upload,
 // no longer a compile-time const (CONTACT_2 C3a). DISCLOSE: the bubble
-// is ONE thing — coupling its radius later breathes portal sensitivity
-// too.
+// is ONE thing — coupling its radius later breathes every sensor that
+// lands in it.
 
 // ─── Player kernel ───────────────────────────────────────────────
 // Single thread, runs once per frame on config.possessed_slot.
 // Contains the full walker policy (pawn_ground_resolve,
-// terrain_normal_at, portal trigger).
+// terrain_normal_at).
 @compute @workgroup_size(1)
 fn update_player_agent() {
     if (!dynamics_0d_active()) { return; }

@@ -437,7 +437,10 @@ namespace t7 {
         //     (world.wgsl, coupling_velocity_to_pawn_heading writes
         //      h = atan2(vel.x, vel.z); the aura's forward reads it back)
         //   a door at bearing b stands at (cos b, sin b) and its opening
-        //     faces b + PI (force_spawn_door_fallback, the one grammar)
+        //     faces b + PI — the door grammar. Its last authoring site,
+        //     force_spawn_door_fallback, left with the transition machine
+        //     (ONE_WORLD-I); the identity below is what the conversion
+        //     rests on, not the site
         // so bearing = atan2(cos h, sin h) = PI/2 - h, exactly. One home,
         // beside the pose it converts: the arc (force_spawn_atrium_arc)
         // and the hang (place_atrium_poster) both read it, and neither
@@ -867,7 +870,14 @@ namespace t7 {
         };
         static_assert(sizeof(GPUTileGrid) == 16 + Dim::TILE_GRID_CAPACITY * 16, "GPUTileGrid must match WGSL layout");
 
-        struct alignas(16) GPUAgentState {
+        // NOT alignas(16), and that is the whole record: the wire the
+        // bubble sensor rode (portal_trigger, once byte 60) left at
+        // ONE_WORLD-I, and 23 scalars are 92 bytes. alignas(16) would round
+        // sizeof back to 96 while the WGSL twin — whose align is its widest
+        // member, 4 — stayed 92, and the storage array's stride would part
+        // from C++'s silently. No pad stands in for the departed field: an
+        // excised field never existed.
+        struct GPUAgentState {
             float pos_x;           //  0
             float pos_y;           //  4
             float pos_z;           //  8
@@ -886,16 +896,15 @@ namespace t7 {
             uint32_t behavior_id;  // 48 — AgentBehaviorId (see bodies/agents.hpp)
             uint32_t tier_idx;     // 52 — AgentTierId     (see bodies/agents.hpp)
             uint32_t is_active;    // 56 — 0 = inactive (collapsed in VS + skipped in update)
-            int32_t  portal_trigger; // 60 — only meaningful on the possessed slot (-1 = none)
-            float orient_x;        // 64 — heading ⊗ tilt quaternion
-            float orient_y;        // 68
-            float orient_z;        // 72
-            float orient_w;        // 76
-            float color_r;         // 80 — per-agent body color (palette pick at spawn)
-            float color_g;         // 84
-            float color_b;         // 88
-            uint32_t skin_id;      // 92 — PawnFigureDef row (0 = regular pawn). Was _pad0.
-        };                         // 96 total
+            float orient_x;        // 60 — heading ⊗ tilt quaternion
+            float orient_y;        // 64
+            float orient_z;        // 68
+            float orient_w;        // 72
+            float color_r;         // 76 — per-agent body color (palette pick at spawn)
+            float color_g;         // 80
+            float color_b;         // 84
+            uint32_t skin_id;      // 88 — PawnFigureDef row (0 = regular pawn). Was _pad0.
+        };                         // 92 total
 
         // ─── Agent registry GPU structs ──────────────────────────────
         //
@@ -1797,8 +1806,9 @@ namespace t7 {
             "boundary — WGSL rounds vec3 up to align 16 and C++ does not, so an "
             "off-boundary one silently shifts the whole mirror (see GROWTH LAW)");
 
-        // Portal ellipse array — uploaded when portal set changes.
-        // GPU behavior_player_controlled tests pawn against arch-shaped ellipses and writes portal_trigger.
+        // Portal ellipse array — uploaded when portal set changes. The
+        // player-kernel proximity test that read it left with the trigger
+        // wire (ONE_WORLD-I); the PASSER route still reads the array.
         static constexpr uint32_t MAX_GPU_PORTALS = 32;
         struct alignas(16) GPUPortalEntry {
             float x;                  //  0  world XZ center
@@ -1848,8 +1858,11 @@ namespace t7 {
             + sizeof(GPUAgentBehaviorDef) * GPU_AGENT_BEHAVIOR_COUNT
             == offsetof(GPUAgentRoomConstants, tier_gains),
             "behaviors and tier_gains must stay adjacent — the registry upload writes them as one range");
-        static_assert(sizeof(GPUAgentState) == 96, "GPUAgentState must be 96 bytes");
-        static_assert(sizeof(GPUAgentState) % 16 == 0, "GPUAgentState must be 16-byte aligned");
+        static_assert(sizeof(GPUAgentState) == 92, "GPUAgentState must be 92 bytes");
+        static_assert(alignof(GPUAgentState) == 4,
+            "GPUAgentState must stay 4-aligned — its WGSL twin is all scalars, so the "
+            "storage array's stride is its size; any wider alignment pads C++ only and "
+            "parts the two strides without a diagnostic");
         static_assert(sizeof(GPUAgentBehaviorDef) == 32, "GPUAgentBehaviorDef must be 32 bytes");
         static_assert(sizeof(GPUAgentBehaviorDef) % 16 == 0, "GPUAgentBehaviorDef must be 16-byte aligned");
         static_assert(sizeof(GPUAgentTierDef) == 48, "GPUAgentTierDef must be 48 bytes (CONTACT_2 added personal_radius + flee_gain_player; 40 data -> 48 with 8 B pad — the uniform array stride)");
@@ -1985,21 +1998,23 @@ namespace t7 {
         // pinned to its RPhase by a static_assert beside the enum —
         // drift fails glaw1.
         namespace meter_row {
-            // Row 8 (LiveCardWrite) carries NO GPU row: SPINE_2 B made the
+            // Row 7 (LiveCardWrite) carries NO GPU row: SPINE_2 B made the
             // card the first dispatch of the compute pass, so its cost is
             // inside DispatchCompute's span. The spine row still exists and
             // still owns the rest law — only the timestamp pair retired.
-            inline constexpr uint32_t StreamPatches       = 2;
-            inline constexpr uint32_t EntityMeshGen       = 6;
-            inline constexpr uint32_t DispatchCompute     = 9;
-            inline constexpr uint32_t GolDeriveFlush      = 11;
-            inline constexpr uint32_t GolZoneCompute      = 12;
-            inline constexpr uint32_t PawnAura            = 13;
-            inline constexpr uint32_t OrbSky              = 14;
-            inline constexpr uint32_t PlacementCorrection = 16;
-            inline constexpr uint32_t FrustumCull         = 17;
-            inline constexpr uint32_t ShadowPass          = 18;
-            inline constexpr uint32_t MainPass            = 19;
+            // Every id below dropped ONE at ONE_WORLD-I: the PortalTrigger
+            // row sat at index 1 and left with the doors.
+            inline constexpr uint32_t StreamPatches       = 1;
+            inline constexpr uint32_t EntityMeshGen       = 5;
+            inline constexpr uint32_t DispatchCompute     = 8;
+            inline constexpr uint32_t GolDeriveFlush      = 10;
+            inline constexpr uint32_t GolZoneCompute      = 11;
+            inline constexpr uint32_t PawnAura            = 12;
+            inline constexpr uint32_t OrbSky              = 13;
+            inline constexpr uint32_t PlacementCorrection = 15;
+            inline constexpr uint32_t FrustumCull         = 16;
+            inline constexpr uint32_t ShadowPass          = 17;
+            inline constexpr uint32_t MainPass            = 18;
         }
 
         // GROUP 1 CARRIES A DYNAMIC SEAT (shadow_slot), so every bind of it
@@ -2779,7 +2794,6 @@ namespace t7 {
                 p.is_active = 1u;
                 p.behavior_id = 0u;  // AGENT_BEHAVIOR_PLAYER_CONTROLLED
                 p.tier_idx = tier_idx;
-                p.portal_trigger = -1;
                 p.color_r = color_r;
                 p.color_g = color_g;
                 p.color_b = color_b;
@@ -4692,7 +4706,6 @@ namespace t7 {
                     p.is_active = 1u;
                     p.behavior_id = 0u;   // AGENT_BEHAVIOR_PLAYER_CONTROLLED
                     p.tier_idx = 0u;   // AGENT_TIER_WORKER
-                    p.portal_trigger = -1;
                     queue.WriteBuffer(agentStateBuffer_, 0, agents, sizeof(agents));
                 }
 

@@ -38,16 +38,11 @@ inline constexpr DemoConfig DEMO = demo_config( T7B_DEMO_COL(INCUBATE_DEMO) );
 
 inline constexpr Roster ROSTER = DEMO.roster;
 
-// THE FIRST EDGE — transitions REQUIRE portal: portals are both the
-// trigger IN and the guaranteed return OUT; transitions on + portal
-// off soft-locks. CONDITIONAL so transitions+portal both-off (the
-// lean build) stays legal. Rides the folded ROSTER, so it fires
-// identically whether the sentence came from the matrix or (once) a
-// hand-written header — the guardrail the grid FEEDS but never
-// reimplements.
-static_assert(!ROSTER.transitions || ROSTER.portal,
-    "ROSTER: portal disabled while transitions enabled — "
-    "transitions REQUIRE portal (the trigger in, the return path out)");
+// THE FIRST EDGE stood here — transitions REQUIRE portal — and left
+// with the transitions bit (ONE_WORLD-I). The roster now carries no
+// legality edge at all: every matrix column resolves to a legal
+// sentence, and the guardrail returns here if a later bit ever needs
+// one.
 
 } // namespace the_board
 } // namespace t7

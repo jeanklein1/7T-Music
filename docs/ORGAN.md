@@ -132,7 +132,11 @@ coalesce in a bitmask.
 - `RESPEAK` — raise every definition flag for the live mood.
 - `ORB_RULE`, `ORB_GESTURE` — the commands keys KP_8 / KP_7 press; the sky's
   two player-owned facts, which is why they are doors and not dials.
-- the mood door, `organ_go_mood` — `request_mood_transition`, with its own guards.
+
+The mood door (`organ_go_mood`) stood here until ONE_WORLD-I: it pressed
+`request_mood_transition`, and door and request left together with the
+transition machine. `organ_mood` and `organ_mood_names` remain — the live
+mood is still readable, it is simply no longer switchable from the surface.
 
 The rule window (`organ_orb_rule`) packs rule, gesture, lit and count out of
 `OrbsState`, refreshed at the boundary and nowhere else, so it cannot go stale
@@ -141,7 +145,7 @@ whoever turned the rule.
 ## The ABI
 
 `organ_manifest`, `organ_doors`, `organ_mood_names` (JSON); `organ_set`,
-`organ_door`, `organ_go_mood` (writes); `organ_get`, `organ_def_get`,
+`organ_door` (writes); `organ_get`, `organ_def_get`,
 `organ_mood`, `organ_regime`, `organ_orb_rule` (reads, by manifest index);
 `organ_param_count`, `organ_rejected_count`, `organ_last_reject`,
 `organ_flush_count` (the status line). The manifest is emitted in table order,

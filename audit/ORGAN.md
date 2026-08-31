@@ -452,7 +452,7 @@ reader — the class of defect this witness exists to catch.
   CANVAS_TABLE         definition=1 seed=1 comment=1              
   DRIVER_TABLE         definition=1 seed=1 comment=1              
   INDOOR_TABLE         definition=1 seed=1 static_assert=2 comment=1 
-  MOOD_TABLE           definition=1 seed=7 static_assert=31 comment=27 
+  MOOD_TABLE           definition=1 seed=7 static_assert=31 comment=28 
   ORB_CONSOLE          definition=1 seed=1 comment=2              
   ORB_MOOD_TABLE       definition=1 seed=7 comment=6              
   PANEL_TABLE          definition=1 seed=1 static_assert=6 comment=2 
