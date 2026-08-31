@@ -104,9 +104,7 @@ namespace t7 {
     // Plan B is one line: if DXC fails on a given driver, set this to
     // Vulkan, rebuild, boot. That IS the fallback, not a failure.
     enum class CompilerPlan { D3D12_Dxc, Vulkan, D3D12_Fxc };
-    inline constexpr CompilerPlan kCompilerPlan = CompilerPlan::Vulkan
-        
-        ;
+    inline constexpr CompilerPlan kCompilerPlan = CompilerPlan::Vulkan;
 
     inline constexpr const char* compiler_plan_name(CompilerPlan p) {
         switch (p) {

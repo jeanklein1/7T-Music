@@ -16,9 +16,10 @@
  *   |----------------------|------------------------|-----------|
  *   | the_board/           | t7::the_board          | Cartridge |
  *
- * The analysis side is the BeatClock (CUT_1c, ruling R7): advancing
- * clocks at a variable BPM, empty stat layout. All input goes to the
- * render cartridge.
+ * The analysis side is canvas_1 (analysis/canvas_1/canvas.hpp): it opens
+ * the DAW's loopMIDI port, advances on the transport's beat, and publishes
+ * the stat layout the render side binds by name. All device input goes to
+ * the render cartridge.
  */
 
  // =========================================================================
@@ -46,7 +47,7 @@
 // =========================================================================
 
 #include "console/console.hpp"
-#include "analysis/beat_clock.hpp"
+#include "analysis/canvas_1/canvas.hpp"
 
 // IntelliSense cannot resolve macro-expanded #include paths.
 // This literal include gives VS navigation (Peek Definition, Go To, etc.).
@@ -148,7 +149,11 @@ inline constexpr float    OVERTURE_READY_TIMEOUT_S = 5.0f;  // a slow phone is n
 
 struct App {
     t7::Console console;
-    t7::BeatClock clock;
+    // --- The Analysis Cartridge ---------------------------------------------
+    // canvas_1: opens loopMIDI in initialize(), polls the DAW transport for
+    // beats, routes events through Context, and publishes the stat layout the
+    // render side binds by name. No command-line input.
+    t7::canvas_1::Canvas analysis;
     RenderCartridge render;
     FileWatcher watcher;
     int reload_frame_counter = 0;
@@ -174,7 +179,8 @@ static App* app = nullptr;
 // needs console.device(), which does not exist at web main().)
 
 static bool init_world() {
-    std::cout << "[The Board] BeatClock ready (bpm " << app->clock.bpm << ")\n";
+    std::cout << "[The Board] canvas_1 ready (loopMIDI "
+              << (app->analysis.is_open() ? "open" : "closed") << ")\n";
 
     // --- Initialize Render Cartridge ----------------------------------------
     app->render.initialize(app->console.device());
@@ -186,10 +192,11 @@ static bool init_world() {
 
     std::cout << "[The Board] " << RENDER_NAME << " renderer ready\n";
 
-    // Publish the slot map once. The BeatClock's layout is EMPTY by design
-    // (CUT_1c): every render-side resolve misses, warns once on stderr, and
-    // leaves its coupling disabled — the graceful path in signal_layout.hpp.
-    app->render.bind_signal_layout(app->clock.stat_layout());
+    // Publish the slot map once. canvas_1 built its layout in initialize()
+    // (the publish_reading rows), so every render-side resolve binds by
+    // name; a genuinely absent name still takes the graceful path in
+    // signal_layout.hpp — one stderr warn, valid=false, coupling disabled.
+    app->render.bind_signal_layout(app->analysis.stat_layout());
 
     // THE OFFER IS NOT MADE HERE ANY MORE (OVERTURE_0). This is the instant
     // the frame loop goes live, which is the instant the wait is measured
@@ -304,8 +311,8 @@ static void frame() {
     app->console.clear_input_events();
 
     // --- Update ---------------------------------------------------------
-    app->clock.update(dt);
-    app->render.update(app->clock.output(), app->console.aspect_ratio(), app->queue);
+    app->analysis.update(dt);
+    app->render.update(app->analysis.output(), app->console.aspect_ratio(), app->queue);
 
     // --- Render ---------------------------------------------------------
     if constexpr (t7::INSTRUMENTS.frame_meter) s_t0 = std::chrono::steady_clock::now();
@@ -368,7 +375,7 @@ int main(int argc, char* argv[]) {
     // FileWatcher class, the member, the watch() call and the per-frame
     // check are unconditional on the one program. The NAME is NAME_0's.
     std::cout << "  THE BOARD (Hot Reload Enabled)\n";
-    std::cout << "  Clock:    BeatClock\n";
+    std::cout << "  Analysis: canvas_1 (loopMIDI)\n";
     std::cout << "  Render:   " << RENDER_NAME << "\n";
     std::cout << "========================================\n";
     std::cout << "\n";
@@ -382,10 +389,13 @@ int main(int argc, char* argv[]) {
     }
     app->console.set_cursor_grab(true);   // the exhibition holds the pointer
 
-    // --- The Clock -----------------------------------------------------------
-    // BeatClock needs no initialization: it starts at zero and advances
-    // from dt alone. No command-line input either.
-    (void)argc; (void)argv;
+    // --- Initialize Analysis Cartridge --------------------------------------
+    // canvas_1 composes its seven voices, declares its published readings and
+    // opens loopMIDI here. init_world() below binds the resulting slot map to
+    // the render side, so this must run first. A port that does not open is
+    // not a failure: open_by_name fails soft, the layout still publishes every
+    // name, and the signal stays at zero until the DAW plays.
+    app->analysis.initialize("assets");
 
     // --- World init (device exists — native boot is synchronous) -------------
     if (!init_world()) {

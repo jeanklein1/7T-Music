@@ -609,8 +609,9 @@ set(MSVC_COMPILE_DEFS NOMINMAX WIN32_LEAN_AND_MEAN _CRT_SECURE_NO_WARNINGS
 #
 #   Available render cartridges: the_board
 #
-# The analysis side is the BeatClock (src/analysis/beat_clock.hpp,
-# CUT_1c) — no analysis cartridge selection exists anymore.
+# The analysis side is canvas_1 (src/analysis/canvas_1/canvas.hpp): it
+# opens the DAW's loopMIDI port and publishes the stat layout the render
+# side binds by name. There is no analysis cartridge selection dial.
 #
 # AN UNSET VALUE HERE IS A COMPILE ERROR, NEVER A FALLBACK. These values are
 # pasted into enumerators (INCUBATE_DEMO into demos/matrix.hpp, T7_INSTRUMENTS
@@ -678,7 +679,7 @@ message(STATUS "")
 # THE BOARD — Render cartridge development
 # ═══════════════════════════════════════════════════════════════════════════════
 #
-# The render cartridge (the_board) driven by the BeatClock.
+# The render cartridge (the_board) driven by canvas_1's analysis signal.
 # Uses T7_RENDER_CARTRIDGE.
 #
 # Build:  cmake --build --preset the-board-full-release  (full chain: CLAUDE.md)
