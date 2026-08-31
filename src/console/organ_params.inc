@@ -125,10 +125,6 @@ ORGAN_PARAM_GEN(WORLD, WorldDrawSurface, scheme_weights[0], F32, 0.0f, 1.0f, 0.0
 ORGAN_PARAM_GEN(WORLD, WorldDrawSurface, scheme_weights[1], F32, 0.0f, 1.0f, 0.005f, "Sky & Light · Schemes", "quartet")
 ORGAN_PARAM_GEN(WORLD, WorldDrawSurface, scheme_weights[2], F32, 0.0f, 1.0f, 0.005f, "Sky & Light · Schemes", "gallery")
 ORGAN_PARAM_GEN(WORLD, WorldDrawSurface, scheme_weights[3], F32, 0.0f, 1.0f, 0.005f, "Sky & Light · Schemes", "sanctum")
-// ─── Sky & Light · Portals — EDITS THE NEXT PORTAL ──────────────
-// A portal's colour is a fact about its DESTINATION, so the per-mood rows
-// are indexed by destination mood and the last is the way back.
-
 // ─── Atmosphere · Regimes — THE REGIME LAW ──────────────────────────
 // One weight per regime, the MOOD's. The walk normalises, so these are
 // proportions and a 0 is an absent regime; a write re-rolls under the seed.
@@ -530,10 +526,6 @@ ORGAN_PARAM_DEF(AGENT_ROOM, GPUAgentRoomConstants, behaviors[9].home_pull,      
 ORGAN_PARAM_DEF(AGENT_ROOM, GPUAgentRoomConstants, behaviors[9].neighbor_radius, F32, 0.0f,  50.0f,  0.25f,   "Agents · levy_flight", "neighbour radius", BEHAVIOR, AgentBehaviorBank, b[9].neighbor_radius)
 ORGAN_PARAM_DEF(AGENT_ROOM, GPUAgentRoomConstants, behaviors[9].speed_cap,       F32, 0.0f,  10.0f,  0.05f,   "Agents · levy_flight", "speed cap", BEHAVIOR, AgentBehaviorBank, b[9].speed_cap)
 
-// ─── Agents · Portals — EDITS THE NEXT DRAW ─────────────────────
-// WORLD_DRAW_LIVE again, the population half. THE DESTINATION LAW: one
-// weight per mood, normalised by the walk, and a 0 shuts a door.
-
 // ─── Interaction · Field ───────────────────────────────────────
 // GPUDesignConfig, boot-pinned from contracts/control_panel.hpp and read
 // by both dialects. field_k is clamped against the beacon's S at the writer.
@@ -628,5 +620,3 @@ ORGAN_PARAM(CONFIG, GPUDesignConfig, shadow_mask, U32, 0.0f,   3.0f, 1.0f, "Meas
 // A measurement AND a taste gate: the tap cost on both GPUs, and whether the
 // narrower penumbra is the piece. Range covers only the two legal values.
 ORGAN_PARAM(CONFIG, GPUDesignConfig, shadow_pcf_taps, U32, 4.0f, 16.0f, 12.0f, "Measure", "sun PCF taps (4 or 16)")
-
-// ─── Atrium — EDITS THE NEXT ENTRANCE ───────────────────────────

@@ -15,8 +15,8 @@ carry those facts, or leave them in place and patch around them.
 
 | field | value |
 |---|---|
-| source commit | `e7d40ed5b21e1d8cfebdc5e7dc73226450cdbd6f` |
-| | ONE_WORLD-I U6: the audit room's provenance, and the campaign's close line |
+| source commit | `99c2891f7c7d46d20d66c856ea0a2161f91599b7` |
+| | ONE_WORLD-I: rebirth_world stands marked — SEAM[spine:P8] |
 | `src/cartridges/the_board/realization/binding_registry.hpp` | `sha256:0d52022e0374572d09dd65f1103dcafe148f576c46b39b9d27801be3c09cc966` |
 | `src/cartridges/the_board/realization/world.wgsl` | `sha256:801d13cc8e62e14a42f350728e5b47d2a8223c9592a35fc0d47f34ead193e1e7` |
 | `src/cartridges/the_board/realization/state.hpp` | `sha256:154bfa9ea07a580f5293b72fd834ac88115d78f936b20786752ca154d5dfb82b` |

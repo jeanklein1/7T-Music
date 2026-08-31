@@ -5,8 +5,8 @@ Read-only: a census of the program's pass and submit surface.
 
 ## Provenance
 
-Last commit touching any scanned file: `74a744d8d6837bb69ac13425a50607fd557f26c7`
-(ONE_WORLD-I U5: the sweep — the proximity subsystem, and what the campaign left behind)
+Last commit touching any scanned file: `99c2891f7c7d46d20d66c856ea0a2161f91599b7`
+(ONE_WORLD-I: rebirth_world stands marked — SEAM[spine:P8])
 
 | file scanned | sha256 |
 |---|---|
