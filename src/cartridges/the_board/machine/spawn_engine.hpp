@@ -45,7 +45,6 @@ namespace the_board {
 //                                            the whole band → invisible exit)
 // Both toggle edges are behind the icing — materialize inside the fade.
 inline constexpr float ENTITY_CULL_HYSTERESIS     = 40.0f;   // toggle band, wholly beyond the ring
-inline constexpr float ENTITY_THIN_EXTENT         = 5.0f;    // thin bodies: conservative horizontal half-reach
 
 // ── Footprint registry vocabulary ──────────────────────────────────
 
@@ -430,6 +429,12 @@ inline GPUArchMeshParams build_arch_mesh_params(MachineCtx* c, uint32_t slot) {
     return p;
 }
 
+// Scan all active entities, toggle draw_visible with hysteresis,
+// and upload mesh param changes. Returns count of currently hidden entities.
+// THE RING is the correctness gate (re-ruled): draw membership = any part
+// of the entity inside the live ring (center − extent ≤ ring). Anchor: the
+// point (readback — the same yardstick as the terrain band). Both toggle
+// edges sit at/beyond the ring where the icing is already 1 — invisible.
 inline uint32_t update_entity_draw_visibility(MachineCtx* c, wgpu::Queue& queue) {
     uint32_t culled = 0;
 

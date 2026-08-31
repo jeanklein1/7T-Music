@@ -3639,7 +3639,8 @@ namespace t7 {
                 agentStateBuffer_ = makeBuffer("Agent State",
                     Dim::MAX_AGENTS * sizeof(GPUAgentState),
                     wgpu::BufferUsage::Storage | wgpu::BufferUsage::CopyDst | wgpu::BufferUsage::CopySrc);
-                // CHORD_1: one 6960 B uniform block where five buffers stood.
+                // CHORD_1: one 2864 B uniform block where five buffers stood
+                // (6960 B until PRUNE_2 U4 cut the shafts' occupier window).
                 agentRoomBuffer_ = makeBuffer("Agents' Room Constants",
                     sizeof(GPUAgentRoomConstants), UU);
                 // CHORD_4: one 4336 B uniform block where three buffers stood.

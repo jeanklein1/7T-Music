@@ -12,7 +12,7 @@
 // the cartridge is the composition root alone.
 //
 // SEAM[spine:owns] FAMILY_DISPATCH is genuinely spine work — the
-//   integration hub that ties the 12 families together. Each row's
+//   integration hub that ties the six families together. Each row's
 //   body lives in the family's owning module. Per Ch. 15 of the seam
 //   map. Adding a new family means: write select/place/commit/
 //   evict/prepare_mesh in the owning module, add wrappers below,
@@ -436,7 +436,7 @@ namespace t7 {
             // ═══ FAMILY DISPATCH TABLE ═══════════════════════════════════
             //
             // SEAM[spine:owns] FAMILY_DISPATCH is the integration hub that
-            //   ties the 12 families together. Each row's body lives in
+            //   ties the six families together. Each row's body lives in
             //   the family's owning module.
             // SEAM[spine:K2-related] the five real dispatch_prepare_mesh_* /
             //   dispatch_mesh_gen_* adapter pairs below are integration glue
@@ -1963,11 +1963,11 @@ namespace t7 {
                 auto& queue = c.queue;
                 bool dirty[PopFamily::COUNT] = {};
                 bool anyDirty = false;
-                // Eleven explicit prepare lines, one per family, each
+                // One explicit prepare line per family, each
                 // presence constexpr-gated — THE SCORE RULING: the typelist
                 // fold dissolved into prose. A disabled
                 // family's prepare is eliminated at COMPILE TIME (no call,
-                // no runtime branch); all-enabled compiles to the same 12
+                // no runtime branch); all-enabled compiles to the same six
                 // calls in the same order.
                 if constexpr (ROSTER.pyramid) {   // ROSTER-GATE pyramid (b)
                     dirty[PopFamily::PYRAMID] = FAMILY_DISPATCH[PopFamily::PYRAMID].prepare_mesh(&machine_ctx_, queue);

@@ -671,7 +671,7 @@ inline void dispatch_commit_arch_generic(MachineCtx* self, PlacementEntry& pe, w
 // array's real extent, the gate would scan a different count than the array
 // holds. This is the line that stops that.
 //
-// This is the last point in the cohort where all nine TRAITS are visible
+// This is the last point in the cohort where all four TRAITS are visible
 // (entity_pipeline.hpp trails grounded/spheres/cube_behaviors), which is why
 // the block lives here rather than at the contract.
 // The pin doubles as the POSITIONAL-SHIFT PROOF for the A2 field cut. All nine

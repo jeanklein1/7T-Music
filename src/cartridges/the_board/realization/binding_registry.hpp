@@ -54,7 +54,7 @@ namespace t7 {
             namespace g2 {
                 // AGENTS (0–19)
                 inline constexpr uint32_t agent_state                 = 0;
-                inline constexpr uint32_t agent_room                  = 1;  // AgentRoomConstants — CHORD_1: portals + behaviors + tier_gains + occupier_amg, one uniform block at world/mood cadence (6960 B)
+                inline constexpr uint32_t agent_room                  = 1;  // AgentRoomConstants — CHORD_1: portals + behaviors + tier_gains + occupier_amg, one uniform block at world/mood cadence (2864 B)
                 inline constexpr uint32_t floating_entities           = 2;
                 inline constexpr uint32_t render_agents               = 5;
                 inline constexpr uint32_t render_floating             = 6;

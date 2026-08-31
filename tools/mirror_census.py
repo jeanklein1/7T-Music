@@ -1356,7 +1356,7 @@ def coverage(reg_info, wgsl_info, state_info, pipe_info, groups, invokes,
          "creation cadence — a bind group re-made after boot",
          "state.hpp:%d %s" % (ex_rebuild["line"], ex_rebuild["label"])
          if ex_rebuild else "(none)"),
-        ("G", "in-block constant (PLANT_GROUND_COUNT)", R,
+        ("G", "in-block constant (a group block's local)", R,
          "idiom template", "Entity Placement Compute BindGroup block"),
         ("G", "entry statement order (%d block%s out of index order)"
               % (len(state_info["ooo_G"]),

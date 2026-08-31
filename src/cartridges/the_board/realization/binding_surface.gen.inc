@@ -136,7 +136,7 @@
                     //  layout. Agents ride the baked ground path (145/146/152) + the
                     //  card (g1:34); the zone pair is now bound only by the GoL sim
                     //  layouts and the live-card writer.)
-                    entries[1].binding = bind::g2::agent_room;  // agent_room (uniform, 6960 B — CHORD_1)
+                    entries[1].binding = bind::g2::agent_room;  // agent_room (uniform, 2864 B — CHORD_1)
                     entries[1].visibility = wgpu::ShaderStage::Compute;
                     entries[1].buffer.type = wgpu::BufferBindingType::Uniform;
 
