@@ -1453,25 +1453,6 @@ namespace t7 {
                                             self->point_.y = p.pos_y;
                                             self->point_.heading = p.heading;
                                         }
-                                        // ATRIUM_5 — THE PASSER WITNESS, here
-                                        // because here is where the route state
-                                        // becomes readable: it is written on the
-                                        // GPU and this memcpy is the only thing
-                                        // that brings it back. One line every
-                                        // four seconds, in the atrium only.
-                                        // Function-local static — the [Atmos]
-                                        // witness's idiom, and the [FLUSH]
-                                        // one-shot's before it.
-                                        if constexpr (INSTRUMENTS.passer_witness) {
-                                            if (self->mood_state_.active == MOOD_ATRIUM) {
-                                                static float last_passer_print = -1e9f;
-                                                const float now = self->time_state_.seconds;
-                                                if (now - last_passer_print >= 4.0f) {
-                                                    last_passer_print = now;
-                                                    dump_passer_census(self->agent_state_, &self->agents_deps_);
-                                                }
-                                            }
-                                        }
                                     }
                                 }
                                 self->gpuState_.agent_state_readback_staging().Unmap();

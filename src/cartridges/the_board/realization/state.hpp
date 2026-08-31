@@ -929,7 +929,7 @@ namespace t7 {
             float home_pull;       // 16 — 1/s² tether spring coefficient
             float neighbor_radius; // 20 — world units, flock/cohesion sample radius
             float speed_cap;       // 24 — world units/s
-            float aux;             // 28 — ATRIUM_4: behaviour-specific scalar (PASSER = the band, wu; 0 elsewhere). Was _pad.
+            float aux;             // 28 — ATRIUM_4: behaviour-specific scalar. Its one user (PASSER) left at ONE_WORLD-I U4; 0 on every row now. Was _pad, and the row is 16-aligned by it.
         };                         // 32 total (16-byte aligned)
 
         // Counts mirror the AGENT_BEHAVIOR_COUNT / AGENT_TIER_COUNT
@@ -938,7 +938,7 @@ namespace t7 {
         // on bodies/agents.hpp (which is included after state.hpp, at
         // file scope in the cartridge cohort). Asserts in
         // bodies/agents.hpp verify these stay in sync.
-        static constexpr uint32_t GPU_AGENT_BEHAVIOR_COUNT = 11;
+        static constexpr uint32_t GPU_AGENT_BEHAVIOR_COUNT = 10;
         static constexpr uint32_t GPU_AGENT_TIER_COUNT = 4;
 
         //
@@ -1759,27 +1759,10 @@ namespace t7 {
             "boundary — WGSL rounds vec3 up to align 16 and C++ does not, so an "
             "off-boundary one silently shifts the whole mirror (see GROWTH LAW)");
 
-        // Portal ellipse array — uploaded when portal set changes. The
-        // player-kernel proximity test that read it left with the trigger
-        // wire (ONE_WORLD-I); the PASSER route still reads the array.
-        static constexpr uint32_t MAX_GPU_PORTALS = 32;
-        struct alignas(16) GPUPortalEntry {
-            float x;                  //  0  world XZ center
-            float z;                  //  4
-            float facing_cos;         //  8  cos(rotation)
-            float facing_sin;         // 12  sin(rotation)
-            float inv_span_sq;        // 16  1 / half_span²  (lateral — foot-to-foot)
-            float inv_depth_sq;       // 20  1 / (depth*0.5)² (forward — walk-through)
-            uint32_t arch_index;      // 24  maps to CPU entities_state_.arches[index]
-            uint32_t kind;            // 28 — 0 forward, 1 back (ATRIUM_2: the passers walk forward doors only)
-        };
-        struct alignas(16) GPUPortalArray {
-            uint32_t count;
-            uint32_t _pad[3];
-            GPUPortalEntry portals[MAX_GPU_PORTALS];
-        };
-        static_assert(sizeof(GPUPortalArray) == 16 + MAX_GPU_PORTALS * 32,
-            "GPUPortalArray layout check");
+        // THE PORTAL ELLIPSE ARRAY stood here (GPUPortalEntry /
+        // GPUPortalArray / MAX_GPU_PORTALS) — the room the player kernel
+        // tested and the PASSER round walked. Writer and readers both
+        // left (ONE_WORLD-I U2, U4).
 
         // ── THE AGENTS' ROOM CONSTANTS (CHORD_1) ──────────────────────
         // Five uniform seats became one block. Everything here is
@@ -1796,9 +1779,8 @@ namespace t7 {
         // families in PRUNE_2 U4. Nothing wrote it after they went, and the
         // agent loops that read it could only ever have found is_active 0.)
         struct alignas(16) GPUAgentRoomConstants {
-            GPUPortalArray      portals;                                  //    0
-            GPUAgentBehaviorDef behaviors[GPU_AGENT_BEHAVIOR_COUNT];      // 1040 (ATRIUM_4: 11 rows, +32 B)
-            GPUAgentTierDef     tier_gains[GPU_AGENT_TIER_COUNT];         // 1392
+            GPUAgentBehaviorDef behaviors[GPU_AGENT_BEHAVIOR_COUNT];      //   0
+            GPUAgentTierDef     tier_gains[GPU_AGENT_TIER_COUNT];         // 320
         };
         // CHORD_1's occupier window (occupier_amg, once at 1584) was the arch
         // legs' presence face — the same mesh-param rows the mesh-gen kernel
@@ -1807,9 +1789,9 @@ namespace t7 {
         // every reader loop opens `if (is_active == 0u) continue;` and nothing
         // writes the window once the family is gone. The same argument retires
         // this one, and with it the room's tail: 2864 -> 1584.
-        static_assert(sizeof(GPUAgentRoomConstants) == 1584);
-        static_assert(offsetof(GPUAgentRoomConstants, behaviors)    == 1040);
-        static_assert(offsetof(GPUAgentRoomConstants, tier_gains)   == 1392);
+        static_assert(sizeof(GPUAgentRoomConstants) == 512);
+        static_assert(offsetof(GPUAgentRoomConstants, behaviors)    == 0);
+        static_assert(offsetof(GPUAgentRoomConstants, tier_gains)   == 320);
         // The two registries are contiguous, which is what lets
         // upload_agent_registries spend ONE write on both.
         static_assert(offsetof(GPUAgentRoomConstants, behaviors)

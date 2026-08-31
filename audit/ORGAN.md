@@ -345,14 +345,6 @@ generator, so the book and the manifest cannot disagree. `driven` is an
 | Agents · levy_flight | home pull | `AGENT_ROOM.behaviors[9].home_pull` | AGENT_ROOM | F32 | 0 … 10 | 0.05 | boundary | behavior |  |
 | Agents · levy_flight | neighbour radius | `AGENT_ROOM.behaviors[9].neighbor_radius` | AGENT_ROOM | F32 | 0 … 50 | 0.25 | boundary | behavior |  |
 | Agents · levy_flight | speed cap | `AGENT_ROOM.behaviors[9].speed_cap` | AGENT_ROOM | F32 | 0 … 10 | 0.05 | boundary | behavior |  |
-| Agents · passer | step rate | `AGENT_ROOM.behaviors[10].step_rate` | AGENT_ROOM | F32 | 0 … 1 | 0.005 | boundary | behavior |  |
-| Agents · passer | step size (waypoint radius) | `AGENT_ROOM.behaviors[10].step_size` | AGENT_ROOM | F32 | 0 … 10 | 0.05 | boundary | behavior |  |
-| Agents · passer | persistence | `AGENT_ROOM.behaviors[10].persistence` | AGENT_ROOM | F32 | 0 … 1 | 0.005 | boundary | behavior |  |
-| Agents · passer | drag | `AGENT_ROOM.behaviors[10].drag` | AGENT_ROOM | F32 | 0 … 3.75 | 0.02 | boundary | behavior |  |
-| Agents · passer | home pull | `AGENT_ROOM.behaviors[10].home_pull` | AGENT_ROOM | F32 | 0 … 10 | 0.05 | boundary | behavior |  |
-| Agents · passer | neighbour radius | `AGENT_ROOM.behaviors[10].neighbor_radius` | AGENT_ROOM | F32 | 0 … 50 | 0.25 | boundary | behavior |  |
-| Agents · passer | speed cap | `AGENT_ROOM.behaviors[10].speed_cap` | AGENT_ROOM | F32 | 0 … 30 | 0.25 | boundary | behavior |  |
-| Agents · passer | band | `AGENT_ROOM.behaviors[10].aux` | AGENT_ROOM | F32 | 0 … 20 | 0.25 | boundary | behavior |  |
 | Interaction · Field | slack | `CONFIG.field_slack` | CONFIG | F32 | 0 … 12 | 0.05 | live | none |  |
 | Interaction · Field | arch slack | `CONFIG.field_arch_slack` | CONFIG | F32 | 0.5 … 4 | 0.05 | live | none |  |
 | Interaction · Field | k (accel) | `CONFIG.field_k` | CONFIG | F32 | 0 … 1200 | 5 | live | none |  |
@@ -391,14 +383,14 @@ generator, so the book and the manifest cannot disagree. `driven` is an
 
 | | |
 | --- | --- |
-| entries | **363** |
-| by section | Agents 110 · Atmosphere 71 · Ribbon 55 · Terrain 42 · Sky & Light 34 · Interaction 23 · Pawn 18 · Debug 4 · Camera 3 · Measure 3 |
-| by cadence | boundary 188 · driven 18 · gen 26 · live 131 |
-| by macro form | PARAM 135 · PARAM_DEF 110 · PARAM_DEFONLY 74 · PARAM_GEN 26 · PARAM_RO 18 |
-| definition kinds | BEHAVIOR 78 · MOOD 55 · NONE 179 · ORB_MOOD 19 · TIER 32 |
+| entries | **355** |
+| by section | Agents 102 · Atmosphere 71 · Ribbon 55 · Terrain 42 · Sky & Light 34 · Interaction 23 · Pawn 18 · Debug 4 · Camera 3 · Measure 3 |
+| by cadence | boundary 180 · driven 18 · gen 26 · live 131 |
+| by macro form | PARAM 135 · PARAM_DEF 102 · PARAM_DEFONLY 74 · PARAM_GEN 26 · PARAM_RO 18 |
+| definition kinds | BEHAVIOR 70 · MOOD 55 · NONE 179 · ORB_MOOD 19 · TIER 32 |
 | witnesses (`ro`) | 18 |
 | blocks and sentinels used | AGENT_ROOM, CANVAS, CONFIG, DRIVERS, INDOOR, LIGHTING, NONE (255), NONE_ORB (254), ORBS, PANEL, PAWN, RIBBON, RIBBON_SPAWN, WORLD |
-| namespaces | canvas 15 · the_board 348 |
+| namespaces | canvas 15 · the_board 340 |
 
 ### Doors
 
@@ -429,7 +421,7 @@ A graduation is complete when the design table's only readers are
 its seed and its asserts. Anything else is a surviving runtime
 reader — the class of defect this witness exists to catch.
 
-  AGENT_BEHAVIORS      definition=1 seed=11 comment=7             
+  AGENT_BEHAVIORS      definition=1 seed=10 comment=7             
   AGENT_TIER_GAINS     definition=1 seed=4 static_assert=2 comment=6 
   CANVAS_TABLE         definition=1 seed=1 comment=1              
   DRIVER_TABLE         definition=1 seed=1 comment=1              
@@ -465,7 +457,7 @@ verbatim:
 
 THE ANSWER, ROW BY ROW
 ------------------------------------------------------------------------
-  proved    264   a declared reader names the field
+  proved    256   a declared reader names the field
   SUSPECT     0   no declared reader names it
   witness    18   an _RO meter: the question is inverted (blind spot 5)
   scope      81   GPU-side or whole-struct (blind spots 2, 3)
