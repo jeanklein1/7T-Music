@@ -34,8 +34,6 @@ struct OrbsState; struct OrbsDeps;
 // Pre-render data preparation
 void stage_draw_ledger(MachineCtx* c, OrbsState& orbs_state_);
 void record_bundles(MachineCtx* c, OrbsState& orbs_state_, OrbsDeps& orbs_deps_);
-void upload_ground_entries(MachineCtx* c, wgpu::Queue& queue);
-void dispatch_placement_correction(MachineCtx* c, wgpu::CommandEncoder& encoder);
 // GPU compute dispatch
 void dispatch_compute(MachineCtx* c, wgpu::CommandEncoder& encoder);
 void dispatch_frustum_cull(MachineCtx* c, wgpu::CommandEncoder& encoder, wgpu::Queue& queue);
@@ -64,99 +62,6 @@ void compute_spot_light_vp(const GPUSpotLight& light, float* view_proj_out);
 
 // ═══ PRE-RENDER DATA PREP ════════════════════════════════════════
 
-inline void upload_ground_entries(MachineCtx* c, wgpu::Queue& queue) {
-    // ── Arch ground entries ──
-    // Leg positions from the arch's OWN geometry (world_x/z ± half_span
-    // rotated) — the identical values the retired pier writer computed;
-    // the pier mirror died in BATCH G and the arch was always the source.
-    GPUArchGroundEntry archOrigins[Dim::MAX_ARCH_INSTANCES]{};
-    for (uint32_t i = 0; i < Dim::MAX_ARCH_INSTANCES; i++) {
-        const auto& ar = c->entities_state_.arches[i];
-        if (!ar.active) continue;
-        float cr = std::cos(ar.rotation), sr = std::sin(ar.rotation);
-        archOrigins[i].pier_left_x = ar.world_x - ar.half_span * cr;
-        archOrigins[i].pier_left_z = ar.world_z - ar.half_span * sr;
-        archOrigins[i].pier_right_x = ar.world_x + ar.half_span * cr;
-        archOrigins[i].pier_right_z = ar.world_z + ar.half_span * sr;
-        archOrigins[i].is_active = 1;
-        archOrigins[i].ground_y = ar.cached_ground_y;
-        archOrigins[i].pier_correction_left = 0.0f;
-        archOrigins[i].pier_correction_right = 0.0f;
-    }
-    c->gpuState_.upload_arch_origins(queue, archOrigins, Dim::MAX_ARCH_INSTANCES);
-
-    // ── Column + Antenna ground entries (shared GPU buffer, split arrays) ──
-    GPUColumnGroundEntry columnOrigins[Dim::MAX_COLUMN_INSTANCES]{};
-    for (uint32_t i = 0; i < Dim::MAX_COLUMN_ONLY; i++) {
-        if (!c->entities_state_.columns[i].active) continue;
-        columnOrigins[i].center_x = c->entities_state_.columns[i].world_x;
-        columnOrigins[i].center_z = c->entities_state_.columns[i].world_z;
-        columnOrigins[i].is_active = 1;
-        columnOrigins[i].ground_y = c->entities_state_.columns[i].cached_ground_y;
-        columnOrigins[i].pier_correction = 0.0f;
-    }
-    for (uint32_t i = 0; i < Dim::MAX_ANTENNA_ONLY; i++) {
-        if (!c->entities_state_.antennas[i].active) continue;
-        uint32_t gpu_slot = i + Dim::ANTENNA_SLOT_OFFSET;
-        columnOrigins[gpu_slot].center_x = c->entities_state_.antennas[i].world_x;
-        columnOrigins[gpu_slot].center_z = c->entities_state_.antennas[i].world_z;
-        columnOrigins[gpu_slot].is_active = 1;
-        columnOrigins[gpu_slot].ground_y = c->entities_state_.antennas[i].cached_ground_y;
-        columnOrigins[gpu_slot].pier_correction = 0.0f;
-    }
-    c->gpuState_.upload_column_origins(queue, columnOrigins, Dim::MAX_COLUMN_INSTANCES);
-
-    // ── Plant ground entries (palm + cactus + blade) ──
-    // Combined compute buffer: [0..23] palm, [24..43] cactus, [44..75] blade.
-    // Individual render uniform buffers kept for VS bindings (383, 384, 385).
-    static constexpr uint32_t PALM_OFF = 0;
-    static constexpr uint32_t CACT_OFF = Dim::MAX_PALM_INSTANCES;
-    static constexpr uint32_t BLAD_OFF = Dim::MAX_PALM_INSTANCES + Dim::MAX_CACTUS_INSTANCES;
-    static constexpr uint32_t PLANT_COUNT = BLAD_OFF + Dim::MAX_BLADE_INSTANCES;
-
-    GPUPalmGroundEntry plantOrigins[PLANT_COUNT]{};
-
-    for (uint32_t i = 0; i < Dim::MAX_PALM_INSTANCES; i++) {
-        if (!c->entities_state_.palms[i].active) continue;
-        plantOrigins[PALM_OFF + i].center_x = c->entities_state_.palms[i].world_x;
-        plantOrigins[PALM_OFF + i].center_z = c->entities_state_.palms[i].world_z;
-        plantOrigins[PALM_OFF + i].is_active = 1;
-        plantOrigins[PALM_OFF + i].ground_y = c->entities_state_.palms[i].cached_ground_y;
-    }
-    for (uint32_t i = 0; i < Dim::MAX_CACTUS_INSTANCES; i++) {
-        if (!c->entities_state_.cacti[i].active) continue;
-        plantOrigins[CACT_OFF + i].center_x = c->entities_state_.cacti[i].world_x;
-        plantOrigins[CACT_OFF + i].center_z = c->entities_state_.cacti[i].world_z;
-        plantOrigins[CACT_OFF + i].is_active = 1;
-        plantOrigins[CACT_OFF + i].ground_y = c->entities_state_.cacti[i].cached_ground_y;
-    }
-    for (uint32_t i = 0; i < Dim::MAX_BLADE_INSTANCES; i++) {
-        if (!c->entities_state_.blades[i].active) continue;
-        plantOrigins[BLAD_OFF + i].center_x = c->entities_state_.blades[i].world_x;
-        plantOrigins[BLAD_OFF + i].center_z = c->entities_state_.blades[i].world_z;
-        plantOrigins[BLAD_OFF + i].is_active = 1;
-        plantOrigins[BLAD_OFF + i].ground_y = c->entities_state_.blades[i].cached_ground_y;
-    }
-
-    // One write to the combined compute storage buffer
-    queue.WriteBuffer(c->gpuState_.plant_compute_ground_buffer(), 0,
-        plantOrigins, sizeof(plantOrigins));
-}
-
-inline void dispatch_placement_correction(MachineCtx* c, wgpu::CommandEncoder& encoder) {
-    wgpu::ComputePassDescriptor cpd{};
-    cpd.label = "Entity Placement Y Correction";
-    cpd.timestampWrites = c->gpuState_.meter_arm_compute(meter_row::PlacementCorrection);
-    wgpu::ComputePassEncoder compute = encoder.BeginComputePass(&cpd);
-    // LOOM_2 pass head: WORLD + FRAME are every pipeline's strata 0/1.
-    { compute.SetBindGroup(0, c->gpuState_.world_group());
-      compute.SetBindGroup(1, c->gpuState_.frame_c_group()); }
-    c->renderer_.dispatch_entity_placement(
-        compute, c->gpuState_.place_state_group(), c->gpuState_.place_textures_group()
-    );
-    compute.End();
-}
-
 // ═══ THE DRAW LEDGER'S STAGE (BUNDLE_1) ══════════════════════════
 //
 // ONE SITE that reads every count the CPU authors and stages it. It runs at
@@ -180,13 +85,8 @@ inline void dispatch_placement_correction(MachineCtx* c, wgpu::CommandEncoder& e
 inline void stage_draw_ledger(MachineCtx* c, OrbsState& orbs_state_) {
     GPUState& g = c->gpuState_;
 
-    // The five generated families + the shell: their index counts are
+    // The generated geometry (the shell): its index count is
     // (maxSlot + 1) * MAX_INDICES_PER_SLOT, zero when nothing is active.
-    g.stage_draw_indexed(GPUState::DR_ARCH,   g.arch_index_count(),   1u);
-    g.stage_draw_indexed(GPUState::DR_COLUMN, g.column_index_count(), 1u);
-    g.stage_draw_indexed(GPUState::DR_PALM,   g.palm_index_count(),   1u);
-    g.stage_draw_indexed(GPUState::DR_CACTUS, g.cactus_index_count(), 1u);
-    g.stage_draw_indexed(GPUState::DR_BLADE,  g.blade_index_count(),  1u);
     g.stage_draw_indexed(GPUState::DR_SHELL,  g.shell_index_count(),  1u);
 
     // The ribbon: RIBBON_1's live vertex count, and its liveness. A ribbon
@@ -723,9 +623,10 @@ inline void render_main_pass(MachineCtx* c, wgpu::CommandEncoder& encoder,
     // Group 1 carries the shadow_slot dynamic seat, so the bind passes
     // one offset; nothing outside the shadow atlas reads it.
     // BUNDLE_1: the opaque list is one recorded bundle, head binds included
-    // — ExecuteBundles resets pass state, so the bundle carries its own and
-    // the fade below rebinds for itself. The direct arm cannot drift from
-    // the bundle: both call encode_main_opaque.
+    // — ExecuteBundles resets pass state, so the bundle carries its own.
+    // Nothing draws after it now (ONE_WORLD-I took the fade), so the reset
+    // is the pass's last word. The direct arm cannot drift from the
+    // bundle: both call encode_main_opaque.
     if (c->renderer_.main_bundle_ready()) {
         wgpu::RenderBundle mb = c->renderer_.main_bundle();
         pass.ExecuteBundles(1, &mb);
@@ -736,32 +637,11 @@ inline void render_main_pass(MachineCtx* c, wgpu::CommandEncoder& encoder,
         encode_main_opaque(c, pass, orbs_state_, orbs_deps_);
     }
 
-    // THE FADE REBINDS FOR ITSELF. ExecuteBundles resets every bind, so
-    // group 0 — which used to come from the pass head — is restated here
-    // with the three EMPTY strata the fade's layout wants.
-    pass.SetBindGroup(0, c->gpuState_.world_group());
-
-    // The fade's own bit — the one mask read that stays in the pass,
-    // because the fade is the one draw that stays out of the bundle.
-    const uint32_t dmask = c->gpuState_.config().draw_mask;
-
-    // Fade overlay (drawn last, alpha blended over everything)
-    // LOOM_2: the fade overlay binds WORLD only; its other strata are
-    // the shared EMPTY filler (A5).
-    pass.SetBindGroup(1, c->gpuState_.empty_group());
-    pass.SetBindGroup(2, c->gpuState_.empty_group());
-    pass.SetBindGroup(3, c->gpuState_.empty_group());
-    // ONE FACT, ONE HOME (LATTICE_4). The gate inside draw_fade_overlay
-    // decides whether the blend can move a pixel, and the shader reads
-    // config.fade_alpha — so the gate must read the STAGED value too, not
-    // the CPU-side mood field it was staged from. They agree today
-    // (phase_stage_fade_and_upload runs set_fade every frame), and that is
-    // exactly the kind of agreement that quietly stops being true.
-    if (dmask & DrawBit::FADE)
-    c->renderer_.draw_fade_overlay(
-        pass,
-        c->gpuState_.config().fade_alpha
-    );
+    // THE FADE REBOUND FOR ITSELF HERE — a world_group() restatement after
+    // ExecuteBundles, the three EMPTY strata its layout wanted, its own
+    // draw_mask read and the LATTICE_4 rest gate. All of it left with the
+    // overlay (ONE_WORLD-I). The bundle's binds are the pass's last word
+    // now, and nothing draws after it.
 
     pass.End();
 }
@@ -834,7 +714,6 @@ inline void compute_spot_light_vp(const GPUSpotLight& light, float* view_proj_ou
         }
     }
 }
-
 
 
 } // namespace the_board

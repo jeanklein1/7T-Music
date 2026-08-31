@@ -195,7 +195,7 @@ struct EntityFamilyAdapter {
 
 // ═══ SPAWN PAYLOADS (the boundary DTOs) ═══════════════════════════
 //
-// The three bespoke families' Selection/Placement DTOs. They exist
+// The two bespoke families' Selection/Placement DTOs. They exist
 // to cross the machine/owner boundary inside EntityQueueEntry /
 // PlacementEntry (below) — and a DTO that exists to cross a boundary
 // belongs to the boundary's contract, not to either side. Plain
@@ -282,7 +282,7 @@ struct EntityQueueEntry {
     union {
         RibbonSelection ribbon;
         GoLSelection    gol;
-        EntityInstance   generic;    // used by all 9 generic-pipeline families
+        EntityInstance   generic;    // used by all 4 generic-pipeline families
     };
     EntityQueueEntry() : family(0), gx(0), gz(0) { std::memset(&generic, 0, sizeof(generic)); }
 };
@@ -295,7 +295,7 @@ struct PlacementEntry {
     union {
         RibbonPlacement ribbon;
         GoLPlacement    gol;
-        EntityInstance   generic;    // used by all 9 generic-pipeline families
+        EntityInstance   generic;    // used by all 4 generic-pipeline families
     };
     PlacementEntry() : family(0), gx(0), gz(0) { std::memset(&generic, 0, sizeof(generic)); }
 };
@@ -319,7 +319,7 @@ struct PlacementEntry {
 // whether a family is SATURATED, because the census has no denominator
 // — 16 arches reads the same as 3 until you know the array holds 16.
 // That distinction is the whole question the tier weights turn on: at a
-// fixed SPAWN_CHANCE the three ArchTiers are zero-sum in ABSOLUTE
+// fixed SPAWN_CHANCE a family's tiers are zero-sum in ABSOLUTE
 // counts, so if the array is already pinned at its ceiling, reweighting
 // tiers only decides WHICH bodies win a first-come race for slots — it
 // cannot add bodies. Reading a weight change as a population change is
@@ -353,16 +353,16 @@ struct FamilyDispatch {
     uint32_t (*active_count)(const MachineCtx* self);
     // The occupancy triple, same scan discipline as active_count and the
     // same CONST face. Kept a SEPARATE row rather than folded into
-    // active_count: active_count has eleven callers' worth of settled
+    // active_count: active_count has six callers' worth of settled
     // meaning as a plain population, and the census's own delta column is
     // built from it. A diagnostic does not get to change the shape of the
     // number the leak check is computed from.
     SlotCensus (*slot_census)(const MachineCtx* self);
     // Does this family claim ground? (ruling 21 — the campaign law is "a
     // family registers iff its own extent touches the ground plane".) The
-    // census needs it for all ELEVEN families, and ribbon/gol have no
+    // census needs it for all SIX families, and ribbon/gol have no
     // EntityFamilyTraits at all — so the answer cannot live in the traits
-    // alone. The nine generic rows initialise this FROM their own
+    // alone. The four generic rows initialise this FROM their own
     // <FAMILY>_TRAITS.grounded, making the row a view of the authored field
     // rather than a second copy of the policy; the two bespoke rows state
     // it here because here is the only place they can.

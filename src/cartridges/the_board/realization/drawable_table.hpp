@@ -10,8 +10,8 @@
 //
 // PIXEL-SAFETY. Every drawable IN THIS TABLE is OPAQUE (depth-tested,
 // depth-write, no blend — or an alpha=1.0 output that makes SrcAlpha a
-// no-op): terrain(fork), pawn, sphere, monolith, ribbon, arch,
-// column, palm, cactus, blade, shell. Draw
+// no-op): terrain(fork), pawn, sphere, monolith, ribbon,
+// shell. Draw
 // order among OPAQUE geometry is immaterial — the depth test resolves
 // visibility identically regardless of order — so the ONE canonical order
 // (the shadow order) reproduces every pass pixel-for-pixel, and the ribbon
@@ -70,7 +70,7 @@ struct DrawBind {
 //
 // THE TABLE ITSELF IS WRITTEN ONCE (R-E: the table-template spelling, not
 // the pointer-pair one). A pair of function pointers per row would have
-// duplicated ten rows' worth of initialiser to say the same thing twice;
+// duplicated every row's initialiser to say the same thing twice;
 // a variable template instantiates the one list per encoder type. One draw
 // list, two encoders, no second list — which is R3's requirement stated as
 // code rather than as discipline.
@@ -113,41 +113,6 @@ inline void dt_ribbon(Renderer& r, GPUState& g, Enc& p, const DrawBind& b) {
                                        GPUState::draw_record_offset(GPUState::DR_RIBBON));
 }
 template <class Enc>
-inline void dt_arch(Renderer& r, GPUState& g, Enc& p, const DrawBind& b) {
-    if (b.shadow) r.draw_shadow_arch(p, g.arch_vertex_buffer(), g.arch_index_buffer(),
-                                  g.draw_ledger_buffer(), GPUState::draw_record_offset(GPUState::DR_ARCH));
-    else          r.draw_arch       (p, g.arch_vertex_buffer(), g.arch_index_buffer(),
-                                  g.draw_ledger_buffer(), GPUState::draw_record_offset(GPUState::DR_ARCH));
-}
-template <class Enc>
-inline void dt_column(Renderer& r, GPUState& g, Enc& p, const DrawBind& b) {
-    if (b.shadow) r.draw_shadow_column(p, g.column_vertex_buffer(), g.column_index_buffer(),
-                                  g.draw_ledger_buffer(), GPUState::draw_record_offset(GPUState::DR_COLUMN));
-    else          r.draw_column       (p, g.column_vertex_buffer(), g.column_index_buffer(),
-                                  g.draw_ledger_buffer(), GPUState::draw_record_offset(GPUState::DR_COLUMN));
-}
-template <class Enc>
-inline void dt_palm(Renderer& r, GPUState& g, Enc& p, const DrawBind& b) {
-    if (b.shadow) r.draw_shadow_palm(p, g.palm_vertex_buffer(), g.palm_index_buffer(),
-                                  g.draw_ledger_buffer(), GPUState::draw_record_offset(GPUState::DR_PALM));
-    else          r.draw_palm       (p, g.palm_vertex_buffer(), g.palm_index_buffer(),
-                                  g.draw_ledger_buffer(), GPUState::draw_record_offset(GPUState::DR_PALM));
-}
-template <class Enc>
-inline void dt_cactus(Renderer& r, GPUState& g, Enc& p, const DrawBind& b) {
-    if (b.shadow) r.draw_shadow_cactus(p, g.cactus_vertex_buffer(), g.cactus_index_buffer(),
-                                  g.draw_ledger_buffer(), GPUState::draw_record_offset(GPUState::DR_CACTUS));
-    else          r.draw_cactus       (p, g.cactus_vertex_buffer(), g.cactus_index_buffer(),
-                                  g.draw_ledger_buffer(), GPUState::draw_record_offset(GPUState::DR_CACTUS));
-}
-template <class Enc>
-inline void dt_blade(Renderer& r, GPUState& g, Enc& p, const DrawBind& b) {
-    if (b.shadow) r.draw_shadow_blade(p, g.blade_vertex_buffer(), g.blade_index_buffer(),
-                                  g.draw_ledger_buffer(), GPUState::draw_record_offset(GPUState::DR_BLADE));
-    else          r.draw_blade       (p, g.blade_vertex_buffer(), g.blade_index_buffer(),
-                                  g.draw_ledger_buffer(), GPUState::draw_record_offset(GPUState::DR_BLADE));
-}
-template <class Enc>
 inline void dt_shell(Renderer& r, GPUState& g, Enc& p, const DrawBind& b) {
     if (b.shadow) r.draw_shadow_shell(p, g.shell_vertex_buffer(), g.shell_index_buffer(),
                                   g.draw_ledger_buffer(), GPUState::draw_record_offset(GPUState::DR_SHELL));
@@ -163,11 +128,6 @@ inline const Drawable<Enc> DRAWABLES[] = {
     { "sphere",   DRAW_SHADOW | DRAW_MAIN, dt_sphere<Enc>   },
     { "monolith", DRAW_SHADOW | DRAW_MAIN, dt_monolith      },
     { "ribbon",   DRAW_SHADOW | DRAW_MAIN, dt_ribbon<Enc>   },
-    { "arch",     DRAW_SHADOW | DRAW_MAIN, dt_arch<Enc>     },
-    { "column",   DRAW_SHADOW | DRAW_MAIN, dt_column<Enc>   },
-    { "palm",     DRAW_SHADOW | DRAW_MAIN, dt_palm          },
-    { "cactus",   DRAW_SHADOW | DRAW_MAIN, dt_cactus        },
-    { "blade",    DRAW_SHADOW | DRAW_MAIN, dt_blade         },
     { "shell",    DRAW_SHADOW | DRAW_MAIN, dt_shell<Enc>    },
 };
 

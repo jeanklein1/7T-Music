@@ -12,7 +12,9 @@
 //
 // Unified entity registry: the control panel for the agent system.
 //
-// The impl additionally reads COLUMN_PALETTE (grounded.hpp).
+// The walkers' color palette lives here (AGENT_PALETTE) — it graduated
+// from the column family's vocabulary when PRUNE_2 excised that family
+// and left the agents its only reader.
 // ─────────────────────────────────────────────────────────────────
 
 #include <cmath>      // std::sqrt, std::cos, std::sin   // (impl, merged)
@@ -30,13 +32,11 @@ namespace the_board {
 // read-only. (fwds: spine_state / patch_system types follow in the
 // cohort.)
 struct PlayerState; struct WorldState; struct TimeState;
-enum class TransitionPhase;
 class GPUState;
 struct AgentsDeps {
     GPUState&              gpuState_;
     PlayerState&           player_;         // non-const: possession door
     const PointState&      point_;          // the point's house (position mirror — respawn ring, possession search)
-    const TransitionPhase& transitionPhase_;
     const WorldState&      world_state_;
     const TimeState&       time_state_;
 };
@@ -79,7 +79,6 @@ inline constexpr const char* AGENT_BEHAVIOR_NAMES[AGENT_BEHAVIOR_COUNT] = {
     "flee",          //  7  FLEE
     "flock2d",       //  8  FLOCK2D
     "levy_flight",   //  9  LEVY_FLIGHT
-    "passer",        // 10  PASSER
 };
 
 inline constexpr const char* AGENT_TIER_NAMES[AGENT_TIER_COUNT] = {
@@ -153,8 +152,8 @@ struct AgentPopulationDef {
 inline constexpr AgentPopulationDef AGENT_POPULATIONS[MOOD_COUNT] = {
     /* MOOD_OPEN_SUNSET — Scout-heavy travelers (BiasedWalk) */
     { /*mood_id=*/ MOOD_OPEN_SUNSET, /*count=*/ 10,
-      //                       player rwalk  bwalk wandr hseek slowp pursu  flee flock  levy passr
-      /*behavior_weights=*/ {    0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f },
+      //                       player rwalk  bwalk wandr hseek slowp pursu  flee flock  levy
+      /*behavior_weights=*/ {    0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f },
       //                     worker scout sentl leadr
       /*tier_weights=*/     {  1.0f, 3.0f, 0.0f, 0.0f },
       /*spawn_inner_radius=*/ 200.0f,
@@ -163,8 +162,8 @@ inline constexpr AgentPopulationDef AGENT_POPULATIONS[MOOD_COUNT] = {
       /*home_seeding_radius=*/ 8.0f },
     /* MOOD_INDOOR_FLAT — gallery walkers (SlowPatrol) */
     { /*mood_id=*/ MOOD_INDOOR_FLAT, /*count=*/ 4,
-      //                       player rwalk  bwalk wandr hseek slowp pursu  flee flock  levy passr
-      /*behavior_weights=*/ {    0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f },
+      //                       player rwalk  bwalk wandr hseek slowp pursu  flee flock  levy
+      /*behavior_weights=*/ {    0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f },
       //                     worker scout sentl leadr
       /*tier_weights=*/     {  2.0f, 0.0f, 2.0f, 1.0f },
       /*spawn_inner_radius=*/ 0.0f,
@@ -173,8 +172,8 @@ inline constexpr AgentPopulationDef AGENT_POPULATIONS[MOOD_COUNT] = {
       /*home_seeding_radius=*/ 30.0f },
     /* MOOD_INDOOR_VAULT — gallery walkers (SlowPatrol) */
     { /*mood_id=*/ MOOD_INDOOR_VAULT, /*count=*/ 4,
-      //                       player rwalk  bwalk wandr hseek slowp pursu  flee flock  levy passr
-      /*behavior_weights=*/ {    0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f },
+      //                       player rwalk  bwalk wandr hseek slowp pursu  flee flock  levy
+      /*behavior_weights=*/ {    0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f },
       //                     worker scout sentl leadr
       /*tier_weights=*/     {  2.0f, 0.0f, 2.0f, 1.0f },
       /*spawn_inner_radius=*/ 0.0f,
@@ -191,8 +190,8 @@ inline constexpr AgentPopulationDef AGENT_POPULATIONS[MOOD_COUNT] = {
       /*home_seeding_radius=*/ 0.0f },
     /* MOOD_OPEN_NIGHT — the sunset's travelers, thinned to six (ATMOS_1) */
     { /*mood_id=*/ MOOD_OPEN_NIGHT, /*count=*/ 6,
-      //                       player rwalk  bwalk wandr hseek slowp pursu  flee flock  levy passr
-      /*behavior_weights=*/ {    0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f },
+      //                       player rwalk  bwalk wandr hseek slowp pursu  flee flock  levy
+      /*behavior_weights=*/ {    0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f },
       //                     worker scout sentl leadr
       /*tier_weights=*/     {  1.0f, 3.0f, 0.0f, 0.0f },
       /*spawn_inner_radius=*/ 200.0f,
@@ -201,8 +200,8 @@ inline constexpr AgentPopulationDef AGENT_POPULATIONS[MOOD_COUNT] = {
       /*home_seeding_radius=*/ 8.0f },
     /* MOOD_OPEN_NOON — the sunset's travelers, twelve strong (ATMOS_1) */
     { /*mood_id=*/ MOOD_OPEN_NOON, /*count=*/ 12,
-      //                       player rwalk  bwalk wandr hseek slowp pursu  flee flock  levy passr
-      /*behavior_weights=*/ {    0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f },
+      //                       player rwalk  bwalk wandr hseek slowp pursu  flee flock  levy
+      /*behavior_weights=*/ {    0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f },
       //                     worker scout sentl leadr
       /*tier_weights=*/     {  1.0f, 3.0f, 0.0f, 0.0f },
       /*spawn_inner_radius=*/ 200.0f,
@@ -233,8 +232,8 @@ inline constexpr AgentPopulationDef AGENT_POPULATIONS[MOOD_COUNT] = {
        A8.1 took out (scout is 1.4x). One line to overturn when the pace is
        settled. */
     { /*mood_id=*/ MOOD_ATRIUM, /*count=*/ 3u,
-      //                       player rwalk  bwalk wandr hseek slowp pursu  flee flock  levy passr
-      /*behavior_weights=*/ {    0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f },
+      //                       player rwalk  bwalk wandr hseek slowp pursu  flee flock  levy
+      /*behavior_weights=*/ {    0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f },
       //                     worker scout sentl leadr
       /*tier_weights=*/     {  1.0f, 0.0f, 0.0f, 0.0f },
       /*spawn_inner_radius=*/ 6.0f,
@@ -310,12 +309,33 @@ void reseed_player_body(AgentState& as, AgentsDeps* c, uint32_t preserved_tier,
                         uint32_t preserved_skin);
 // Logging
 void dump_agent_census(const AgentState& as, const AgentsDeps* c, const char* trigger);
-void dump_passer_census(const AgentState& as, const AgentsDeps* c);   // ATRIUM_5 — the route state, read from the mirror
 
 // ═══ IMPL:
-// bodies deref agent_state_(own) + gpu/player/transitionPhase/world/time
-// via AgentsDeps; read COLUMN_PALETTE (entities). COHORT: after entities
-// (COLUMN_PALETTE) + patch_system (WorldState) + spine/state. No machine.
+// bodies deref agent_state_(own) + gpu/player/point/world/time
+// via AgentsDeps. COHORT: after patch_system (WorldState) + spine/state.
+// No machine.
+
+// ── THE WALKERS' PALETTE (graduated, PRUNE_2 U4) ─────────────────
+// Ten authored colors, rolled per agent at authoring time. It arrived
+// here as COLUMN_PALETTE, in the column family's vocabulary block, and
+// outlived that family: when PRUNE_2 excised COLUMN and ANTENNA the
+// agents were its only surviving reader, so it moved to the reader and
+// took the reader's name. The VALUES are untouched — same ten swatches,
+// same order, same modulus — so every agent color is byte-identical to
+// the one it rolled before the move.
+inline constexpr float AGENT_PALETTE[][3] = {
+    { 0.937f, 0.902f, 0.831f },   // 0: sand      #EFE6D4
+    { 0.882f, 0.827f, 0.714f },   // 1: bone      #E1D3B6
+    { 0.129f, 0.118f, 0.110f },   // 2: ink       #211E1C
+    { 0.353f, 0.333f, 0.298f },   // 3: ink-soft  #5A554C
+    { 0.431f, 0.608f, 0.753f },   // 4: sky       #6E9BC0
+    { 0.863f, 0.596f, 0.482f },   // 5: coral     #DC987B
+    { 0.878f, 0.635f, 0.306f },   // 6: gold      #E0A24E
+    { 0.616f, 0.631f, 0.467f },   // 7: olive     #9DA177
+    { 0.635f, 0.620f, 0.686f },   // 8: lavender  #A29EAF
+    { 0.753f, 0.325f, 0.184f },   // 9: orb       #C0532F
+};
+inline constexpr uint32_t AGENT_PALETTE_COUNT = 10;
 
 // ═══ REGISTRY UPLOAD (CPU table → GPU buffer, once at world-init) ═
 //
@@ -417,7 +437,7 @@ inline void populate_agent_slot_(const AgentState& as,
 
     // ── Write the slot ────────────────────────────────────────────
     out.pos_x   = sx;   out.pos_y   = 0.0f; out.pos_z   = sz;
-    out.home_x  = hx;   out.route   = 0u;   out.home_z  = hz;   // ATRIUM_4 — route 0 = fresh
+    out.home_x  = hx;   out.home_z  = hz;
     out.heading = 0.0f;
     out.vel_x   = 0.0f; out.vel_y   = 0.0f; out.vel_z   = 0.0f;
     out.orient_x = 0.0f; out.orient_y = 0.0f; out.orient_z = 0.0f; out.orient_w = 1.0f;
@@ -425,12 +445,11 @@ inline void populate_agent_slot_(const AgentState& as,
     out.behavior_id    = behavior_id;
     out.tier_idx       = tier_idx;
     out.is_active      = 1u;
-    out.portal_trigger = -1;
 
-    uint32_t ci = cpu_hash(agent_seed, 7u) % COLUMN_PALETTE_COUNT;
-    out.color_r = COLUMN_PALETTE[ci][0];
-    out.color_g = COLUMN_PALETTE[ci][1];
-    out.color_b = COLUMN_PALETTE[ci][2];
+    uint32_t ci = cpu_hash(agent_seed, 7u) % AGENT_PALETTE_COUNT;
+    out.color_r = AGENT_PALETTE[ci][0];
+    out.color_g = AGENT_PALETTE[ci][1];
+    out.color_b = AGENT_PALETTE[ci][2];
     // ── Roll figure (skin_id) — global distribution, deterministic from seed ──
     // Family weighted by FIGURE_SHARES (salt 8u); member uniform within family
     // (salt 9u). Independent of the behavior/tier rolls (distinct salts).
@@ -469,7 +488,7 @@ inline void spawn_population_for_mood(AgentState& as, AgentsDeps* c,
     const auto& pop = AGENT_POPULATIONS[mood_id];
 
     // Zero every non-player slot before refilling. The player's body
-    // (slot PLAYER_SLOT) is preserved across mood transitions.
+    // (slot PLAYER_SLOT) is preserved across a rebirth.
     for (uint32_t s = PLAYER_SLOT + 1; s < Dim::MAX_AGENTS; s++) {
         as.slots[s] = GPUAgentState{};
     }
@@ -567,11 +586,6 @@ inline void respawn_evicted_agents(AgentState& as, AgentsDeps* c,
 // ═══ POSSESSION TRANSFER (Caps Lock) ══════════════════════════════
 
 inline void try_possess_nearest(AgentState& as, AgentsDeps* c, wgpu::Queue& queue) {
-    if (c->transitionPhase_ != TransitionPhase::IDLE) {
-        std::cout << "[Possess] Blocked (mid-transition)\n";
-        return;
-    }
-
     const uint32_t cur = c->player_.possessed_slot;
     // THE POINT: possession reaches from the point — the
     // nearest agent to where you ARE. Pawn-host value-identical (same
@@ -616,12 +630,11 @@ inline void try_possess_nearest(AgentState& as, AgentsDeps* c, wgpu::Queue& queu
         as.slots[cur].seed = cpu_hash(c->world_state_.active_seed, cur ^ 0xC11Cu);
     }
 
-    // New slot → player control. Reset velocity + portal trigger so the
-    // player's first frame on the new body is clean.
+    // New slot → player control. Reset velocity so the player's first
+    // frame on the new body is clean.
     as.slots[new_slot].behavior_id    = AGENT_BEHAVIOR_PLAYER_CONTROLLED;
     as.slots[new_slot].vel_x          = 0.0f;
     as.slots[new_slot].vel_z          = 0.0f;
-    as.slots[new_slot].portal_trigger = -1;
 
     c->gpuState_.upload_agent_slot(queue, cur, &as.slots[cur]);
     c->gpuState_.upload_agent_slot(queue, new_slot, &as.slots[new_slot]);
@@ -636,40 +649,6 @@ inline void try_possess_nearest(AgentState& as, AgentsDeps* c, wgpu::Queue& queu
 
 // ═══ DIAGNOSTIC: agent census ═════════════════════════════════════
 
-// ═══ DIAGNOSTIC: passer census (ATRIUM_5) ════════════════════════
-// The route state lives on the GPU; the readback mirrors it. One line per
-// cadence: every passer's leg / phase / current door and its distance to
-// the waypoint it is pulled to. Phases that advance say the machine walks;
-// distances that never fall under the waypoint radius say where it stalls.
-//
-// DECODES THE WGSL PACKING (an L2-class mirror — the prose is the contract,
-// and the two must move together). behavior_passer writes
-//     route = (leg << 12) | (cur << 4) | (phase << 1) | 1
-// with cur masked to 8 bits and phase to THREE (0x7u), not two: phase only
-// ever holds 0..3 today, so a 2-bit read would agree by accident. The mask
-// below is the kernel's, so a fourth-bit phase would show here rather than
-// silently fold.
-//
-// The waypoint IS home_x/home_z (the kernel writes it there and the tether
-// pulls to it), so `d` is exactly the distance the advance test measures
-// against behaviors[PASSER].step_size — the waypoint radius on that row.
-inline void dump_passer_census(const AgentState& as, const AgentsDeps* c) {
-    std::cout << "[PASSER t=" << std::fixed << std::setprecision(1) << c->time_state_.seconds << "]";
-    for (uint32_t i = PLAYER_SLOT + 1; i < Dim::MAX_AGENTS; i++) {
-        const auto& a = as.slots[i];
-        if (a.is_active == 0u || a.behavior_id != AGENT_BEHAVIOR_PASSER) continue;
-        const uint32_t r = a.route;
-        const uint32_t leg   = (r >> 12) & 0xFFFFFu;
-        const uint32_t cur   = (r >> 4) & 0xFFu;
-        const uint32_t phase = (r >> 1) & 0x7u;
-        const uint32_t init  = r & 1u;
-        const float dx = a.pos_x - a.home_x, dz = a.pos_z - a.home_z;
-        std::cout << " s" << i << ":L" << leg << "P" << phase << "C" << cur << (init ? "" : "!")
-                  << "d" << std::setprecision(0) << std::sqrt(dx * dx + dz * dz)
-                  << std::setprecision(1);
-    }
-    std::cout << "\n";
-}
 
 inline void dump_agent_census(const AgentState& as, const AgentsDeps* c, const char* trigger) {
     uint32_t active = 0;
@@ -726,10 +705,9 @@ inline void seed_player_body(AgentState& as, AgentsDeps* c) {
     as.slots[0].behavior_id = AGENT_BEHAVIOR_PLAYER_CONTROLLED;
     as.slots[0].tier_idx = AGENT_TIER_WORKER;
     as.slots[0].skin_id = 0u;   // player is always the regular pawn
-    as.slots[0].portal_trigger = -1;
 }
 
-// Transition twin: keep the CPU mirror in sync with the GPU reset so
+// Rebirth twin: keep the CPU mirror in sync with the GPU reset so
 // patch streaming + ribbon + Caps Lock see current state; possession
 // re-anchors to slot 0 (the possessed_slot write stays with the
 // declared possession door's owner). Tier + colors + figure (skin_id)
@@ -753,7 +731,6 @@ inline void reseed_player_body(AgentState& as, AgentsDeps* c, uint32_t preserved
     as.slots[0].color_g = preserved_color_g;
     as.slots[0].color_b = preserved_color_b;
     as.slots[0].skin_id = preserved_skin;   // the figure rides with tier + color
-    as.slots[0].portal_trigger = -1;
     c->player_.possessed_slot = 0;
 }
 

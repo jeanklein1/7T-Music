@@ -18,8 +18,9 @@
 //
 // SIZES (Jean's law): indoors, everything exists at outdoor
 // distribution. NATURAL keeps outdoor size; EXACT snaps to the
-// ceiling (column — architectural); CAP scales down to the fraction
-// of the ceiling only when taller — cap-only, nothing ever inflates.
+// ceiling (an architectural body's treatment; no survivor claims it
+// today); CAP scales down to the fraction of the ceiling only when
+// taller — cap-only, nothing ever inflates.
 // Ribbon additionally pre-scales by RIBBON_INDOOR_SCALE before its
 // cap. BOUNDS go live at the margin site (spawn_engine's indoor
 // clamp): MARGIN = the standing wall-margin clamp; FULL = wholly
@@ -50,41 +51,23 @@ inline constexpr float RIBBON_INDOOR_SCALE        = 0.15f; // Jean's dial — tu
 // gate, not a prune's side effect.
 inline constexpr float INDOOR_ENTITY_WALL_MARGIN  = 20.0f; // existing, re-homed here
 
-// The ceiling-fit floor (COLUMN CEILING FIT): indoors the cmg kernel
-// derives effective column height = ceiling_height − ground_y(center)
-// — the capital sits flush with the ceiling plane across topography —
-// but never below this floor. PINNED PAIR: world.wgsl declares the
-// same value as const COLUMN_MIN_INDOOR_HEIGHT beside the cmg kernel
-// bindings (authored in both rooms, named the same, never
-// dial-derived — the TILE_GRID_CAPACITY pattern).
-inline constexpr float COLUMN_MIN_INDOOR_HEIGHT   = 1.0f;  // extreme-terrain floor: a column never collapses below this
-
 // AXES: PopFamily order, PINNED by F-1. gol size is NATURAL here —
 // its height cap is GPU-side (zone_derive_params, once per zone birth),
 // noted on the row.
 inline constexpr IndoorTreatment INDOOR_TREATMENT[PopFamily::COUNT] = {
     /* pyramid */ { IndoorSize::CAP,     IndoorBounds::MARGIN },
-    /* arch    */ { IndoorSize::CAP,     IndoorBounds::MARGIN },
-    /* column  */ { IndoorSize::EXACT,   IndoorBounds::MARGIN },  // architectural: touches the ceiling
-    /* antenna */ { IndoorSize::CAP,     IndoorBounds::MARGIN },
-    /* palm    */ { IndoorSize::CAP,     IndoorBounds::MARGIN },
-    /* cactus  */ { IndoorSize::CAP,     IndoorBounds::MARGIN },  // TUNE_1 A8: was NATURAL
-    /* blade   */ { IndoorSize::CAP,     IndoorBounds::MARGIN },  // TUNE_1 A8: was NATURAL
     /* sphere  */ { IndoorSize::CAP,     IndoorBounds::MARGIN },
     /* ribbon  */ { IndoorSize::CAP,     IndoorBounds::FULL   },  // pre-scaled by RIBBON_INDOOR_SCALE; stays inside
     /* cube    */ { IndoorSize::CAP,     IndoorBounds::MARGIN },
     /* gol     */ { IndoorSize::NATURAL, IndoorBounds::FREE   },  // may straddle; lift capped at derive
 };
 
-static_assert(PopFamily::PYRAMID == 0 && PopFamily::ARCH    == 1
-           && PopFamily::COLUMN  == 2 && PopFamily::ANTENNA == 3
-           && PopFamily::PALM    == 4 && PopFamily::CACTUS  == 5
-           && PopFamily::BLADE   == 6 && PopFamily::SPHERE  == 7
-           && PopFamily::RIBBON  == 8 && PopFamily::CUBE    == 9
-           && PopFamily::GOL     == 10
-           && PopFamily::COUNT   == 11,
-    "INDOOR_TREATMENT rows ride F-1's PopFamily order — pyramid, arch, "
-    "column, antenna, palm, cactus, blade, sphere, ribbon, cube, "
+static_assert(PopFamily::PYRAMID == 0
+           && PopFamily::SPHERE  == 1 && PopFamily::RIBBON  == 2
+           && PopFamily::CUBE    == 3 && PopFamily::GOL     == 4
+           && PopFamily::COUNT   == 5,
+    "INDOOR_TREATMENT rows ride F-1's PopFamily order — pyramid, "
+    "sphere, ribbon, cube, "
     "gol: re-row this table in lockstep before renumbering any family");
 
 // ─── THE CAP LAW (shared) ────────────────────────────────────────

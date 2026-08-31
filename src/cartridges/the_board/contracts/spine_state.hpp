@@ -1,20 +1,18 @@
 #pragma once
 #include <iostream>   // ATTIC_ATRIUM — mood_def refuses an out-of-range id, loudly
 #include <cstdint>
-#include "cartridges/the_board/contracts/mood_constants.hpp"   // MOOD_COUNT (sizes MOOD_TABLE) + the Mood IDs + PortalDestination (the request door)
+#include "cartridges/the_board/contracts/mood_constants.hpp"   // MOOD_COUNT (sizes MOOD_TABLE) + the Mood IDs
 
 // ─── spine_state.hpp (CONTRACT: the spine's organ types) ─────────
 //
 // The in-class trio graduates to file scope so module deps structs
 // can name the types without the complete Cartridge. The
-// INSTANCES (time_state_, player_, transitionPhase_) stay at the
-// composition root; the residency rulings (SEAM[spine:P8],
-// SEAM[spine:transitions]) are unchanged — this is a type move, not
-// an ownership move. MoodState — the spine-resident organ TYPE —
-// lives here with its transition machine, beside InputState,
-// along with the atmosphere vocabulary its early readers
-// need (CeilingType / MoodProfile / MOOD_TABLE) and the transition
-// request door's DECLARATION (the def rides merged mood.hpp).
+// INSTANCES (time_state_, player_) stay at the composition root;
+// the residency rulings (SEAM[spine:P8]) are unchanged — this is a
+// type move, not an ownership move. MoodState — the spine-resident
+// organ TYPE — lives here beside InputState, along with the
+// atmosphere vocabulary its early readers need (CeilingType /
+// MoodProfile / MOOD_TABLE).
 //
 // ─────────────────────────────────────────────────────────────────
 
@@ -40,11 +38,10 @@ struct TimeState {
 // THE WITNESS CONTRACT, declared and census-checked (the score
 // census, Direction W):
 //   · THE POINT'S RECORD LEFT THIS STRUCT at POINT_1 — the position
-//     mirror (x/z) and the bubble sensor (portal_trigger) live in
-//     their semantic home, PointState (contracts/point.hpp), which
-//     carries the full authoring law (P5 HARVEST sole author; the
-//     TEARDOWN reset and the portal door's consume are the spine's
-//     only other touches).
+//     mirror (x/z) lives in its semantic home, PointState
+//     (contracts/point.hpp), which carries the full authoring law
+//     (P5 HARVEST sole author; the rebirth reset is the spine's only
+//     other touch).
 //   · possessed_slot — possession is RE-ANCHORING (v3 §9 Act III:
 //     the anchor is a role; the camera is what we control). The
 //     writes live behind the agents door (try_possess_nearest,
@@ -74,8 +71,8 @@ struct PlayerState {
 
     // ── Camera ──
     bool    fpv_mode = false;                // first-person view toggle
-    // (The point's position mirror + bubble sensor moved HOME at
-    //  POINT_1: PointState.x/z/portal_trigger — contracts/point.hpp.)
+    // (The point's position mirror moved HOME at POINT_1:
+    //  PointState.x/z — contracts/point.hpp.)
 
     // ── Aura presence (closes SEAM[spine:P8]) ──
     float aura_presence = 0.0f;                  // pawn aura ramp (was pawn_state_.aura_presence)
@@ -83,14 +80,6 @@ struct PlayerState {
     // Future (deferred):
     //   uint32_t active_couplings;         // COUPLING_* bitmask owned by player
 };
-
-// ═══ TRANSITION PHASE ════════════════════════════════════════════
-// The transition machine's phase enum. The MACHINE (transitionPhase_,
-// pendingDestination_ and kin) stays spine-owned orchestration
-// (SEAM[spine:transitions], K4); the enum TYPE lives here so its two
-// module readers (mood's request door, agents' possession guard) name
-// it unqualified instead of paying the Cartridge:: tax.
-enum class TransitionPhase { IDLE, FADE_OUT, TEARDOWN, FADE_IN };
 
 // ═══ INPUT STATE — THE DRIVER'S INTENT ORGAN ══════════════════════
 // Type at the contract tier, instance at the root. The
@@ -110,12 +99,10 @@ struct InputState {
 };
 
 
-struct WorldState;   // contracts/surface_services.hpp — the request door reads active_seed (fwd: reference param)
-
 // ═══ MOOD STATE (the spine's mood organ; instance at the root) ════
-// Type at the contract tier; the instance was ALWAYS spine-resident with the
-// transition machine (SEAM[spine:transitions], K4). The boot value is
-// authored at the composition root — no include-order cable.
+// Type at the contract tier; the instance is spine-resident (K4). The
+// boot value is authored at the composition root — no include-order
+// cable.
 struct MoodState {
     // ── Currently active mood ──
     uint32_t active = 0;  // authored at the composition root (Cartridge ctor) from DEMO.boot_mood
@@ -139,30 +126,6 @@ struct MoodState {
     float fog_rest_color[3] = { 0.0f, 0.0f, 0.0f };
     float terrain_amp_ceiling = 0.0f;       // mirrors GPU config.terrain_amp_ceiling
     bool  spot_light_active = false;
-
-    // ── Transition machinery ──
-    float transition_timer         = 0.0f;
-    float transition_fade_duration = 0.5f;  // seconds per fade direction
-    float transition_fade_alpha    = 0.0f;
-
-    // ── Portal upload flag ──
-    bool portals_dirty = true;              // true at boot → first upload guaranteed
-
-    // ── Back-portal return state ──
-    bool     back_portal_pending       = false;
-    // ATRIUM_0 — the forwards no longer hang off the return. Raised at every
-    // finite birth (boot and transition); the back is raised only where
-    // something precedes. Consumed at the same population site, back first.
-    bool     forward_portals_pending   = false;
-    // One-shot arm for the door-guarantee fallback (U2). TRUE at boot
-    // (the boot world runs no teardown) and re-armed at every teardown;
-    // consumed by the world's FIRST fullRegen. NOT tied to fullRegen
-    // itself: request_recenter re-arms fullRegen mid-world (the
-    // render-radius keys), and the guarantee is AT POPULATION only.
-    bool     door_fallback_pending     = true;
-    uint32_t back_portal_return_seed   = 0;
-    uint32_t back_portal_return_mood   = 0;
-    uint32_t back_portal_return_radius = 2;
 
     // ── Sun orbit (musical coupling) ──
     float sun_orbit_phase = 0.0f;
@@ -649,13 +612,6 @@ inline MoodProfile& mood_def(uint32_t mood) {
     }
     return MOOD_LIVE[mood];
 }
-
-// ═══ THE TRANSITION REQUEST DOOR (decl; def rides merged mood.hpp) ═
-// The single canonical transition entry point — one door, many keys.
-// DEPS-FORM: the driver world holds no MachineCtx; the door
-// takes the transition channel explicitly (the deps-form precedent).
-void request_mood_transition(TransitionPhase& phase, PortalDestination& pending,
-    MoodState& ms, const WorldState& ws, uint32_t mood);
 
 } // namespace the_board
 } // namespace t7

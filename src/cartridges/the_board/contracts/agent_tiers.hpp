@@ -98,8 +98,10 @@ static_assert(AGENT_TIER_COUNT == 4,
 // therefore raises the TIER flag — one flag, one boundary, two banks.
 //
 // AGENT_BEHAVIORS is the DESIGN; BEHAVIOR_LIVE is what the translator
-// reads. Eleven rows of eight float columns (ATRIUM_4 added the passer
-// and its aux) — over D5's ≤8 cut, and enrolled per-row anyway: D5's
+// reads. Ten rows of eight float columns (ATRIUM_4 added a passer
+// row; ONE_WORLD-I U4 took it back when its round lost its doors — a
+// TAIL cut, so no surviving behaviour id moved — and its aux) — over
+// D5's ≤8 cut, and enrolled per-row anyway: D5's
 // line is about COMPOSITE rows (names, modes, nested tables), and these
 // are uniform float columns with a stable row identity. The exception is
 // deliberate and this sentence is its reason.
@@ -115,8 +117,7 @@ enum AgentBehaviorId : uint32_t {
     AGENT_BEHAVIOR_FLEE              = 7,   // flees player when in range, idles otherwise
     AGENT_BEHAVIOR_FLOCK2D           = 8,   // Vicsek alignment + cohesion
     AGENT_BEHAVIOR_LEVY_FLIGHT       = 9,   // power-law step magnitudes
-    AGENT_BEHAVIOR_PASSER            = 10,  // ATRIUM_4 — walks a route of doors, in and out
-    AGENT_BEHAVIOR_COUNT             = 11,
+    AGENT_BEHAVIOR_COUNT             = 10,
 };
 
 struct AgentBehaviorDef {
@@ -171,7 +172,6 @@ inline constexpr AgentBehaviorDef AGENT_BEHAVIORS[AGENT_BEHAVIOR_COUNT] = {
     //     a constant-speed walk is a shove, so ATRIUM_6 cut it from the arm
     //     and there is nothing left to mute. persistence and neighbor_radius
     //     were never read here.
-    { AGENT_BEHAVIOR_PASSER,            "passer",              0.25f,     2.5f,      0.0f,        1.8f, 4.0f,      0.0f,            9.0f,      8.0f },
 };
 
 struct AgentBehaviorBank {
@@ -182,9 +182,9 @@ inline AgentBehaviorBank BEHAVIOR_LIVE = {
     { AGENT_BEHAVIORS[0], AGENT_BEHAVIORS[1], AGENT_BEHAVIORS[2],
       AGENT_BEHAVIORS[3], AGENT_BEHAVIORS[4], AGENT_BEHAVIORS[5],
       AGENT_BEHAVIORS[6], AGENT_BEHAVIORS[7], AGENT_BEHAVIORS[8],
-      AGENT_BEHAVIORS[9], AGENT_BEHAVIORS[10] }
+      AGENT_BEHAVIORS[9] }
 };
-static_assert(AGENT_BEHAVIOR_COUNT == 11,
+static_assert(AGENT_BEHAVIOR_COUNT == 10,
     "BEHAVIOR_LIVE is seeded row by row (constexpr copy, one per behavior): "
     "a new behavior needs its row here as well as in AGENT_BEHAVIORS");
 

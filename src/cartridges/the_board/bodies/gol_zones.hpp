@@ -159,7 +159,7 @@ struct GoLColorMode {
 
 // ═══ CONWAY ALGORITHM ════════════════════════════════════════════
 
-// ── Tier Profile (mean+sigma, matches ColumnTierParams pattern) ──
+// ── Tier Profile (mean+sigma, the per-family TierRow pattern) ──
 inline constexpr uint32_t GOL_TIER_COUNT = 10;
 
 struct GoLTierProfile {
@@ -494,12 +494,12 @@ void dispatch_zone_evolve(GoLState& gs, GolDeps* c, wgpu::CommandEncoder& encode
 inline bool select_gol_for_patch(GoLState& gs, MachineCtx* c,
     int32_t gx, int32_t gz, GoLSelection& sel) {
     // THE COMPOSITION LAW: the shared stack — mood (explicit veto)
-    // → global → tile (F3); proximity OFF (GoL's affinity row is zero);
+    // → global → tile (F3);
     // clamp [0,1]. The per-lattice-node roll stays below (its own seed
     // domain, cpu_lattice_node_seed — a consumer fact, not the law's).
     auto composed = compose_spawn_chance(c, gx, gz, PopFamily::GOL,
         GoLZoneSpawnConfig::SPAWN_CHANCE, mood_mult_for(PopFamily::GOL),
-        /*use_proximity=*/false, /*veto_on_zero_mood=*/true,
+        /*veto_on_zero_mood=*/true,
         SpawnClamp::RANGE01);
     if (composed.vetoed) return false;
 

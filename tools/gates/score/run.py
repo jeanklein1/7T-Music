@@ -61,9 +61,9 @@ PHASE_DEFS = set(re.findall(r'void (phase_\w+)\s*\(', CART))
 
 # The roster bits (gate families must resolve to one of these).
 KNOWN_FAMILIES = {
-    'pyramid', 'arch', 'column', 'antenna', 'palm', 'cactus', 'blade',
+    'pyramid',
     'sphere', 'ribbon', 'cube', 'gol', 'pawn_aura', 'orbs',
-    'spot_lights', 'indoor_shell', 'portal', 'transitions', 'wanderers',
+    'spot_lights', 'indoor_shell', 'wanderers',
 }
 
 def gate_families(gate):
@@ -76,7 +76,6 @@ def gate_families(gate):
 # family -> [(phase fn, {required gate families})]
 FRAME_ROWS = {
     'pawn_aura':   [('phase_motion_bodies', {'pawn_aura'}), ('phase_pawn_aura', {'pawn_aura'})],
-    'transitions': [('phase_portal_trigger', {'transitions'})],
     'wanderers':   [('phase_respawn_agents', {'wanderers'})],
     'ribbon':      [('phase_ribbon_tick', {'ribbon'})],
     'gol':         [('phase_gol_derive_flush', {'gol'}), ('phase_gol_zone_compute', {'gol'})],
@@ -93,19 +92,16 @@ FOUNDATIONAL_PHASES = {
     'phase_advance_clock':         'the tempo follower is unconditional',
     'phase_motion_drivers':        'the music driver + fog stage — atmosphere foundational (K4)',
     'phase_stage_world':           'world seed + finite bounds — surface foundational (S2)',
-    'phase_transition_machine':    'the transition machine is spine-owned (SEAM[spine:transitions])',
-    'phase_stage_fade_and_upload': 'the O-5b/c DRAIN — the sole signal/config uploader',
+    'phase_stage_upload':          'the O-5b/c DRAIN — the sole signal/config uploader',
     'phase_clear_input_deltas':    'driver bookkeeping, dead-last (O-5e)',
     'phase_witness_harvest':       'the witness harvest (P5) — spine-owned readback',
     'phase_stream_patches':        'S2 streaming conductor (SEAM[patch:spawn-trigger])',
     'phase_census_dumps':          'spine diagnostics (constitution §5; gol residue proof at G3)',
     'phase_entity_mesh_gen':       'the mesh-gen pass — per-family gating is intra-phase',
-    'phase_upload_portal_lights':  'flag/count-guarded uploads (portals_dirty; light count=0 disables)',
+    'phase_upload_lights':         'flag-guarded uploads (lights_dirty; light count=0 disables)',
     'phase_dispatch_compute':      'REALIZATION — the frame compute dispatch',
     'phase_witness_capture':       'the witness capture (O-2) — spine-owned readback',
     'phase_live_card_write':       'the live-card field write — spine-owned, rest-skipped by its own clean flag',
-    'phase_ground_entries':        'flag-driven realization (ground_entries_dirty cascade, O-4)',
-    'phase_placement_correction':  'flag-driven realization (placement_dirty, O-4)',
     'phase_frustum_cull':          'REALIZATION pass (piece-gating lives at gate a-prime)',
     'phase_shadow_pass':           'REALIZATION pass (piece-gating lives at gate a-prime)',
     'phase_main_pass':             'REALIZATION pass (piece-gating lives at gate a-prime)',
@@ -113,7 +109,7 @@ FOUNDATIONAL_PHASES = {
 
 # ── DIRECTION A (non-frame): teardown / boot / mesh-prep / delegated ──
 # These obligations are NOT frame rows — they live inside a phase body
-# (teardown inside phase_transition_machine; mesh-prep inside
+# (teardown inside rebirth_world; mesh-prep inside
 # phase_entity_mesh_gen) or at boot (initialize) or at a module door. They
 # grep as gated call-sites, comment-tolerant. piece -> [(file, name, regex)].
 C = r'(?:\s|//[^\n]*\n|/\*.*?\*/)*'
@@ -125,12 +121,6 @@ def blk(bit, *calls):
 
 GREP_MANIFEST = {
     'pyramid':  [('cartridge.hpp', 'mesh prep', imm(r'ROSTER\.pyramid', r'[^;]*?\.prepare_mesh'))],
-    'arch':     [('cartridge.hpp', 'mesh prep', imm(r'ROSTER\.arch',    r'[^;]*?\.prepare_mesh'))],
-    'column':   [('cartridge.hpp', 'mesh prep', imm(r'ROSTER\.column',  r'[^;]*?\.prepare_mesh'))],
-    'antenna':  [('cartridge.hpp', 'mesh prep', imm(r'ROSTER\.antenna', r'[^;]*?\.prepare_mesh'))],
-    'palm':     [('cartridge.hpp', 'mesh prep', imm(r'ROSTER\.palm',    r'[^;]*?\.prepare_mesh'))],
-    'cactus':   [('cartridge.hpp', 'mesh prep', imm(r'ROSTER\.cactus',  r'[^;]*?\.prepare_mesh'))],
-    'blade':    [('cartridge.hpp', 'mesh prep', imm(r'ROSTER\.blade',   r'[^;]*?\.prepare_mesh'))],
     'sphere':   [('cartridge.hpp', 'mirror',    imm(r'ROSTER\.sphere',  r'reconcile_sphere_mirror')),
                  ('cartridge.hpp', 'teardown',  imm(r'ROSTER\.sphere',  r'clear_spheres')),
                  ('cartridge.hpp', 'mesh prep', imm(r'ROSTER\.sphere',  r'[^;]*?\.prepare_mesh'))],
@@ -149,8 +139,6 @@ GREP_MANIFEST = {
     # DELEGATED pieces: the gate lives at the module door (cited), not the spine.
     'spot_lights': [('direction/mood.hpp', 'apply door', rf'if constexpr \(ROSTER\.spot_lights\)')],
     'indoor_shell':[('direction/mood.hpp', 'apply door', rf'if constexpr \(ROSTER\.indoor_shell\)')],
-    'portal':      [('bodies/grounded.hpp', 'force-spawn door', rf'if constexpr \(!ROSTER\.portal\)')],
-    'transitions': [('direction/mood.hpp', 'request door #1', rf'if constexpr \(!ROSTER\.transitions\)')],
     'wanderers':   [('cartridge.hpp', 'boot population', imm(r'ROSTER\.wanderers', r'spawn_population_for_mood'))],
 }
 
@@ -226,8 +214,8 @@ def main():
     # ── DIRECTION W (m5): the witness sole-author law ──
     print('── DIRECTION W: the witness sole-author law ──')
     GUARDS = [
-        (r'readback_(?:x|z|portal_trigger)\s*=[^=]', {'cartridge.hpp', 'contracts/spine_state.hpp'},
-         'readback trio: P5 harvest + teardown reset + portal consume (spine only; the record declares its own defaults)'),
+        (r'readback_(?:x|z)\s*=[^=]', {'cartridge.hpp', 'contracts/spine_state.hpp'},
+         'readback pair: P5 harvest + rebirth reset (spine only; the record declares its own defaults)'),
         (r'player_\.possessed_slot\s*=[^=]', {'bodies/agents.hpp'},
          'possession: the agents door only (re-anchoring, v3 §9 Act III)'),
         (r'player_\.aura_presence\s*[+]?=[^=]', {'bodies/pawn.hpp'},

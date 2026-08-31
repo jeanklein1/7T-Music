@@ -1,79 +1,58 @@
 #pragma once
 #include <cstdint>
 #include "cartridges/the_board/realization/state.hpp"                    // wgpu, GPUSpotLightArray, MAX_SPOT_LIGHTS
-#include "cartridges/the_board/contracts/mood_constants.hpp"   // MOOD_COUNT, the Mood IDs, PortalDestination
+#include "cartridges/the_board/contracts/mood_constants.hpp"   // MOOD_COUNT, the Mood IDs, WORLD_DRAW_LIVE
 #include "cartridges/the_board/contracts/agent_tiers.hpp"      // TIER_LIVE — the doorway witness reads a walker's contact_radius (ATRIUM_7)
-#include "cartridges/the_board/contracts/spine_state.hpp"      // TransitionPhase (the transition channel — the driver door's param)
+#include "cartridges/the_board/contracts/spine_state.hpp"      // MoodState + the atmosphere vocabulary (CeilingType / MoodProfile / MOOD_TABLE)
 #include "cartridges/the_board/contracts/wgpu_fwd.hpp"   // wgpu handle fwds (lockstep insurance)
 #include <algorithm>   // std::max, std::min, std::clamp   // (impl, merged)
 #include <cmath>       // std::sqrt, std::sin, std::cos, std::cosh, std::floor, std::abs   // (impl, merged)
-#include <iostream>    // mood / lighting / shell / portal logs   // (impl, merged)
+#include <iostream>    // mood / lighting / shell logs   // (impl, merged)
 #include <iomanip>     // std::fixed, std::setprecision — the arc's facing witness (ATRIUM_5)   // (impl, merged)
 #include <vector>      // shell mesh staging   // (impl, merged)
 
-// ─── mood.hpp (MERGED: deps + portal/palette vocabulary + impl) ────
+// ─── mood.hpp (MERGED: deps + atmosphere vocabulary + impl) ───────
 //
-// Atmosphere, indoor lighting, shell geometry, portals.
+// Atmosphere, indoor lighting, shell geometry.
 //
-// Mood is VOCABULARY + APPLIERS + SIX DOORS. This header owns the
-// vocabulary — CeilingType, MoodProfile, MOOD_TABLE, the portal color
-// table, the indoor wall palettes (the indoor treatment — sizes,
+// Mood is VOCABULARY + APPLIERS + THREE DOORS. This header owns the
+// vocabulary — CeilingType, MoodProfile, MOOD_TABLE,
+// the indoor wall palettes (the indoor treatment — sizes,
 // bounds, dials — graduated to contracts/indoor_module.hpp) — and
-// the DECLARATIONS of the seven doors
-// (apply_mood, request_mood_transition, force_spawn_back_portal,
-// force_spawn_door_fallback, upload_lights, upload_portal_array,
-// mood_name) plus the appliers and
+// the DECLARATIONS of the three doors
+// (apply_mood, upload_lights, mood_name) plus the appliers and
 // derivers. The Mood IDs are file-scope vocabulary
 // (mood_constants.hpp), consumed here. MOOD OWNS NO INSTANCE: struct
 // MoodState's TYPE lives in contracts/spine_state.hpp; the instance
-// mood_state and the transition machine
-// (transitionPhase / pendingDestination and kin) are SPINE-OWNED
-// orchestration (SEAM[spine:transitions] at the machine's banner;
-// L38 — assembly only, K4 as amended). The force-spawn
-// mutation of the arch belongs to the arch's owner — mood's
-// force_spawn_* internals COMPUTE VALUES and call entities'
-// force_spawn_portal_arch.
+// mood_state is SPINE-OWNED orchestration (L38 — assembly only, K4 as
+// amended). The force-spawn channel mood once computed values for left
+// with the doors (ONE_WORLD-I U2).
 // MERGED at the cohort tail:
 // MoodState / CeilingType / MoodProfile / MOOD_TABLE + the request
 // door decl live in contracts/spine_state.hpp (the spine's organ
 // contract — the demo sentence includes mood_constants, so the
 // DEMO-reading MoodState rides the spine tier; tile_world/ribbon/the
 // config tables read them early);
-// this file keeps the portal + palette vocabulary, MoodDeps, the
+// this file keeps MoodDeps, the
 // decls, and every definition. COHORT: after ribbon/input
 // (the fan's door owners + ORB_MOOD_TABLE), before the
-// machine natives (they call pick_portal_mood / derive_finite_radius;
-// the portal palette graduated to contracts/mood_constants.hpp at
-// PORTAL_1 C5, so no one waits on this file for a portal's colour).
+// machine natives (they call derive_finite_radius).
 //
 // The impl additionally reaches the spine-resident state
-// (mood_state / transitionPhase / pendingDestination /
-// backPortalPosition_ / cpuSpotLights_ / cpuPortalArray_ / sun + clear
-// colors / world_state_ and the feature-gate flags), the converted
-// modules' surfaces (entities' force_spawn_portal_arch, orbs' configure,
-// render_passes' compute_spot_light_vp), TransitionPhase
-// (contracts/spine_state.hpp), ARCH_TIERS / ArchIdx
-// (entity_pipeline.hpp), solve_catenary_a (seed_utils.hpp), and
+// (mood_state / cpuSpotLights_ / sun + clear colors / world_state_ and
+// the feature-gate flags), the converted modules' surfaces (orbs'
+// configure, render_passes' compute_spot_light_vp),
+// solve_catenary_a (seed_utils.hpp — the vault ceiling), and
 // Dim::PATCH_EXTENT (patch_system.hpp).
 //
 // SEAM[mood:K1] apply_mood is the single canonical mood entry point.
-//   All mood transitions — keyboard, portal crossings, world
-//   teardown — funnel through here. Other code paths set
-//   pendingDestination / transitionPhase; the actual mood activation
-//   happens here. The orchestrator owns only ordering and the
-//   activate-mood bookkeeping; the substantive work splits across
-//   three named sub-functions (apply_mood_lighting, _spot_lights,
-//   _indoor_shell).
+//   Every mood activation — boot and rebirth alike — funnels through
+//   here. The orchestrator owns only ordering and the activate-mood
+//   bookkeeping; the substantive work splits across three named
+//   sub-functions (apply_mood_lighting, _spot_lights, _indoor_shell).
 // apply_mood orchestrates the named applier helpers; the appliers
-//   match the natural seams in the flow, and their per-mood-transition
-//   call order is load-bearing.
-// request_mood_transition is the single canonical transition entry
-//   point. Bails if a transition is already in flight. Lives in the
-//   mood module rather than input because portal crossings and other
-//   code paths can also drive mood transitions. One door, many keys.
-//   DEPS-FORM: the driver world holds no MachineCtx
-//   — the door takes the transition channel explicitly (the deps-form
-//   precedent class, clear_spheres).
+//   match the natural seams in the flow, and their call order is
+//   load-bearing.
 // ─────────────────────────────────────────────────────────────────
 
 namespace t7 {
@@ -82,7 +61,7 @@ namespace the_board {
 struct WorldState;   // patch_system.hpp — the doors read seeds/bounds (reference members/params; fwd suffices)
 // fwd — the deps face's true reaches and the fan's TARGET organs
 // (reference members/params; complete types arrive with their owners
-// in the cohort). GPUState + the CPU light/portal arrays come complete
+// in the cohort). GPUState + the CPU light array come complete
 // from state.hpp (included above).
 class Renderer;
 struct GoLState;   struct EntitiesState; struct MachineCtx;
@@ -94,20 +73,15 @@ struct PawnState;
 // contracts/spine_state.hpp: the early consumers read the
 // contract; the instance stays at the root.
 
-// ═══ PORTAL VOCABULARY ═══════════════════════════════════════════
+// ═══ THE WORLD-DRAW BANK'S NOTE ══════════════════════════════════
 
-// ── Portal detection ──
-// PORTAL_DENSITY graduated to contracts/mood_constants.hpp (ORGAN_4 P3d)
-// with the rest of the world-draw bank — WORLD_DRAW_LIVE.portal_density is
-// what entity_pipeline's portal roll reads. The organ may not include a
-// direction file, so a dial on it was impossible until it had a contracts
-// home; it is C3 DESTRUCTIVE and enrolls with the GEN chip and no wiring.
-
-// The portal palette and its one derivation portal_color_for GRADUATED
-// to contracts/mood_constants.hpp at PORTAL_1 C5 — they live beside
-// PortalDestination, the thing they describe, so grounded.hpp derives too
-// instead of receiving a value. ORGAN_4 P3d folded the palette into
-// WORLD_DRAW_LIVE there; portal_color_for reads the bank now.
+// SCHEME_WEIGHTS graduated to contracts/mood_constants.hpp (ORGAN_4 P3d)
+// as WORLD_DRAW_LIVE: the organ may not include a direction file, so a
+// dial on it was impossible until it had a contracts home. It is C3
+// DESTRUCTIVE and enrolls with the GEN chip and no wiring. Three of the
+// bank's four axes — the portal density, the destination law and the
+// portal palette — left with the doors at ONE_WORLD-I U2; the scheme
+// roll is what a fresh world still draws.
 
 // ═══ INDOOR WALL PALETTE ═════════════════════════════════════════
 //
@@ -150,11 +124,11 @@ inline constexpr uint32_t INDOOR_PALETTE_COUNT =
 // ═══ THE DEPS FACE ═══════════════════════════════════════════════
 //
 // Mood's own organs plus its true reaches — the atmosphere author's
-// face: the mood organ, the sun/clear channel, the CPU light + portal
-// staging arrays, the back-portal anchor, the realization pokes
+// face: the mood organ, the sun/clear channel, the CPU light staging
+// array, the realization pokes
 // (GPUState uploads, the frustum-cull flag), the gol mood gate (the
 // THE FLAG CHANNEL [mood -> gol]), and a const view of entities (the
-// portal-array upload reads arch positions). The fan's TARGET organs
+// indoor derivations read standing arches). The fan's TARGET organs
 // are deliberately NOT members (the B ruling, input's precedent):
 // orbs/pawn pairs + the machine face ride apply_mood's
 // parameters — the spine addresses the fan's bodies at the call site,
@@ -165,13 +139,11 @@ struct MoodDeps {
     GPUState&            gpuState_;
     Renderer&            renderer_;          // set_frustum_cull_active (per-mood realization poke)
     GoLState&            gol_state_;         // mood_allowed — the flag channel [mood -> gol]
-    const EntitiesState& entities_state_;    // upload_portal_array reads arch positions
+    const EntitiesState& entities_state_;    // the indoor derivations read standing arches
     float (&sunDirection_)[3];
     float (&sunColor_)[3];
     float (&clearColor_)[3];
     GPUSpotLightArray&   cpuSpotLights_;
-    GPUPortalArray&      cpuPortalArray_;
-    float (&backPortalPosition_)[2];
 };
 
 // ═══ MODULE FUNCTIONS — DECLARATIONS ═════════════════════════════
@@ -182,8 +154,6 @@ void apply_mood(MoodDeps* c, uint32_t mood, wgpu::Queue& queue,
     MachineCtx& machine_ctx,
     OrbsState& orbs_state, OrbsDeps& orbs_deps,
     PawnState& pawn_state);
-// request_mood_transition decl GRADUATED to spine_state.hpp (input
-// calls it before this file in the cohort); the definition is below.
 // Appliers (apply_mood's four named sub-functions; each takes only
 // the targets its own fan drives)
 void apply_mood_arrival(MoodDeps* c, const MoodProfile& m, wgpu::Queue& queue);  // ATRIUM_9 — the orbit, first
@@ -201,19 +171,11 @@ void derive_indoor_lights(MoodDeps* c, uint32_t seed, float bmin, float bmax,
 void generate_indoor_shell(MoodDeps* c, wgpu::Queue& queue, const MoodProfile& m,
     const IndoorPalette& pal);
 void clear_indoor_shell(MoodDeps* c, wgpu::Queue& queue);
-// Portals (door; the internals route through entities' force_spawn_portal_arch
-// — the arch's owner writes, so the machine face rides the tail param)
-void force_spawn_back_portal(MoodDeps* c, wgpu::Queue& queue, MachineCtx& machine_ctx);
-void force_spawn_forward_portals(MoodDeps* c, wgpu::Queue& queue, MachineCtx& machine_ctx);
-void force_spawn_door_fallback(MoodDeps* c, wgpu::Queue& queue, MachineCtx& machine_ctx);
-// Per-frame uploads (doors)
+// Per-frame uploads (door)
 void upload_lights(MoodDeps* c, wgpu::Queue& queue);
-void upload_portal_array(MoodDeps* c, wgpu::Queue& queue);
-// Derivers (door + the portal-detection pipeline's shared helpers)
+// Derivers (door)
 const char* mood_name(uint32_t mood);
 uint32_t derive_finite_radius(uint32_t seed, const MoodProfile& mood);
-uint32_t pick_portal_mood(uint32_t seed, uint32_t prop);
-uint32_t pick_open_mood(uint32_t seed, uint32_t prop);
 
 
 // ═══ MODULE IMPLEMENTATION ════════════════════════════════════════
@@ -221,10 +183,9 @@ uint32_t pick_open_mood(uint32_t seed, uint32_t prop);
 // The doors + appliers + derivers. The bodies reach the deps face
 // (c->mood_state_ / c->world_state_ / c->gpuState_ / c->renderer_ /
 // c->gol_state_ / c->entities_state_ / the sun + clear channel / the
-// CPU light + portal arrays / the back-portal anchor), the fan's
+// CPU light array), the fan's
 // TARGET organs (parameters — orbs/pawn + the machine
-// face), TransitionPhase (contracts/spine_state.hpp), ARCH_TIERS /
-// ArchIdx (contracts/spawn_services.hpp), solve_catenary_a
+// face), solve_catenary_a
 // (seed_utils.hpp), and Dim::PATCH_EXTENT (patch_system.hpp).
 //
 // THE CHANNEL: the force-spawn mutation of the arch belongs to the
@@ -232,11 +193,6 @@ uint32_t pick_open_mood(uint32_t seed, uint32_t prop);
 // single consumer (derive_indoor_lights); the wall PALETTES — the
 // other half of SEAM[mood:tuning-data] — sit above with the deps.
 
-
-// ── Impl-internal forward declarations ───────────────────────────
-// Used before their definitions (which keep their original section
-// homes below). Impl-only — not part of the header surface.
-inline void force_spawn_finite_portals(MoodDeps* c, wgpu::Queue& queue, MachineCtx& machine_ctx);
 
 // ═══ TUNING DATA (impl-side — internal authoring tables) ═════════
 //
@@ -628,7 +584,7 @@ inline void derive_indoor_lights(MoodDeps* c, uint32_t seed, float bmin, float b
 // (seed, definition) → instance. PURE: reads the seed and the
 // definition, returns a value, touches nothing else — the seeded-sampler
 // law (theory §12): the seed is the whole biography, so the same seed
-// draws the same sky and the back portal keeps its promise. The props
+// draws the same sky. The props
 // below are FROZEN; they draw off active_seed directly, beside 999u /
 // 77u / 5800u / 7950u, and the ATMOS_1 census found the block free.
 struct AtmosphereInstance {
@@ -806,8 +762,8 @@ inline void apply_mood_lighting(MoodDeps* c, const MoodProfile& m, wgpu::Queue& 
     // The GoL cap rides beside the amp column: indoors the cell lift caps
     // at the module's fraction of the ceiling; 0 disables (the derive
     // kernel's sentinel — outdoor byte-identical). Zones are torn down at
-    // every mood transition, so every live zone was derived inside the mood
-    // it lives in and the capping is complete, not approximate.
+    // every rebirth, so every live zone was derived inside the mood it
+    // lives in and the capping is complete, not approximate.
     c->gpuState_.set_indoor_height_cap(
         m.shape.indoor ? INDOOR_LIVE.height_cap_fraction * m.shape.wall_height : 0.0f);
     c->mood_state_.lights_dirty = true;
@@ -1135,405 +1091,7 @@ inline void generate_indoor_shell(MoodDeps* c, wgpu::Queue& queue, const MoodPro
         << " rise=" << rise << "\n";
 }
 
-// ═══ PORTAL SPAWNING ═════════════════════════════════════════════
-
-// ── force_spawn_portal_at ──
-//
-inline uint32_t force_spawn_portal_at(MoodDeps* c, wgpu::Queue& queue,
-    float cx, float cz, float rotation,
-    const PortalDestination& dest, bool is_back_portal,
-    MachineCtx& machine_ctx) {
-    uint32_t slot = force_spawn_portal_arch(machine_ctx.entities_state_, &machine_ctx, queue,
-        cx, cz, rotation, dest, is_back_portal);
-
-    if (slot != UINT32_MAX) c->mood_state_.portals_dirty = true;
-    return slot;
-}
-
-// ── force_spawn_back_portal ──
-//
-inline void force_spawn_back_portal(MoodDeps* c, wgpu::Queue& queue, MachineCtx& machine_ctx) {
-    c->mood_state_.back_portal_pending = false;
-
-    // ─── Seed-driven placement ───────────────────────────────────────
-    //
-    if (c->world_state_.finite_mode) {
-        float bmin = -(float)c->world_state_.finite_radius * Dim::PATCH_EXTENT;
-        float bmax = ((float)c->world_state_.finite_radius + 1.0f) * Dim::PATCH_EXTENT;
-        float room_center = (bmin + bmax) * 0.5f;
-        float room_half = (bmax - bmin) * 0.5f;
-
-        float WALL_MARGIN;
-        if (mood_def(c->mood_state_.active).shape.indoor) {
-            const auto& doorway = ARCH_TIERS[static_cast<uint32_t>(ArchTier::DOORWAY)].profile;
-            const float doorway_half_span = doorway.params[ArchIdx::SPAN].mean * 0.5f;
-            const float doorway_pier_half = doorway.params[ArchIdx::THICKNESS].mean * 0.5f
-                + doorway.params[ArchIdx::PIER_PADDING].mean
-                + doorway.params[ArchIdx::EDGE_BLEND].mean;
-            WALL_MARGIN = INDOOR_ENTITY_WALL_MARGIN
-                + doorway_half_span + doorway_pier_half;
-        }
-        else {
-            WALL_MARGIN = 8.0f;
-        }
-
-        constexpr float MIN_FROM_ORIGIN = 30.0f;
-        constexpr float MIN_FROM_ORIGIN_SQ = MIN_FROM_ORIGIN * MIN_FROM_ORIGIN;
-
-        struct Spot { float x, z, rotation; };
-        Spot candidates[4] = {
-            // ATRIUM_6 — the rotations here are SPANS, like every arch's
-            // (arch_rotation_from_facing names the convention). The rooms'
-            // doorways stand with their span perpendicular to the wall they
-            // sit on; that is the standing reading and Jean has gated it. No
-            // value below changes.
-            { room_center,        bmin + WALL_MARGIN,  1.5708f  },  // south wall; span along +Z
-            { bmax - WALL_MARGIN, room_center,         3.14159f },  // east  wall; span along -X
-            { room_center,        bmax - WALL_MARGIN, -1.5708f  },  // north wall; span along -Z
-            { bmin + WALL_MARGIN, room_center,         0.0f     },  // west  wall; span along +X
-        };
-
-        // Fisher–Yates on the side order, seeded from the world seed.
-        uint32_t order[4] = { 0, 1, 2, 3 };
-        for (uint32_t i = 3; i > 0; i--) {
-            uint32_t j = cpu_hash(c->world_state_.active_seed, 6600u + i) % (i + 1);
-            uint32_t tmp = order[i]; order[i] = order[j]; order[j] = tmp;
-        }
-
-        bool placed = false;
-        float chosen_rotation = 0.0f;
-        for (uint32_t k = 0; k < 4 && !placed; k++) {
-            uint32_t side = order[k];
-            const auto& cand = candidates[side];
-            // Jitter along the wall (perpendicular to its inward normal).
-            float jitter = (cpu_hash_f(c->world_state_.active_seed, 6610u + side) - 0.5f) * room_half * 0.4f;
-            float x = cand.x, z = cand.z;
-            if (side == 0 || side == 2) x += jitter;  // S/N walls run along X
-            else                          z += jitter; // E/W walls run along Z
-
-            if (x * x + z * z >= MIN_FROM_ORIGIN_SQ) {
-                c->backPortalPosition_[0] = x;
-                c->backPortalPosition_[1] = z;
-                chosen_rotation = cand.rotation;
-                placed = true;
-            }
-        }
-        if (!placed) {
-            uint32_t side = order[0];
-            c->backPortalPosition_[0] = candidates[side].x;
-            c->backPortalPosition_[1] = candidates[side].z;
-            chosen_rotation = candidates[side].rotation;
-        }
-
-        const auto& retMood = mood_def(c->mood_state_.back_portal_return_mood);
-        PortalDestination dest{};
-        dest.seed = c->mood_state_.back_portal_return_seed;
-        dest.finite = retMood.shape.finite;
-        dest.finite_radius = c->mood_state_.back_portal_return_radius;
-        dest.mood = c->mood_state_.back_portal_return_mood;
-
-        float cx = c->backPortalPosition_[0];
-        float cz = c->backPortalPosition_[1];
-        uint32_t slot = force_spawn_portal_at(c, queue, cx, cz, chosen_rotation, dest, true, machine_ctx);
-
-        if (slot != UINT32_MAX) {
-            std::cout << "[Portal] Back-portal spawned at (" << cx << "," << cz
-                << ") rot=" << chosen_rotation << " slot=" << slot
-                << " -> return seed=" << c->mood_state_.back_portal_return_seed
-                << " mood=" << mood_name(c->mood_state_.back_portal_return_mood) << "\n";
-        }
-        else {
-            std::cout << "[Portal] WARNING: no free arch slot for back-portal\n";
-        }
-
-        return;
-    }
-
-    // ─── Non-finite fallback (open-world back-portal) ───────────────
-    // Open worlds don't normally request back-portals, but if they do
-    // we keep the legacy fixed-position behavior at backPortalPosition_.
-    const auto& retMood = mood_def(c->mood_state_.back_portal_return_mood);
-    PortalDestination dest{};
-    dest.seed = c->mood_state_.back_portal_return_seed;
-    dest.finite = retMood.shape.finite;
-    dest.finite_radius = c->mood_state_.back_portal_return_radius;
-    dest.mood = c->mood_state_.back_portal_return_mood;
-
-    float cx = c->backPortalPosition_[0];
-    float cz = c->backPortalPosition_[1];
-    uint32_t slot = force_spawn_portal_at(c, queue, cx, cz, 0.0f, dest, true, machine_ctx);
-
-    if (slot != UINT32_MAX) {
-        std::cout << "[Portal] Back-portal spawned at (" << cx << "," << cz
-            << ") slot=" << slot
-            << " -> return seed=" << c->mood_state_.back_portal_return_seed
-            << " mood=" << mood_name(c->mood_state_.back_portal_return_mood) << "\n";
-    }
-    else {
-        std::cout << "[Portal] WARNING: no free arch slot for back-portal\n";
-    }
-
-}
-
-// ── force_spawn_forward_portals ──
-// ATRIUM_0 — THE FORWARDS LEAVE THE BACK. force_spawn_finite_portals was
-// reachable only through force_spawn_back_portal, which fires on
-// back_portal_pending, which only a TRANSITION sets. A boot world has no
-// back — correctly — but as wired, no back meant no forwards. The finite
-// world's forward roster now has its own pending flag and its own door.
-inline void force_spawn_forward_portals(MoodDeps* c, wgpu::Queue& queue, MachineCtx& machine_ctx) {
-    c->mood_state_.forward_portals_pending = false;
-    if (!c->world_state_.finite_mode) return;
-    // ATRIUM_2 — the roster is the SHAPE's, not this function's. One
-    // property, two rosters; every other finite world keeps the triad.
-    force_spawn_finite_portals(c, queue, machine_ctx);
-}
-
-// ── force_spawn_finite_portals ──
-//
-inline void force_spawn_finite_portals(MoodDeps* c, wgpu::Queue& queue, MachineCtx& machine_ctx) {
-    float bmin = -(float)c->world_state_.finite_radius * Dim::PATCH_EXTENT;
-    float bmax = ((float)c->world_state_.finite_radius + 1.0f) * Dim::PATCH_EXTENT;
-    float room_center = (bmin + bmax) * 0.5f;
-    float room_half = (bmax - bmin) * 0.5f;
-
-    float margin;
-    if (mood_def(c->mood_state_.active).shape.indoor) {
-        const auto& doorway = ARCH_TIERS[static_cast<uint32_t>(ArchTier::DOORWAY)].profile;
-        const float doorway_half_span = doorway.params[ArchIdx::SPAN].mean * 0.5f;
-        const float doorway_pier_half = doorway.params[ArchIdx::THICKNESS].mean * 0.5f
-            + doorway.params[ArchIdx::PIER_PADDING].mean
-            + doorway.params[ArchIdx::EDGE_BLEND].mean;
-        margin = INDOOR_ENTITY_WALL_MARGIN
-            + doorway_half_span + doorway_pier_half;
-    }
-    else {
-        margin = 8.0f;
-    }
-
-    // PORTAL_2 — THE TRIAD. A finite world offers exactly three
-    // doors: deeper in (one of the two rooms, seed's coin), out — an
-    // open sky, drawn by the destination law's weights among the open
-    // moods (ATMOS_1) — and back (already standing). Two forwards here;
-    // the radius no longer buys doors.
-    constexpr uint32_t count = 2;
-    const uint32_t fwd_moods[2] = {
-        (cpu_hash_f(c->world_state_.active_seed, 7950u) < 0.5f)
-            ? MOOD_INDOOR_FLAT : MOOD_INDOOR_VAULT,
-        pick_open_mood(c->world_state_.active_seed, 7951u),   // the way out: an open sky (ATMOS_1)
-    };
-
-    // Perimeter positions: distribute along the 4 walls
-    struct PortalSpot {
-        float x, z, rotation;
-    };
-
-    // Fixed candidate positions: one per wall, offset from center.
-    // ATRIUM_6 — the rotations here are SPANS, like every arch's
-    // (arch_rotation_from_facing names the convention). The rooms' doorways
-    // stand with their span perpendicular to the wall they sit on; that is
-    // the standing reading and Jean has gated it. No value below changes.
-    PortalSpot candidates[] = {
-        // South wall; span along +Z
-        { room_center, bmin + margin, 1.5708f },
-        // East wall; span along -X
-        { bmax - margin, room_center, 3.14159f },
-        // North wall; span along -Z
-        { room_center, bmax - margin, -1.5708f },
-        // West wall; span along +X
-        { bmin + margin, room_center, 0.0f },
-    };
-    uint32_t num_candidates = 4;
-
-    // Shuffle candidates with seed so different rooms use different walls
-    for (uint32_t i = num_candidates - 1; i > 0; i--) {
-        uint32_t j = cpu_hash(c->world_state_.active_seed, 7700u + i) % (i + 1);
-        PortalSpot tmp = candidates[i];
-        candidates[i] = candidates[j];
-        candidates[j] = tmp;
-    }
-
-    // The back portal stands on one of these same four walls (its own
-    // WALL_MARGIN formula is this margin's twin), jittered ALONG that
-    // wall by at most room_half * 0.2 — far under the gap to any other
-    // wall, so the nearest candidate names its wall unambiguously.
-    // ATRIUM_0 — AND ONLY WHERE ONE STANDS. backPortalPosition_ is a
-    // standing value, not a live fact: a boot world reaches this function
-    // with no back at all, and reading the stale position there would
-    // retire a wall for a door that does not exist. The arches are the
-    // truth; they are asked once, here.
-    bool back_stands = false;
-    for (uint32_t j = 0; j < Dim::MAX_ARCH_INSTANCES && !back_stands; j++) {
-        const auto& aa = c->entities_state_.arches[j];
-        if (aa.active && aa.is_portal && aa.is_back_portal) back_stands = true;
-    }
-    uint32_t back_wall = UINT32_MAX;
-    if (back_stands) {
-        float best = 3.4e38f;
-        for (uint32_t j = 0; j < num_candidates; j++) {
-            float dx = candidates[j].x - c->backPortalPosition_[0];
-            float dz = candidates[j].z - c->backPortalPosition_[1];
-            float d2 = dx * dx + dz * dz;
-            if (d2 < best) { best = d2; back_wall = j; }
-        }
-    }
-
-    uint32_t spawned = 0;
-    for (uint32_t i = 0; i < num_candidates && spawned < count; i++) {
-        auto& spot = candidates[i];
-
-        // Jitter position along the wall
-        float jitter = (cpu_hash_f(c->world_state_.active_seed, 7710u + i) - 0.5f) * room_half * 0.4f;
-        // Apply jitter perpendicular to the wall normal
-        float jx = spot.x, jz = spot.z;
-        if (std::abs(spot.rotation - 1.5708f) < 0.1f || std::abs(spot.rotation + 1.5708f) < 0.1f) {
-            jx += jitter;  // south/north wall: jitter along X
-        }
-        else {
-            jz += jitter;  // east/west wall: jitter along Z
-        }
-
-        // PORTAL_2 — three doors, three walls. The back portal owns
-        // its wall; forwards take the others.
-        if (i == back_wall) continue;
-
-        // Fixed destinations by order: [0] deeper in, [1] the way out
-        uint32_t dest_seed = cpu_hash(c->world_state_.active_seed, 7800u + i);
-        uint32_t mood = fwd_moods[spawned];
-        const auto& mp = mood_def(mood);
-        PortalDestination dest{};
-        dest.seed = dest_seed;
-        dest.mood = mood;
-        dest.finite = mp.shape.finite;
-        dest.finite_radius = derive_finite_radius(dest_seed, mp);
-
-        uint32_t slot = force_spawn_portal_at(c, queue, jx, jz, spot.rotation, dest, false, machine_ctx);
-        if (slot != UINT32_MAX) {
-            std::cout << "[Portal] Forward portal " << (spawned + 1)
-                << " at (" << jx << "," << jz
-                << ") -> seed=" << dest_seed
-                << " mood=" << mood_name(mood)
-                << (dest.finite ? " FINITE" : " open") << "\n";
-            spawned++;
-        }
-    }
-
-    std::cout << "[Portal] Finite world: " << spawned << " forward portals + "
-        << (back_stands ? 1 : 0) << " back-portal\n";
-}
-// ── force_spawn_door_fallback ──
-//
-// THE DOOR GUARANTEE (U2). Runs once per world, after the synchronous
-// population. Only a world that populated with no door WITHIN REACH gets
-// one forced door: an open-world roll can commit zero DOORWAY arches in
-// the priority window, and a boot world raises forward_portals_pending
-// but no back (ATRIUM_0). No new placement grammar: the
-// destination is the forward-portal grammar (pick_portal_mood +
-// derive_finite_radius, fresh 88xx salts beside the 66xx/77xx series),
-// and the spot is a seeded bearing at twice the back-portal grammar's
-// MIN_FROM_ORIGIN — 60 wu, inside the LOD0 core and the bootstrap
-// tile ring — with the opening facing the spawn anchor.
-//
-// A DOOR WITHIN REACH (OVERTURE_0). The gate used to be "does any portal
-// stand", and a rolled door 300 wu behind the pawn satisfied it — so the
-// first field could open with its only way out over the horizon. The
-// guarantee is MEASURED from the spawn anchor now, the same origin door_r
-// is struck from, so the first field always has a way out inside its own
-// view.
-//
-// IN A FINITE WORLD THE OLD GATE STANDS, AND IT MUST. A room's doors sit
-// on its WALLS, and the walls run from -finite_radius*PATCH_EXTENT to
-// (finite_radius+1)*PATCH_EXTENT: at radius 2 the far wall is 142 wu out,
-// at radius 4 it is 192, and the along-wall jitter only adds. So a room
-// that is correctly doored has every door outside DOOR_NEAR_RADIUS at most
-// rolled radii, and a reach test would force a second portal into the
-// middle of its floor — a door standing in open room, beside walls that
-// already carry two. The room's own machinery (force_spawn_back_portal,
-// force_spawn_forward_portals) is the guarantee there; reach is the OPEN
-// world's question, and this is the line that keeps the ruling's own
-// promise that nothing in a finite world changes.
-inline void force_spawn_door_fallback(MoodDeps* c, wgpu::Queue& queue, MachineCtx& machine_ctx) {
-    // ONE SHOT per world, mirroring back_portal_pending: fullRegen is
-    // NOT once-per-world — request_recenter re-arms it mid-world (the
-    // render-radius keys) — and a re-fired gate in a world whose doors
-    // have streamed out would force a door 60 wu from ORIGIN: outside
-    // the live window, over unloaded terrain, on no patch record. The
-    // guarantee is AT POPULATION; it does not re-run.
-    if (!c->mood_state_.door_fallback_pending) return;
-    c->mood_state_.door_fallback_pending = false;
-
-    // 2 x door_r: a door struck at 60 wu is itself well within reach, so the
-    // radius is the band in which a rolled door makes the forced one needless.
-    constexpr float DOOR_NEAR_RADIUS = 120.0f;
-    constexpr float DOOR_NEAR_RADIUS_SQ = DOOR_NEAR_RADIUS * DOOR_NEAR_RADIUS;
-    const bool walled = c->world_state_.finite_mode;
-    for (uint32_t i = 0; i < Dim::MAX_ARCH_INSTANCES; i++) {
-        const auto& aa = c->entities_state_.arches[i];
-        if (!aa.active || !aa.is_portal) continue;
-        if (walled) return;                      // a door already stands, and the walls placed it
-        if (aa.world_x * aa.world_x + aa.world_z * aa.world_z <= DOOR_NEAR_RADIUS_SQ)
-            return;                              // a door already stands within reach
-    }
-
-    const float door_r = 60.0f;   // 2 x MIN_FROM_ORIGIN
-    float bearing = cpu_hash_f(c->world_state_.active_seed, 8810u) * 2.0f * 3.14159f;
-    float cx = std::cos(bearing) * door_r;
-    float cz = std::sin(bearing) * door_r;
-    // THE OPENING FACES THE SPAWN ANCHOR — which is what this line always
-    // said and never did: bearing + PI aimed the arch's SPAN at the anchor
-    // and left the doorway edge-on (ATRIUM_6). The door stands at
-    // (cos b, sin b) * door_r from the anchor, so the vector from the door
-    // TO the anchor is -(cos b, sin b).
-    float rotation = arch_rotation_from_facing(-std::cos(bearing), -std::sin(bearing));
-
-    uint32_t dest_seed = cpu_hash(c->world_state_.active_seed, 8800u);
-    uint32_t mood = pick_portal_mood(c->world_state_.active_seed, 8900u);
-    const auto& mp = mood_def(mood);
-    PortalDestination dest{};
-    dest.seed = dest_seed;
-    dest.mood = mood;
-    dest.finite = mp.shape.finite;
-    dest.finite_radius = derive_finite_radius(dest_seed, mp);
-
-    uint32_t slot = force_spawn_portal_at(c, queue, cx, cz, rotation, dest, false, machine_ctx);
-    if (slot != UINT32_MAX) {
-        std::cout << "[Portal] Door fallback at (" << cx << "," << cz
-            << ") -> seed=" << dest_seed
-            << " mood=" << mood_name(mood)
-            << (dest.finite ? " FINITE" : " open") << "\n";
-    }
-    else {
-        std::cout << "[Portal] WARNING: no free arch slot for door fallback\n";
-    }
-}
-
 // ═══ PER-FRAME UPLOAD ════════════════════════════════════════════
-
-// ── upload_portal_array ──
-inline void upload_portal_array(MoodDeps* c, wgpu::Queue& queue) {
-    if (!c->mood_state_.portals_dirty) return;
-    c->mood_state_.portals_dirty = false;
-
-    c->cpuPortalArray_ = GPUPortalArray{};
-    uint32_t count = 0;
-    for (uint32_t i = 0; i < Dim::MAX_ARCH_INSTANCES && count < MAX_GPU_PORTALS; i++) {
-        if (!c->entities_state_.arches[i].active || !c->entities_state_.arches[i].is_portal) continue;
-        const auto& aa = c->entities_state_.arches[i];
-        auto& entry = c->cpuPortalArray_.portals[count];
-        entry.x = aa.world_x;
-        entry.z = aa.world_z;
-        entry.facing_cos = std::cos(aa.rotation);
-        entry.facing_sin = std::sin(aa.rotation);
-        float half_depth = aa.depth * 0.5f;
-        entry.inv_span_sq = 1.0f / (aa.half_span * aa.half_span);
-        entry.inv_depth_sq = 1.0f / (half_depth * half_depth);
-        entry.arch_index = i;
-        entry.kind = aa.is_back_portal ? 1u : 0u;
-        count++;
-    }
-    c->cpuPortalArray_.count = count;
-    c->gpuState_.upload_portal_array(queue, c->cpuPortalArray_);
-}
 
 // ── upload_lights ──
 // (Must precede compute for shadow VP.)
@@ -1565,36 +1123,6 @@ inline void upload_lights(MoodDeps* c, wgpu::Queue& queue) {
     c->gpuState_.upload_lighting(queue, lighting);
 }
 
-// ═══ MOOD TRANSITION REQUEST ═════════════════════════════════════
-//
-inline void request_mood_transition(TransitionPhase& phase, PortalDestination& pending,
-    MoodState& ms, const WorldState& ws, uint32_t mood) {
-    // ROSTER-GATE transitions (b) — ENTRY door #1 (keyboard mood requests).
-    // Disabled: the machine stays at IDLE forever; the bit gates requests,
-    // nothing structural. Maturity-proof form of the transitions=>portal
-    // edge (the v0 form is the manifest static_assert).
-    if constexpr (!ROSTER.transitions) { (void)phase; (void)pending; (void)ms; (void)ws; (void)mood; return; }
-    if (phase != TransitionPhase::IDLE) return;
-    if (mood >= MOOD_COUNT) return;
-
-    const auto& mp = mood_def(mood);
-    uint32_t dest_seed = cpu_hash(ws.active_seed, 999u);
-    uint32_t radius = derive_finite_radius(dest_seed, mp);
-    pending = { dest_seed, mp.shape.finite, radius, mood };
-    phase = TransitionPhase::FADE_OUT;
-    ms.transition_timer = 0.0f;
-
-    if (mp.shape.finite) {
-        uint32_t side = 2 * radius + 1;
-        std::cout << "[World] Transition (" << mood_name(mood) << " "
-            << side << "x" << side << "): seed " << ws.active_seed
-            << " -> " << pending.seed << "\n";
-    } else {
-        std::cout << "[World] Transition (" << mood_name(mood) << "): seed "
-            << ws.active_seed << " -> " << pending.seed << "\n";
-    }
-}
-
 // ═══ DERIVERS ════════════════════════════════════════════════════
 
 inline const char* mood_name(uint32_t mood) {
@@ -1608,40 +1136,6 @@ inline uint32_t derive_finite_radius(uint32_t seed, const MoodProfile& mood) {
     uint32_t range = s.finite_radius_max - s.finite_radius_min + 1;
     return s.finite_radius_min + cpu_hash(seed, 77u) % range;
 }
-
-// PORTAL_2 — the OPEN-WORLD destination law. Finite worlds no
-// longer roll: their roster is the fixed triad
-// (force_spawn_finite_portals). The finite outdoors is a rare
-// feature of the open field only.
-// THE DESTINATION LAW (ATMOS_1). One weighted walk over every mood, in id
-// order, from WORLD_DRAW_LIVE.mood_weights — the open field's law in one
-// table the panel can reach. The walk skips weight-0 rows and normalises
-// itself by the sum, so a row at 0 retires a door without retiring the
-// mood, and the float-epsilon miss lands on the last PRESENT row.
-// open_only restricts the walk to shape_is_open moods: the triad's way
-// OUT of a room is an open sky, whichever one the weights favour.
-inline uint32_t pick_mood_weighted_(uint32_t seed, uint32_t prop, bool open_only) {
-    float sum = 0.0f;
-    for (uint32_t m = 0; m < MOOD_COUNT; ++m) {
-        if (open_only && !shape_is_open(mood_def(m).shape)) continue;
-        sum += std::max(0.0f, WORLD_DRAW_LIVE.mood_weights[m]);
-    }
-    if (sum <= 0.0f) return MOOD_OPEN_SUNSET;   // every door shut: the home sky
-    const float roll = cpu_hash_f(seed, prop) * sum;
-    float cumul = 0.0f;
-    uint32_t pick = MOOD_OPEN_SUNSET;
-    for (uint32_t m = 0; m < MOOD_COUNT; ++m) {
-        if (open_only && !shape_is_open(mood_def(m).shape)) continue;
-        const float w = std::max(0.0f, WORLD_DRAW_LIVE.mood_weights[m]);
-        if (w <= 0.0f) continue;
-        cumul += w;
-        pick = m;
-        if (roll < cumul) break;
-    }
-    return pick;
-}
-inline uint32_t pick_portal_mood(uint32_t seed, uint32_t prop) { return pick_mood_weighted_(seed, prop, false); }
-inline uint32_t pick_open_mood  (uint32_t seed, uint32_t prop) { return pick_mood_weighted_(seed, prop, true);  }
 
 } // namespace the_board
 } // namespace t7

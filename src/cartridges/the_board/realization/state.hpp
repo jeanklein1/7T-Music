@@ -130,7 +130,7 @@ namespace t7 {
             //   +x/+z : EXTENT/2 − PATCH_CELL_SIZE = 496.875 wu
             //   −x/−z : EXTENT/2                   = 500.0   wu
             // What it must cover is NOT the EXIST ring. Agents and floaters
-            // are EXIST-gated at 350, but flora, columns and arches are
+            // are EXIST-gated at 350, but arches and pyramids are
             // PATCH-lifetime: they live as long as their host
             // patch, out to the allocation window, which reaches
             // (PATCH_PREGEN_RADIUS + 1) · PATCH_EXTENT = 400 wu per axis
@@ -140,8 +140,14 @@ namespace t7 {
             // AND THAT IS WHERE AN ANCHOR CAN BE, NOT WHERE A READ CAN BE
             // (LATTICE_4 R-A). Every entity VS samples the card at its
             // VERTEX position, and a mesh reaches past its anchor. The
-            // binding case is the arch: `arch_vs` has NO ring gate (unlike
-            // palm/cactus/blade, which kill per vertex beyond veil_ring), so
+            // BINDING CASE WAS THE ARCH — `arch_vs` had no ring gate and
+            // its STANDARD tier reached ~52 wu past its anchor — and it
+            // left at ONE_WORLD-I U3. No surviving family draws generated
+            // geometry, so the window below is sized by the widest
+            // remaining reach, not by a mesh.
+            // VERTEX position, and a mesh reaches past its anchor. The
+            // binding case is the arch: `arch_vs` has NO ring gate (the
+            // per-vertex ring kill left with the families that had one), so
             // an arch anywhere in the allocation window is drawn and read at
             // every vertex. Its per-axis reach is half_span + half_depth,
             // and cpu_sample_gaussian clamps z to ±3, so the widest is
@@ -191,7 +197,7 @@ namespace t7 {
             // fog is ICING. Declared here (the registry pattern: authored
             // once, checked by asserts, never computed); point-anchored.
             //   RING (325 = 6.5 patches, Jean's enlargement from 5.5): the
-            //     SOLE draw authority — terrain banding, entity cull, flora,
+            //     SOLE draw authority — terrain banding, entity cull,
             //     agents, floaters all gate DRAW MEMBERSHIP on it. Metric:
             //     nearest-edge for patches; center±extent for entities.
             //     Nothing is drawn beyond the ring — no wall-colored
@@ -325,60 +331,19 @@ namespace t7 {
             constexpr uint32_t SHELL_MAX_VERTICES = 2048;
             constexpr uint32_t SHELL_MAX_INDICES = 8192;
 
-            // Generative catenary arches — GPU mesh gen (slot-based addressing)
-            constexpr uint32_t MAX_ARCH_INSTANCES = 16;
-            constexpr uint32_t AMG_MAX_VERTS_PER_SLOT = 2000;  // monumental worst case: 1470
-            constexpr uint32_t AMG_MAX_INDICES_PER_SLOT = 7500;  // monumental worst case: 7488 (must be divisible by 3!)
-            constexpr uint32_t AMG_TOTAL_VERTICES = MAX_ARCH_INSTANCES * AMG_MAX_VERTS_PER_SLOT;   // 32000
-            constexpr uint32_t AMG_TOTAL_INDICES = MAX_ARCH_INSTANCES * AMG_MAX_INDICES_PER_SLOT; // 120000
-
-            // Generative columns — GPU mesh gen (slot-based addressing)
-            constexpr uint32_t MAX_COLUMN_INSTANCES = 32;
-            constexpr uint32_t MAX_COLUMN_ONLY = 16;            // classical columns: slots 0-15
-            constexpr uint32_t MAX_ANTENNA_ONLY = 16;            // antennas: slots 16-31
-            constexpr uint32_t ANTENNA_SLOT_OFFSET = 16;         // GPU slot offset for antenna family
-            static_assert(MAX_COLUMN_ONLY + MAX_ANTENNA_ONLY == MAX_COLUMN_INSTANCES);
-            constexpr uint32_t CMG_MAX_VERTS_PER_SLOT = 1500;  // ornate worst case: 1249
-            constexpr uint32_t CMG_MAX_INDICES_PER_SLOT = 6000;  // ornate worst case: 5880 (divisible by 3)
-            constexpr uint32_t CMG_TOTAL_VERTICES = MAX_COLUMN_INSTANCES * CMG_MAX_VERTS_PER_SLOT;   // 48000
-            constexpr uint32_t CMG_TOTAL_INDICES = MAX_COLUMN_INSTANCES * CMG_MAX_INDICES_PER_SLOT; // 192000
+            // MAX_ARCH_INSTANCES and the AMG_* mesh-gen capacities stood
+            // here. The catenary arch was the last family with a GPU mesh-gen
+            // scratch, and it left at ONE_WORLD-I U3 — with it went the last
+            // occupant of the converged MESHGEN trio (PRUNE_2's 180/181/182).
 
             // Generative pyramids — the instance array IS terrain
             // (contrib_pyramids_at); there is no mesh-gen scratch.
             constexpr uint32_t MAX_PYRAMID_INSTANCES = 8;
 
-            // Generative palms — GPU mesh gen (slot-based addressing)
-            constexpr uint32_t MAX_PALM_INSTANCES = 24;
-            constexpr uint32_t PALMG_MAX_VERTS_PER_SLOT = 1200;
-            constexpr uint32_t PALMG_MAX_INDICES_PER_SLOT = 6000;
-            constexpr uint32_t PALMG_TOTAL_VERTICES = MAX_PALM_INSTANCES * PALMG_MAX_VERTS_PER_SLOT;   // 28800
-            constexpr uint32_t PALMG_TOTAL_INDICES = MAX_PALM_INSTANCES * PALMG_MAX_INDICES_PER_SLOT; // 144000
-
-            // Generative cacti — GPU mesh gen (slot-based addressing)
-            constexpr uint32_t MAX_CACTUS_INSTANCES = 20;
-            constexpr uint32_t CACTUSG_MAX_VERTS_PER_SLOT = 1500;
-            constexpr uint32_t CACTUSG_MAX_INDICES_PER_SLOT = 7998;  // must be divisible by 3!
-            constexpr uint32_t CACTUSG_TOTAL_VERTICES = MAX_CACTUS_INSTANCES * CACTUSG_MAX_VERTS_PER_SLOT;
-            constexpr uint32_t CACTUSG_TOTAL_INDICES = MAX_CACTUS_INSTANCES * CACTUSG_MAX_INDICES_PER_SLOT;
-
-            // Generative blade clusters — GPU mesh gen (slot-based addressing)
-            constexpr uint32_t MAX_BLADE_INSTANCES = 32;
-            constexpr uint32_t BLADEG_MAX_VERTS_PER_SLOT = 500;
-            constexpr uint32_t BLADEG_MAX_INDICES_PER_SLOT = 1998;  // must be divisible by 3!
-            constexpr uint32_t BLADEG_TOTAL_VERTICES = MAX_BLADE_INSTANCES * BLADEG_MAX_VERTS_PER_SLOT;
-            constexpr uint32_t BLADEG_TOTAL_INDICES = MAX_BLADE_INSTANCES * BLADEG_MAX_INDICES_PER_SLOT;
-
-            // Entity ground atlas (r32float, 256×1 — VS reads ground_y via textureLoad)
-            constexpr uint32_t GROUND_ATLAS_WIDTH = 256;
-            constexpr uint32_t GROUND_ATLAS_ARCH = 0;    // 16 slots
-            constexpr uint32_t GROUND_ATLAS_COLUMN = 16;   // 32 slots
-            // slots 48..55: DOCUMENTED HOLE — the retired pyramid range (readers
-            // cut, then the write path — the ground-atlas residue). Do NOT re-pack; the
-            // offsets below are hand-mirrored with world.wgsl's atlas table.
-            constexpr uint32_t GROUND_ATLAS_PALM = 56;   // 24 slots
-            constexpr uint32_t GROUND_ATLAS_CACTUS = 80;   // 20 slots
-            constexpr uint32_t GROUND_ATLAS_BLADE = 100;  // 32 slots
-            constexpr uint32_t GROUND_ATLAS_USED = 132;
+            // The entity ground atlas stood here — a 256×1 r32float strip
+            // that compute_entity_placement wrote and arch_vs / shadow_arch_vs
+            // read. Both readers and the writer were the arch's, and the whole
+            // channel left with the family (ONE_WORLD-I U3).
 
             // GoL zone system — per-zone automaton grids
             constexpr uint32_t MAX_GOL_ZONES = 8;
@@ -476,11 +441,15 @@ namespace t7 {
         //     (world.wgsl, coupling_velocity_to_pawn_heading writes
         //      h = atan2(vel.x, vel.z); the aura's forward reads it back)
         //   a door at bearing b stands at (cos b, sin b) and its opening
-        //     faces b + PI (force_spawn_door_fallback, the one grammar)
+        //     faces b + PI — the door grammar. Its last authoring site,
+        //     force_spawn_door_fallback, left with the transition machine
+        //     (ONE_WORLD-I); the identity below is what the conversion
+        //     rests on, not the site
         // so bearing = atan2(cos h, sin h) = PI/2 - h, exactly. One home,
-        // beside the pose it converts: the arc (force_spawn_atrium_arc)
-        // and the hang (place_atrium_poster) both read it, and neither
-        // re-derives the identity.
+        // beside the pose it converts. Its prose named two readers that do
+        // not exist anywhere in src/ — force_spawn_atrium_arc and
+        // place_atrium_poster, rot that predates this campaign — and its one
+        // live reader is the gaze bearing in bodies/agents.hpp.
         constexpr float heading_to_bearing(float h) { return 1.57079633f - h; }
 
         // Mirrors world.wgsl's COUPLING_* bit-flag block. MUST match those
@@ -550,7 +519,9 @@ namespace t7 {
                                                              // subtracted through DrawBind, not
                                                              // by skipping the table
             inline constexpr uint32_t ORBS      = 1u << 6;
-            inline constexpr uint32_t FADE      = 1u << 7;
+            // bit 7 was FADE, the transition veil's draw — retired with the
+            // overlay at ONE_WORLD-I. A hole, like bit 5: the bit VALUES are
+            // the mask's contract with the console and do not re-pack.
         }
         namespace ShadowBit {
             inline constexpr uint32_t TERRAIN = 1u << 0;
@@ -589,10 +560,6 @@ namespace t7 {
             float fog_density;                // exponential fog coefficient (default 0.003)
             uint32_t _pad_fog[2];             // ditto
             float fog_color[3];               // fog/sky color RGB
-
-            // ─── Transition overlay ─────────────────────────────────
-            float fade_alpha;                 // 0.0 = no overlay, 1.0 = fully opaque
-            float fade_color[3];              // transition overlay RGB
 
             // ─── World structure ────────────────────────────────────
             uint32_t _pad_pier_retired;       // pier_count's slot (BATCH G erasure). WGSL's
@@ -676,7 +643,7 @@ namespace t7 {
 
             // ─── THE VEIL (re-ruled: RING = draw authority, fog = icing) ──
             // veil_ring: the SOLE draw authority (325 default) — terrain
-            //   banding, entity cull, flora/agent/floater VS gates all read
+            //   banding, entity cull, agent/floater VS gates all read
             //   it; nothing draws beyond it. Live-tunable.
             // veil_icing: δ — the narrow fade band [ring−δ, ring] in
             //   shade_lit (cosmetic; joins materialize inside it).
@@ -836,11 +803,13 @@ namespace t7 {
             float camera_push_radius;      // 692
             // ATRIUM_7 — THE DOORWAY'S OWN SHELL. Mirror of the WGSL twin —
             // GROWTH LAW, same commit, same position, same type. Rest
-            // authored at contracts/control_panel.hpp (FIELD_ARCH_SLACK);
-            // the boot pins it. A tail pad is consumed IN PLACE, so sizeof
-            // 704 is unmoved and no witness below moves either. Was
-            // _pad704_0.
-            float field_arch_slack;        // 696
+            // _pad_arch_slack_retired: field_arch_slack's slot. The dial
+            // scaled an arch leg's own shell (ATRIUM_7) and both its
+            // reader and its authored constant left at ONE_WORLD-I U3/U5.
+            // Kept as a NAMED PAD rather than removed — the pier_count
+            // precedent: retiring the slot would shift every offset after
+            // it and re-pad four vec3 boundaries for four bytes.
+            uint32_t _pad_arch_slack_retired;   // 696
             // ─── The subtraction dials (PANORAMA_1) ──────────────────────
             // THE INSTRUMENT THE METER LACKS. `[METER]` brackets a PASS; it
             // cannot say which draw inside the pass spent the milliseconds,
@@ -906,7 +875,15 @@ namespace t7 {
         };
         static_assert(sizeof(GPUTileGrid) == 16 + Dim::TILE_GRID_CAPACITY * 16, "GPUTileGrid must match WGSL layout");
 
-        struct alignas(16) GPUAgentState {
+        // NOT alignas(16), and that is the whole record: the wire the
+        // bubble sensor rode (portal_trigger, once byte 60) left at
+        // ONE_WORLD-I U1 and the PASSER's packed route (once byte 36) at
+        // U5, so 22 scalars are 88 bytes. alignas(16) would round
+        // sizeof back to 96 while the WGSL twin — whose align is its widest
+        // member, 4 — stayed 92, and the storage array's stride would part
+        // from C++'s silently. No pad stands in for the departed field: an
+        // excised field never existed.
+        struct GPUAgentState {
             float pos_x;           //  0
             float pos_y;           //  4
             float pos_z;           //  8
@@ -916,25 +893,20 @@ namespace t7 {
             float vel_z;           // 24
             float heading;         // 28
             float home_x;          // 32
-            uint32_t route;        // 36 — ATRIUM_4. Was home_y: the tether is planar
-                                   //      and nothing ever read it (R4). PASSER's route
-                                   //      state, packed (leg<<12)|(cur<<4)|(phase<<1)|1;
-                                   //      0 = fresh. Zero on every other behaviour.
-            float home_z;          // 40
-            uint32_t seed;         // 44 — stable noise source
-            uint32_t behavior_id;  // 48 — AgentBehaviorId (see bodies/agents.hpp)
-            uint32_t tier_idx;     // 52 — AgentTierId     (see bodies/agents.hpp)
-            uint32_t is_active;    // 56 — 0 = inactive (collapsed in VS + skipped in update)
-            int32_t  portal_trigger; // 60 — only meaningful on the possessed slot (-1 = none)
-            float orient_x;        // 64 — heading ⊗ tilt quaternion
-            float orient_y;        // 68
-            float orient_z;        // 72
-            float orient_w;        // 76
-            float color_r;         // 80 — per-agent body color (palette pick at spawn)
-            float color_g;         // 84
-            float color_b;         // 88
-            uint32_t skin_id;      // 92 — PawnFigureDef row (0 = regular pawn). Was _pad0.
-        };                         // 96 total
+            float home_z;          // 36
+            uint32_t seed;         // 40 — stable noise source
+            uint32_t behavior_id;  // 44 — AgentBehaviorId (see bodies/agents.hpp)
+            uint32_t tier_idx;     // 48 — AgentTierId     (see bodies/agents.hpp)
+            uint32_t is_active;    // 52 — 0 = inactive (collapsed in VS + skipped in update)
+            float orient_x;        // 56 — heading ⊗ tilt quaternion
+            float orient_y;        // 60
+            float orient_z;        // 64
+            float orient_w;        // 68
+            float color_r;         // 72 — per-agent body color (palette pick at spawn)
+            float color_g;         // 76
+            float color_b;         // 80
+            uint32_t skin_id;      // 84 — PawnFigureDef row (0 = regular pawn). Was _pad0.
+        };                         // 88 total
 
         // ─── Agent registry GPU structs ──────────────────────────────
         //
@@ -957,7 +929,7 @@ namespace t7 {
             float home_pull;       // 16 — 1/s² tether spring coefficient
             float neighbor_radius; // 20 — world units, flock/cohesion sample radius
             float speed_cap;       // 24 — world units/s
-            float aux;             // 28 — ATRIUM_4: behaviour-specific scalar (PASSER = the band, wu; 0 elsewhere). Was _pad.
+            float aux;             // 28 — ATRIUM_4: behaviour-specific scalar. Its one user (PASSER) left at ONE_WORLD-I U4; 0 on every row now. Was _pad, and the row is 16-aligned by it.
         };                         // 32 total (16-byte aligned)
 
         // Counts mirror the AGENT_BEHAVIOR_COUNT / AGENT_TIER_COUNT
@@ -966,7 +938,7 @@ namespace t7 {
         // on bodies/agents.hpp (which is included after state.hpp, at
         // file scope in the cartridge cohort). Asserts in
         // bodies/agents.hpp verify these stay in sync.
-        static constexpr uint32_t GPU_AGENT_BEHAVIOR_COUNT = 11;
+        static constexpr uint32_t GPU_AGENT_BEHAVIOR_COUNT = 10;
         static constexpr uint32_t GPU_AGENT_TIER_COUNT = 4;
 
         //
@@ -1273,31 +1245,6 @@ namespace t7 {
         static_assert(offsetof(GPURibbonBody, emit) == 96);
         static_assert(offsetof(GPURibbonBody, deform) == 3296);
 
-        struct alignas(16) GPUArchGroundEntry {
-            float pier_left_x;
-            float pier_left_z;
-            float pier_right_x;
-            float pier_right_z;
-            float ground_y;         // written by GPU compute: min of terrain at both legs
-            uint32_t is_active;
-            float pier_correction_left;   // retired (always 0 — the pier bake is gone)
-            float pier_correction_right;  // retired (always 0 — the pier bake is gone)
-        };
-        static_assert(sizeof(GPUArchGroundEntry) == 32, "GPUArchGroundEntry must be 32 bytes");
-
-        // Per-column ground truth: CPU writes center XZ + active flag;
-        // GPU compute writes ground_y from the heightfield.
-        struct alignas(16) GPUColumnGroundEntry {
-            float center_x;
-            float center_z;
-            float ground_y;         // written by GPU compute from heightfield - correction
-            uint32_t is_active;
-            float pier_correction;  // retired (always 0 — the pier bake is gone)
-            float _pad0;
-            float _pad1;
-            float _pad2;
-        };
-        static_assert(sizeof(GPUColumnGroundEntry) == 32, "GPUColumnGroundEntry must be 32 bytes");
 
         // Generative pyramids — tapered height function baked into heightfield.
         // Pawn blocked by step-height on steep faces (no separate collision).
@@ -1319,174 +1266,8 @@ namespace t7 {
         static_assert(sizeof(GPUPyramidArray) == 16 + Dim::MAX_PYRAMID_INSTANCES * 32,
             "GPUPyramidArray must match WGSL layout");
 
-        // MUST match world.wgsl::ArchMeshParams (§9.1).
-        // If this struct gains/loses a field, the WGSL side and
-        // its sizeof static_assert must be updated together.
-        // Catenary parameter 'a' is precomputed on CPU (50-iter
-        // bisection) to keep the shader simple.
-        struct alignas(16) GPUArchMeshParams {
-            float center_x;
-            float center_z;
-            float rotation;
-            float half_span;
-            float rise;
-            float depth;
-            float thickness;
-            float pier_height;
-            float burial;
-            float catenary_a;
-            uint32_t segs_u;
-            uint32_t segs_v;
-            float color_r;
-            float color_g;
-            float color_b;
-            uint32_t is_active;
-            // MOSAIC_1: 0 = plain; 1..65535 rides the index channel as
-            // enc = mosaic_seed·64 + slot. GROWTH LAW: 64 → 80 with the
-            // WGSL twin, same commit. Zero-init {} keeps every direct-
-            // build path (portals) plain by construction.
-            uint32_t mosaic_seed;
-            uint32_t _pad80_0;
-            uint32_t _pad80_1;
-            uint32_t _pad80_2;
-        };
-        static_assert(sizeof(GPUArchMeshParams) == 80,
-            "GPUArchMeshParams must be 80 bytes — keep in sync with world.wgsl::ArchMeshParams (MOSAIC_1: 64 → 80)");
 
         //
-        // MUST match world.wgsl::ColumnMeshParams (§9.2).
-        // If this struct gains/loses a field, the WGSL side and
-        // its sizeof static_assert must be updated together.
-        struct alignas(16) GPUColumnMeshParams {
-            float center_x;
-            float center_z;
-            float height;
-            float shaft_radius;
-            float taper;
-            float entasis;
-            float base_height;
-            float base_overhang;
-            float capital_height;
-            float capital_overhang;
-            float burial;
-            float color_r;
-            float color_g;
-            float color_b;
-            uint32_t base_layers;
-            uint32_t capital_layers;
-            uint32_t segs_around;
-            uint32_t shaft_rings;
-            uint32_t is_active;
-            uint32_t tier;              // 0=Pillar, 1=Doric, 2=Ornate, 3=Antenna
-            // ─── Antenna drum colors (3 drums × RGB) ─────────────
-            float drum_color_r1, drum_color_g1, drum_color_b1;
-            float drum_color_r2, drum_color_g2, drum_color_b2;
-            float drum_color_r3, drum_color_g3, drum_color_b3;
-            uint32_t mosaic_seed;       // MOSAIC_1 — first pad repurposed (the indoor_height_cap precedent); 0 = plain
-            float _pad128[2];           // pad to 128 bytes
-        };
-        static_assert(sizeof(GPUColumnMeshParams) == 128,
-            "GPUColumnMeshParams must be 128 bytes — keep in sync with world.wgsl::ColumnMeshParams");
-
-        // ─── Palm GPU structs ─────────────────────────────────────────────
-        //
-        // MUST match world.wgsl::PalmMeshParams (§9.3).
-        // If this struct gains/loses a field, the WGSL side and
-        // its sizeof static_assert must be updated together.
-        struct alignas(16) GPUPalmMeshParams {
-            float center_x, center_z;
-            float height;
-            float base_r, top_r;
-            float lean, lean_dir;
-            float bark_rings, bark_depth;
-            float frond_count;
-            float frond_len, frond_width;
-            float frond_droop, frond_arch;
-            float crown_spread, crown_skirt;
-            float burial;
-            float trunk_r, trunk_g, trunk_b;
-            float frond_r, frond_g, frond_b;
-            float aged_r, aged_g, aged_b;
-            uint32_t trunk_segs, frond_segs;
-            uint32_t is_active;
-            float _pad0;
-        };
-        static_assert(sizeof(GPUPalmMeshParams) == 128,
-            "GPUPalmMeshParams must be 128 bytes — keep in sync with world.wgsl::PalmMeshParams");
-
-        struct alignas(16) GPUPalmGroundEntry {
-            float center_x;
-            float center_z;
-            float ground_y;
-            uint32_t is_active;
-            float _pad0, _pad1, _pad2, _pad3;
-        };
-        static_assert(sizeof(GPUPalmGroundEntry) == 32, "GPUPalmGroundEntry must be 32 bytes");
-
-        // ─── Cactus GPU structs ──────────────────────────────────────────
-        //
-        // MUST match world.wgsl::CactusMeshParams (§9.4).
-        // If this struct gains/loses a field, the WGSL side and
-        // its sizeof static_assert must be updated together.
-        // 21 floats + 4 uint32_t = 100 bytes data + 28 bytes pad = 128
-        struct alignas(16) GPUCactusMeshParams {
-            float center_x, center_z;                    // 2 floats
-            float height, radius, taper;                 // 3 floats
-            float ribs, rib_depth;                       // 2 floats
-            float lean, lean_dir;                        // 2 floats
-            float cap_round;                             // 1 float
-            float arm_count;                             // 1 float
-            float arm_height, arm_length, arm_radius;    // 3 floats
-            float arm_curve;                             // 1 float
-            float body_r, body_g, body_b;                // 3 floats
-            float rib_r, rib_g, rib_b;                   // 3 floats  = 21 floats
-            uint32_t trunk_segs, arm_segs;               // 2 uint32
-            uint32_t is_active;                          // 1 uint32
-            uint32_t seed;                               // 1 uint32  = 4 uint32 = 25 fields = 100 bytes
-            float _pad0, _pad1, _pad2, _pad3, _pad4, _pad5, _pad6;  // 7 pad = 128 bytes
-        };
-        static_assert(sizeof(GPUCactusMeshParams) == 128,
-            "GPUCactusMeshParams must be 128 bytes — keep in sync with world.wgsl::CactusMeshParams");
-
-        struct alignas(16) GPUCactusGroundEntry {
-            float center_x;
-            float center_z;
-            float ground_y;
-            uint32_t is_active;
-            float _pad0, _pad1, _pad2, _pad3;
-        };
-        static_assert(sizeof(GPUCactusGroundEntry) == 32, "GPUCactusGroundEntry must be 32 bytes");
-
-        // ─── Blade Cluster GPU structs ──────────────────────────────────
-        //
-        // MUST match world.wgsl::BladeClusterMeshParams (§9.5).
-        // If this struct gains/loses a field, the WGSL side and
-        // its sizeof static_assert must be updated together.
-        struct alignas(16) GPUBladeClusterMeshParams {
-            float center_x, center_z;                        // 2 floats
-            float blade_count;                               // 1 float (cast to u32 in shader)
-            float blade_h, blade_h_var, blade_w;             // 3 floats
-            float splay, curve, twist, taper;                // 4 floats
-            float blade_r, blade_g, blade_b;                 // 3 floats
-            float aged_r, aged_g, aged_b;                    // 3 floats  = 16 floats = 64 bytes
-            uint32_t blade_segs;                             // 1 uint32
-            uint32_t is_active;                              // 1 uint32
-            uint32_t seed;                                   // 1 uint32
-            uint32_t _pad0;                                  // 1 uint32  = 4 uint32 = 16 bytes
-        };                                                   // total = 80 bytes
-        static_assert(sizeof(GPUBladeClusterMeshParams) == 80,
-            "GPUBladeClusterMeshParams must be 80 bytes — keep in sync with world.wgsl::BladeClusterMeshParams");
-
-        struct alignas(16) GPUBladeClusterGroundEntry {
-            float center_x;
-            float center_z;
-            float ground_y;
-            uint32_t is_active;
-            float _pad0, _pad1, _pad2, _pad3;
-        };
-        static_assert(sizeof(GPUBladeClusterGroundEntry) == 32,
-            "GPUBladeClusterGroundEntry must be 32 bytes");
-
         // GoL zone config — per-zone parameters for compute + fragment shader
         struct alignas(16) GPUGoLZoneConfig {
             float origin[2];
@@ -1888,14 +1669,6 @@ namespace t7 {
             float normal[3];
         };
 
-        // Extended vertex for arch meshes: per-vertex color enables
-        // terrain-derived tones and palette overrides per instance.
-        struct ArchVertex {
-            float pos[3];
-            float normal[3];
-            float color[3];
-            uint32_t arch_index;
-        };
 
         // Indoor shell vertex: position + normal + color (no entity index).
         // Used for ceiling, walls, and floor of indoor scenes.
@@ -1950,7 +1723,7 @@ namespace t7 {
         // 624 -> 672. Both rooms, same commit.
         // RIBBON_2: the wander brain's four join them — one pad consumed,
         // three appended, one fresh pad; 672 -> 688. Both rooms, same commit.
-        static_assert(sizeof(GPUDesignConfig) == 720,
+        static_assert(sizeof(GPUDesignConfig) == 704,
             "GPUDesignConfig must be 720 bytes. PRUNING_1 P3 removed nine "
             "zero-read fields (44 B) and added 12 B of DECLARED PAD: WGSL "
             "aligns vec3 to 16 while C++ packs float[3] at 4, and dropping "
@@ -1970,39 +1743,26 @@ namespace t7 {
             "and the trailing pad is spent. The witness's two presence dials "
             "met that: no pad to reuse, two appended, two fresh pads to the "
             "boundary; 688 -> 704. PANORAMA_1: the two subtraction masks — one pad consumed IN PLACE, one appended, three fresh pads to the "
-            "boundary; 704 -> 720. PANORAMA_1: the PCF tap count consumes one of those three pads IN PLACE — 720 unmoved.)");
+            "boundary; 704 -> 720. PANORAMA_1: the PCF tap count consumes one of those three pads IN PLACE — 720 unmoved. "
+            "ONE_WORLD-I: the transition veil's two knobs LEFT — fade_alpha "
+            "(4 B) and fade_color (12 B) were one contiguous 16 B spanning "
+            "two mirror rows, so every offset after them drops exactly 16 "
+            "and every vec3 keeps its boundary; 720 -> 704.)");
         // THE ALIGNMENT LAW (L4, docs/LAWS.md). These four are the only
         // offsets where the two rooms can disagree, and no witness here fires
         // when they do — grow at the TAIL (after checker_resultant's group) or
         // pad. The trailing 4-byte pad is spent, so the next knob meets this.
         static_assert(offsetof(GPUDesignConfig, sun_direction)     % 16 == 0
                    && offsetof(GPUDesignConfig, fog_color)         % 16 == 0
-                   && offsetof(GPUDesignConfig, fade_color)        % 16 == 0
                    && offsetof(GPUDesignConfig, checker_resultant) % 16 == 0,
             "every float[3] whose WGSL twin is vec3<f32> must sit on a 16-byte "
             "boundary — WGSL rounds vec3 up to align 16 and C++ does not, so an "
             "off-boundary one silently shifts the whole mirror (see GROWTH LAW)");
 
-        // Portal ellipse array — uploaded when portal set changes.
-        // GPU behavior_player_controlled tests pawn against arch-shaped ellipses and writes portal_trigger.
-        static constexpr uint32_t MAX_GPU_PORTALS = 32;
-        struct alignas(16) GPUPortalEntry {
-            float x;                  //  0  world XZ center
-            float z;                  //  4
-            float facing_cos;         //  8  cos(rotation)
-            float facing_sin;         // 12  sin(rotation)
-            float inv_span_sq;        // 16  1 / half_span²  (lateral — foot-to-foot)
-            float inv_depth_sq;       // 20  1 / (depth*0.5)² (forward — walk-through)
-            uint32_t arch_index;      // 24  maps to CPU entities_state_.arches[index]
-            uint32_t kind;            // 28 — 0 forward, 1 back (ATRIUM_2: the passers walk forward doors only)
-        };
-        struct alignas(16) GPUPortalArray {
-            uint32_t count;
-            uint32_t _pad[3];
-            GPUPortalEntry portals[MAX_GPU_PORTALS];
-        };
-        static_assert(sizeof(GPUPortalArray) == 16 + MAX_GPU_PORTALS * 32,
-            "GPUPortalArray layout check");
+        // THE PORTAL ELLIPSE ARRAY stood here (GPUPortalEntry /
+        // GPUPortalArray / MAX_GPU_PORTALS) — the room the player kernel
+        // tested and the PASSER round walked. Writer and readers both
+        // left (ONE_WORLD-I U2, U4).
 
         // ── THE AGENTS' ROOM CONSTANTS (CHORD_1) ──────────────────────
         // Five uniform seats became one block. Everything here is
@@ -2011,30 +1771,38 @@ namespace t7 {
         // world.wgsl::AgentRoomConstants BYTE-FOR-BYTE; the asserts below
         // are the handshake (L3 — both rooms, same commit).
         //
-        // WINDOWS, NOT HOMES (docs/CHORD.md): tier_gains and the two
-        // occupier arrays each have exactly one CPU home and one authoring
-        // site; this block is a transport window onto them, and the
-        // authoring site writes every window it owns.
+        // WINDOWS, NOT HOMES (docs/CHORD.md): tier_gains and the occupier
+        // array each have exactly one CPU home and one authoring site; this
+        // block is a transport window onto them, and the authoring site
+        // writes every window it owns. (There were TWO occupier arrays —
+        // the second was the column/antenna shafts', and it left with those
+        // families in PRUNE_2 U4. Nothing wrote it after they went, and the
+        // agent loops that read it could only ever have found is_active 0.)
         struct alignas(16) GPUAgentRoomConstants {
-            GPUPortalArray      portals;                                  //    0
-            GPUAgentBehaviorDef behaviors[GPU_AGENT_BEHAVIOR_COUNT];      // 1040 (ATRIUM_4: 11 rows, +32 B)
-            GPUAgentTierDef     tier_gains[GPU_AGENT_TIER_COUNT];         // 1392
-            GPUColumnMeshParams occupier_cmg[Dim::MAX_COLUMN_INSTANCES];  // 1584
-            GPUArchMeshParams   occupier_amg[Dim::MAX_ARCH_INSTANCES];    // 5680
+            GPUAgentBehaviorDef behaviors[GPU_AGENT_BEHAVIOR_COUNT];      //   0
+            GPUAgentTierDef     tier_gains[GPU_AGENT_TIER_COUNT];         // 320
         };
-        static_assert(sizeof(GPUAgentRoomConstants) == 6960);
-        static_assert(offsetof(GPUAgentRoomConstants, behaviors)    == 1040);
-        static_assert(offsetof(GPUAgentRoomConstants, tier_gains)   == 1392);
-        static_assert(offsetof(GPUAgentRoomConstants, occupier_cmg) == 1584);
-        static_assert(offsetof(GPUAgentRoomConstants, occupier_amg) == 5680);
+        // CHORD_1's occupier window (occupier_amg, once at 1584) was the arch
+        // legs' presence face — the same mesh-param rows the mesh-gen kernel
+        // read. It is the SECOND such window to leave: the shafts' occupier_cmg
+        // went with COLUMN and ANTENNA at PRUNE_2 U4, on the argument that
+        // every reader loop opens `if (is_active == 0u) continue;` and nothing
+        // writes the window once the family is gone. The same argument retires
+        // this one, and with it the room's tail: 2864 -> 1584.
+        static_assert(sizeof(GPUAgentRoomConstants) == 512);
+        static_assert(offsetof(GPUAgentRoomConstants, behaviors)    == 0);
+        static_assert(offsetof(GPUAgentRoomConstants, tier_gains)   == 320);
         // The two registries are contiguous, which is what lets
         // upload_agent_registries spend ONE write on both.
         static_assert(offsetof(GPUAgentRoomConstants, behaviors)
             + sizeof(GPUAgentBehaviorDef) * GPU_AGENT_BEHAVIOR_COUNT
             == offsetof(GPUAgentRoomConstants, tier_gains),
             "behaviors and tier_gains must stay adjacent — the registry upload writes them as one range");
-        static_assert(sizeof(GPUAgentState) == 96, "GPUAgentState must be 96 bytes");
-        static_assert(sizeof(GPUAgentState) % 16 == 0, "GPUAgentState must be 16-byte aligned");
+        static_assert(sizeof(GPUAgentState) == 88, "GPUAgentState must be 88 bytes");
+        static_assert(alignof(GPUAgentState) == 4,
+            "GPUAgentState must stay 4-aligned — its WGSL twin is all scalars, so the "
+            "storage array's stride is its size; any wider alignment pads C++ only and "
+            "parts the two strides without a diagnostic");
         static_assert(sizeof(GPUAgentBehaviorDef) == 32, "GPUAgentBehaviorDef must be 32 bytes");
         static_assert(sizeof(GPUAgentBehaviorDef) % 16 == 0, "GPUAgentBehaviorDef must be 16-byte aligned");
         static_assert(sizeof(GPUAgentTierDef) == 48, "GPUAgentTierDef must be 48 bytes (CONTACT_2 added personal_radius + flee_gain_player; 40 data -> 48 with 8 B pad — the uniform array stride)");
@@ -2133,10 +1901,9 @@ namespace t7 {
         static_assert(sizeof(MeshVertex) == 24, "MeshVertex must be 24 bytes");
         // C1 (cable management): pin the GPU-written vertex formats to the vertex-buffer
         // arrayStride the render/shadow pipelines declare — the stride is ALSO the WGSL
-        // ArchVertexInput/ShellVertexInput layout, so this is the C++<->WGSL contract that
-        // was previously unguarded. ArchVertex is the
-        // SHARED format for six families (arch/column/palm/cactus/blade/pyramid mesh-gen).
-        static_assert(sizeof(ArchVertex) == 40, "ArchVertex must be 40 bytes (arch/shadow VBL arrayStride = 40; WGSL ArchVertexInput)");
+        // ShellVertexInput layout, so this is the C++<->WGSL contract that
+        // was previously unguarded. (ArchVertex, the shared arch/pyramid
+        // mesh-gen format, left with the arch at ONE_WORLD-I U3.)
         static_assert(sizeof(ShellVertex) == 36, "ShellVertex must be 36 bytes (shell/shadow VBL arrayStride = 36; WGSL ShellVertexInput)");
         static_assert(sizeof(GPUPatchParams) == 16, "LATTICE_1: the twin is 16 bytes");
         static_assert(sizeof(GPUPatchInstance) == 16, "GPUPatchInstance must be 16 bytes");
@@ -2170,21 +1937,22 @@ namespace t7 {
         // pinned to its RPhase by a static_assert beside the enum —
         // drift fails glaw1.
         namespace meter_row {
-            // Row 8 (LiveCardWrite) carries NO GPU row: SPINE_2 B made the
+            // Row 7 (LiveCardWrite) carries NO GPU row: SPINE_2 B made the
             // card the first dispatch of the compute pass, so its cost is
             // inside DispatchCompute's span. The spine row still exists and
             // still owns the rest law — only the timestamp pair retired.
-            inline constexpr uint32_t StreamPatches       = 2;
-            inline constexpr uint32_t EntityMeshGen       = 6;
-            inline constexpr uint32_t DispatchCompute     = 9;
-            inline constexpr uint32_t GolDeriveFlush      = 11;
-            inline constexpr uint32_t GolZoneCompute      = 12;
-            inline constexpr uint32_t PawnAura            = 13;
-            inline constexpr uint32_t OrbSky              = 14;
-            inline constexpr uint32_t PlacementCorrection = 16;
-            inline constexpr uint32_t FrustumCull         = 17;
-            inline constexpr uint32_t ShadowPass          = 18;
-            inline constexpr uint32_t MainPass            = 19;
+            // Every id below dropped ONE at ONE_WORLD-I: the PortalTrigger
+            // row sat at index 1 and left with the doors.
+            inline constexpr uint32_t StreamPatches       = 1;
+            inline constexpr uint32_t EntityMeshGen       = 5;
+            inline constexpr uint32_t DispatchCompute     = 8;
+            inline constexpr uint32_t GolDeriveFlush      = 10;
+            inline constexpr uint32_t GolZoneCompute      = 11;
+            inline constexpr uint32_t PawnAura            = 12;
+            inline constexpr uint32_t OrbSky              = 13;
+            inline constexpr uint32_t FrustumCull         = 14;
+            inline constexpr uint32_t ShadowPass          = 15;
+            inline constexpr uint32_t MainPass            = 16;
         }
 
         // GROUP 1 CARRIES A DYNAMIC SEAT (shadow_slot), so every bind of it
@@ -2198,10 +1966,10 @@ namespace t7 {
             // THE DRAW LEDGER'S VOCABULARY (BUNDLE_1) — declared at the head
             // of the class because the members below are of these types, and
             // public because the draw sites name records by hand
-            // (GPUState::DR_ARCH). The ledger's own prose lives with its
+            // (GPUState::DR_SHELL). The ledger's own prose lives with its
             // methods, beside reset_frustum_indirect.
             enum DrawRecord : uint32_t {
-                DR_ARCH, DR_COLUMN, DR_PALM, DR_CACTUS, DR_BLADE, DR_SHELL,
+                DR_SHELL,
                 DR_RIBBON, DR_ORBS,
                 DR_SHADOW_TERRAIN,          // both bands at LOD1 density, ONE draw
                 DR_COUNT
@@ -2355,31 +2123,6 @@ namespace t7 {
             wgpu::Buffer monolithVertexBuffer_, monolithIndexBuffer_;
             uint32_t monolithIndexCount_ = 0;
 
-            wgpu::Buffer archVertexBuffer_, archIndexBuffer_;
-            wgpu::Buffer archGroundBuffer_;  // per-arch ground Y correction (GPU-corrected)
-            wgpu::Buffer archMeshParamsBuffer_;  // GPU mesh gen: per-slot parameters
-            uint32_t archIndexCount_ = 0;
-
-            wgpu::Buffer columnVertexBuffer_, columnIndexBuffer_;
-            wgpu::Buffer columnGroundBuffer_;  // per-column ground Y correction (GPU-corrected)
-            wgpu::Buffer columnMeshParamsBuffer_;  // GPU mesh gen: per-slot parameters
-            uint32_t columnIndexCount_ = 0;
-
-            wgpu::Buffer palmVertexBuffer_, palmIndexBuffer_;
-            wgpu::Buffer palmMeshParamsBuffer_;
-            uint32_t palmIndexCount_ = 0;
-
-            wgpu::Buffer cactusVertexBuffer_, cactusIndexBuffer_;
-            wgpu::Buffer cactusMeshParamsBuffer_;
-            uint32_t cactusIndexCount_ = 0;
-
-            wgpu::Buffer bladeVertexBuffer_, bladeIndexBuffer_;
-            wgpu::Buffer bladeMeshParamsBuffer_;
-            uint32_t bladeIndexCount_ = 0;
-
-            // Combined palm+cactus+blade ground buffer for compute Y-correction.
-            // [0..23] palm, [24..43] cactus, [44..75] blade.  One storage binding.
-            wgpu::Buffer plantComputeGroundBuffer_;
 
             wgpu::Buffer pyramidInstancesBuffer_;  // GPU-side pyramid array for heightfield baking (LIVE)
 
@@ -2404,8 +2147,6 @@ namespace t7 {
             wgpu::BindGroupLayout orbsBStateLayout_;
             wgpu::BindGroupLayout patchgenStateLayout_;
             wgpu::BindGroupLayout patchgenTexturesLayout_;
-            wgpu::BindGroupLayout placeStateLayout_;
-            wgpu::BindGroupLayout placeTexturesLayout_;
             wgpu::BindGroupLayout ribbonStateLayout_;
             wgpu::BindGroupLayout ribbonTexturesLayout_;   // SPINE_2 — the room reads the baked ground
             wgpu::BindGroupLayout sceneStateLayout_;
@@ -2426,16 +2167,10 @@ namespace t7 {
             wgpu::BindGroup frameKStateGroup_;
             wgpu::BindGroup frameKTexturesGroup_;
             wgpu::BindGroup meshgenStateGroup_;
-            wgpu::BindGroup meshgenStateColumnGroup_;
-            wgpu::BindGroup meshgenStatePalmGroup_;
-            wgpu::BindGroup meshgenStateCactusGroup_;
-            wgpu::BindGroup meshgenStateBladeGroup_;
             wgpu::BindGroup orbsAStateGroup_;
             wgpu::BindGroup orbsBStateGroup_;
             wgpu::BindGroup patchgenStateGroup_;
             wgpu::BindGroup patchgenTexturesGroup_;
-            wgpu::BindGroup placeStateGroup_;
-            wgpu::BindGroup placeTexturesGroup_;
             wgpu::BindGroup ribbonStateGroup_;
             wgpu::BindGroup ribbonTexturesGroup_;   // SPINE_2 — was the shared EMPTY filler
             wgpu::BindGroup sceneStateGroup_;
@@ -2477,9 +2212,6 @@ namespace t7 {
             wgpu::Buffer orbQuadIB_;               // 6 indices: two triangles
 
             // Entity ground atlas (r32float, 256×1) — compute writes, VS reads
-            wgpu::Texture entityGroundAtlasTexture_;
-            wgpu::TextureView entityGroundAtlasWriteView_;   // storage texture (compute)
-            wgpu::TextureView entityGroundAtlasReadView_;    // sampled texture (VS)
 
             wgpu::Texture shadowMapTexture_;
             wgpu::TextureView shadowMapView_;
@@ -2638,8 +2370,8 @@ namespace t7 {
             // frame so the GPU frustum-cull shader uses the same POINT position as the
             // CPU's LOD banding (eliminates LOD0/LOD1 boundary flicker).
             void upload_lod_point(wgpu::Queue& queue) {
-                static_assert(offsetof(GPUDesignConfig, lod_point_x) == 352,
-                    "lod_point_x offset must be 384 for targeted upload");
+                static_assert(offsetof(GPUDesignConfig, lod_point_x) == 336,
+                    "lod_point_x offset must be 336 for targeted upload");
                 queue.WriteBuffer(configBuffer_,
                     offsetof(GPUDesignConfig, lod_point_x),
                     &config_.lod_point_x, sizeof(float) * 2);
@@ -2848,18 +2580,6 @@ namespace t7 {
                 queue.WriteBuffer(floatingEntityBuffer_, base + off, col, sizeof(col));
             }
 
-            // GPU mesh gen: write params for a single arch slot (64 bytes per spawn/evict)
-            void upload_arch_mesh_params_slot(wgpu::Queue& queue, uint32_t slot, const GPUArchMeshParams& params) {
-                writeSlot(queue, archMeshParamsBuffer_, slot, params);
-                // CHORD_1 — the occupier window on the same row. The mesh-gen
-                // kernel reads the storage face above; the agents room reads
-                // this one. One authored geometry, one home; the authoring
-                // site writes every window it owns, so the rows and the mesh
-                // can never disagree.
-                agentRoomStage_.occupier_amg[slot] = params;
-                writeSlot(queue, agentRoomBuffer_, slot, params,
-                    offsetof(GPUAgentRoomConstants, occupier_amg));
-            }
 
             // Arch GPU mesh gen bind group (dedicated layout — bindings 193-195)
             // ── LOOM_2 recut strata accessors ──
@@ -2878,8 +2598,6 @@ namespace t7 {
             wgpu::BindGroupLayout orbs_b_state_layout() const { return orbsBStateLayout_; }
             wgpu::BindGroupLayout patchgen_state_layout() const { return patchgenStateLayout_; }
             wgpu::BindGroupLayout patchgen_textures_layout() const { return patchgenTexturesLayout_; }
-            wgpu::BindGroupLayout place_state_layout() const { return placeStateLayout_; }
-            wgpu::BindGroupLayout place_textures_layout() const { return placeTexturesLayout_; }
             wgpu::BindGroupLayout ribbon_state_layout() const { return ribbonStateLayout_; }
             wgpu::BindGroupLayout ribbon_textures_layout() const { return ribbonTexturesLayout_; }
             wgpu::BindGroupLayout scene_state_layout() const { return sceneStateLayout_; }
@@ -2900,16 +2618,10 @@ namespace t7 {
             wgpu::BindGroup frame_k_state_group() const { return frameKStateGroup_; }
             wgpu::BindGroup frame_k_textures_group() const { return frameKTexturesGroup_; }
             wgpu::BindGroup meshgen_state_group() const { return meshgenStateGroup_; }
-            wgpu::BindGroup meshgen_state_column_group() const { return meshgenStateColumnGroup_; }
-            wgpu::BindGroup meshgen_state_palm_group() const { return meshgenStatePalmGroup_; }
-            wgpu::BindGroup meshgen_state_cactus_group() const { return meshgenStateCactusGroup_; }
-            wgpu::BindGroup meshgen_state_blade_group() const { return meshgenStateBladeGroup_; }
             wgpu::BindGroup orbs_a_state_group() const { return orbsAStateGroup_; }
             wgpu::BindGroup orbs_b_state_group() const { return orbsBStateGroup_; }
             wgpu::BindGroup patchgen_state_group() const { return patchgenStateGroup_; }
             wgpu::BindGroup patchgen_textures_group() const { return patchgenTexturesGroup_; }
-            wgpu::BindGroup place_state_group() const { return placeStateGroup_; }
-            wgpu::BindGroup place_textures_group() const { return placeTexturesGroup_; }
             wgpu::BindGroup ribbon_state_group() const { return ribbonStateGroup_; }
             wgpu::BindGroup ribbon_textures_group() const { return ribbonTexturesGroup_; }
             wgpu::BindGroup scene_state_group() const { return sceneStateGroup_; }
@@ -2993,7 +2705,6 @@ namespace t7 {
                 p.is_active = 1u;
                 p.behavior_id = 0u;  // AGENT_BEHAVIOR_PLAYER_CONTROLLED
                 p.tier_idx = tier_idx;
-                p.portal_trigger = -1;
                 p.color_r = color_r;
                 p.color_g = color_g;
                 p.color_b = color_b;
@@ -3089,15 +2800,6 @@ namespace t7 {
                 config_.band_phase_origin_5 = phase_origin[5];
                 configDirty_ = true;
             }
-            void set_fade(float alpha, float r, float g, float b) {
-                if (config_.fade_alpha != alpha ||
-                    config_.fade_color[0] != r || config_.fade_color[1] != g || config_.fade_color[2] != b) {
-                    config_.fade_alpha = alpha;
-                    config_.fade_color[0] = r; config_.fade_color[1] = g; config_.fade_color[2] = b;
-                    configDirty_ = true;
-                }
-            }
-
             // ─── Musical animation mode parameters ───────────────────────
             void set_mode_color_shift(float v) {
                 if (config_.mode_color_shift != v) { config_.mode_color_shift = v; configDirty_ = true; }
@@ -3338,67 +3040,7 @@ namespace t7 {
             wgpu::Buffer monolith_vertex_buffer() const { return monolithVertexBuffer_; }
             wgpu::Buffer monolith_index_buffer() const { return monolithIndexBuffer_; }
             uint32_t monolith_index_count() const { return monolithIndexCount_; }
-            wgpu::Buffer arch_vertex_buffer() const { return archVertexBuffer_; }
-            wgpu::Buffer arch_index_buffer() const { return archIndexBuffer_; }
-            wgpu::Buffer arch_ground_buffer() const { return archGroundBuffer_; }
-            uint32_t arch_index_count() const { return archIndexCount_; }
-            void set_arch_index_count(uint32_t count) { archIndexCount_ = count; }
 
-            void upload_arch_origins(wgpu::Queue& queue, const GPUArchGroundEntry* entries, uint32_t count) {
-                writeArray(queue, archGroundBuffer_, entries, std::min(count, Dim::MAX_ARCH_INSTANCES));
-            }
-            wgpu::Buffer column_vertex_buffer() const { return columnVertexBuffer_; }
-            wgpu::Buffer column_index_buffer() const { return columnIndexBuffer_; }
-            wgpu::Buffer column_ground_buffer() const { return columnGroundBuffer_; }
-            uint32_t column_index_count() const { return columnIndexCount_; }
-            void set_column_index_count(uint32_t count) { columnIndexCount_ = count; }
-
-            // GPU mesh gen: write params for a single column slot (80 bytes per spawn/evict)
-            void upload_column_mesh_params_slot(wgpu::Queue& queue, uint32_t slot, const GPUColumnMeshParams& params) {
-                writeSlot(queue, columnMeshParamsBuffer_, slot, params);
-                // CHORD_1 — the occupier window on the same row (see
-                // upload_arch_mesh_params_slot for the ruling).
-                agentRoomStage_.occupier_cmg[slot] = params;
-                writeSlot(queue, agentRoomBuffer_, slot, params,
-                    offsetof(GPUAgentRoomConstants, occupier_cmg));
-            }
-
-            // Column GPU mesh gen bind group
-
-            void upload_column_origins(wgpu::Queue& queue, const GPUColumnGroundEntry* entries, uint32_t count) {
-                writeArray(queue, columnGroundBuffer_, entries, std::min(count, Dim::MAX_COLUMN_INSTANCES));
-            }
-
-            // --- Palm accessors and upload ---
-            wgpu::Buffer palm_vertex_buffer() const { return palmVertexBuffer_; }
-            wgpu::Buffer palm_index_buffer() const { return palmIndexBuffer_; }
-            uint32_t palm_index_count() const { return palmIndexCount_; }
-            void set_palm_index_count(uint32_t count) { palmIndexCount_ = count; }
-
-            void upload_palm_mesh_params_slot(wgpu::Queue& queue, uint32_t slot, const GPUPalmMeshParams& params) {
-                writeSlot(queue, palmMeshParamsBuffer_, slot, params);
-            }
-
-
-            // --- Cactus accessors and upload ---
-            wgpu::Buffer cactus_vertex_buffer() const { return cactusVertexBuffer_; }
-            wgpu::Buffer cactus_index_buffer() const { return cactusIndexBuffer_; }
-            uint32_t cactus_index_count() const { return cactusIndexCount_; }
-            void set_cactus_index_count(uint32_t count) { cactusIndexCount_ = count; }
-            void upload_cactus_mesh_params_slot(wgpu::Queue& queue, uint32_t slot, const GPUCactusMeshParams& params) {
-                writeSlot(queue, cactusMeshParamsBuffer_, slot, params);
-            }
-
-            // --- Blade Cluster accessors and upload ---
-            wgpu::Buffer blade_vertex_buffer() const { return bladeVertexBuffer_; }
-            wgpu::Buffer blade_index_buffer() const { return bladeIndexBuffer_; }
-            wgpu::Buffer plant_compute_ground_buffer() const { return plantComputeGroundBuffer_; }
-            uint32_t blade_index_count() const { return bladeIndexCount_; }
-            void set_blade_index_count(uint32_t count) { bladeIndexCount_ = count; }
-            void upload_blade_mesh_params_slot(wgpu::Queue& queue, uint32_t slot,
-                const GPUBladeClusterMeshParams& params) {
-                writeSlot(queue, bladeMeshParamsBuffer_, slot, params);
-            }
 
             // --- Pyramid accessors and upload --- (the instance array only:
             //   pyramids ARE terrain, so there is no mesh to generate.)
@@ -3647,13 +3289,6 @@ namespace t7 {
 
             void upload_zone_derive_requests(wgpu::Queue& queue, const GPUZoneDeriveRequestArray& requests) {
                 writeStruct(queue, zoneDeriveRequestBuffer_, requests);
-            }
-
-            void upload_portal_array(wgpu::Queue& queue, const GPUPortalArray& arr) {
-                agentRoomStage_.portals = arr;
-                queue.WriteBuffer(agentRoomBuffer_,
-                    offsetof(GPUAgentRoomConstants, portals),
-                    &agentRoomStage_.portals, sizeof(agentRoomStage_.portals));
             }
 
             void upload_zone_life(wgpu::Queue& queue, uint32_t slot,
@@ -3905,7 +3540,8 @@ namespace t7 {
                 agentStateBuffer_ = makeBuffer("Agent State",
                     Dim::MAX_AGENTS * sizeof(GPUAgentState),
                     wgpu::BufferUsage::Storage | wgpu::BufferUsage::CopyDst | wgpu::BufferUsage::CopySrc);
-                // CHORD_1: one 6960 B uniform block where five buffers stood.
+                // CHORD_1: one 2864 B uniform block where five buffers stood
+                // (6960 B until PRUNE_2 U4 cut the shafts' occupier window).
                 agentRoomBuffer_ = makeBuffer("Agents' Room Constants",
                     sizeof(GPUAgentRoomConstants), UU);
                 // CHORD_4: one 4336 B uniform block where three buffers stood.
@@ -4326,7 +3962,7 @@ namespace t7 {
                     q.WriteBuffer(patchIndexBufferLOD1_, 0, idx.data(), ib_bytes_u16(patchIndexCountRingZoned_));
                 }
 
-                return createSphereMesh() && createMonolithMesh() && createArchMesh() && createColumnMesh() && createPalmMesh() && createCactusMesh() && createBladeMesh() && createPyramidMesh() && createShellMesh() && createGoLZoneBuffers();
+                return createSphereMesh() && createMonolithMesh() && createPyramidMesh() && createShellMesh() && createGoLZoneBuffers();
             }
 
             bool createSphereMesh() {
@@ -4435,184 +4071,6 @@ namespace t7 {
                 return true;
             }
 
-            bool createArchMesh() {
-                // LATENT[gate-a-shared] arch (SH·mb): mesh VB/IB/params + 3 pipelines droppable, but archGroundBuffer_ is exclusive-in-Entity-Placement. Retire = re-section Entity Placement.
-                // VB: Vertex + CopyDst (transition fallback) + Storage (GPU compute writes)
-                archVertexBuffer_ = makeBuffer("Arch VB (GPU mesh gen)",
-                    Dim::AMG_TOTAL_VERTICES * sizeof(ArchVertex),
-                    wgpu::BufferUsage::Vertex | wgpu::BufferUsage::CopyDst | wgpu::BufferUsage::Storage);
-                // IB: Index + CopyDst (transition fallback) + Storage (GPU compute writes)
-                archIndexBuffer_ = makeBuffer("Arch IB (GPU mesh gen)",
-                    Dim::AMG_TOTAL_INDICES * sizeof(uint32_t),
-                    wgpu::BufferUsage::Index | wgpu::BufferUsage::CopyDst | wgpu::BufferUsage::Storage);
-                // Per-arch ground Y correction buffer (GPU compute writes, VS reads)
-                archGroundBuffer_ = makeBuffer("Arch Ground Y",
-                    Dim::MAX_ARCH_INSTANCES * sizeof(GPUArchGroundEntry),
-                    wgpu::BufferUsage::Storage | wgpu::BufferUsage::CopyDst);
-                // Mesh gen params buffer (16 × 80 bytes — MOSAIC_1 growth; size derives from sizeof below)
-                archMeshParamsBuffer_ = makeBuffer("Arch Mesh Params",
-                    Dim::MAX_ARCH_INSTANCES * sizeof(GPUArchMeshParams),
-                    // CHORD_1: Uniform dropped — the occupier window it served
-                    // now rides agentRoomBuffer_; the mesh-gen kernels'
-                    // read-only storage face is all that is left on this buffer.
-                    wgpu::BufferUsage::Storage | wgpu::BufferUsage::CopyDst);
-
-                if (!archVertexBuffer_ || !archIndexBuffer_ || !archGroundBuffer_ ||
-                    !archMeshParamsBuffer_) return false;
-
-                // Index count starts at 0 — updated by cartridge as arches spawn/evict
-                archIndexCount_ = 0;
-
-                // Zero-init params buffer (all slots inactive)
-                {
-                    GPUArchMeshParams emptyParams[Dim::MAX_ARCH_INSTANCES]{};
-                    device_.GetQueue().WriteBuffer(archMeshParamsBuffer_, 0, emptyParams,
-                        sizeof(GPUArchMeshParams) * Dim::MAX_ARCH_INSTANCES);
-                }
-
-                // Zero-init VB so degenerate indices (pointing to vertex 0) have
-                // safe arch_index=0, preventing out-of-bounds ground_y lookups in VS.
-                {
-                    std::vector<uint8_t> zeros(Dim::AMG_TOTAL_VERTICES * sizeof(ArchVertex), 0);
-                    device_.GetQueue().WriteBuffer(archVertexBuffer_, 0, zeros.data(), zeros.size());
-                }
-
-                std::cout << "[GPUState] Arch buffers (GPU mesh gen): "
-                    << Dim::AMG_TOTAL_VERTICES << " vert, "
-                    << Dim::AMG_TOTAL_INDICES << " index capacity\n";
-                return true;
-            }
-
-            bool createColumnMesh() {
-                // LATENT[gate-a-shared] column (SH·mb): mesh VB/IB/params + 3 pipelines droppable (antenna rides this mesh — NO-RES), but columnGroundBuffer_ is exclusive-in-Entity-Placement. Retire = re-section Entity Placement.
-                columnVertexBuffer_ = makeBuffer("Column VB (GPU mesh gen)",
-                    Dim::CMG_TOTAL_VERTICES * sizeof(ArchVertex),
-                    wgpu::BufferUsage::Vertex | wgpu::BufferUsage::CopyDst | wgpu::BufferUsage::Storage);
-                columnIndexBuffer_ = makeBuffer("Column IB (GPU mesh gen)",
-                    Dim::CMG_TOTAL_INDICES * sizeof(uint32_t),
-                    wgpu::BufferUsage::Index | wgpu::BufferUsage::CopyDst | wgpu::BufferUsage::Storage);
-                columnGroundBuffer_ = makeBuffer("Column Ground Y",
-                    Dim::MAX_COLUMN_INSTANCES * sizeof(GPUColumnGroundEntry),
-                    wgpu::BufferUsage::Storage | wgpu::BufferUsage::CopyDst);
-                columnMeshParamsBuffer_ = makeBuffer("Column Mesh Params",
-                    Dim::MAX_COLUMN_INSTANCES * sizeof(GPUColumnMeshParams),
-                    // CHORD_1: Uniform dropped — the occupier window it served
-                    // now rides agentRoomBuffer_; the mesh-gen kernels'
-                    // read-only storage face is all that is left on this buffer.
-                    wgpu::BufferUsage::Storage | wgpu::BufferUsage::CopyDst);
-
-                if (!columnVertexBuffer_ || !columnIndexBuffer_ || !columnGroundBuffer_ ||
-                    !columnMeshParamsBuffer_) return false;
-
-                columnIndexCount_ = 0;
-
-                // Zero-init params (all slots inactive)
-                {
-                    GPUColumnMeshParams emptyParams[Dim::MAX_COLUMN_INSTANCES]{};
-                    device_.GetQueue().WriteBuffer(columnMeshParamsBuffer_, 0, emptyParams,
-                        sizeof(GPUColumnMeshParams) * Dim::MAX_COLUMN_INSTANCES);
-                }
-
-                // Zero-init VB for safe degenerate vertex access
-                {
-                    std::vector<uint8_t> zeros(Dim::CMG_TOTAL_VERTICES * sizeof(ArchVertex), 0);
-                    device_.GetQueue().WriteBuffer(columnVertexBuffer_, 0, zeros.data(), zeros.size());
-                }
-
-                std::cout << "[GPUState] Column buffers (GPU mesh gen): "
-                    << Dim::CMG_TOTAL_VERTICES << " vert, "
-                    << Dim::CMG_TOTAL_INDICES << " index capacity\n";
-                return true;
-            }
-
-            bool createPalmMesh() {
-                // LATENT[gate-a-shared] palm (SH·dc): VB/IB/params exclusive+droppable, but co-owns plantComputeGroundBuffer_ (palm+cactus+blade) and draw_palm isn't self-count-gated. Retire = draw self-gate, then skip.
-                palmVertexBuffer_ = makeBuffer("Palm VB (GPU mesh gen)",
-                    Dim::PALMG_TOTAL_VERTICES * sizeof(ArchVertex),
-                    wgpu::BufferUsage::Vertex | wgpu::BufferUsage::CopyDst | wgpu::BufferUsage::Storage);
-                palmIndexBuffer_ = makeBuffer("Palm IB (GPU mesh gen)",
-                    Dim::PALMG_TOTAL_INDICES * sizeof(uint32_t),
-                    wgpu::BufferUsage::Index | wgpu::BufferUsage::CopyDst | wgpu::BufferUsage::Storage);
-                palmMeshParamsBuffer_ = makeBuffer("Palm Mesh Params",
-                    Dim::MAX_PALM_INSTANCES * sizeof(GPUPalmMeshParams),
-                    wgpu::BufferUsage::Storage | wgpu::BufferUsage::CopyDst);
-
-                if (!palmVertexBuffer_ || !palmIndexBuffer_ ||
-                    !palmMeshParamsBuffer_) return false;
-
-                palmIndexCount_ = 0;
-                {
-                    GPUPalmMeshParams emptyParams[Dim::MAX_PALM_INSTANCES]{};
-                    device_.GetQueue().WriteBuffer(palmMeshParamsBuffer_, 0, emptyParams,
-                        sizeof(GPUPalmMeshParams) * Dim::MAX_PALM_INSTANCES);
-                }
-                {
-                    std::vector<uint8_t> zeros(Dim::PALMG_TOTAL_VERTICES * sizeof(ArchVertex), 0);
-                    device_.GetQueue().WriteBuffer(palmVertexBuffer_, 0, zeros.data(), zeros.size());
-                }
-                return true;
-            }
-
-            bool createCactusMesh() {
-                // LATENT[gate-a-shared] cactus (SH·dc): VB/IB/params exclusive+droppable, but co-owns plantComputeGroundBuffer_ (palm+cactus+blade) and draw_cactus isn't self-count-gated. Retire = draw self-gate, then skip.
-                cactusVertexBuffer_ = makeBuffer("Cactus VB (GPU mesh gen)",
-                    Dim::CACTUSG_TOTAL_VERTICES * sizeof(ArchVertex),
-                    wgpu::BufferUsage::Vertex | wgpu::BufferUsage::CopyDst | wgpu::BufferUsage::Storage);
-                cactusIndexBuffer_ = makeBuffer("Cactus IB (GPU mesh gen)",
-                    Dim::CACTUSG_TOTAL_INDICES * sizeof(uint32_t),
-                    wgpu::BufferUsage::Index | wgpu::BufferUsage::CopyDst | wgpu::BufferUsage::Storage);
-                cactusMeshParamsBuffer_ = makeBuffer("Cactus Mesh Params",
-                    Dim::MAX_CACTUS_INSTANCES * sizeof(GPUCactusMeshParams),
-                    wgpu::BufferUsage::Storage | wgpu::BufferUsage::CopyDst);
-                if (!cactusVertexBuffer_ || !cactusIndexBuffer_ ||
-                    !cactusMeshParamsBuffer_) return false;
-                cactusIndexCount_ = 0;
-                {
-                    GPUCactusMeshParams emptyParams[Dim::MAX_CACTUS_INSTANCES]{};
-                    device_.GetQueue().WriteBuffer(cactusMeshParamsBuffer_, 0, emptyParams,
-                        sizeof(GPUCactusMeshParams) * Dim::MAX_CACTUS_INSTANCES);
-                }
-                {
-                    std::vector<uint8_t> zeros(Dim::CACTUSG_TOTAL_VERTICES * sizeof(ArchVertex), 0);
-                    device_.GetQueue().WriteBuffer(cactusVertexBuffer_, 0, zeros.data(), zeros.size());
-                }
-                return true;
-            }
-
-            bool createBladeMesh() {
-                // LATENT[gate-a-shared] blade (SH·dc): VB/IB/params exclusive+droppable, but co-owns plantComputeGroundBuffer_ (palm+cactus+blade, allocated below) and draw_blade isn't self-count-gated. Retire = draw self-gate, then skip.
-                bladeVertexBuffer_ = makeBuffer("Blade VB (GPU mesh gen)",
-                    Dim::BLADEG_TOTAL_VERTICES * sizeof(ArchVertex),
-                    wgpu::BufferUsage::Storage | wgpu::BufferUsage::Vertex | wgpu::BufferUsage::CopyDst);
-                bladeIndexBuffer_ = makeBuffer("Blade IB (GPU mesh gen)",
-                    Dim::BLADEG_TOTAL_INDICES * sizeof(uint32_t),
-                    wgpu::BufferUsage::Storage | wgpu::BufferUsage::Index | wgpu::BufferUsage::CopyDst);
-                bladeMeshParamsBuffer_ = makeBuffer("Blade Mesh Params",
-                    Dim::MAX_BLADE_INSTANCES * sizeof(GPUBladeClusterMeshParams),
-                    wgpu::BufferUsage::Storage | wgpu::BufferUsage::CopyDst);
-                if (!bladeVertexBuffer_ || !bladeIndexBuffer_ ||
-                    !bladeMeshParamsBuffer_) return false;
-                bladeIndexCount_ = 0;
-                {
-                    GPUBladeClusterMeshParams emptyParams[Dim::MAX_BLADE_INSTANCES]{};
-                    device_.GetQueue().WriteBuffer(bladeMeshParamsBuffer_, 0, emptyParams,
-                        sizeof(GPUBladeClusterMeshParams) * Dim::MAX_BLADE_INSTANCES);
-                }
-                {
-                    std::vector<uint8_t> zeros(Dim::BLADEG_TOTAL_VERTICES * sizeof(ArchVertex), 0);
-                    device_.GetQueue().WriteBuffer(bladeVertexBuffer_, 0, zeros.data(), zeros.size());
-                }
-
-                // Combined plant ground buffer for compute (palm + cactus + blade)
-                static constexpr uint32_t PLANT_GROUND_COUNT =
-                    Dim::MAX_PALM_INSTANCES + Dim::MAX_CACTUS_INSTANCES + Dim::MAX_BLADE_INSTANCES;
-                plantComputeGroundBuffer_ = makeBuffer("Plant Compute Ground Y",
-                    PLANT_GROUND_COUNT * sizeof(GPUPalmGroundEntry),
-                    wgpu::BufferUsage::Storage | wgpu::BufferUsage::CopyDst);
-                if (!plantComputeGroundBuffer_) return false;
-
-                return true;
-            }
 
             bool createPyramidMesh() {
                 // Pyramids are TERRAIN (not drawn geometry): the instance array is
@@ -4796,20 +4254,6 @@ namespace t7 {
                     liveCardView_ = liveCardTexture_.CreateView();
                 }
 
-                // Entity ground atlas (r32float 256×1 — compute writes ground_y, VS textureLoad)
-                {
-                    wgpu::TextureDescriptor desc{};
-                    desc.size = { Dim::GROUND_ATLAS_WIDTH, 1, 1 };
-                    desc.format = wgpu::TextureFormat::R32Float;
-                    desc.usage = wgpu::TextureUsage::StorageBinding | wgpu::TextureUsage::TextureBinding;
-                    desc.dimension = wgpu::TextureDimension::e2D;
-                    desc.mipLevelCount = 1;
-                    desc.sampleCount = 1;
-                    entityGroundAtlasTexture_ = makeTexture("Entity Ground Atlas (r32float 256x1)", desc);
-                    if (!entityGroundAtlasTexture_) return false;
-                    entityGroundAtlasWriteView_ = entityGroundAtlasTexture_.CreateView();
-                    entityGroundAtlasReadView_ = entityGroundAtlasTexture_.CreateView();
-                }
 
                 {
                     wgpu::TextureDescriptor desc{};
@@ -4951,7 +4395,7 @@ namespace t7 {
                 // the transport. The ribbon dialect reads the same names
                 // directly, so the two rooms cannot drift.
                 config_.field_slack         = FIELD_SLACK;
-                config_.field_arch_slack    = FIELD_ARCH_SLACK;   // ATRIUM_7 — an arch leg's own shell
+                config_._pad_arch_slack_retired = 0u;
                 // THE SUBTRACTION DIALS REST OPEN (PANORAMA_1): every draw
                 // draws. A cleared bit is a measurement in progress, never a
                 // shipped state, so the rest is the only value the audience
@@ -5040,10 +4484,6 @@ namespace t7 {
                 config_.fog_color[0] = 0.85f;
                 config_.fog_color[1] = 0.78f;
                 config_.fog_color[2] = 0.72f;
-                config_.fade_alpha = 0.0f;
-                config_.fade_color[0] = 0.0f;
-                config_.fade_color[1] = 0.0f;
-                config_.fade_color[2] = 0.0f;
                 config_.mode_gol_tick_scale = 1.0f;
                 config_.mode_gol_height_scale = 1.0f;
                 config_.pulse_count = 0;
@@ -5088,7 +4528,6 @@ namespace t7 {
                     p.is_active = 1u;
                     p.behavior_id = 0u;   // AGENT_BEHAVIOR_PLAYER_CONTROLLED
                     p.tier_idx = 0u;   // AGENT_TIER_WORKER
-                    p.portal_trigger = -1;
                     queue.WriteBuffer(agentStateBuffer_, 0, agents, sizeof(agents));
                 }
 

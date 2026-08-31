@@ -37,11 +37,11 @@
 // DemoConfig is untouched — seed + boot_mood are authored onto the
 // root organs in the Cartridge ctor.
 //
-// FREE TICKING: the grid encodes NO dependency edges. The roster's one
-// legality edge (transitions ⇒ portal) stays the FIRST EDGE static_assert
-// in demos/demo.hpp, riding the folded ROSTER — tick an illegal column
-// and the build fails there, as ever. The matrix FEEDS the resolver; it
-// does not reimplement it.
+// FREE TICKING: the grid encodes NO dependency edges — and since
+// ONE_WORLD-I took the transitions bit, the roster carries no legality
+// edge either: every column is legal. The mechanism stands; the FIRST
+// EDGE static_assert that rode demos/demo.hpp left with its subject.
+// The matrix FEEDS the resolver; it does not reimplement it.
 
 namespace t7 {
 namespace the_board {
@@ -53,11 +53,10 @@ namespace the_board {
 // pins the count.
 namespace Piece {
 enum : uint32_t {
-    // 11 families (PopFamily order)
-    pyramid, arch, column, antenna, palm, cactus, blade,
-    sphere, ribbon, cube, gol,
-    // 7 features
-    pawn_aura, orbs, spot_lights, indoor_shell, portal, transitions, wanderers,
+    // 5 families (PopFamily order)
+    pyramid, sphere, ribbon, cube, gol,
+    // 5 features
+    pawn_aura, orbs, spot_lights, indoor_shell, wanderers,
     COUNT,
 };
 }
@@ -76,12 +75,6 @@ enum class DemoCol : uint32_t {
 inline constexpr bool GRID[Piece::COUNT][static_cast<uint32_t>(DemoCol::COUNT)] = {
     //                       full  minimal
     /* pyramid        */  {  true,  false },
-    /* arch           */  {  true,  false },
-    /* column         */  {  true,  false },
-    /* antenna        */  {  true,  false },
-    /* palm           */  {  true,  false },
-    /* cactus         */  {  true,  false },
-    /* blade          */  {  true,  false },
     /* sphere         */  {  true,  false },
     /* ribbon         */  {  true,  false },
     /* cube           */  {  true,  false },
@@ -90,8 +83,6 @@ inline constexpr bool GRID[Piece::COUNT][static_cast<uint32_t>(DemoCol::COUNT)] 
     /* orbs           */  {  true,  false },
     /* spot_lights    */  {  true,  false },
     /* indoor_shell   */  {  true,  false },
-    /* portal         */  {  true,  false },
-    /* transitions    */  {  true,  false },
     /* wanderers      */  {  true,  false },
 };
 
@@ -111,13 +102,11 @@ inline constexpr uint32_t DEMO_BOOT_MOOD[static_cast<uint32_t>(DemoCol::COUNT)] 
 constexpr Roster column_to_roster(DemoCol d) {
     const uint32_t c = static_cast<uint32_t>(d);
     return Roster{
-        GRID[Piece::pyramid][c], GRID[Piece::arch][c], GRID[Piece::column][c],
-        GRID[Piece::antenna][c], GRID[Piece::palm][c], GRID[Piece::cactus][c],
-        GRID[Piece::blade][c], GRID[Piece::sphere][c], GRID[Piece::ribbon][c],
+        GRID[Piece::pyramid][c],
+        GRID[Piece::sphere][c], GRID[Piece::ribbon][c],
         GRID[Piece::cube][c], GRID[Piece::gol][c],
         GRID[Piece::pawn_aura][c], GRID[Piece::orbs][c], GRID[Piece::spot_lights][c],
-        GRID[Piece::indoor_shell][c], GRID[Piece::portal][c],
-        GRID[Piece::transitions][c], GRID[Piece::wanderers][c],
+        GRID[Piece::indoor_shell][c], GRID[Piece::wanderers][c],
     };
 }
 
@@ -134,8 +123,8 @@ constexpr DemoConfig demo_config(DemoCol d) {
 // (1) the row count equals Roster's field count — the field-order
 //     mapping in column_to_roster is total. (Add a field to Roster ⇒
 //     add a Piece row ⇒ this trips until they agree.)
-static_assert(Piece::COUNT == 18,
-    "matrix: Piece row count must equal Roster's 18 fields (11 families + 7 features)");
+static_assert(Piece::COUNT == 10,
+    "matrix: Piece row count must equal Roster's 10 fields (5 families + 5 features)");
 
 // (2) THE BYTE-EQUIVALENCE GOLDEN (Jean's mandatory gate). The two
 //     migrated columns are pinned to the retired headers' exact values,
@@ -149,12 +138,12 @@ static_assert(Piece::COUNT == 18,
 //     now (ATRIUM_1) — the entrance is the visitor's first room — and
 //     the golden pins the new value.
 static_assert(demo_config(DemoCol::full).roster.all_enabled(),
-    "GOLDEN: demo=full must equal old full.hpp — all 19 tickable bits ON");
+    "GOLDEN: demo=full must equal old full.hpp — every tickable bit ON");
 static_assert(demo_config(DemoCol::full).seed == 42 &&
               demo_config(DemoCol::full).boot_mood == MOOD_OPEN_SUNSET,
     "GOLDEN: demo=full seed must equal old full.hpp; boot_mood is the open field (ATTIC_ATRIUM)");
 static_assert(demo_config(DemoCol::minimal).roster.none_enabled(),
-    "GOLDEN: demo=minimal must equal old minimal.hpp — all 19 tickable bits OFF");
+    "GOLDEN: demo=minimal must equal old minimal.hpp — every tickable bit OFF");
 static_assert(demo_config(DemoCol::minimal).seed == 42 &&
               demo_config(DemoCol::minimal).boot_mood == MOOD_OPEN_SUNSET,
     "GOLDEN: demo=minimal seed must equal old minimal.hpp; boot_mood is the open field (ATTIC_ATRIUM)");

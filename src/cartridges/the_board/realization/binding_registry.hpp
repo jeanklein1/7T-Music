@@ -8,13 +8,14 @@
 // The shape of the table: numbers are GROUP-SCOPED (g0..g3 are the
 // four strata of the LOOM_2 recut — WORLD, FRAME, FAMILY-STATE,
 // FAMILY-TEXTURES), and ONE CONSTANT PER SLOT; a slot may carry
-// several declarations (the fc_ cull aliases; the MESHGEN
-// convergence, where five kernels' scratch trios share three
-// numbers so four families fit one layout).
+// several declarations (the fc_ cull aliases). The MESHGEN
+// convergence CONVERGED and then EMPTIED: five kernels shared three
+// numbers so four families could ride one layout, PRUNE_2 excised
+// four, and ONE_WORLD-I U3 took the arch — the trio's last
+// occupant. Slots 180/181/182 are unallocated now, not reserved.
 //
-// The WGSL @binding literals in world.wgsl (81 declarations over 66 slots;
-// aliases: fc_config, fc_patches, fc_vp,
-// and the 12 MESHGEN convergence names)
+// The WGSL @binding literals in world.wgsl (59 declarations over 56 slots;
+// aliases: fc_config, fc_patches, fc_vp)
 // are a MIRROR of this file, kept in lockstep by boot-time
 // validation and by binding_gen.py --check. The render = compute
 // + 200 witness band is RETIRED — its epitaph closes this file.
@@ -53,7 +54,7 @@ namespace t7 {
             namespace g2 {
                 // AGENTS (0–19)
                 inline constexpr uint32_t agent_state                 = 0;
-                inline constexpr uint32_t agent_room                  = 1;  // AgentRoomConstants — CHORD_1: portals + behaviors + tier_gains + occupier_cmg + occupier_amg, one uniform block at world/mood cadence (6960 B)
+                inline constexpr uint32_t agent_room                  = 1;  // AgentRoomConstants — CHORD_1: portals + behaviors + tier_gains + occupier_amg, one uniform block at world/mood cadence (2864 B)
                 inline constexpr uint32_t floating_entities           = 2;
                 inline constexpr uint32_t render_agents               = 5;
                 inline constexpr uint32_t render_floating             = 6;
@@ -81,12 +82,6 @@ namespace t7 {
                 inline constexpr uint32_t fc_visible                  = 63;
                 inline constexpr uint32_t fc_indirect                 = 64;
 
-                // PLACE (80–99)
-                inline constexpr uint32_t arch_ground                 = 81;
-                inline constexpr uint32_t column_ground               = 82;
-                inline constexpr uint32_t plant_ground                = 83;
-                inline constexpr uint32_t cmg_column_ground           = 84;  // read-only column_ground view (the terrain delta)
-
                 // ZONES (100–119)
                 inline constexpr uint32_t zone_config                 = 101;
                 inline constexpr uint32_t zone_life                   = 102;
@@ -107,12 +102,6 @@ namespace t7 {
                 inline constexpr uint32_t render_ring_xforms          = 143;
                 inline constexpr uint32_t ribbon_body_rw              = 144;  // RibbonBody — head + saddle + emit + deform; the ribbon room writes
                 inline constexpr uint32_t ribbon_body_read            = 145;  // the agents' room's read of the same home: the mount reads .saddle, the field reads .emit
-
-                // MESHGEN (180–199)
-                inline constexpr uint32_t amg_params                  = 180;  // aka bladeg_params / cactusg_params / cmg_params / palmg_params
-                inline constexpr uint32_t amg_vertices                = 181;  // aka bladeg_vertices / cactusg_vertices / cmg_vertices / palmg_vertices
-                inline constexpr uint32_t amg_indices                 = 182;  // aka bladeg_indices / cactusg_indices / cmg_indices / palmg_indices
-                inline constexpr uint32_t cmg_config                  = 183;  // DesignConfig view for the cmg kernel (the ceiling gate)
 
                 // SCENE (200–219)
                 inline constexpr uint32_t scene_constants             = 200;  // SceneConstants — CHORD_4: tier_gains + figure_profiles + ribbon, one uniform block at world/mood cadence (4336 B, render VS only; bound by the scene AND shadow layouts)
@@ -138,10 +127,6 @@ namespace t7 {
                 inline constexpr uint32_t photo_sampler               = 43;
                 inline constexpr uint32_t patch_heightfield_array_read = 44;
                 inline constexpr uint32_t patch_cell_color_array_read = 45;
-
-                // PLACE (80–99)
-                inline constexpr uint32_t entity_ground_atlas_write   = 80;
-                inline constexpr uint32_t entity_ground_atlas         = 81;
 
                 // ZONES (100–119)
                 inline constexpr uint32_t live_card_write             = 100;  // GROUND_CARD_1: the live card (storage-tex write; writer kernel)

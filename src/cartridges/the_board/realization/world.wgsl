@@ -114,7 +114,7 @@
 // §6    RENDERING           Lighting, terrain VS/FS, entity VS/FS, ribbon, shadows
 // §7    COMPUTE             Bindings, entry points, GoL zones, pawn aura
 // §8    PLACEMENT           Terrain sampling, entity Y-correction, frustum cull
-// §9    ENTITY MESH GEN     GPU-sovereign geometry: arches, columns
+// §9    ENTITY MESH GEN     (retired at ONE_WORLD-I U3 with the arch)
 //
 // PANELS (the federation's strips — one sitting each; grep the names,
 // no line anchors):
@@ -227,7 +227,6 @@ fn sw_motor_point(m: Motor, p: Point) -> Point {
     let transformed = sw_mp(m, pos);
     return point_from_vec3(transformed);
 }
-
 
 
 // §1.3 COORDINATE SYSTEMS
@@ -880,7 +879,7 @@ struct FrameSignal {
 
 // --- [STATE:agent] AgentState
 //
-// Unified entity state — mirrors GPUAgentState in state.hpp (96 bytes).
+// Unified entity state — mirrors GPUAgentState in state.hpp (88 bytes).
 // Slot 0 is the player's body (possessed at session start); slots 1..31
 // are mood-authored agents driven by AGENT_BEHAVIORS. Scalar fields
 // throughout so WGSL uniform/storage layout matches C++ without vec3
@@ -898,14 +897,11 @@ struct AgentState {
     vel_z: f32,
     heading: f32,
     home_x: f32,
-    route: u32,     // ATRIUM_4. Was home_y — the tether is planar and nothing read it
-                    // (R4). PASSER's route state; 0 = fresh. Zero on every other behaviour.
     home_z: f32,
     seed: u32,
     behavior_id: u32,
     tier_idx: u32,
     is_active: u32,
-    portal_trigger: i32,   // only meaningful on possessed slot; -1 = none
     orient_x: f32,
     orient_y: f32,
     orient_z: f32,
@@ -961,9 +957,8 @@ struct AgentBehaviorParams {
     home_pull:       f32,  // 1/s² spring toward home
     neighbor_radius: f32,  // flock neighbor search
     speed_cap:       f32,  // max speed
-    aux:             f32,  // ATRIUM_4: behaviour-specific scalar (PASSER = the band, wu; 0 elsewhere). Was _pad.
+    aux:             f32,  // ATRIUM_4: behaviour-specific scalar. Its one user (PASSER = the band, wu) left at ONE_WORLD-I U4; 0 on every row now. Was _pad.
 }
-
 
 
 struct AgentTierParams {
@@ -1665,8 +1660,6 @@ struct DesignConfig {
     pawn_aura_height: f32,
     fog_density: f32,             // exponential fog coefficient (default 0.003)
     fog_color: vec3<f32>,         // fog/sky color RGB
-    fade_alpha: f32,              // 0.0 = no overlay, 1.0 = fully opaque
-    fade_color: vec3<f32>,        // transition overlay RGB
     // (pier_count's slot: retired in BATCH G — vec2 align re-pads here,
     //  offsets unmoved; the C++ twin carries the explicit pad.)
     world_bound_min: vec2<f32>,   // XZ min clamp (0,0 = infinite)
@@ -1857,11 +1850,10 @@ struct DesignConfig {
     // carries the witness). Read by cube_force_witness.
     camera_push_gain: f32,          // 688  wu/s² of shove at the shell's center
     camera_push_radius: f32,        // 692  wu — the shell; 0 shuts the term off
-    // ATRIUM_7 — an arch leg's own shell factor. Mirror of
-    // GPUDesignConfig.field_arch_slack (state.hpp) — GROWTH LAW, same
-    // commit, same order, same type. Read by field_sum's occupier_amg loop.
-    // Was _pad704_0.
-    field_arch_slack: f32,          // 696
+    // _pad_arch_slack_retired: field_arch_slack's slot (ATRIUM_7, an
+    // arch leg's own shell). Reader and author both left at
+    // ONE_WORLD-I U3/U5; the slot stays a named pad so no offset moves.
+    _pad_arch_slack_retired: u32,   // 696
     // ─── The subtraction dials (PANORAMA_1) ──────────────────────────────
     // Mirror of GPUDesignConfig (state.hpp) — GROWTH LAW, same commit, same
     // order, same types. DECLARED HERE AND READ BY NOTHING IN THIS ROOM: the
@@ -2222,7 +2214,6 @@ fn pack_cell_tag(mode: u32, tier: u32, height_enabled: bool) -> f32 {
 fn unpack_cell_tag_mode(alpha: f32) -> u32 {
     return u32(alpha * 255.0 + 0.5) & 0xFu;
 }
-
 
 
 // --- Game of Life Zone Config
@@ -2702,10 +2693,13 @@ fn row_cube_push(fe: FloatingEntityState) -> InfluenceProfile {
 }
 
 // ── THE OCCUPIER ROWS (BATCH F-B) — the standing bodies' word ──────
-// Columns, antennas, and arch legs push walkers as PRESENCE bodies.
-// The occupier windows ride agent_room.occupier_cmg / .occupier_amg
-// (CHORD_1) — same mesh-param rows the mesh-gen kernels read: one
-// authored geometry, one home; the rows and the mesh can never disagree.
+// Arch legs push walkers as PRESENCE bodies. The occupier window rides
+// agent_room.occupier_amg (CHORD_1) — the same mesh-param rows the
+// mesh-gen kernel reads: one authored geometry, one home; the rows and
+// the mesh can never disagree. (There was a SECOND window — the shafts',
+// occupier_cmg — and it left with COLUMN and ANTENNA in PRUNE_2 U4. Its
+// reader loops went with it: nothing wrote the window after the families
+// went, so every iteration would have found is_active 0 and continued.)
 // The field (FIELD_2): the ring-pose and ribbon-state windows in, the
 // force sum out. Both windows in ride field_bus now (CHORD_2); the
 // force sum keeps the storage seat it always had.
@@ -2768,9 +2762,9 @@ struct FieldBus {
 //     may read as an invisible wall rather than a dodge. Its own campaign,
 //     its own visual gate.
 //   OCCUPIER_SPEED_CAP — 2 × PAWN_SPEED. ONE clamp on the SUMMED response
-//     (config.field_fmax's pattern), not a per-row cap: columns cluster
-//     (PROXIMITY_RADIUS[COLUMN] 60, THRESHOLD 2), so overlapping shells are
-//     the ordinary case and N per-row caps are not a speed limit.
+//     (config.field_fmax's pattern), not a per-row cap: standing bodies can
+//     cluster, so overlapping shells are the ordinary case and N per-row
+//     caps are not a speed limit.
 const OCCUPIER_PUSH_GAIN:   f32 = 18.0;  // wu/s per wu of overlap
 const OCCUPIER_DODGE_FLOOR: f32 = 0.5;   // wu/s — opens the APPROACH branch
 const OCCUPIER_SPEED_CAP:   f32 = 30.0;  // = 2 × PAWN_SPEED; clamps the SUM
@@ -2778,8 +2772,8 @@ const OCCUPIER_SPEED_CAP:   f32 = 30.0;  // = 2 × PAWN_SPEED; clamps the SUM
 fn row_occupier(radius: f32) -> InfluenceProfile {
     // The immovable-authority pattern (yield 1.0 on the agent,
     // zero on the occupier; retired row_agent_sphere's shape), with the
-    // CYLINDRICAL gate: a column is a vertical body — an agent at any
-    // height meets the shaft (the row_cube_push planar precedent).
+    // CYLINDRICAL gate: a standing body is a vertical body — an agent at
+    // any height meets it (the row_cube_push planar precedent).
     // SHELL_0: PRESENCE plus a CONSTANT approach term. The three approach
     // columns were 0.0/0.0/0.0 — the branch could not open, because v_ap is
     // 0 for a body that does not move. These open it, but occupier_contact
@@ -2805,49 +2799,17 @@ fn row_occupier(radius: f32) -> InfluenceProfile {
 fn occupier_contact(self_p: vec3<f32>, body_radius: f32, dt: f32) -> vec2<f32> {
     var dv = vec2<f32>(0.0, 0.0);
 
-    // SHAFTS — 32 slots: columns 0–15, antennas 16–31. One field,
-    // one law; is_active gates every test; the loop is bounded by the
-    // Dim:: cap the array is declared with.
-    // EMITTER y := SUBJECT y (SHELL_1), the field's ruling inherited: a
-    // column is a vertical body, so the pair is planar and d3.y is 0. It
-    // read 0.0 before, which made d3.y the walker's ALTITUDE — and d3.y's
-    // only live consumer on this row is d2_3d, the degenerate-coincidence
-    // guard. The guard was testing height above sea level. It fired on flat
-    // ground by accident and never fired on a hill; since SHELL_0 opened the
-    // unconditional tangential path, not firing means normalize(vec2(0,0)).
-    for (var i = 0u; i < 32u; i++) {
-        let cm = agent_room.occupier_cmg[i];
-        if (cm.is_active == 0u) { continue; }
-        let prof = row_occupier(cm.shaft_radius + body_radius);
-        let r = influence_response(self_p, vec2(0.0),
-                                   vec3(cm.center_x, self_p.y, cm.center_z), vec2(0.0),
-                                   prof, dt);
-        dv += r;
-    }
-
-    // ARCH LEGS — 16 arches × 2 bodies at center ± half_span rotated;
-    // radius from the leg cross-section halves (thickness/depth) +
-    // skin. The SPAN stays open — walking through the doorway is the
-    // arch's whole meaning; only the legs push.
-    for (var i = 0u; i < 16u; i++) {
-        let am = agent_room.occupier_amg[i];
-        if (am.is_active == 0u) { continue; }
-        let leg_r = max(am.thickness, am.depth) * 0.5 + body_radius;
-        let leg = vec2(cos(am.rotation), sin(am.rotation)) * am.half_span;
-        let c0 = vec2(am.center_x, am.center_z);
-        let prof = row_occupier(leg_r);
-        let r1 = influence_response(self_p, vec2(0.0),
-                                    vec3(c0.x + leg.x, self_p.y, c0.y + leg.y), vec2(0.0),
-                                    prof, dt);
-        let r2 = influence_response(self_p, vec2(0.0),
-                                    vec3(c0.x - leg.x, self_p.y, c0.y - leg.y), vec2(0.0),
-                                    prof, dt);
-        dv += r1 + r2;
-    }
+    // THE OCCUPIER ROWS ARE EMPTY. The SHAFT loop (32 slots: columns 0–15,
+    // antennas 16–31) left with those families in PRUNE_2 U4; the ARCH LEG
+    // loop left with its family at ONE_WORLD-I U3. No standing body pushes
+    // a walker any more — every surviving family either claims no ground
+    // (spheres, cubes) or IS the ground (pyramids, GoL zones). row_occupier
+    // stands unexercised, as PROXIMITY_AFFINITY does, for the next family
+    // that needs it.
 
     // ONE clamp on the SUM (config.field_fmax's pattern). Per-row caps
-    // summed are not a speed limit: columns cluster, so a body can sit
-    // inside three shells at once. BRANCHLESS — this function inlines into
+    // summed are not a speed limit: standing bodies can cluster, so a body
+    // can sit inside several shells at once. BRANCHLESS — this function inlines into
     // behavior_player_controlled, one line above the box clamp and two
     // above pawn_ground_resolve; the banner forbids new runtime branching
     // in that chain. At dv = 0 the quotient is 0/1e-4 = 0, so the identity
@@ -3207,9 +3169,6 @@ const POLICY_WALKER_AGENT         : u32 = 4u;
 const POLICY_WALKER_WITNESS       : u32 = 6u;
 
 
-
-
-
 // Combined height + complexity — avoids evaluating terrain lattice waves twice.
 // terrain_height_and_complexity does the same lattice work as terrain_height_at
 // but also accumulates the complexity metric. Used by the patch bake.
@@ -3342,8 +3301,6 @@ struct QueryInputs {
     consumer_pos: vec3<f32>,
     t_seconds:    f32,
 }
-
-
 
 
 // --- Baked heightfield: all static, no dynamic, no deformation ---
@@ -3563,7 +3520,6 @@ fn query_ground_walker_witness(xz: vec2<f32>, qi: QueryInputs) -> f32 {
     return manifold_overlay_stack(xz, qi, sample_live_card_gol(xz) * (1.0 - supp))
          + aura;
 }
-
 
 
 // ════════════════════════════════════════════════════════════════
@@ -5034,10 +4990,10 @@ fn patch_terrain_vs(
 // order (charter C6). Reordering is a RULING, not a refactor.
 @fragment
 fn patch_terrain_fs(in: PatchTerrainVarying) -> @location(0) vec4<f32> {
-    // THE RIM — the terrain sibling of the flora/zone per-vertex kill:
+    // THE RIM — the terrain sibling of the zone per-vertex kill:
     // discard beyond the ring so the visible edge is a smooth CIRCLE (the
     // patch-granular banded draw set is its invisible superset). Staged
-    // point (lod_point) — concentric with the flora/zone/instance kills, so
+    // point (lod_point) — concentric with the zone/instance kills, so
     // every hard draw-set edge is ONE circle (no scallops, no silhouettes).
     // Optional dither-dissolve inside the icing band handled in shade_lit.
     if (distance(in.world_pos.xz, vec2(config.lod_point_x, config.lod_point_z)) > config.veil_ring) {
@@ -5260,7 +5216,7 @@ fn patch_terrain_fs(in: PatchTerrainVarying) -> @location(0) vec4<f32> {
 // Shadow pass variant — same geometry, light VP instead of camera VP.
 // THE RIM (flagged, not chased): the shadow pass is DEPTH-ONLY (no FS), so
 // the visible rim's per-fragment discard has no equivalent here — terrain
-// (and flora/zone, whose shadow VS also omit the ring kill) cast shadows
+// (and the zones, whose shadow VS also omits the ring kill) cast shadows
 // out to the patch-granular banded set, ~one patch (≤50wu) beyond the
 // smooth visible rim. Logged for the rig; a shadow-side ring gate is a
 // follow-on only if it reads as a shadow with no visible caster.
@@ -5328,7 +5284,7 @@ struct EntityVarying {
     // card; XZ reuses world_pos (the grounded mesh-gen lift is Y-only).
     // The FS assembles paint_pos = (world_pos.x, paint_y, world_pos.z).
     // mosaic_seed 0 = unpainted — every zero-init VS opts out for free;
-    // only arch_vs / column_vs write these today.
+    // no VS writes these today.
     @location(3) paint_y: f32,
     @location(4) @interpolate(flat) mosaic_seed: u32,
 }
@@ -5381,7 +5337,6 @@ fn pawn_profile_radius(t: f32) -> f32 {
     let u = (t - 0.95) / 0.05;
     return mix(0.15, 0.0, smoothstep(0.0, 1.0, u));
 }
-
 
 
 // --- Pawn figure helpers (CLOSURE_PAWN) --------------------------------
@@ -5863,92 +5818,14 @@ fn shadow_monolith_vs(@builtin(instance_index) inst: u32, in: MeshVertexInput) -
     return out;
 }
 
-// --- Catenary Arch
-struct ArchVertexInput {
-    @location(0) pos: vec3<f32>,
-    @location(1) normal: vec3<f32>,
-    @location(2) color: vec3<f32>,
-    // THE INDEX CHANNEL (MOSAIC_1): enc = mosaic_seed·64 + slot, as a
-    // float (small-int exact; avoids GPU denorm flush on
-    // bitcast<f32>(u32)). slot < 64 (census C-12); seed < 65536 →
-    // enc < 2^22, f32-exact. Families that never paint write seed 0 —
-    // their bytes are unchanged and their VSes keep the plain u32()
-    // read (identity on a bare slot: palm/cactus/blade untouched).
-    // Painted families (arch, column) and their shadow twins decode
-    // via entity_index_decode below.
-    @location(3) arch_index: f32,
-};
-
-fn entity_index_decode(v: f32) -> vec2<u32> {
-    let enc = u32(v);
-    return vec2<u32>(enc & 63u, enc >> 6u);   // (slot, mosaic_seed)
-}
-
-@vertex
-fn arch_vs(in: ArchVertexInput) -> EntityVarying {
-    let dec = entity_index_decode(in.arch_index);
-    let ground_y = textureLoad(entity_ground_atlas, vec2<i32>(i32(dec.x) + GROUND_ATLAS_ARCH, 0), 0).r;
-    var world_pos = in.pos + vec3(0.0, ground_y, 0.0);
-    world_pos.y += sample_live_card(world_pos.xz).x;
-
-    var out: EntityVarying;
-    out.clip_pos = frame_r.vp.m * vec4(world_pos, 1.0);
-    out.world_pos = world_pos;
-    out.normal = in.normal;
-    out.entity_color = in.color;
-    out.paint_y = in.pos.y;
-    out.mosaic_seed = dec.y;
-    return out;
-}
-
-@vertex
-fn shadow_arch_vs(in: ArchVertexInput) -> ShadowVarying {
-    let dec = entity_index_decode(in.arch_index);
-    let ground_y = textureLoad(entity_ground_atlas, vec2<i32>(i32(dec.x) + GROUND_ATLAS_ARCH, 0), 0).r;
-    var world_pos = in.pos + vec3(0.0, ground_y, 0.0);
-    world_pos.y += sample_live_card(world_pos.xz).x;
-
-    var out: ShadowVarying;
-    out.clip_pos = shadow_light_vp() * vec4(world_pos, 1.0);
-    return out;
-}
-
-// --- Generative Columns
-@vertex
-fn column_vs(in: ArchVertexInput) -> EntityVarying {
-    let dec = entity_index_decode(in.arch_index);
-    let ground_y = textureLoad(entity_ground_atlas, vec2<i32>(i32(dec.x) + GROUND_ATLAS_COLUMN, 0), 0).r;
-    var world_pos = in.pos + vec3(0.0, ground_y, 0.0);
-    world_pos.y += sample_live_card(world_pos.xz).x;
-
-    var out: EntityVarying;
-    out.clip_pos = frame_r.vp.m * vec4(world_pos, 1.0);
-    out.world_pos = world_pos;
-    out.normal = in.normal;
-    out.entity_color = in.color;
-    out.paint_y = in.pos.y;
-    out.mosaic_seed = dec.y;
-    return out;
-}
-
-@vertex
-fn shadow_column_vs(in: ArchVertexInput) -> ShadowVarying {
-    let dec = entity_index_decode(in.arch_index);
-    let ground_y = textureLoad(entity_ground_atlas, vec2<i32>(i32(dec.x) + GROUND_ATLAS_COLUMN, 0), 0).r;
-    var world_pos = in.pos + vec3(0.0, ground_y, 0.0);
-    world_pos.y += sample_live_card(world_pos.xz).x;
-
-    var out: ShadowVarying;
-    out.clip_pos = shadow_light_vp() * vec4(world_pos, 1.0);
-    return out;
-}
 
 // --- Generative Pyramids: pyramid_vs + shadow_pyramid_vs CUT (orphan
 //     sweep) — the pyramid mesh was never drawn (draw_pyramid /
 //     draw_shadow_pyramid were caller-free). Both read the
 //     ground-atlas slot range (48..55); the write path followed as residue
-//     (the pyramid-ground husk) — the range stays a documented hole in the
-//     atlas table.
+//     (the pyramid-ground husk). That range was a hole BETWEEN live ranges;
+//     PRUNE_2 excised every range above arch's, so the atlas now runs
+//     0..15 (arch) and everything above is simply unallocated.
 
 // --- Indoor Shell (ceiling + walls)
 // Pre-baked world-space geometry, no per-instance transforms.
@@ -6004,9 +5881,6 @@ fn shadow_shell_vs(in: ShellVertexInput) -> ShadowVarying {
 const RIBBON_SPINE_SLOTS: u32 = 402u;        // Dim::RIBBON_SPINE_SLOTS
 const RIBBON_EMIT_STRIDE: u32 = 4u;          // Dim::RIBBON_EMIT_STRIDE
 const RIBBON_EMIT_SLOTS: u32 = 100u;         // Dim::RIBBON_EMIT_SLOTS — one half; the table is two
-const RIBBON_CLEAR_Y: f32 = 20.0;            // vertical clearance above a standing thing's top
-const RIBBON_PUSH_OUT: f32 = 1.0;            // weight of the out-of-disc component
-const RIBBON_PUSH_UP: f32 = 0.6;             // weight of the over-the-top component
 const RIBBON_STEER_GAIN: f32 = 3.0;          // head: lateral push -> yaw command (saturates at |push.lateral| = 1/gain)
 const RIBBON_YAW_SIGN: f32 = 1.0;            // the rider's A/D sign; flip if the hands feel mirrored
 const RIBBON_DT_MAX: f32 = 0.0333333;        // 1/30 s — the integrators never see a hitch longer than this
@@ -6036,7 +5910,6 @@ const RIBBON_CHASE_AZ_OFFSET: f32 = 0.0;     // rad — 3.14159 if the camera la
 const RIBBON_RULE_TAU: f32 = 0.35;           // s — the rule's lateral word, low-passed before it steers
 const RIBBON_YAW_SLEW: f32 = 1.5;            // command units per second — the heading's RATE never jumps faster than this
 const RIBBON_CLEAR_MOVER: f32 = 20.0;        // the head's shell against the big movers (spheres, walkers); cubes are the body's
-const RIBBON_ARCH_SEGS: u32 = 8u;            // capsules along an arch's rib
 
 struct RibbonHeadState {          // 64 B — mirrors GPURibbonHeadState
     pos: vec3<f32>,               //  0  the pen
@@ -6092,29 +5965,12 @@ fn mount_ease(t: f32) -> f32 { let x = saturate(t); return x * x * (3.0 - 2.0 * 
 // edge must not step. The two forms differ by at most the fine band's
 // amplitude (0.12 wu) — the lattice carries every band the analytic form
 // does, and the ONE thing it does not carry is band 4's ripple below the
-// lattice's own spacing — against a body flying RIBBON_CLEAR_Y above the
-// ground. Sub-visible, and stated rather than assumed.
+// lattice's own spacing — against a body flying well above the ground.
+// Sub-visible, and stated rather than assumed.
 fn ribbon_ground(xz: vec2<f32>) -> f32 {
     let r = sample_terrain_y_found(xz);
     if (r.y == 0.0) { return ground_formed_with_complexity(xz).x; }
     return r.x;
-}
-
-// One standing thing: a disc of radius r and a top at top_agl above local
-// ground. Inside r + clear and under top + CLEAR_Y it pushes OUT (quadratic
-// shell) and UP (fading as the reader clears the top). Zero elsewhere.
-fn sky_shell(p: vec3<f32>, agl: f32, c_xz: vec2<f32>, r: f32, top_agl: f32, clear: f32) -> vec3<f32> {
-    let shell = r + clear;
-    let d = p.xz - c_xz;
-    let len = length(d);
-    if (len >= shell) { return vec3(0.0); }
-    let u = saturate((top_agl + RIBBON_CLEAR_Y - agl) / RIBBON_CLEAR_Y);
-    if (u <= 0.0) { return vec3(0.0); }
-    var out_dir = vec2(1.0, 0.0);
-    if (len > 1e-3) { out_dir = d / len; }
-    let s = 1.0 - len / shell;
-    let mag = s * s * u;
-    return vec3(out_dir.x * mag * RIBBON_PUSH_OUT, mag * RIBBON_PUSH_UP, out_dir.y * mag * RIBBON_PUSH_OUT);
 }
 
 // One moving thing: a sphere of radius r. Radial quadratic shell.
@@ -6136,62 +5992,6 @@ fn seg_closest(p: vec3<f32>, a: vec3<f32>, b: vec3<f32>) -> vec3<f32> {
     return a + ab * t;
 }
 
-// THE DOORWAY (RIBBON_3): an arch is not a disc. Two piers and a rib — the
-// rib a parabola from pier top to apex to pier top (the catenary within a
-// few wu; the shell is wider than the error), walked as RIBBON_ARCH_SEGS
-// capsules; the piers two vertical capsules. Legs at center ± half_span
-// along (cos rotation, sin rotation), radius half the larger cross-section
-// — occupier_contact's own law. A reader passes under, over or around.
-fn arch_rib_point(am: ArchMeshParams, g: f32, u: f32) -> vec3<f32> {
-    let along = vec2(cos(am.rotation), sin(am.rotation)) * (u * am.half_span);
-    return vec3(am.center_x + along.x,
-                g + am.pier_height - am.burial + am.rise * (1.0 - u * u),
-                am.center_z + along.y);
-}
-
-fn sky_arch_push(p: vec3<f32>, g: f32, am: ArchMeshParams, clear: f32) -> vec3<f32> {
-    var f = vec3(0.0);
-    let r = max(am.thickness, am.depth) * 0.5;
-    var prev = arch_rib_point(am, g, -1.0);
-    for (var s = 1u; s <= RIBBON_ARCH_SEGS; s++) {
-        let cur = arch_rib_point(am, g, -1.0 + 2.0 * f32(s) / f32(RIBBON_ARCH_SEGS));
-        f += sky_sphere(p, seg_closest(p, prev, cur), r, clear);
-        prev = cur;
-    }
-    let pa = arch_rib_point(am, g, -1.0);
-    let pb = arch_rib_point(am, g, 1.0);
-    f += sky_sphere(p, seg_closest(p, vec3(pa.x, g, pa.z), pa), r, clear);
-    f += sky_sphere(p, seg_closest(p, vec3(pb.x, g, pb.z), pb), r, clear);
-    return f;
-}
-
-// The wall's arch: the same capsules, projected out of, sequentially.
-fn sky_arch_wall(q_in: vec3<f32>, g: f32, am: ArchMeshParams, half: f32) -> vec3<f32> {
-    var q = q_in;
-    let r = max(am.thickness, am.depth) * 0.5 + half;
-    var prev = arch_rib_point(am, g, -1.0);
-    for (var s = 1u; s <= RIBBON_ARCH_SEGS + 2u; s++) {
-        var cur = prev;
-        var a = prev;
-        if (s <= RIBBON_ARCH_SEGS) {
-            cur = arch_rib_point(am, g, -1.0 + 2.0 * f32(s) / f32(RIBBON_ARCH_SEGS));
-        } else if (s == RIBBON_ARCH_SEGS + 1u) {
-            a = arch_rib_point(am, g, -1.0); cur = vec3(a.x, g, a.z);
-        } else {
-            a = arch_rib_point(am, g, 1.0);  cur = vec3(a.x, g, a.z);
-        }
-        let c = seg_closest(q, a, cur);
-        let d = q - c;
-        let len = length(d);
-        if (len < r) {
-            var od = vec3(0.0, 1.0, 0.0);
-            if (len > 1e-3) { od = d / len; }
-            q += od * (r - len);
-        }
-        prev = cur;
-    }
-    return q;
-}
 
 // The rule, summed at p. agl = p.y − ribbon_ground(p.xz), computed once by
 // the caller. clear is the shell against standing things, clear_mover
@@ -6201,21 +6001,8 @@ fn sky_arch_wall(q_in: vec3<f32>, g: f32, am: ArchMeshParams, half: f32) -> vec3
 fn sky_push(p: vec3<f32>, agl: f32, clear: f32, clear_mover: f32, movers: u32, skip_agent: u32) -> vec3<f32> {
     var f = vec3(0.0);
     let g = p.y - agl;
-    // Shafts — columns 0–15, antennas 16–31: a disc and a top. The disc is
-    // the widest thing on the post (an antenna's drums live in base_overhang).
-    for (var i = 0u; i < 32u; i++) {
-        let cm = agent_room.occupier_cmg[i];
-        if (cm.is_active == 0u) { continue; }
-        f += sky_shell(p, agl, vec2(cm.center_x, cm.center_z),
-                       cm.shaft_radius + max(cm.base_overhang, cm.capital_overhang),
-                       cm.height - cm.burial, clear);
-    }
-    // Arches — doorways.
-    for (var i = 0u; i < 16u; i++) {
-        let am = agent_room.occupier_amg[i];
-        if (am.is_active == 0u) { continue; }
-        f += sky_arch_push(p, g, am, clear);
-    }
+    // The shaft discs stood here and left with COLUMN/ANTENNA in PRUNE_2
+    // U4; the arch doorways left with their family at ONE_WORLD-I U3.
     // Walkers — spheres of their tier's contact radius.
     for (var i = 0u; i < 32u; i++) {
         if (i == skip_agent) { continue; }
@@ -6232,22 +6019,6 @@ fn sky_push(p: vec3<f32>, agl: f32, clear: f32, clear_mover: f32, movers: u32, s
         f += sky_sphere(p, fe.pos, fe.body_radius, clear_mover);
     }
     return f;
-}
-
-// The roofline under a disc at xz: the highest (top + CLEAR_Y), above local
-// ground, of the SHAFTS whose shell covers xz (arches are doorways: their
-// word is the push's vertical, not a roof). 0 when the sky is open.
-fn sky_roof(xz: vec2<f32>, clear: f32) -> f32 {
-    var roof = 0.0;
-    for (var i = 0u; i < 32u; i++) {
-        let cm = agent_room.occupier_cmg[i];
-        if (cm.is_active == 0u) { continue; }
-        let r = cm.shaft_radius + max(cm.base_overhang, cm.capital_overhang) + clear;
-        if (distance(xz, vec2(cm.center_x, cm.center_z)) < r) {
-            roof = max(roof, cm.height - cm.burial + RIBBON_CLEAR_Y);
-        }
-    }
-    return roof;
 }
 
 // The spine is C1 between samples: a cubic Hermite on the samples' own
@@ -6282,38 +6053,18 @@ fn sky_self(p: vec3<f32>, k_reader: u32, n: u32, cs: f32, emit_half: u32, clear:
 }
 
 // THE WALL — the shell was advice; this is law. After the string has moved:
-// no ring center inside a shaft's disc (widened by half) while under its
-// top — the cheaper exit wins, out or up; none inside an arch's capsules;
-// none inside a mover's sphere; none under ground + half. Returns the
+// no ring center inside an arch's capsules; none inside a mover's sphere;
+// none under ground + half. (A shaft's disc was the first clause — out or
+// up, the cheaper exit winning — and it left with COLUMN/ANTENNA in
+// PRUNE_2 U4.) Returns the
 // displacement that restores the law. Applied after the leash: law
 // outranks leash.
 fn sky_wall(p: vec3<f32>, g: f32, half: f32, skip_agent: u32) -> vec3<f32> {
     var q = p;
-    for (var i = 0u; i < 32u; i++) {
-        let cm = agent_room.occupier_cmg[i];
-        if (cm.is_active == 0u) { continue; }
-        let r = cm.shaft_radius + max(cm.base_overhang, cm.capital_overhang) + half;
-        let d = q.xz - vec2(cm.center_x, cm.center_z);
-        let len = length(d);
-        let top = g + cm.height - cm.burial + half;
-        if (len < r && q.y < top) {
-            let out = r - len;
-            let up = top - q.y;
-            if (out <= up) {
-                var od = vec2(1.0, 0.0);
-                if (len > 1e-3) { od = d / len; }
-                q.x += od.x * out;
-                q.z += od.y * out;
-            } else {
-                q.y = top;
-            }
-        }
-    }
-    for (var i = 0u; i < 16u; i++) {
-        let am = agent_room.occupier_amg[i];
-        if (am.is_active == 0u) { continue; }
-        q = sky_arch_wall(q, g, am, half);
-    }
+    // The shaft law (out-or-up past a disc, the cheaper exit winning) stood
+    // here and left with COLUMN/ANTENNA in PRUNE_2 U4; the arch law left
+    // with its family at ONE_WORLD-I U3. The mover and ground laws below
+    // are untouched.
     for (var i = 0u; i < 32u; i++) {
         if (i == skip_agent) { continue; }
         let a = render_agents[i];
@@ -6555,14 +6306,20 @@ fn ribbon_head(@builtin(global_invocation_id) gid: vec3<u32>) {
 
     // The pen owns altitude (B0, kept): the birth altitude, biased by the
     // vertical word above — the body's and the world's; never under the
-    // floor here or ahead; never under a SHAFT's roofline here or ahead (an
-    // arch has no roof: it is a doorway, and its word is in the bias);
-    // low-passed by travel; critically damped; climb-capped. The floor is
-    // a guarantee.
+    // floor here or ahead; low-passed by travel; critically damped;
+    // climb-capped. The floor is a guarantee.
+    //
+    // THE ROOF TERM IS GONE (PRUNE_2 U4). It read
+    //   roof_y = max(gp + sky_roof(probe), gh + sky_roof(here))
+    // and sky_roof answered the SHAFTS' roofline — an arch has no roof, it
+    // is a doorway and its word is in the bias. The shafts left with
+    // COLUMN/ANTENNA, so sky_roof could only answer 0 and roof_y collapsed
+    // to max(gp, gh). That is floor_y minus config.ribbon_floor_margin,
+    // and the dial's range is [0, 100] — never negative — so the floor
+    // dominates the roof at every legal setting and the term could not
+    // change raw_target. Dead computation, removed rather than folded.
     let floor_y = max(ground_here, ground_probe) + config.ribbon_floor_margin;
-    let roof_y = max(ground_probe + sky_roof(probe.xz, config.ribbon_clear_head),
-                     ground_here + sky_roof(hd.pos.xz, config.ribbon_clear_head));
-    let raw_target = max(max(birth_y + lift * RIBBON_LIFT_GAIN, floor_y), roof_y);
+    let raw_target = max(birth_y + lift * RIBBON_LIFT_GAIN, floor_y);
     let alpha = 1.0 - exp(-step / max(config.ribbon_alt_smooth_dist, 1e-3));
     hd.alt_target += (raw_target - hd.alt_target) * alpha;
     hd.alt_target = max(hd.alt_target, floor_y);
@@ -6998,28 +6755,11 @@ fn shadow_ribbon_vs(@builtin(vertex_index) vid: u32) -> ShadowVarying {
     return out;
 }
 
-// §6.6 FADE OVERLAY
-// Fullscreen triangle for transition fade. Drawn last with alpha blending.
-// Reads fade_alpha and fade_color from DesignConfig.
-
-struct FadeVarying {
-    @builtin(position) pos: vec4<f32>,
-}
-
-@vertex
-fn fade_overlay_vs(@builtin(vertex_index) vid: u32) -> FadeVarying {
-    // Fullscreen triangle from vertex ID (covers clip space)
-    let x = f32(i32(vid & 1u)) * 4.0 - 1.0;
-    let y = f32(i32(vid >> 1u)) * 4.0 - 1.0;
-    var out: FadeVarying;
-    out.pos = vec4(x, y, 0.0, 1.0);
-    return out;
-}
-
-@fragment
-fn fade_overlay_fs(in: FadeVarying) -> @location(0) vec4<f32> {
-    return vec4(config.fade_color, config.fade_alpha);
-}
+// §6.6 stood here: THE FADE OVERLAY — a fullscreen triangle, alpha-blended
+// last, reading fade_alpha and fade_color from DesignConfig. It was the
+// transition veil, and it left with the machine that drove it
+// (ONE_WORLD-I). Nothing crossfades between worlds now; a rebirth is a
+// hard cut.
 
 // §7.0 GLOBAL BINDINGS
 
@@ -7034,36 +6774,21 @@ fn fade_overlay_fs(in: FadeVarying) -> @location(0) vec4<f32> {
 // Dim::MAX_AGENTS (32) in state.hpp — keep in sync.
 @group(2) @binding(0)  var<storage, read_write> agent_state: array<AgentState, 32>;
 
-// Portal proximity array (uploaded by CPU, checked in behavior_player_controlled)
-struct PortalEntry {
-    x: f32,
-    z: f32,
-    facing_cos: f32,
-    facing_sin: f32,
-    inv_span_sq: f32,
-    inv_depth_sq: f32,
-    arch_index: u32,
-    kind: u32,   // 0 forward, 1 back (ATRIUM_2: the passers walk forward doors only)
-}
-struct PortalArray {
-    count: u32,
-    _pad0: u32,
-    _pad1: u32,
-    _pad2: u32,
-    portals: array<PortalEntry, 32>,
-}
+// THE PORTAL ROOM stood here — the CPU-uploaded ellipse array the
+// player kernel tested and the PASSER route walked. Its writer left
+// with the doors (ONE_WORLD-I U2) and its last reader with the round
+// (U4); the room is gone, not merely unfilled.
 // THE AGENTS' ROOM CONSTANTS (CHORD_1) — one cadence, one block.
 // Everything here is CPU-authored at world/mood cadence. Mirrors
-// GPUAgentRoomConstants in state.hpp BYTE-FOR-BYTE (6960 B; the
+// GPUAgentRoomConstants in state.hpp BYTE-FOR-BYTE (512 B; the
 // static_asserts are the handshake). Offsets: portals 0,
-// behaviors 1040, tier_gains 1392, occupier_cmg 1584,
-// occupier_amg 5680. (ATRIUM_4 grew behaviors by one row, +32 B.)
+// behaviors 0, tier_gains 320. (ATRIUM_4 grew behaviors by one row,
+// +32 B; PRUNE_2 U4 cut occupier_cmg, 6960 -> 2864; ONE_WORLD-I U3 cut
+// occupier_amg with the arch, 2864 -> 1584; U4 cut the portal room and
+// the passer row, 1584 -> 512.)
 struct AgentRoomConstants {
-    portals: PortalArray,
-    behaviors: array<AgentBehaviorParams, 11>,
+    behaviors: array<AgentBehaviorParams, 10>,
     tier_gains: array<AgentTierParams, 4>,
-    occupier_cmg: array<ColumnMeshParams, 32>,
-    occupier_amg: array<ArchMeshParams, 16>,
 }
 @group(2) @binding(1) var<uniform> agent_room: AgentRoomConstants;
 
@@ -7124,17 +6849,11 @@ fn render_pawn_vel_xz() -> vec2<f32> {
 
 // --- Ribbon (the render rooms' read of ring_xforms)
 @group(2) @binding(143) var<storage, read> render_ring_xforms: array<RibbonRingTransform, 400>;
-// Entity ground atlas — VS reads ground_y via textureLoad (r32float, 256×1)
-@group(3) @binding(81) var entity_ground_atlas: texture_2d<f32>;
-
-// Atlas slot offsets (must match Dim:: constants in state.hpp)
-const GROUND_ATLAS_ARCH: i32     = 0;
-const GROUND_ATLAS_COLUMN: i32   = 16;
-// slots 48..55: A DOCUMENTED HOLE. Do NOT re-pack — these offsets are
-// hand-mirrored with state.hpp Dim::GROUND_ATLAS_*.
-const GROUND_ATLAS_PALM: i32     = 56;
-const GROUND_ATLAS_CACTUS: i32   = 80;
-const GROUND_ATLAS_BLADE: i32    = 100;
+// The entity ground atlas stood here — the r32float strip
+// compute_entity_placement wrote and arch_vs / shadow_arch_vs read. Its
+// last allocated range was the arch's 0..15 (PRUNE_2 had excised every
+// range above it), and writer, readers and strip all left together at
+// ONE_WORLD-I U3.
 
 // --- The ribbon room (ribbonStateLayout_; RIBBON_1)
 // ring_xforms: written by ribbon_body, read by the render rooms as 143.
@@ -8117,7 +7836,7 @@ fn behavior_player_controlled(agent_in: AgentState) -> AgentState {
     // and before pawn_ground_resolve (so the slope law resolves the
     // pushed candidate, and the body's word and the ground's word
     // compose instead of racing). Both arms: an idle pawn is eased out
-    // of a shaft the same as a walking one. The gather's occupier call
+    // of a standing body the same as a walking one. The gather's occupier call
     // left this kernel with this wire — landing it there too would
     // apply the push twice. Free agents are untouched: their velocity
     // persists, so their path already consumes the rows.
@@ -8133,7 +7852,7 @@ fn behavior_player_controlled(agent_in: AgentState) -> AgentState {
         // dependent and nobody could see it. body_radius is the possessed
         // figure's own (config.pawn_body_radius, HEM_0's wire) — the same
         // radius that insets the world box two lines down now insets every
-        // shaft's shell, and a Colossal stands off proportionally.
+        // occupier's shell, and a MONUMENTAL arch stands off proportionally.
         let o_push = occupier_contact(
             vec3(agent.pos_x, agent.pos_y, agent.pos_z),
             config.pawn_body_radius, 1.0);
@@ -8209,30 +7928,6 @@ fn behavior_player_controlled(agent_in: AgentState) -> AgentState {
         agent.orient_y = orient.y;
         agent.orient_z = orient.z;
         agent.orient_w = orient.w;
-    }
-
-    // --- Portal ellipse detection (GPU-authoritative)
-    // Ellipse spans the arch opening: lateral = half_span, forward = depth/2.
-    //
-    // THE POINT'S BUBBLE: the portal is the bubble's FIRST
-    // SENSOR — the probe is the body's pos THIS FRAME (agent.pos, the
-    // local — byte-identical to the pre-point test; point_pos() is
-    // deliberately NOT used here: it reads the storage copy, one frame
-    // stale). The trigger stays on the possessed slot's wire, harvested
-    // by the same P5 path.
-    agent.portal_trigger = -1;
-    let probe = vec3(agent.pos_x, agent.pos_y, agent.pos_z);
-    for (var pi = 0u; pi < agent_room.portals.count; pi++) {
-        let p = agent_room.portals.portals[pi];
-        let dx = probe.x - p.x;
-        let dz = probe.z - p.z;
-        let lat = dx * p.facing_cos + dz * p.facing_sin;
-        let fwd = -dx * p.facing_sin + dz * p.facing_cos;
-        let e = lat * lat * p.inv_span_sq + fwd * fwd * p.inv_depth_sq;
-        if (e < 1.0) {
-            agent.portal_trigger = i32(p.arch_index);
-            break;
-        }
     }
 
     // LANDING (no-teleportation): after a dismount the body eases from the
@@ -8477,245 +8172,6 @@ fn behavior_home_seeker(agent_in: AgentState) -> AgentState {
     }
 
     return agent_post_step(a, b.drag, b.speed_cap, g.speed_gain);
-}
-
-// ─── Behavior: Passer — THE ROUND (ATRIUM_6) ─────────────────────
-//
-// A BEHAVIOUR, NOT A TRAVERSAL, and in Jean's words: they start from the
-// centre of the semicircle, walk out through a door, go back around the
-// semicircle, and go at it once again. One crossing per round, always
-// outward, always from the centre — so a visitor standing behind the chord
-// sees, over and over, exactly the act they are invited to perform.
-// Nothing about the world changes when one crosses a door plane: the portal
-// trigger rides the POSSESSED slot only (update_player_agent).
-//
-// THE DOORS are the portal entries with kind == 0, in array order, which is
-// arc order (force_spawn_atrium_arc spawns ascending; the back portal, when
-// one exists, takes the lowest slot and wears kind == 1).
-//
-// THE NORMAL, NOT THE SPAN. facing_cos/facing_sin are the arch's SPAN — the
-// chord between its feet (amg_gen_shell; arch_rotation_from_facing names the
-// convention CPU-side). The opening's normal is (-facing_sin, facing_cos),
-// and force_spawn_atrium_arc aims it at the arc's centre, so the normal
-// points INTO the room. ATRIUM_4 read the span as the normal, which put
-// every waypoint beside a door rather than through it.
-//
-// THE CENTRE IS RECOVERED, NOT CARRIED. The doors were placed facing it, so
-// the inverse recovers it and a re-placed arc is followed with no window
-// where the two disagree. Each door constrains C to its own normal LINE;
-// the constraint is span . (C - D) = 0, and the least-squares solution over
-// ALL the doors is the intersection when they concur. Over all of them and
-// not two of them for a reason worth stating: on a 180-degree span the END
-// doors' normals are ANTIPARALLEL — their lines coincide, the 2x2 is exactly
-// singular, and the pair a two-door derivation would pick is the one pair
-// that cannot answer. Six doors over 180 degrees give det(M) ~ 8.75.
-//
-// THE ROUTE is A4.2's packing, unchanged, and so is the census that reads it:
-//   route = (leg << 12) | (cur << 4) | (phase << 1) | 1
-//   phase 0 CENTRE  waypoint = C + jitter(seed, leg)   |jitter| <= PASSER_CENTRE_JITTER
-//                   arrive -> a = hash(seed, leg*2) % N; cur = a; phase 1
-//   phase 1 DOOR    waypoint = outside(a) = D[a] - n_a * band
-//                   arrive -> phase 2   (from C the line runs through a's opening)
-//   phase 2 BAND    waypoint = outside(cur), door by door along the outside
-//                   arrive -> cur == e ? phase 3 : cur += sign(e - cur)
-//   phase 3 END     waypoint = end(e), a quarter past the end door on the band
-//                   arrive -> leg += 1; phase 0
-//   fresh (bit 0 clear): leg 0, phase 0 — the first thing a passer does is
-//                   walk to the centre.
-//   arrive: |waypoint - pos.xz| < step_size, the row's documented second role.
-// `e` is not stored: it is a function of (seed, leg, N) like `a` is, so the
-// packing did not have to grow.
-//
-// MOTION — A WALK, NOT A SPRING. The tether sprinted from afar and crawled
-// the last metres, which is why ATRIUM_5's passers stalled short of every
-// waypoint and never advanced a phase. Here the speed is CONSTANT and only
-// the direction is eased:
-//   desired = normalize(waypoint - pos.xz) * speed_cap * tier.speed_gain
-//   vel.xz += (desired - vel.xz) * min(1, drag * dt)
-// so drag is the blend rate of the turn, not a decay — agent_post_step is
-// therefore called with drag 0 (its speed cap and its C2b ground steering
-// still apply). home_pull is UNREAD on this arm, and so is step_rate: the
-// step kick was never a gait, only noise on the velocity, and noise on a
-// constant-speed walk is a shove.
-const PASSER_BEHAVIOR: u32 = 10u;
-const PASSER_END_MARGIN: f32 = 0.32;     // rad past the end door's bearing — clears its pier by ~R*sin(18deg)
-const PASSER_CENTRE_JITTER: f32 = 4.0;   // wu — a handful of bodies do not stack on one point
-
-struct PasserDoor { xz: vec2<f32>, normal: vec2<f32>, ok: bool }
-
-// The d-th forward door, by a linear scan over the portal array (count <= 32).
-fn passer_door(d: u32) -> PasserDoor {
-    var out: PasserDoor;
-    out.xz = vec2(0.0);
-    out.normal = vec2(0.0, 1.0);
-    out.ok = false;
-    var k = 0u;
-    for (var pi = 0u; pi < agent_room.portals.count; pi++) {
-        let p = agent_room.portals.portals[pi];
-        if (p.kind != 0u) { continue; }
-        if (k == d) {
-            out.xz = vec2(p.x, p.z);
-            out.normal = vec2(-p.facing_sin, p.facing_cos);   // the opening, not the chord
-            out.ok = true;
-            return out;
-        }
-        k += 1u;
-    }
-    return out;
-}
-
-fn passer_door_count() -> u32 {
-    var n = 0u;
-    for (var pi = 0u; pi < agent_room.portals.count; pi++) {
-        if (agent_room.portals.portals[pi].kind == 0u) { n += 1u; }
-    }
-    return n;
-}
-
-struct PasserArc { c: vec2<f32>, r: f32, ok: bool }
-
-// The arc the doors were placed on, recovered from the doors themselves.
-fn passer_arc() -> PasserArc {
-    var out: PasserArc;
-    out.c = vec2(0.0);
-    out.r = 0.0;
-    out.ok = false;
-    var m00 = 0.0;
-    var m01 = 0.0;
-    var m11 = 0.0;
-    var v = vec2(0.0);
-    var first = vec2(0.0);
-    var have_first = false;
-    for (var pi = 0u; pi < agent_room.portals.count; pi++) {
-        let p = agent_room.portals.portals[pi];
-        if (p.kind != 0u) { continue; }
-        let xz = vec2(p.x, p.z);
-        // span . (C - D) = 0 — C lies on this door's normal line.
-        let sp = vec2(p.facing_cos, p.facing_sin);
-        let q = dot(sp, xz);
-        m00 += sp.x * sp.x;
-        m01 += sp.x * sp.y;
-        m11 += sp.y * sp.y;
-        v += sp * q;
-        if (!have_first) { first = xz; have_first = true; }
-    }
-    let det = m00 * m11 - m01 * m01;
-    if (!have_first || abs(det) < 0.0001) { return out; }   // every span parallel — no centre
-    out.c = vec2(m11 * v.x - m01 * v.y, m00 * v.y - m01 * v.x) / det;
-    out.r = length(first - out.c);
-    out.ok = out.r > 0.001;
-    return out;
-}
-
-fn passer_leg_a(seed: u32, leg: u32, n: u32) -> u32 {
-    return u32(hash_property(seed, 9600u + leg * 2u) * f32(n)) % n;
-}
-
-// The end the leg returns around: the nearer one to the door it went out of.
-// An exactly-central door (N odd) is a coin, and the coin is the leg's.
-fn passer_leg_end(seed: u32, leg: u32, n: u32) -> u32 {
-    let a = passer_leg_a(seed, leg, n);
-    let half = n / 2u;
-    if (a * 2u == n) {
-        return select(0u, n - 1u, (u32(hash_property(seed, 9600u + leg * 2u + 1u) * 2.0) & 1u) == 1u);
-    }
-    return select(0u, n - 1u, a >= half);
-}
-
-// The waypoint this (leg, cur, phase) asks for, in world XZ.
-fn passer_waypoint(seed: u32, leg: u32, cur: u32, phase: u32, n: u32,
-                   band: f32, arc: PasserArc) -> vec2<f32> {
-    if (phase == 0u) {
-        let ja = hash_property(seed, 9700u + leg) * 6.28318530718;
-        let jr = sqrt(hash_property(seed, 9800u + leg)) * PASSER_CENTRE_JITTER;
-        return arc.c + vec2(cos(ja), sin(ja)) * jr;
-    }
-    if (phase == 3u) {
-        // A quarter past the end door, on the outside band — the turn that
-        // brings the passer back around the arc's end toward the centre.
-        let e = passer_leg_end(seed, leg, n);
-        let d0 = passer_door(0u);
-        let d1 = passer_door(1u);
-        let b0 = atan2(d0.xz.y - arc.c.y, d0.xz.x - arc.c.x);
-        let b1 = atan2(d1.xz.y - arc.c.y, d1.xz.x - arc.c.x);
-        // Which way the arc runs in index order — read off ADJACENT doors,
-        // whose bearings differ by span/(N-1) and so cannot wrap ambiguously
-        // the way the two ends can at a half turn.
-        let step_sign = select(-1.0, 1.0, wrap_pi(b1 - b0) > 0.0);
-        let de = passer_door(e);
-        let be = atan2(de.xz.y - arc.c.y, de.xz.x - arc.c.x);
-        let s = select(-step_sign, step_sign, e != 0u);
-        let bo = be + s * PASSER_END_MARGIN;
-        return arc.c + vec2(cos(bo), sin(bo)) * (arc.r + band);
-    }
-    // phases 1 and 2 — outside(d), through the opening and out.
-    let d = select(cur, passer_leg_a(seed, leg, n), phase == 1u);
-    let door = passer_door(d);
-    if (!door.ok) { return arc.c; }
-    return door.xz - door.normal * band;
-}
-
-fn behavior_passer(agent_in: AgentState) -> AgentState {
-    var a = agent_in;
-    let dt = signal.dt;
-
-    let b = agent_room.behaviors[PASSER_BEHAVIOR];
-    let tier = min(a.tier_idx, AGENT_TIER_COUNT_WGSL - 1u);
-    let g = agent_room.tier_gains[tier];
-
-    // FEWER THAN TWO DOORS IS NOT A ROUND, and neither is an arc whose
-    // centre will not resolve — the doors face nowhere in particular, so
-    // there is nothing to be the centre OF. The passer patrols instead,
-    // which is the nearest honest thing a figure in a room can do. (A kernel
-    // has no console; the [PASSER] census is where this shows, as a phase
-    // that never leaves 0 and a d that wanders.)
-    let n = passer_door_count();
-    if (n < 2u) { return behavior_slow_patrol(a); }
-    let arc = passer_arc();
-    if (!arc.ok) { return behavior_slow_patrol(a); }
-
-    let band = b.aux;
-    var leg   = (a.route >> 12u) & 0xFFFFFu;
-    var cur   = (a.route >> 4u) & 0xFFu;
-    var phase = (a.route >> 1u) & 0x7u;
-
-    if ((a.route & 1u) == 0u) {
-        // Fresh: the first thing a passer does is walk to the centre.
-        leg = 0u; phase = 0u; cur = 0u;
-    } else {
-        // ARRIVED? step_size is the WAYPOINT RADIUS on this row.
-        let to_home = vec2(a.home_x - a.pos_x, a.home_z - a.pos_z);
-        if (length(to_home) < b.step_size) {
-            let e = passer_leg_end(a.seed, leg, n);
-            if (phase == 0u) { cur = passer_leg_a(a.seed, leg, n); phase = 1u; }
-            else if (phase == 1u) { phase = 2u; }
-            else if (phase == 2u) {
-                if (cur == e) { phase = 3u; }
-                else if (e > cur) { cur += 1u; }
-                else { cur -= 1u; }
-            }
-            else { leg += 1u; phase = 0u; cur = 0u; }
-        }
-    }
-    // The waypoint IS home — one target field, and the census's `d` is
-    // exactly the distance the arrival test measures.
-    let wp = passer_waypoint(a.seed, leg, cur, phase, n, band, arc);
-    a.home_x = wp.x;
-    a.home_z = wp.y;
-    a.route = (leg << 12u) | ((cur & 0xFFu) << 4u) | ((phase & 0x7u) << 1u) | 1u;
-
-    // ── The walk: constant speed, eased direction ─────────────────
-    let to = wp - vec2(a.pos_x, a.pos_z);
-    let dist = length(to);
-    let dir = select(vec2(0.0), to / max(dist, 0.0001), dist > 0.0001);
-    let desired = dir * (b.speed_cap * g.speed_gain);
-    let blend = min(1.0, b.drag * dt);
-    a.vel_x += (desired.x - a.vel_x) * blend;
-    a.vel_z += (desired.y - a.vel_z) * blend;
-
-    // drag 0: the blend above IS this arm's drag, and decaying twice would
-    // put the walk under its own cap. The cap and the ground steering stay.
-    return agent_post_step(a, 0.0, b.speed_cap, g.speed_gain);
 }
 
 // ─── Behavior: Pursuit ───────────────────────────────────────────
@@ -8996,19 +8452,20 @@ const FLOATER_EVICTION_RADIUS:    f32 = 800.0;
 const FLOATER_EVICTION_RADIUS_SQ: f32 = FLOATER_EVICTION_RADIUS * FLOATER_EVICTION_RADIUS;
 
 // POINT_BUBBLE_RADIUS — the point's bounded awareness (v3 §11; the
-// bubble's first field). Sensors: the portal's vertical gate in
-// camera-host, AND (CONTACT_2 C3b) the point-source flee trigger.
+// bubble's first field). Sensor: (CONTACT_2 C3b) the point-source flee
+// trigger. The portal's vertical gate was the first, and it left with
+// the doors (ONE_WORLD-I).
 // REST MIRROR: the value is 20.0, now boot-pinned into
 // config.point_bubble_radius from contracts/point.hpp POINT_BUBBLE_RADIUS
 // (the source of truth) via set_point_bubble_radius — a runtime upload,
 // no longer a compile-time const (CONTACT_2 C3a). DISCLOSE: the bubble
-// is ONE thing — coupling its radius later breathes portal sensitivity
-// too.
+// is ONE thing — coupling its radius later breathes every sensor that
+// lands in it.
 
 // ─── Player kernel ───────────────────────────────────────────────
 // Single thread, runs once per frame on config.possessed_slot.
 // Contains the full walker policy (pawn_ground_resolve,
-// terrain_normal_at, portal trigger).
+// terrain_normal_at).
 @compute @workgroup_size(1)
 fn update_player_agent() {
     if (!dynamics_0d_active()) { return; }
@@ -9273,9 +8730,10 @@ fn field_sum(sub_i: u32) -> vec3<f32> {
     // that row; this ungating is what must precede it, or free agents
     // would hear standing geometry from nothing at all.
     // Emitter y := subscriber y makes the pair test PLANAR —
-    // row_occupier's cylindrical ruling inherited verbatim ("a column
-    // is a vertical body"). Accepted percept v1: shafts are infinite
-    // columns to floaters and agents alike; if altitude phantoms ever
+    // row_occupier's cylindrical ruling inherited verbatim ("a standing body
+    // is a vertical body"). Accepted percept v1: a standing body reads as an
+    // infinite vertical shell to floaters and agents alike; if altitude
+    // phantoms ever
     // read wrong, the deferral is a base_y cached at spawn (where
     // ground is queried once), not a manifold query here. True radii,
     // no skin — config.field_slack is the standoff. Flat,
@@ -9283,33 +8741,11 @@ fn field_sum(sub_i: u32) -> vec3<f32> {
     // collision/ground chain — inherited FXC shape, and the citation
     // that used to name it is struck (PURSE_0 R5; see field_sum's
     // banner and docs/FXC_LAWS_RECORD.md).
-    var occ = vec3(0.0);
-    for (var i = 0u; i < 32u; i++) {
-        let cm = agent_room.occupier_cmg[i];
-        if (cm.is_active == 0u) { continue; }
-        occ += field_pair(sub_pos,
-                          vec3(cm.center_x, sub_pos.y, cm.center_z),
-                          r_s, cm.shaft_radius, sub_i, 700u + i);
-    }
-    for (var i = 0u; i < 16u; i++) {
-        let am = agent_room.occupier_amg[i];
-        if (am.is_active == 0u) { continue; }
-        let leg_r = max(am.thickness, am.depth) * 0.5;
-        let leg = vec2(cos(am.rotation), sin(am.rotation)) * am.half_span;
-        // ATRIUM_7 — THE DOORWAY OPENS. These two are half_span apart, and
-        // at the SOCIAL slack their shells meet across the opening: what
-        // stands between the legs is a barrier with its crest in front of
-        // the door, which is where the passers stopped. An arch leg wears
-        // its own, tighter shell (config.field_arch_slack); the shaft loop
-        // above and every other emitter keep the social one.
-        occ += field_pair_slack(sub_pos,
-                          vec3(am.center_x + leg.x, sub_pos.y, am.center_z + leg.y),
-                          r_s, leg_r, sub_i, 740u + 2u * i, config.field_arch_slack);
-        occ += field_pair_slack(sub_pos,
-                          vec3(am.center_x - leg.x, sub_pos.y, am.center_z - leg.y),
-                          r_s, leg_r, sub_i, 741u + 2u * i, config.field_arch_slack);
-    }
-    f += occ * config.field_occupier_gain;
+    // The shaft emitters left with COLUMN/ANTENNA in PRUNE_2 U4; the arch
+    // legs left with their family at ONE_WORLD-I U3. The field has no
+    // standing-body emitters left, so the occupier term is gone and
+    // config.field_occupier_gain has nothing to scale (ATRIUM_7's doorway
+    // slack, field_arch_slack, went with the legs it was cut for).
     if (sub_i >= 32u) {
         // Authored emitters (FIELD_4) — floater subscribers only
         // v1 (agents keep their point-rows; possessed exempt).
@@ -9342,7 +8778,7 @@ fn field_sum(sub_i: u32) -> vec3<f32> {
 // ONE THREAD PER FIELD LANE (PANORAMA_0 RIDE_0). This kernel used to run 32
 // threads, and each of them walked NINE OR TEN field lanes in a strided loop
 // (slot, slot+32, …) — every lane a field_sum over ~450 pair evaluations
-// (32 agents + 8 spheres + 256 cubes + ribbon segments + 32 columns + 32 arch
+// (32 agents + 8 spheres + 256 cubes + ribbon segments + 32 arch
 // legs), each with a dependent storage load. Ten of those, serially, on one
 // thread, while 264 lanes' worth of parallelism sat unused.
 //
@@ -9395,7 +8831,6 @@ fn update_other_agents(@builtin(global_invocation_id) gid: vec3<u32>) {
         case 7u: { agent = behavior_flee(agent); }
         case 8u: { agent = behavior_flock2d(agent); }
         case 9u: { agent = behavior_levy_flight(agent); }
-        case 10u: { agent = behavior_passer(agent); }   // ATRIUM_4
         default: { /* unknown behavior — no-op */ }
     }
 
@@ -9451,13 +8886,11 @@ fn update_other_agents(@builtin(global_invocation_id) gid: vec3<u32>) {
         // (the isotropic fallback -- no camera velocity field yet; the deferred
         // config.point_vel_x/z retires it). point_pos() is the emitter --
         // PRESENCE FOLLOWS THE POINT.
-        // ATRIUM_6 — THE PASSAGE IS IMPERTURBABLE. A passer walking its
-        // round is the one thing in the entrance that must not flinch: the
-        // visitor is invited to walk up to a door BY WATCHING SOMEONE DO IT,
-        // and a figure that backs away as you approach teaches the opposite.
-        // Only this term is off — body-to-body contact above still holds, so
-        // passers part around each other and around you.
-        if (agent.behavior_id != PASSER_BEHAVIOR) {
+        // ATRIUM_6's PASSAGE EXEMPTION stood here: a passer walking its
+        // round was the one figure in the entrance that must not flinch.
+        // The round left with the doors it walked (ONE_WORLD-I U4), so the
+        // flee term applies to every behaviour again.
+        {
             var src_vel = vec2(0.0);
             var a_floor = BUBBLE_PART_SPEED;
             if (!point_camera_hosted()) {
@@ -9878,7 +9311,6 @@ fn update_sphere() {
 // Authoring note: keep force magnitudes small enough that the
 // integrator stays stable (∼10× spring_stiffness is the noticeable
 // limit; beyond that drift overshoots before damping catches it).
-
 
 
 // ─ Force: Stationary ─────────────────────────────────────────────
@@ -11355,42 +10787,6 @@ fn compute_pawn_aura(@builtin(global_invocation_id) gid: vec3<u32>) {
 @group(3) @binding(42) var photo_heightfield: texture_2d_array<f32>;
 @group(3) @binding(43) var photo_sampler: sampler;
 
-struct ArchGroundEntry {
-    pier_left_x: f32,
-    pier_left_z: f32,
-    pier_right_x: f32,
-    pier_right_z: f32,
-    ground_y: f32,
-    is_active: u32,
-    pier_correction_left: f32,    // CPU: max_pier - own_pier at left foot
-    pier_correction_right: f32,   // CPU: max_pier - own_pier at right foot
-};
-@group(2) @binding(81) var<storage, read_write> arch_ground: array<ArchGroundEntry, 16>;
-
-struct ColumnGroundEntry {
-    center_x: f32,
-    center_z: f32,
-    ground_y: f32,
-    is_active: u32,
-    pier_correction: f32,         // CPU: max_pier - own_pier at column center
-    _pad0: f32,
-    _pad1: f32,
-    _pad2: f32,
-};
-@group(2) @binding(82) var<storage, read_write> column_ground: array<ColumnGroundEntry, 32>;
-
-struct PalmGroundEntry {
-    center_x: f32,
-    center_z: f32,
-    ground_y: f32,
-    is_active: u32,
-    _pad0: f32, _pad1: f32, _pad2: f32, _pad3: f32,
-}
-// Combined plant ground for compute Y-correction: palm[0..23] + cactus[24..43] + blade[44..75]
-@group(2) @binding(83) var<storage, read_write> plant_ground: array<PalmGroundEntry, 76>;
-
-// Entity ground atlas — compute writes corrected ground_y (r32float, 256×1)
-@group(3) @binding(80) var entity_ground_atlas_write: texture_storage_2d<r32float, write>;
 
 // Spatial index for O(1) patch lookup. CPU populates entries[lz*side + lx]
 // with (layer + 1) for GENERATED/NEEDS_REGEN patches; 0 means empty slot.
@@ -11502,12 +10898,9 @@ fn sample_terrain_grad_at(world_xz: vec2<f32>) -> vec2<f32> {
 //
 // Arch: 2-point min at the leg positions + pier_height offset (the legs' visual height).
 // Pyramid: 5-point min at center + 4 rotated corners.
-// Column/antenna, palm, cactus, blade: single-point center.
-//   (The blade GPU path IS live — this compute writes GROUND_ATLAS_BLADE
-//   and the blade VS reads it; the old "excluded/CPU-mirror" note was stale.)
 //
 // b2b — WORLD-ANCHORED OVERLAY RIDE. The surface-STANDING
-// families (column/antenna, palm/cactus/blade, arch feet) add
+// families (arch feet) add
 // contrib_gol_zones_at so they sit on the LIVE zone surface the mesh
 // renders, not the baked static height — the sink/float fix. Raw GoL, no
 // pawn suppression (structures are not movers). PYRAMIDS are EXCLUDED:
@@ -11522,69 +10915,6 @@ fn sample_terrain_grad_at(world_xz: vec2<f32>) -> vec2<f32> {
 //   - TERRAIN WAVES: the wave voice is dead today (config.terrain_time
 //     gates it to 0 — a no-op regardless). Whether a revived wave should
 //     carry structures is a future call, not wired here.
-@compute @workgroup_size(1)
-fn compute_entity_placement() {
-    // Patch lookup is O(1) via patch_grid — no patch_count needed.
-
-    // --- Column + antenna: single-point center sampling
-    for (var i = 0u; i < 32u; i++) {
-        if (column_ground[i].is_active != 0u) {
-            let xz = vec2(column_ground[i].center_x, column_ground[i].center_z);
-            // b2b: ride the world-anchored GoL extrusion (raw — structures are
-            // not movers, so no pawn suppression). Seats the structure on the
-            // live zone surface instead of floating
-            // on the baked static height. (Waves/pulses: see the b2b note at
-            // compute_entity_placement's banner.)
-            column_ground[i].ground_y = sample_terrain_y_at(xz) + sample_live_card_gol(xz);
-            textureStore(entity_ground_atlas_write, vec2<i32>(i32(i) + GROUND_ATLAS_COLUMN, 0), vec4<f32>(column_ground[i].ground_y, 0.0, 0.0, 0.0));
-        }
-    }
-
-    // --- Palm: plant_ground[0..23]
-    for (var i = 0u; i < 24u; i++) {
-        if (plant_ground[i].is_active != 0u) {
-            let xz = vec2(plant_ground[i].center_x, plant_ground[i].center_z);
-            // b2b: + world-anchored GoL (see column).
-            plant_ground[i].ground_y = sample_terrain_y_at(xz) + sample_live_card_gol(xz);
-            textureStore(entity_ground_atlas_write, vec2<i32>(i32(i) + GROUND_ATLAS_PALM, 0), vec4<f32>(plant_ground[i].ground_y, 0.0, 0.0, 0.0));
-        }
-    }
-
-    // --- Cactus: plant_ground[24..43]
-    for (var i = 0u; i < 20u; i++) {
-        let slot = 24u + i;
-        if (plant_ground[slot].is_active != 0u) {
-            let xz = vec2(plant_ground[slot].center_x, plant_ground[slot].center_z);
-            // b2b: + world-anchored GoL (see column).
-            plant_ground[slot].ground_y = sample_terrain_y_at(xz) + sample_live_card_gol(xz);
-            textureStore(entity_ground_atlas_write, vec2<i32>(i32(i) + GROUND_ATLAS_CACTUS, 0), vec4<f32>(plant_ground[slot].ground_y, 0.0, 0.0, 0.0));
-        }
-    }
-
-    // --- Blade: plant_ground[44..75]
-    for (var i = 0u; i < 32u; i++) {
-        let slot = 44u + i;
-        if (plant_ground[slot].is_active != 0u) {
-            let xz = vec2(plant_ground[slot].center_x, plant_ground[slot].center_z);
-            // b2b: + world-anchored GoL (see column).
-            plant_ground[slot].ground_y = sample_terrain_y_at(xz) + sample_live_card_gol(xz);
-            textureStore(entity_ground_atlas_write, vec2<i32>(i32(i) + GROUND_ATLAS_BLADE, 0), vec4<f32>(plant_ground[slot].ground_y, 0.0, 0.0, 0.0));
-        }
-    }
-
-    // --- Arch: 2-point min at the leg positions (slope straddle).
-    for (var i = 0u; i < 16u; i++) {
-        if (arch_ground[i].is_active != 0u) {
-            let left_xz = vec2(arch_ground[i].pier_left_x, arch_ground[i].pier_left_z);
-            let right_xz = vec2(arch_ground[i].pier_right_x, arch_ground[i].pier_right_z);
-            // b2b: each leg rides its own local GoL, then min (see column).
-            let tl = sample_terrain_y_at(left_xz) + sample_live_card_gol(left_xz);
-            let tr = sample_terrain_y_at(right_xz) + sample_live_card_gol(right_xz);
-            arch_ground[i].ground_y = min(tl, tr);
-            textureStore(entity_ground_atlas_write, vec2<i32>(i32(i) + GROUND_ATLAS_ARCH, 0), vec4<f32>(arch_ground[i].ground_y, 0.0, 0.0, 0.0));
-        }
-    }
-}
 
 
 // §8.0.5 GPU FRUSTUM CULLING — Camera-visible patch selection
@@ -11608,7 +10938,7 @@ fn compute_entity_placement() {
 // Shadow pass uses direct patch_instances[instance_index] (no frustum cull).
 
 const FRUSTUM_PATCH_Y_MIN: f32 = -50.0;   // widened: terrain amplitude + entity heights
-const FRUSTUM_PATCH_Y_MAX: f32 = 200.0;   // widened: tall entities (towers, antennas, ribbons)
+const FRUSTUM_PATCH_Y_MAX: f32 = 200.0;   // widened: tall entities (arches, ribbons)
 // The LOD0 gate reads fc_config.lod0_radius — the SAME config value the
 // CPU band reads, so the radius has one spelling in the whole program.
 
@@ -11750,2058 +11080,14 @@ fn frustum_cull_patches(@builtin(global_invocation_id) id: vec3<u32>) {
 }
 
 
-
-
 // ═══════════════════════════════════════════════════════════════════════
-// §9 GPU ENTITY MESH GENERATION
-// ═══════════════════════════════════════════════════════════════════════
-//
-// GPU-sovereign geometry: CPU authors intent (params), GPU realizes mesh.
-// Each entity family writes into fixed per-slot regions of pre-allocated
-// VB/IB buffers. Inactive slots receive degenerate (zero-area) triangles.
-//
-// Two families: arches (§9.1), columns (§9.2) — the pyramid's realization
-// is the terrain itself: placement feeds the heightfield, there is no mesh.
-//
-// Vertex format: matches ArchVertex (pos[3], normal[3], color[3], index:u32)
-// = 10 × f32 per vertex = 40 bytes. VB is accessed as array<f32>.
-//
-// ─── THE STRIDE LAW (LATTICE_2) ──────────────────────────────────────
-//
-// ONE WORKGROUP PER SLOT, MESHGEN_LANES LANES INSIDE IT. Every family's
-// kernel used to be @workgroup_size(1): one thread built a whole entity,
-// serially, while 63 lanes of the same wave sat idle — mesh gen fires on
-// spawn frames, which is exactly where a frame can least afford it.
-//
-// The transformation is the same five times and it is deliberately narrow:
-//
-//   · the slot (and the arch's sub-mesh) comes from `workgroup_id`;
-//     `global_invocation_id` is no longer the slot. Host dispatch shapes
-//     do not change — they were already one workgroup per slot.
-//   · in every emission section the OUTERMOST loop is strided by the lane
-//     (`for (var o = lane; o < N; o += MESHGEN_LANES)`); every INNER loop
-//     stays verbatim.
-//   · the `vi++` / `ii++` cursors become closed-form arithmetic — the
-//     value the cursor HELD at that iteration, so the write addresses are
-//     the same numbers in a different order.
-//   · the skeleton before emission (profiles, trig tables, counts,
-//     ceilings) is replayed verbatim by EVERY lane. It is pure in the
-//     slot's params, so 64 lanes computing it agree by construction.
-//     No var<workgroup>, no barrier, nothing to synchronize.
-//
-// Lanes write DISJOINT addresses: each section's write index is a
-// bijection of (outer, inner), and the outer values partition across
-// lanes. Output is byte-identical to the serial kernel's.
-//
-// LOOP-CARRIED STATE STAYS INSIDE A LANE. Where an outer iteration
-// accumulates (the cactus arm's `apx/apy/apz` walk), that loop is the
-// strided one and a lane walks its whole arm serially, exactly as before.
-// This is why the stride is the OUTER loop and never the vertex.
-//
-// The ideal — an invocation is one output — is the horizon, not this
-// round: the outer stride already takes each kernel from one lane to
-// tens. If a measurement asks for more, the inner loops are next.
-const MESHGEN_LANES: u32 = 64u;
+// §9 GPU ENTITY MESH GENERATION stood here — GPU-sovereign geometry
+// for the one family that had it, the catenary arch. CPU authored the
+// params, the kernel realized the mesh into per-slot regions of a
+// shared VB/IB. The family left at ONE_WORLD-I U3 and took the last
+// mesh-gen kernel with it; no surviving family generates geometry on
+// the GPU.
 
-
-// ─── §9.1 ARCH MESH GENERATION (catenary barrel vault) ───────────────
-//
-// Four sub-meshes per arch: outer shell, inner shell, front cap, back cap.
-// Indexed vertices with shared edges (grid topology). The catenary
-// parameter 'a' is precomputed on CPU and passed in params.
-//
-// Dispatch: (16, 4, 1) — 4 WORKGROUPS per arch slot (LATTICE_2; it was
-// 4 threads).
-//   workgroup_id.x = slot index (0..15)
-//   workgroup_id.y = sub-mesh (0=outer shell, 1=inner shell, 2=front cap,
-//                              3=back cap)
-//   local_invocation_id.x = the lane, MESHGEN_LANES of them
-//
-// Each sub-mesh writes to a deterministic offset within the slot's VB/IB
-// region, computed from segs_u and segs_v. That partition is what let the
-// four sub-meshes run as four threads in the first place; the stride law
-// now partitions each sub-mesh again, across its lanes.
-
-// ── Constants ─────────────────────────────────────────────────────────
-
-const AMG_MAX_VERTS_PER_SLOT: u32   = 2000u;
-const AMG_MAX_INDICES_PER_SLOT: u32 = 7500u;  // must be divisible by 3 (triangle alignment)
-const AMG_FLOATS_PER_VERTEX: u32    = 10u;   // pos(3) + normal(3) + color(3) + index(1)
-const AMG_MAX_SLOTS: u32            = 16u;
-
-
-// ── Parameter buffer ──────────────────────────────────────────────────
-//
-// MUST match state.hpp::GPUArchMeshParams (size: 80 bytes).
-// If this struct gains/loses a field, the CPU side and
-// its state.hpp sizeof static_assert must be updated together.
-
-struct ArchMeshParams {
-    center_x: f32,
-    center_z: f32,
-    rotation: f32,
-    half_span: f32,
-    rise: f32,
-    depth: f32,
-    thickness: f32,
-    pier_height: f32,
-    burial: f32,
-    catenary_a: f32,
-    segs_u: u32,
-    segs_v: u32,
-    color_r: f32,
-    color_g: f32,
-    color_b: f32,
-    is_active: u32,
-    // MOSAIC_1 (GROWTH 64 → 80 with the C++ twin): 0 = plain;
-    // enc = mosaic_seed·64 + slot rides the vertex index channel.
-    mosaic_seed: u32,
-    _pad80_0: u32,
-    _pad80_1: u32,
-    _pad80_2: u32,
-}
-
-// ── Bindings (dedicated layout — different binding numbers from pyramid) ─
-
-@group(2) @binding(180) var<storage, read>       amg_params: array<ArchMeshParams, 16>;
-@group(2) @binding(181) var<storage, read_write>  amg_vertices: array<f32>;
-@group(2) @binding(182) var<storage, read_write>  amg_indices: array<u32>;
-
-// ── Helpers ───────────────────────────────────────────────────────────
-
-fn amg_cosh(x: f32) -> f32 {
-    let ex = exp(x);
-    return (ex + 1.0 / ex) * 0.5;
-}
-
-fn amg_sinh(x: f32) -> f32 {
-    let ex = exp(x);
-    return (ex - 1.0 / ex) * 0.5;
-}
-
-fn amg_write_vertex(
-    abs_idx: u32,
-    px: f32, py: f32, pz: f32,
-    nx: f32, ny: f32, nz: f32,
-    cr: f32, cg: f32, cb: f32,
-    entity_idx: u32
-) {
-    let i = abs_idx * AMG_FLOATS_PER_VERTEX;
-    amg_vertices[i + 0u] = px;
-    amg_vertices[i + 1u] = py;
-    amg_vertices[i + 2u] = pz;
-    amg_vertices[i + 3u] = nx;
-    amg_vertices[i + 4u] = ny;
-    amg_vertices[i + 5u] = nz;
-    amg_vertices[i + 6u] = cr;
-    amg_vertices[i + 7u] = cg;
-    amg_vertices[i + 8u] = cb;
-    amg_vertices[i + 9u] = f32(entity_idx);
-}
-
-// ── Shell generation (one workgroup per sub-mesh, outer loop strided) ──
-//
-// Writes (su+1)*(sv+1) vertices and su*sv*6 indices at the given offsets.
-// offset = +half_t (outer) or -half_t (inner).
-// nsign = +1.0 (outer) or -1.0 (inner).
-//
-// Catenary profile is precomputed into lane-local arrays and reused across
-// all v-rows, which eliminates (sv) redundant exp() evaluations per
-// u-column (13× reduction for monumental arches). Under the stride law it
-// is SKELETON: every lane replays it, because it is pure in (p, offset)
-// and both are uniform across the workgroup.
-//
-// The v-row is the strided loop, the u-column the verbatim inner one.
-
-
-fn amg_gen_shell(
-    p: ArchMeshParams, slot: u32, lane: u32,
-    vb_start: u32, ib_start: u32,
-    offset: f32, nsign: f32,
-    co: f32, si: f32, base_y: f32, a: f32, H: f32
-) {
-    // THE INDEX CHANNEL (MOSAIC_1): every vertex of this body carries
-    // enc — legacy plain-slot meshes decode identically (seed 0).
-    let enc = p.mosaic_seed * 64u + slot;
-    let su = p.segs_u;
-    let sv = p.segs_v;
-    let half_d = p.depth * 0.5;
-    let stride = su + 1u;
-
-    // ── Precompute catenary profile (one exp pair per u-column) ──
-    var cat_lx: array<f32, 49>;   // t + pnx * offset
-    var cat_ly: array<f32, 49>;   // base_y + y + pny * offset
-    var cat_pnx: array<f32, 49>;  // profile normal x (for world normal)
-    var cat_pny: array<f32, 49>;  // profile normal y
-
-    for (var iu = 0u; iu <= su; iu++) {
-        let u = f32(iu) / f32(su);
-        let t = -p.half_span + 2.0 * p.half_span * u;
-
-        let y = H - a * (amg_cosh(t / a) - 1.0);
-        let sh = amg_sinh(t / a);
-        let plen = sqrt(sh * sh + 1.0);
-        let pnx = sh / plen;
-        let pny = 1.0 / plen;
-
-        cat_lx[iu] = t + pnx * offset;
-        cat_ly[iu] = base_y + y + pny * offset;
-        cat_pnx[iu] = pnx;
-        cat_pny[iu] = pny;
-    }
-
-    // ── Vertices: sweep profile across depth ──
-    // vi was vb_start + iv * stride + iu; that is the write index now.
-    for (var iv = lane; iv <= sv; iv += MESHGEN_LANES) {
-        let v = f32(iv) / f32(sv);
-        let lz = -half_d + p.depth * v;
-        for (var iu = 0u; iu <= su; iu++) {
-            let wx = p.center_x + cat_lx[iu] * co - lz * si;
-            let wy = cat_ly[iu];
-            let wz = p.center_z + cat_lx[iu] * si + lz * co;
-
-            let wnx = (cat_pnx[iu] * nsign) * co;
-            let wny = cat_pny[iu] * nsign;
-            let wnz = (cat_pnx[iu] * nsign) * si;
-
-            amg_write_vertex(vb_start + iv * stride + iu, wx, wy, wz, wnx, wny, wnz,
-                p.color_r, p.color_g, p.color_b, enc);
-        }
-    }
-
-    // ── Indices ──
-    // ii was ib_start + (iv * su + iu) * 6u + j.
-    for (var iv = lane; iv < sv; iv += MESHGEN_LANES) {
-        for (var iu = 0u; iu < su; iu++) {
-            let i00 = vb_start + iv * stride + iu;
-            let i10 = i00 + 1u;
-            let i01 = i00 + stride;
-            let i11 = i01 + 1u;
-            let ii = ib_start + (iv * su + iu) * 6u;
-            if (nsign > 0.0) {
-                amg_indices[ii + 0u] = i00;
-                amg_indices[ii + 1u] = i01;
-                amg_indices[ii + 2u] = i10;
-                amg_indices[ii + 3u] = i10;
-                amg_indices[ii + 4u] = i01;
-                amg_indices[ii + 5u] = i11;
-            } else {
-                amg_indices[ii + 0u] = i00;
-                amg_indices[ii + 1u] = i10;
-                amg_indices[ii + 2u] = i01;
-                amg_indices[ii + 3u] = i10;
-                amg_indices[ii + 4u] = i11;
-                amg_indices[ii + 5u] = i01;
-            }
-        }
-    }
-}
-
-// ── Cap generation (one workgroup per sub-mesh, outer loop strided) ────
-//
-// Writes 2*(su+1) vertices and su*6 indices at the given offsets.
-// lz_pos = +half_d (front) or -half_d (back).
-// nz_sign = +1.0 (front) or -1.0 (back).
-//
-// The u-column is the strided loop; it writes an outer/inner PAIR, so the
-// pair's base is vb_start + iu * 2u — the two values the cursor held.
-
-fn amg_gen_cap(
-    p: ArchMeshParams, slot: u32, lane: u32,
-    vb_start: u32, ib_start: u32,
-    lz_pos: f32, nz_sign: f32,
-    co: f32, si: f32, base_y: f32, a: f32, H: f32
-) {
-    // THE INDEX CHANNEL (MOSAIC_1): every vertex of this body carries
-    // enc — legacy plain-slot meshes decode identically (seed 0).
-    let enc = p.mosaic_seed * 64u + slot;
-    let su = p.segs_u;
-    let half_t = p.thickness * 0.5;
-
-    // Cap normal (rotated into world)
-    let cap_nx = -nz_sign * si;
-    let cap_ny = 0.0;
-    let cap_nz = nz_sign * co;
-
-    // Vertices: outer/inner pairs along catenary profile
-    for (var iu = lane; iu <= su; iu += MESHGEN_LANES) {
-        let vi = vb_start + iu * 2u;
-        let u = f32(iu) / f32(su);
-        let t = -p.half_span + 2.0 * p.half_span * u;
-
-        let y = H - a * (amg_cosh(t / a) - 1.0);
-        let sh = amg_sinh(t / a);
-        let plen = sqrt(sh * sh + 1.0);
-        let pnx = sh / plen;
-        let pny = 1.0 / plen;
-
-        // Outer vertex
-        let olx = t + pnx * half_t;
-        let oly = base_y + y + pny * half_t;
-        amg_write_vertex(vi,
-            p.center_x + olx * co - lz_pos * si,
-            oly,
-            p.center_z + olx * si + lz_pos * co,
-            cap_nx, cap_ny, cap_nz,
-            p.color_r, p.color_g, p.color_b, enc);
-
-        // Inner vertex
-        let ilx = t - pnx * half_t;
-        let ily = base_y + y - pny * half_t;
-        amg_write_vertex(vi + 1u,
-            p.center_x + ilx * co - lz_pos * si,
-            ily,
-            p.center_z + ilx * si + lz_pos * co,
-            cap_nx, cap_ny, cap_nz,
-            p.color_r, p.color_g, p.color_b, enc);
-    }
-
-    // Indices: quad strip between outer/inner
-    // ii was ib_start + iu * 6u + j.
-    for (var iu = lane; iu < su; iu += MESHGEN_LANES) {
-        let o0 = vb_start + iu * 2u;
-        let i0 = o0 + 1u;
-        let o1 = vb_start + (iu + 1u) * 2u;
-        let i1 = o1 + 1u;
-        let ii = ib_start + iu * 6u;
-        if (nz_sign > 0.0) {
-            amg_indices[ii + 0u] = o0;
-            amg_indices[ii + 1u] = i0;
-            amg_indices[ii + 2u] = o1;
-            amg_indices[ii + 3u] = o1;
-            amg_indices[ii + 4u] = i0;
-            amg_indices[ii + 5u] = i1;
-        } else {
-            amg_indices[ii + 0u] = o0;
-            amg_indices[ii + 1u] = o1;
-            amg_indices[ii + 2u] = i0;
-            amg_indices[ii + 3u] = o1;
-            amg_indices[ii + 4u] = i1;
-            amg_indices[ii + 5u] = i0;
-        }
-    }
-}
-
-// ── Compute entry point ───────────────────────────────────────────────
-//
-// Dispatch: (16, 4, 1) — one workgroup per (slot, sub-mesh)
-//   workgroup_id.x = slot, workgroup_id.y = sub-mesh, local_invocation_id.x = lane
-//
-// Sub-mesh VB/IB offsets within a slot (deterministic from segs_u, segs_v):
-//   shell_verts  = (su+1)*(sv+1)
-//   shell_indices = su*sv*6
-//   cap_verts    = 2*(su+1)
-//   cap_indices  = su*6
-//
-//   sub 0 (outer shell): vb=0,                 ib=0
-//   sub 1 (inner shell): vb=shell_verts,       ib=shell_indices
-//   sub 2 (front cap):   vb=2*shell_verts,     ib=2*shell_indices
-//   sub 3 (back cap):    vb=2*shell_verts+cap, ib=2*shell_indices+cap_indices
-
-@compute @workgroup_size(MESHGEN_LANES)
-fn arch_mesh_gen(
-    @builtin(workgroup_id) wid: vec3<u32>,
-    @builtin(local_invocation_id) lid: vec3<u32>
-) {
-    // THE WORKGROUP IS (slot, sub_mesh) — the dispatch shape is unchanged
-    // (MAX_ARCH_INSTANCES, 4, 1); it just names workgroups now, not
-    // threads. The guard is uniform across the workgroup: every lane of a
-    // dead (slot, sub_mesh) returns together.
-    let slot = wid.x;
-    let sub_mesh = wid.y;
-    let lane = lid.x;
-    if (slot >= AMG_MAX_SLOTS || sub_mesh >= 4u) { return; }
-
-    let p = amg_params[slot];
-    let slot_vb = slot * AMG_MAX_VERTS_PER_SLOT;
-    let slot_ib = slot * AMG_MAX_INDICES_PER_SLOT;
-
-    // ── Inactive: each sub-mesh zeroes its quarter of the index range ─
-    if (p.is_active == 0u) {
-        let chunk = AMG_MAX_INDICES_PER_SLOT / 4u;
-        let start = slot_ib + sub_mesh * chunk;
-        for (var i = lane; i < chunk; i += MESHGEN_LANES) {
-            amg_indices[start + i] = slot_vb;
-        }
-        return;
-    }
-
-    // ── Active: shared constants ──────────────────────────────────
-    let co = cos(p.rotation);
-    let si = sin(p.rotation);
-    let base_y = -p.burial;
-    let a = p.catenary_a;
-    let H = a * (amg_cosh(p.half_span / a) - 1.0);
-    let half_t = p.thickness * 0.5;
-    let half_d = p.depth * 0.5;
-    let su = p.segs_u;
-    let sv = p.segs_v;
-
-    // Pre-compute sub-mesh offsets
-    let shell_verts = (su + 1u) * (sv + 1u);
-    let shell_indices = su * sv * 6u;
-    let cap_verts = 2u * (su + 1u);
-    let cap_indices = su * 6u;
-
-    switch (sub_mesh) {
-        case 0u: {
-            // Outer shell
-            amg_gen_shell(p, slot, lane,
-                slot_vb, slot_ib,
-                half_t, 1.0,
-                co, si, base_y, a, H);
-        }
-        case 1u: {
-            // Inner shell
-            amg_gen_shell(p, slot, lane,
-                slot_vb + shell_verts,
-                slot_ib + shell_indices,
-                -half_t, -1.0,
-                co, si, base_y, a, H);
-        }
-        case 2u: {
-            // Front cap
-            amg_gen_cap(p, slot, lane,
-                slot_vb + 2u * shell_verts,
-                slot_ib + 2u * shell_indices,
-                half_d, 1.0,
-                co, si, base_y, a, H);
-
-            // This SUB-MESH also zeroes unused indices after the caps,
-            // strided across its lanes. Total used = 2*shell_indices +
-            // 2*cap_indices.
-            let total_used = 2u * shell_indices + 2u * cap_indices;
-            for (var i = total_used + lane; i < AMG_MAX_INDICES_PER_SLOT; i += MESHGEN_LANES) {
-                amg_indices[slot_ib + i] = slot_vb;
-            }
-        }
-        case 3u: {
-            // Back cap
-            amg_gen_cap(p, slot, lane,
-                slot_vb + 2u * shell_verts + cap_verts,
-                slot_ib + 2u * shell_indices + cap_indices,
-                -half_d, -1.0,
-                co, si, base_y, a, H);
-        }
-        default: {}
-    }
-}
-
-
-// ─── §9.2 COLUMN MESH GENERATION (surface of revolution) ────────────
-//
-// Profile polyline: base layers → shaft (taper + entasis) → capital layers.
-// Revolution around Y axis. Horizontal discs at radius transitions.
-//
-// Dispatch: (32, 1, 1) — one WORKGROUP per column slot, MESHGEN_LANES
-// lanes inside it (LATTICE_2; it was one invocation).
-
-// ── Constants ─────────────────────────────────────────────────────────
-
-const CMG_MAX_VERTS_PER_SLOT: u32    = 1500u;
-const CMG_MAX_INDICES_PER_SLOT: u32  = 6000u; // must be divisible by 3
-const CMG_FLOATS_PER_VERTEX: u32     = 10u;   // pos(3) + normal(3) + color(3) + index(1)
-const CMG_MAX_SLOTS: u32             = 32u;
-const CMG_PI: f32                    = 3.14159265359;
-
-// ── Parameter buffer ──────────────────────────────────────────────────
-//
-// MUST match state.hpp::GPUColumnMeshParams (size: 128 bytes).
-// If this struct gains/loses a field, the CPU side and
-// its state.hpp sizeof static_assert must be updated together.
-
-struct ColumnMeshParams {
-    center_x: f32,
-    center_z: f32,
-    height: f32,
-    shaft_radius: f32,
-    taper: f32,
-    entasis: f32,
-    base_height: f32,
-    base_overhang: f32,
-    capital_height: f32,
-    capital_overhang: f32,
-    burial: f32,
-    color_r: f32,
-    color_g: f32,
-    color_b: f32,
-    base_layers: u32,
-    capital_layers: u32,
-    segs_around: u32,
-    shaft_rings: u32,
-    is_active: u32,
-    tier: u32,
-    // Antenna drum colors (3 drums × RGB)
-    drum_color_r1: f32, drum_color_g1: f32, drum_color_b1: f32,
-    drum_color_r2: f32, drum_color_g2: f32, drum_color_b2: f32,
-    drum_color_r3: f32, drum_color_g3: f32, drum_color_b3: f32,
-    // MOSAIC_1: _pad128_0 repurposed (the indoor_height_cap precedent) —
-    // 0 = plain; enc = mosaic_seed·64 + slot rides the index channel.
-    mosaic_seed: u32, _pad128_1: f32, _pad128_2: f32,
-}
-
-// ── Bindings ──────────────────────────────────────────────────────────
-
-@group(2) @binding(180) var<storage, read>       cmg_params: array<ColumnMeshParams, 32>;
-@group(2) @binding(181) var<storage, read_write>  cmg_vertices: array<f32>;
-@group(2) @binding(182) var<storage, read_write>  cmg_indices: array<u32>;
-// COLUMN CEILING FIT: the ceiling gate + the correction pass's ground
-// output (read-only view of binding 148's buffer — slot-aligned with
-// cmg_params: columns 0.., antennas at ANTENNA_SLOT_OFFSET).
-@group(2) @binding(183) var<uniform>             cmg_config: DesignConfig;
-@group(2) @binding(84) var<storage, read>       cmg_column_ground: array<ColumnGroundEntry, 32>;
-
-// COLUMN_MIN_INDOOR_HEIGHT: extreme-terrain floor — a column never
-// collapses below this. PINNED PAIR with COLUMN_MIN_INDOOR_HEIGHT in
-// contracts/indoor_module.hpp (authored in both rooms, named the
-// same, never dial-derived — the TILE_GRID_CAPACITY pattern).
-const COLUMN_MIN_INDOOR_HEIGHT: f32 = 1.0;
-
-// ── Helpers ───────────────────────────────────────────────────────────
-
-fn cmg_write_vertex(
-    abs_idx: u32,
-    px: f32, py: f32, pz: f32,
-    nx: f32, ny: f32, nz: f32,
-    cr: f32, cg: f32, cb: f32,
-    entity_idx: u32
-) {
-    let i = abs_idx * CMG_FLOATS_PER_VERTEX;
-    cmg_vertices[i + 0u] = px;
-    cmg_vertices[i + 1u] = py;
-    cmg_vertices[i + 2u] = pz;
-    cmg_vertices[i + 3u] = nx;
-    cmg_vertices[i + 4u] = ny;
-    cmg_vertices[i + 5u] = nz;
-    cmg_vertices[i + 6u] = cr;
-    cmg_vertices[i + 7u] = cg;
-    cmg_vertices[i + 8u] = cb;
-    cmg_vertices[i + 9u] = f32(entity_idx);
-}
-
-// ── Compute entry point ───────────────────────────────────────────────
-
-@compute @workgroup_size(MESHGEN_LANES)
-fn column_mesh_gen(
-    @builtin(workgroup_id) wid: vec3<u32>,
-    @builtin(local_invocation_id) lid: vec3<u32>
-) {
-    // ONE WORKGROUP PER SLOT (LATTICE_2). The dispatch shape,
-    // (MAX_COLUMN_INSTANCES, 1, 1), is unchanged. The whole skeleton below
-    // — the profile polyline, the disc records, the trig table — is pure
-    // in (p, eff_h) and replayed by every lane; only emission is strided.
-    let slot = wid.x;
-    let lane = lid.x;
-    if (slot >= CMG_MAX_SLOTS) { return; }
-
-    let p = cmg_params[slot];
-    // THE INDEX CHANNEL (MOSAIC_1): every vertex of this body carries
-    // enc — legacy plain-slot meshes decode identically (seed 0).
-    let enc = p.mosaic_seed * 64u + slot;
-    let slot_vb = slot * CMG_MAX_VERTS_PER_SLOT;
-    let slot_ib = slot * CMG_MAX_INDICES_PER_SLOT;
-
-    const TIER_ANTENNA_FIRST: u32 = 3u;  // ANTENNA=3, ANTENNA_SQUAT=4, ANTENNA_COLOSSAL=5
-
-    // COLUMN CEILING FIT (columns only — antennas keep CPU height:
-    // CAP-law, not ceiling-flush): indoors the column's visual height
-    // is ceiling-plane-relative — derived HERE, where ground_y is
-    // known (GPU sovereignty; the CPU adapter fits proportions only).
-    // Outdoors ceiling_height == 0: the select's false arm keeps
-    // eff_h = p.height byte-identical. One select, one max.
-    let eff_h = select(p.height,
-                       max(cmg_config.ceiling_height - cmg_column_ground[slot].ground_y,
-                           COLUMN_MIN_INDOOR_HEIGHT),
-                       cmg_config.ceiling_height > 0.0 && p.tier < TIER_ANTENNA_FIRST);
-
-    // ── Inactive: zero all indices ─────────────────────────────
-    if (p.is_active == 0u) {
-        for (var i = lane; i < CMG_MAX_INDICES_PER_SLOT; i += MESHGEN_LANES) {
-            cmg_indices[slot_ib + i] = slot_vb;
-        }
-        return;
-    }
-
-    // ── Build profile polyline ─────────────────────────────────
-    // Thread-local arrays: (radius, y, color) per profile point
-    var prof_r: array<f32, 32>;
-    var prof_y: array<f32, 32>;
-    var prof_cr: array<f32, 32>;
-    var prof_cg: array<f32, 32>;
-    var prof_cb: array<f32, 32>;
-    var pc = 0u;  // profile count
-
-    let top_radius = p.shaft_radius * p.taper;
-    let base_top_y = p.base_height;
-    let shaft_top_y = eff_h - p.capital_height;
-    let bl = p.base_layers;
-    let cl = p.capital_layers;
-    let sr = p.shaft_rings;
-    let sa = p.segs_around;
-
-    let base_cr = p.color_r;
-    let base_cg = p.color_g;
-    let base_cb = p.color_b;
-
-    // Drum colors (only used by antenna tier)
-    var drum_cr: array<f32, 3>;
-    var drum_cg: array<f32, 3>;
-    var drum_cb: array<f32, 3>;
-    drum_cr[0] = p.drum_color_r1; drum_cg[0] = p.drum_color_g1; drum_cb[0] = p.drum_color_b1;
-    drum_cr[1] = p.drum_color_r2; drum_cg[1] = p.drum_color_g2; drum_cb[1] = p.drum_color_b2;
-    drum_cr[2] = p.drum_color_r3; drum_cg[2] = p.drum_color_g3; drum_cb[2] = p.drum_color_b3;
-
-    if (p.tier >= TIER_ANTENNA_FIRST) {
-        // ── ANTENNA profile: post → (drum + spacer) × N ─────
-        // Field reuse: base_layers=drum_count, base_height=drum_height,
-        // base_overhang=drum_radius_overhang, capital_height=spacer_height,
-        // taper=drum taper (top/bottom ratio).
-
-        let post_r = p.shaft_radius;
-        let drum_count = min(bl, 3u);
-        let drum_h = p.base_height;
-        let drum_overhang = p.base_overhang;
-        let spacer_h = p.capital_height;
-        let drum_taper = p.taper;
-
-        // Total content height: drums + spacers + top post cap
-        let content_h = f32(drum_count) * drum_h + f32(max(drum_count, 1u) - 1u) * spacer_h;
-        // Post extends from ground up; drums sit in the upper portion
-        let drum_start_y = p.height - content_h;
-
-        // Post from ground to first drum
-        prof_r[pc] = post_r; prof_y[pc] = -p.burial;
-        prof_cr[pc] = base_cr; prof_cg[pc] = base_cg; prof_cb[pc] = base_cb; pc++;
-        prof_r[pc] = post_r; prof_y[pc] = drum_start_y - p.burial;
-        prof_cr[pc] = base_cr; prof_cg[pc] = base_cg; prof_cb[pc] = base_cb; pc++;
-
-        for (var d = 0u; d < drum_count; d++) {
-            let dy_base = drum_start_y + f32(d) * (drum_h + spacer_h);
-            let bottom_r = post_r + drum_overhang * (0.6 + 0.4 * fract(f32(d) * 0.618 + f32(p.segs_around) * 0.1));  // independent size per drum
-            let top_r = bottom_r * drum_taper;
-            let dcr = drum_cr[d];
-            let dcg = drum_cg[d];
-            let dcb = drum_cb[d];
-
-            // Widen from post to drum bottom
-            prof_r[pc] = bottom_r; prof_y[pc] = dy_base - p.burial;
-            prof_cr[pc] = dcr; prof_cg[pc] = dcg; prof_cb[pc] = dcb; pc++;
-
-            // Drum body: a few rings for curvature
-            for (var ri = 1u; ri <= 3u; ri++) {
-                let t = f32(ri) / 4.0;
-                let ry = dy_base + t * drum_h;
-                let rr = bottom_r + (top_r - bottom_r) * t;
-                prof_r[pc] = rr; prof_y[pc] = ry - p.burial;
-                prof_cr[pc] = dcr; prof_cg[pc] = dcg; prof_cb[pc] = dcb; pc++;
-            }
-
-            // Drum top
-            prof_r[pc] = top_r; prof_y[pc] = dy_base + drum_h - p.burial;
-            prof_cr[pc] = dcr; prof_cg[pc] = dcg; prof_cb[pc] = dcb; pc++;
-
-            // Narrow back to post (spacer between drums)
-            if (d + 1u < drum_count) {
-                prof_r[pc] = post_r; prof_y[pc] = dy_base + drum_h - p.burial;
-                prof_cr[pc] = base_cr; prof_cg[pc] = base_cg; prof_cb[pc] = base_cb; pc++;
-                prof_r[pc] = post_r; prof_y[pc] = dy_base + drum_h + spacer_h - p.burial;
-                prof_cr[pc] = base_cr; prof_cg[pc] = base_cg; prof_cb[pc] = base_cb; pc++;
-            }
-        }
-
-        // Top cap point (narrow to post)
-        prof_r[pc] = post_r; prof_y[pc] = p.height - p.burial;
-        prof_cr[pc] = base_cr; prof_cg[pc] = base_cg; prof_cb[pc] = base_cb; pc++;
-
-    } else {
-        // ── Classical column profile (Pillar / Doric / Ornate) ───
-
-        // Base layers: concentric rings stepping inward
-        if (bl > 0u && p.base_height > 0.001) {
-            for (var i = 0u; i < bl; i++) {
-                let t0 = f32(i) / f32(bl);
-                let t1 = f32(i + 1u) / f32(bl);
-                let r0 = p.shaft_radius + p.base_overhang * (1.0 - t0);
-                let y_bot = t0 * p.base_height - p.burial;
-                let y_top = t1 * p.base_height - p.burial;
-                prof_r[pc] = r0; prof_y[pc] = y_bot;
-                prof_cr[pc] = base_cr; prof_cg[pc] = base_cg; prof_cb[pc] = base_cb; pc++;
-                prof_r[pc] = r0; prof_y[pc] = y_top;
-                prof_cr[pc] = base_cr; prof_cg[pc] = base_cg; prof_cb[pc] = base_cb; pc++;
-            }
-            prof_r[pc] = p.shaft_radius; prof_y[pc] = base_top_y - p.burial;
-            prof_cr[pc] = base_cr; prof_cg[pc] = base_cg; prof_cb[pc] = base_cb; pc++;
-        } else {
-            prof_r[pc] = p.shaft_radius; prof_y[pc] = -p.burial;
-            prof_cr[pc] = base_cr; prof_cg[pc] = base_cg; prof_cb[pc] = base_cb; pc++;
-        }
-
-        // Shaft (with taper and entasis)
-        for (var i = 0u; i <= sr; i++) {
-            let t = f32(i) / f32(sr);
-            let y = base_top_y + t * (shaft_top_y - base_top_y);
-            var r = p.shaft_radius + (top_radius - p.shaft_radius) * t;
-            r += p.entasis * p.shaft_radius * sin(t * CMG_PI);
-            prof_r[pc] = r; prof_y[pc] = y - p.burial;
-            prof_cr[pc] = base_cr; prof_cg[pc] = base_cg; prof_cb[pc] = base_cb; pc++;
-        }
-
-        // Capital layers: concentric rings stepping outward
-        if (cl > 0u && p.capital_height > 0.001) {
-            for (var i = 0u; i < cl; i++) {
-                let t0 = f32(i) / f32(cl);
-                let t1 = f32(i + 1u) / f32(cl);
-                let r0 = top_radius + p.capital_overhang * t0;
-                let y_bot = shaft_top_y + t0 * p.capital_height - p.burial;
-                let y_top = shaft_top_y + t1 * p.capital_height - p.burial;
-                prof_r[pc] = r0; prof_y[pc] = y_bot;
-                prof_cr[pc] = base_cr; prof_cg[pc] = base_cg; prof_cb[pc] = base_cb; pc++;
-                prof_r[pc] = r0; prof_y[pc] = y_top;
-                prof_cr[pc] = base_cr; prof_cg[pc] = base_cg; prof_cb[pc] = base_cb; pc++;
-            }
-            let r_final = top_radius + p.capital_overhang;
-            prof_r[pc] = r_final; prof_y[pc] = eff_h - p.burial;
-            prof_cr[pc] = base_cr; prof_cg[pc] = base_cg; prof_cb[pc] = base_cb; pc++;
-        } else {
-            prof_r[pc] = top_radius; prof_y[pc] = eff_h - p.burial;
-            prof_cr[pc] = base_cr; prof_cg[pc] = base_cg; prof_cb[pc] = base_cb; pc++;
-        }
-    }
-
-    // ── Build disc records ─────────────────────────────────────
-    // (r_inner, r_outer, y, normal_y)
-    var disc_ri: array<f32, 12>;
-    var disc_ro: array<f32, 12>;
-    var disc_y: array<f32, 12>;
-    var disc_ny: array<f32, 12>;
-    // Per-disc colors (for antenna drums)
-    var disc_cr: array<f32, 12>;
-    var disc_cg: array<f32, 12>;
-    var disc_cb: array<f32, 12>;
-    var dc = 0u;  // disc count
-
-    if (p.tier < TIER_ANTENNA_FIRST) {
-        // Base annular discs (top face at each step)
-        if (bl > 0u && p.base_height > 0.001) {
-            for (var i = 0u; i < bl; i++) {
-                let t0 = f32(i) / f32(bl);
-                let t1 = f32(i + 1u) / f32(bl);
-                let r0 = p.shaft_radius + p.base_overhang * (1.0 - t0);
-                let r1 = p.shaft_radius + p.base_overhang * (1.0 - t1);
-                let y_top = t1 * p.base_height - p.burial;
-                if (r1 < r0 - 0.001) {
-                    disc_ri[dc] = r1; disc_ro[dc] = r0;
-                    disc_y[dc] = y_top; disc_ny[dc] = 1.0;
-                    disc_cr[dc] = base_cr; disc_cg[dc] = base_cg; disc_cb[dc] = base_cb;
-                    dc++;
-                }
-            }
-        }
-
-        // Capital annular discs (bottom face at each shelf)
-        if (cl > 0u && p.capital_height > 0.001) {
-            for (var i = 1u; i < cl; i++) {
-                let t0 = f32(i) / f32(cl);
-                let r0 = top_radius + p.capital_overhang * t0;
-                let r_prev = top_radius + p.capital_overhang * (f32(i - 1u) / f32(cl));
-                let y_bot = shaft_top_y + t0 * p.capital_height - p.burial;
-                if (r0 > top_radius + 0.001) {
-                    disc_ri[dc] = r_prev; disc_ro[dc] = r0;
-                    disc_y[dc] = y_bot; disc_ny[dc] = -1.0;
-                    disc_cr[dc] = base_cr; disc_cg[dc] = base_cg; disc_cb[dc] = base_cb;
-                    dc++;
-                }
-            }
-            // Top cap (full disc)
-            let r_final = top_radius + p.capital_overhang;
-            disc_ri[dc] = 0.0; disc_ro[dc] = r_final;
-            disc_y[dc] = eff_h - p.burial; disc_ny[dc] = 1.0;
-            disc_cr[dc] = base_cr; disc_cg[dc] = base_cg; disc_cb[dc] = base_cb;
-            dc++;
-        } else {
-            // Simple top cap
-            disc_ri[dc] = 0.0; disc_ro[dc] = top_radius;
-            disc_y[dc] = eff_h - p.burial; disc_ny[dc] = 1.0;
-            disc_cr[dc] = base_cr; disc_cg[dc] = base_cg; disc_cb[dc] = base_cb;
-            dc++;
-        }
-    } else {
-        // Antenna: disc faces at every drum shoulder (post↔drum transitions)
-        // + top cap + bottom cap
-        let post_r = p.shaft_radius;
-        let drum_count_d = min(bl, 3u);
-        let drum_h_d = p.base_height;
-        let drum_ovh_d = p.base_overhang;
-        let spacer_h_d = p.capital_height;
-        let drum_taper_d = p.taper;
-        let content_h_d = f32(drum_count_d) * drum_h_d + f32(max(drum_count_d, 1u) - 1u) * spacer_h_d;
-        let drum_start_y_d = p.height - content_h_d;
-
-        for (var d = 0u; d < drum_count_d; d++) {
-            let dy_base_d = drum_start_y_d + f32(d) * (drum_h_d + spacer_h_d);
-            let bottom_r_d = post_r + drum_ovh_d * (0.6 + 0.4 * fract(f32(d) * 0.618 + f32(p.segs_around) * 0.1));
-            let top_r_d = bottom_r_d * drum_taper_d;
-            let d_cr = drum_cr[d];
-            let d_cg = drum_cg[d];
-            let d_cb = drum_cb[d];
-
-            // Bottom shoulder: annular disc facing up (post_r → bottom_r) at drum base
-            if (dc < 12u) {
-                disc_ri[dc] = post_r; disc_ro[dc] = bottom_r_d;
-                disc_y[dc] = dy_base_d - p.burial; disc_ny[dc] = 1.0;
-                disc_cr[dc] = d_cr; disc_cg[dc] = d_cg; disc_cb[dc] = d_cb;
-                dc++;
-            }
-            // Top shoulder: annular disc facing down (post_r → top_r) at drum top
-            if (dc < 12u) {
-                disc_ri[dc] = post_r; disc_ro[dc] = top_r_d;
-                disc_y[dc] = dy_base_d + drum_h_d - p.burial; disc_ny[dc] = -1.0;
-                disc_cr[dc] = d_cr; disc_cg[dc] = d_cg; disc_cb[dc] = d_cb;
-                dc++;
-            }
-        }
-
-        // Top cap (post tip)
-        if (dc < 12u) {
-            disc_ri[dc] = 0.0; disc_ro[dc] = post_r;
-            disc_y[dc] = p.height - p.burial; disc_ny[dc] = 1.0;
-            disc_cr[dc] = base_cr; disc_cg[dc] = base_cg; disc_cb[dc] = base_cb;
-            dc++;
-        }
-    }
-
-    // Bottom cap (full disc, normal down) — all tiers
-    let r_bottom = prof_r[0];
-    disc_ri[dc] = 0.0; disc_ro[dc] = r_bottom;
-    disc_y[dc] = -p.burial; disc_ny[dc] = -1.0;
-    disc_cr[dc] = base_cr; disc_cg[dc] = base_cg; disc_cb[dc] = base_cb;
-    dc++;
-
-    // ── Precompute sin/cos table (shared by revolution + all discs) ──
-    // sa+1 entries: one per angular step including the wrap-around.
-    const CMG_MAX_SA: u32 = 29u;  // max segs_around + 1 (ornate: 28+1)
-    var tbl_cos: array<f32, 29>;
-    var tbl_sin: array<f32, 29>;
-    for (var si = 0u; si <= sa; si++) {
-        let theta = 2.0 * CMG_PI * f32(si) / f32(sa);
-        tbl_cos[si] = cos(theta);
-        tbl_sin[si] = sin(theta);
-    }
-
-    // ── THE SECTION BASES (LATTICE_2) ──────────────────────────
-    // The revolution is a rectangle, so its totals are closed forms. The
-    // DISCS are not — a disc is a fan or a strip depending on its inner
-    // radius — so a lane recovers its own disc's base with a pure prefix
-    // loop over the skeleton: the same arithmetic the cursor performed,
-    // no emission. pc >= 1 by construction (both profile branches emit at
-    // least one point), but the trip count is stated defensively: a u32
-    // `pc - 1u` at pc == 0 would be 4 billion, not zero.
-    let pc_quads    = select(pc - 1u, 0u, pc == 0u);   // the wall loop's inner trip count
-    let rev_verts   = (sa + 1u) * pc;
-    let rev_indices = sa * pc_quads * 6u;
-
-    // ── Revolution: rotate profile around Y axis ───────────────
-    // Vertices: (sa+1) rings × pc points. vi was slot_vb + si * pc + pi.
-    for (var si = lane; si <= sa; si += MESHGEN_LANES) {
-        let ct = tbl_cos[si];
-        let st = tbl_sin[si];
-
-        for (var pi = 0u; pi < pc; pi++) {
-            let r = prof_r[pi];
-            let y = prof_y[pi];
-
-            // Normal from profile slope (finite difference)
-            var dy = 0.0;
-            var dr = 0.0;
-            if (pi + 1u < pc) {
-                dy = prof_y[pi + 1u] - prof_y[pi];
-                dr = prof_r[pi + 1u] - prof_r[pi];
-            } else if (pi > 0u) {
-                dy = prof_y[pi] - prof_y[pi - 1u];
-                dr = prof_r[pi] - prof_r[pi - 1u];
-            }
-            let nlen = sqrt(dy * dy + dr * dr);
-            var nx_local = 1.0;
-            var ny_local = 0.0;
-            if (nlen > 0.001) {
-                nx_local = dy / nlen;
-                ny_local = -dr / nlen;
-            }
-
-            cmg_write_vertex(slot_vb + si * pc + pi,
-                p.center_x + r * ct, y, p.center_z + r * st,
-                nx_local * ct, ny_local, nx_local * st,
-                prof_cr[pi], prof_cg[pi], prof_cb[pi], enc);
-        }
-    }
-
-    // Wall indices: quads between adjacent rings.
-    // ii was slot_ib + (si * pc_quads + pi) * 6u + j.
-    let rev_vb = slot_vb;
-    for (var si = lane; si < sa; si += MESHGEN_LANES) {
-        for (var pi = 0u; pi + 1u < pc; pi++) {
-            let i00 = rev_vb + si * pc + pi;
-            let i10 = i00 + 1u;
-            let i01 = rev_vb + (si + 1u) * pc + pi;
-            let i11 = i01 + 1u;
-            let ii = slot_ib + (si * pc_quads + pi) * 6u;
-            cmg_indices[ii + 0u] = i00;
-            cmg_indices[ii + 1u] = i01;
-            cmg_indices[ii + 2u] = i10;
-            cmg_indices[ii + 3u] = i10;
-            cmg_indices[ii + 4u] = i01;
-            cmg_indices[ii + 5u] = i11;
-        }
-    }
-
-    // ── Horizontal discs (using precomputed trig table) ────────
-    //
-    // A LANE OWNS A WHOLE DISC. That is why the body below is verbatim,
-    // `vi++` / `ii++` and all: within one disc the cursor is ordinary
-    // serial state, and no other lane is writing into this disc's range.
-    // Only the disc's STARTING cursor has to be recovered, which the
-    // prefix loop does.
-    for (var di = lane; di < dc; di += MESHGEN_LANES) {
-        // The cursor's value on reaching disc di: the revolution's whole
-        // rectangle, plus every earlier disc's own shape. Reads only the
-        // skeleton, writes nothing.
-        var dv = rev_verts;
-        var dii = rev_indices;
-        for (var k = 0u; k < di; k++) {
-            if (disc_ri[k] < 0.001) { dv += 1u + (sa + 1u); dii += sa * 3u; }
-            else                    { dv += 2u * (sa + 1u); dii += sa * 6u; }
-        }
-        var vi = slot_vb + dv;
-        var ii = slot_ib + dii;
-
-        let d_ri = disc_ri[di];
-        let d_ro = disc_ro[di];
-        let d_y = disc_y[di];
-        let d_ny = disc_ny[di];
-        let d_cr = disc_cr[di];
-        let d_cg = disc_cg[di];
-        let d_cb = disc_cb[di];
-
-        if (d_ri < 0.001) {
-            // Full disc: center vertex + outer ring → triangle fan
-            let center_vi = vi;
-            cmg_write_vertex(vi,
-                p.center_x, d_y, p.center_z,
-                0.0, d_ny, 0.0,
-                d_cr, d_cg, d_cb, enc);
-            vi++;
-
-            for (var si = 0u; si <= sa; si++) {
-                cmg_write_vertex(vi,
-                    p.center_x + d_ro * tbl_cos[si], d_y, p.center_z + d_ro * tbl_sin[si],
-                    0.0, d_ny, 0.0,
-                    d_cr, d_cg, d_cb, enc);
-                vi++;
-            }
-
-            for (var si = 0u; si < sa; si++) {
-                if (d_ny > 0.0) {
-                    cmg_indices[ii] = center_vi;          ii++;
-                    cmg_indices[ii] = center_vi + 1u + si; ii++;
-                    cmg_indices[ii] = center_vi + 2u + si; ii++;
-                } else {
-                    cmg_indices[ii] = center_vi;          ii++;
-                    cmg_indices[ii] = center_vi + 2u + si; ii++;
-                    cmg_indices[ii] = center_vi + 1u + si; ii++;
-                }
-            }
-        } else {
-            // Annular ring: inner + outer ring → triangle strip
-            let ring_vb = vi;
-            for (var si = 0u; si <= sa; si++) {
-                let ct = tbl_cos[si];
-                let st = tbl_sin[si];
-
-                cmg_write_vertex(vi,
-                    p.center_x + d_ri * ct, d_y, p.center_z + d_ri * st,
-                    0.0, d_ny, 0.0,
-                    d_cr, d_cg, d_cb, enc);
-                vi++;
-
-                cmg_write_vertex(vi,
-                    p.center_x + d_ro * ct, d_y, p.center_z + d_ro * st,
-                    0.0, d_ny, 0.0,
-                    d_cr, d_cg, d_cb, enc);
-                vi++;
-            }
-
-            for (var si = 0u; si < sa; si++) {
-                let in0 = ring_vb + si * 2u;
-                let out0 = in0 + 1u;
-                let in1 = ring_vb + (si + 1u) * 2u;
-                let out1 = in1 + 1u;
-                if (d_ny > 0.0) {
-                    cmg_indices[ii] = in0;  ii++;
-                    cmg_indices[ii] = out0; ii++;
-                    cmg_indices[ii] = in1;  ii++;
-                    cmg_indices[ii] = in1;  ii++;
-                    cmg_indices[ii] = out0; ii++;
-                    cmg_indices[ii] = out1; ii++;
-                } else {
-                    cmg_indices[ii] = in0;  ii++;
-                    cmg_indices[ii] = in1;  ii++;
-                    cmg_indices[ii] = out0; ii++;
-                    cmg_indices[ii] = in1;  ii++;
-                    cmg_indices[ii] = out1; ii++;
-                    cmg_indices[ii] = out0; ii++;
-                }
-            }
-        }
-    }
-
-    // ── Zero remaining indices ─────────────────────────────────
-    // `used` was ii - slot_ib, which no lane holds any more: the same
-    // prefix run to dc instead of to di.
-    var used = rev_indices;
-    for (var k = 0u; k < dc; k++) {
-        if (disc_ri[k] < 0.001) { used += sa * 3u; } else { used += sa * 6u; }
-    }
-    for (var i = used + lane; i < CMG_MAX_INDICES_PER_SLOT; i += MESHGEN_LANES) {
-        cmg_indices[slot_ib + i] = slot_vb;
-    }
-}
-
-
-// ─── §9.3 PALM MESH GENERATION (trunk + radial frond crown) ──────────────
-//
-// PalmMeshParams MUST match state.hpp::GPUPalmMeshParams (size: 128 bytes).
-// If this struct gains/loses a field, the CPU side and
-// its state.hpp sizeof static_assert must be updated together.
-
-struct PalmMeshParams {
-    center_x: f32, center_z: f32,
-    height: f32,
-    base_r: f32, top_r: f32,
-    lean: f32, lean_dir: f32,
-    bark_rings: f32, bark_depth: f32,
-    frond_count: f32,
-    frond_len: f32, frond_width: f32,
-    frond_droop: f32, frond_arch: f32,
-    crown_spread: f32, crown_skirt: f32,
-    burial: f32,
-    trunk_r: f32, trunk_g: f32, trunk_b: f32,
-    frond_r: f32, frond_g: f32, frond_b: f32,
-    aged_r: f32, aged_g: f32, aged_b: f32,
-    trunk_segs: u32, frond_segs: u32,
-    is_active: u32,
-    _pad0: f32,
-    _pad1: f32,
-    _pad2: f32,
-}
-
-const PALMG_MAX_VERTS_PER_SLOT: u32 = 1200u;
-const PALMG_MAX_INDICES_PER_SLOT: u32 = 6000u;
-const PALMG_FLOATS_PER_VERTEX: u32 = 10u;
-const PALMG_MAX_SLOTS: u32 = 24u;
-
-@group(2) @binding(180) var<storage, read>       palmg_params: array<PalmMeshParams, 24>;
-@group(2) @binding(181) var<storage, read_write>  palmg_vertices: array<f32>;
-@group(2) @binding(182) var<storage, read_write>  palmg_indices: array<u32>;
-
-fn palmg_write_vertex(abs_idx: u32, px: f32, py: f32, pz: f32,
-                      nx: f32, ny: f32, nz: f32,
-                      cr: f32, cg: f32, cb: f32, entity_idx: u32) {
-    let base = abs_idx * PALMG_FLOATS_PER_VERTEX;
-    palmg_vertices[base + 0u] = px;
-    palmg_vertices[base + 1u] = py;
-    palmg_vertices[base + 2u] = pz;
-    palmg_vertices[base + 3u] = nx;
-    palmg_vertices[base + 4u] = ny;
-    palmg_vertices[base + 5u] = nz;
-    palmg_vertices[base + 6u] = cr;
-    palmg_vertices[base + 7u] = cg;
-    palmg_vertices[base + 8u] = cb;
-    palmg_vertices[base + 9u] = f32(entity_idx);
-}
-
-@compute @workgroup_size(MESHGEN_LANES)
-fn palm_mesh_gen(
-    @builtin(workgroup_id) wid: vec3<u32>,
-    @builtin(local_invocation_id) lid: vec3<u32>
-) {
-    // ONE WORKGROUP PER SLOT (LATTICE_2). Dispatch shape unchanged.
-    let slot = wid.x;
-    let lane = lid.x;
-    if (slot >= PALMG_MAX_SLOTS) { return; }
-
-    let p = palmg_params[slot];
-    let vb_base = slot * PALMG_MAX_VERTS_PER_SLOT;
-    let ib_base = slot * PALMG_MAX_INDICES_PER_SLOT;
-
-    if (p.is_active == 0u) {
-        for (var i = lane; i < PALMG_MAX_INDICES_PER_SLOT; i += MESHGEN_LANES) {
-            palmg_indices[ib_base + i] = vb_base;
-        }
-        return;
-    }
-
-    let cx = p.center_x;
-    let cz = p.center_z;
-    let burial = p.burial;
-    let lean_cos = cos(p.lean_dir);
-    let lean_sin = sin(p.lean_dir);
-
-    // ── TRUNK: surface of revolution with taper + bark rings + lean ──
-
-    let trunk_rings = min(u32(max(8.0, p.bark_rings)), 40u);
-    let trunk_segs = min(p.trunk_segs, 24u);
-
-    // THE SECTION BASES (LATTICE_2). Hoisted from the frond block, where
-    // they were already named for the ceiling arithmetic — the crown cap
-    // needs them too now, and one number has one home. Every count here is
-    // pure in (trunk_rings, trunk_segs), which are uniform per workgroup.
-    let cap_tip_vi    = (trunk_rings + 1u) * trunk_segs;   // vi at the crown tip
-    let cap_ring_vi   = cap_tip_vi + 1u;                   // vi at the crown ring
-    let cap_fan_ii    = trunk_rings * trunk_segs * 6u;     // ii at the crown fan
-    let trunk_verts   = cap_ring_vi + trunk_segs;
-    let trunk_indices = cap_fan_ii + trunk_segs * 3u;
-
-    // vi was ring * trunk_segs + seg.
-    for (var ring = lane; ring <= trunk_rings; ring += MESHGEN_LANES) {
-        let t = f32(ring) / f32(trunk_rings);
-
-        var r = p.base_r + (p.top_r - p.base_r) * t;
-        let ring_phase = t * p.bark_rings * 2.0 * PI;
-        r += sin(ring_phase) * p.bark_depth * (1.0 - t * 0.5);
-        r = max(0.01, r);
-
-        let lean_mag = p.lean * p.height * t * t;
-        let lean_x = lean_mag * lean_cos;
-        let lean_z = lean_mag * lean_sin;
-        let y = t * p.height - burial;
-
-        let shade = 0.85 + 0.15 * t;
-        let cr = p.trunk_r * shade;
-        let cg = p.trunk_g * shade;
-        let cb = p.trunk_b * shade;
-
-        for (var seg = 0u; seg < trunk_segs; seg++) {
-            let angle = f32(seg) / f32(trunk_segs) * 2.0 * PI;
-            let ca = cos(angle);
-            let sa = sin(angle);
-
-            palmg_write_vertex(vb_base + ring * trunk_segs + seg,
-                cx + lean_x + ca * r, y, cz + lean_z + sa * r,
-                ca, 0.0, sa,
-                cr, cg, cb, slot);
-        }
-    }
-
-    // Trunk indices: quads between consecutive rings.
-    // ii was (ring * trunk_segs + seg) * 6u + j.
-    for (var ring = lane; ring < trunk_rings; ring += MESHGEN_LANES) {
-        for (var seg = 0u; seg < trunk_segs; seg++) {
-            let next_seg = (seg + 1u) % trunk_segs;
-            let row0 = ring * trunk_segs;
-            let row1 = (ring + 1u) * trunk_segs;
-
-            let v00 = vb_base + row0 + seg;
-            let v10 = vb_base + row1 + seg;
-            let v11 = vb_base + row1 + next_seg;
-            let v01 = vb_base + row0 + next_seg;
-
-            let ii = ib_base + (ring * trunk_segs + seg) * 6u;
-            palmg_indices[ii + 0u] = v00;
-            palmg_indices[ii + 1u] = v10;
-            palmg_indices[ii + 2u] = v11;
-            palmg_indices[ii + 3u] = v00;
-            palmg_indices[ii + 4u] = v11;
-            palmg_indices[ii + 5u] = v01;
-        }
-    }
-
-    // ── CROWN CAP: triangle fan at trunk top ──
-
-    let top_lean_mag = p.lean * p.height;
-    let crown_lean_x = top_lean_mag * lean_cos;
-    let crown_lean_z = top_lean_mag * lean_sin;
-    let crown_y = p.height - burial;
-    let crown_r = p.top_r * 1.3;
-
-    let crown_cr = p.trunk_r * 0.6 + p.frond_r * 0.4;
-    let crown_cg = p.trunk_g * 0.6 + p.frond_g * 0.4;
-    let crown_cb = p.trunk_b * 0.6 + p.frond_b * 0.4;
-
-    // ONE VERTEX, ONE LANE: the tip is not a loop, so lane 0 writes it.
-    if (lane == 0u) {
-        palmg_write_vertex(vb_base + cap_tip_vi,
-            cx + crown_lean_x, crown_y + crown_r * 0.6, cz + crown_lean_z,
-            0.0, 1.0, 0.0,
-            crown_cr, crown_cg, crown_cb, slot);
-    }
-
-    for (var seg = lane; seg < trunk_segs; seg += MESHGEN_LANES) {
-        let angle = f32(seg) / f32(trunk_segs) * 2.0 * PI;
-        palmg_write_vertex(vb_base + cap_ring_vi + seg,
-            cx + crown_lean_x + cos(angle) * crown_r,
-            crown_y,
-            cz + crown_lean_z + sin(angle) * crown_r,
-            0.0, 1.0, 0.0,
-            crown_cr, crown_cg, crown_cb, slot);
-    }
-
-    for (var seg = lane; seg < trunk_segs; seg += MESHGEN_LANES) {
-        let next_seg = (seg + 1u) % trunk_segs;
-        let ii = ib_base + cap_fan_ii + seg * 3u;
-        palmg_indices[ii + 0u] = vb_base + cap_tip_vi;
-        palmg_indices[ii + 1u] = vb_base + cap_ring_vi + seg;
-        palmg_indices[ii + 2u] = vb_base + cap_ring_vi + next_seg;
-    }
-
-    // ── FRONDS: radial quad strips with golden-angle packing ──
-
-    let golden_angle = PI * (3.0 - sqrt(5.0));
-    let frond_segs = min(p.frond_segs, 14u);
-
-    // THE SLOT IS THE AUTHORITY. Trunk and crown are already written, so
-    // the frond count is whatever the remaining vertex and index budgets
-    // afford — never a per-family constant, because the cost is per-tier.
-    // The authored floor of 3 yields to the ceiling: a floor that can
-    // overrun the slot is not a guard. The two saturating min() calls keep
-    // the subtraction total rather than dependent on the ring/seg clamps
-    // above staying where they are. (`trunk_verts` / `trunk_indices` are
-    // hoisted to the section-base block now; the crown cap needs them too.)
-    let verts_left    = PALMG_MAX_VERTS_PER_SLOT   - min(trunk_verts,   PALMG_MAX_VERTS_PER_SLOT);
-    let indices_left  = PALMG_MAX_INDICES_PER_SLOT - min(trunk_indices, PALMG_MAX_INDICES_PER_SLOT);
-    let frond_ceiling = min(verts_left / ((frond_segs + 1u) * 2u),
-                            indices_left / max(frond_segs * 6u, 1u));
-
-    let n_fronds = min(u32(max(3.0, p.frond_count)), frond_ceiling);
-    let crown_frond_y = crown_y + crown_r * 0.3;
-
-    // A LANE OWNS A WHOLE FROND, so the body below is verbatim — the
-    // per-frond cursor is ordinary serial state inside one lane's range.
-    // Only the frond's starting cursor is arithmetic, and every frond is
-    // the same size, so no prefix loop is needed.
-    for (var f = lane; f < n_fronds; f += MESHGEN_LANES) {
-        var vi = trunk_verts + f * (frond_segs + 1u) * 2u;
-        var ii = trunk_indices + f * frond_segs * 6u;
-
-        let base_angle = f32(f) * golden_angle;
-        let rank = f32(f) / max(1.0, f32(n_fronds - 1u));
-
-        let elev_top = p.crown_spread * PI * 0.42;
-        let elev_bot = -p.crown_skirt * PI * 0.25;
-        let elevation = elev_bot + (elev_top - elev_bot) * rank;
-
-        let droop_scale = 0.25 + 0.75 * (1.0 - rank);
-        let len_scale = 0.6 + 0.4 * (1.0 - rank);
-
-        let cos_az = cos(base_angle);
-        let sin_az = sin(base_angle);
-        let cos_el = cos(elevation);
-        let sin_el = sin(elevation);
-        let fwd_x = cos_az * cos_el;
-        let fwd_y = sin_el;
-        let fwd_z = sin_az * cos_el;
-
-        // Right vector: cross(forward, up)
-        var right_x: f32; var right_y: f32; var right_z: f32;
-        if (sin_el > 0.95) {
-            right_x = -sin_az; right_y = 0.0; right_z = cos_az;
-        } else {
-            let rx = fwd_z; let rz = -fwd_x;
-            let rl = sqrt(rx * rx + rz * rz);
-            if (rl > 0.001) {
-                right_x = rx / rl; right_y = 0.0; right_z = rz / rl;
-            } else {
-                right_x = -sin_az; right_y = 0.0; right_z = cos_az;
-            }
-        }
-
-        let frond_len = p.frond_len * len_scale;
-        let frond_vi_start = vi;
-
-        for (var s = 0u; s <= frond_segs; s++) {
-            let t = f32(s) / f32(frond_segs);
-            let dist = t * frond_len;
-
-            let arch_up = p.frond_arch * frond_len * sin(t * PI * 0.4);
-            let droop_down = p.frond_droop * frond_len * t * t * t * droop_scale;
-            let dy = arch_up - droop_down;
-
-            let mx = cx + crown_lean_x + fwd_x * dist;
-            let my = crown_frond_y + fwd_y * dist + dy;
-            let mz = cz + crown_lean_z + fwd_z * dist;
-
-            let w = p.frond_width * (1.0 - t * 0.85) * (0.3 + 0.7 * min(1.0, t * 3.0));
-            let half_w = w * 0.5;
-            let px_off = right_x * half_w;
-            let py_off = right_y * half_w;
-            let pz_off = right_z * half_w;
-
-            // Color: blend young→aged by rank + tip aging
-            let aged_blend = rank;
-            let fr = p.aged_r + (p.frond_r - p.aged_r) * aged_blend;
-            let fg = p.aged_g + (p.frond_g - p.aged_g) * aged_blend;
-            let fb = p.aged_b + (p.frond_b - p.aged_b) * aged_blend;
-            let tip_age = min(1.0, t * t * (1.0 - rank * 0.7)) * 0.3;
-            let seg_r = fr + (p.aged_r - fr) * tip_age;
-            let seg_g = fg + (p.aged_g - fg) * tip_age;
-            let seg_b = fb + (p.aged_b - fb) * tip_age;
-            let seg_shade = 0.75 + 0.25 * t;
-            let frond_var = f32(f % 3u) * 0.03;
-
-            let ny_approx = 0.8;
-            let nx_approx = fwd_x * 0.2;
-            let nz_approx = fwd_z * 0.2;
-
-            // Left vertex
-            palmg_write_vertex(vb_base + vi,
-                mx + px_off, my + py_off, mz + pz_off,
-                nx_approx, ny_approx, nz_approx,
-                min(1.0, seg_r * seg_shade - frond_var * 0.5),
-                min(1.0, seg_g * seg_shade + frond_var),
-                min(1.0, seg_b * seg_shade - frond_var * 0.5),
-                slot);
-            vi++;
-
-            // Right vertex
-            palmg_write_vertex(vb_base + vi,
-                mx - px_off, my - py_off, mz - pz_off,
-                -nx_approx, ny_approx, -nz_approx,
-                min(1.0, seg_r * seg_shade - frond_var * 0.5),
-                min(1.0, seg_g * seg_shade + frond_var),
-                min(1.0, seg_b * seg_shade - frond_var * 0.5),
-                slot);
-            vi++;
-        }
-
-        // Quad strip indices for this frond
-        for (var s = 0u; s < frond_segs; s++) {
-            let base_v = vb_base + frond_vi_start + s * 2u;
-            let left0  = base_v;
-            let right0 = base_v + 1u;
-            let left1  = base_v + 2u;
-            let right1 = base_v + 3u;
-
-            palmg_indices[ib_base + ii] = left0;  ii++;
-            palmg_indices[ib_base + ii] = left1;  ii++;
-            palmg_indices[ib_base + ii] = right1; ii++;
-            palmg_indices[ib_base + ii] = left0;  ii++;
-            palmg_indices[ib_base + ii] = right1; ii++;
-            palmg_indices[ib_base + ii] = right0; ii++;
-        }
-    }
-
-    // Zero remaining indices (degenerate padding).
-    // `used` was the final ii, which no lane holds any more.
-    let used = trunk_indices + n_fronds * frond_segs * 6u;
-    for (var i = used + lane; i < PALMG_MAX_INDICES_PER_SLOT; i += MESHGEN_LANES) {
-        palmg_indices[ib_base + i] = vb_base;
-    }
-}
-
-// ─── Palm vertex shaders ─────────────────────────────────────────────
-
-@vertex
-fn palm_vs(in: ArchVertexInput) -> EntityVarying {
-    let idx = u32(in.arch_index);
-    let ground_y = textureLoad(entity_ground_atlas, vec2<i32>(i32(idx) + GROUND_ATLAS_PALM, 0), 0).r;
-    var world_pos = in.pos + vec3(0.0, ground_y, 0.0);
-    world_pos.y += sample_live_card(world_pos.xz).x;
-    var out: EntityVarying;
-    out.clip_pos = frame_r.vp.m * vec4(world_pos, 1.0);
-    out.world_pos = world_pos;
-    out.normal = in.normal;
-    out.entity_color = in.color;
-    // THE RING (draw authority) — flora's first draw gate: per-vertex kill
-    // beyond the ring (the mesh is baked world-space, no instance channel).
-    // Anchor = the STAGED point (the band's yardstick). The boundary sits
-    // where the icing is 1, so any mixed-triangle clip sliver is invisible.
-    if (distance(world_pos.xz, vec2(config.lod_point_x, config.lod_point_z)) > config.veil_ring) {
-        out.clip_pos = vec4(0.0, 0.0, -1e4, 1.0);   // far behind the near plane — clipped
-    }
-    return out;
-}
-
-@vertex
-fn shadow_palm_vs(in: ArchVertexInput) -> ShadowVarying {
-    let idx = u32(in.arch_index);
-    let ground_y = textureLoad(entity_ground_atlas, vec2<i32>(i32(idx) + GROUND_ATLAS_PALM, 0), 0).r;
-    var world_pos = in.pos + vec3(0.0, ground_y, 0.0);
-    world_pos.y += sample_live_card(world_pos.xz).x;
-    var out: ShadowVarying;
-    out.clip_pos = shadow_light_vp() * vec4(world_pos, 1.0);
-    return out;
-}
-
-// ─── §9.4 CACTUS MESH GENERATION (ribbed columnar trunk + forking arms) ──
-//
-// CactusMeshParams MUST match state.hpp::GPUCactusMeshParams (size: 128 bytes).
-// If this struct gains/loses a field, the CPU side and
-// its state.hpp sizeof static_assert must be updated together.
-
-// 21 floats + 4 uint32_t + 7 pad floats = 32 fields × 4 = 128 bytes
-struct CactusMeshParams {
-    center_x: f32, center_z: f32,              // 1-2
-    height: f32, radius: f32, taper: f32,      // 3-5
-    ribs: f32, rib_depth: f32,                 // 6-7
-    lean: f32, lean_dir: f32,                  // 8-9
-    cap_round: f32,                            // 10
-    arm_count: f32,                            // 11
-    arm_height: f32, arm_length: f32, arm_radius: f32,  // 12-14
-    arm_curve: f32,                            // 15
-    body_r: f32, body_g: f32, body_b: f32,     // 16-18
-    rib_r: f32, rib_g: f32, rib_b: f32,        // 19-21
-    trunk_segs: u32, arm_segs: u32,            // 22-23
-    is_active: u32,                            // 24
-    seed: u32,                                 // 25
-    _pad0: f32, _pad1: f32, _pad2: f32, _pad3: f32, _pad4: f32, _pad5: f32, _pad6: f32,  // 26-32 = 128 bytes
-}
-
-const CACTUSG_MAX_VERTS_PER_SLOT: u32 = 1500u;
-const CACTUSG_MAX_INDICES_PER_SLOT: u32 = 7998u;
-const CACTUSG_FLOATS_PER_VERTEX: u32 = 10u;
-const CACTUSG_MAX_SLOTS: u32 = 20u;
-
-@group(2) @binding(180) var<storage, read>       cactusg_params: array<CactusMeshParams, 20>;
-@group(2) @binding(181) var<storage, read_write>  cactusg_vertices: array<f32>;
-@group(2) @binding(182) var<storage, read_write>  cactusg_indices: array<u32>;
-
-fn cactusg_write_vertex(abs_idx: u32, px: f32, py: f32, pz: f32,
-                        nx: f32, ny: f32, nz: f32,
-                        cr: f32, cg: f32, cb: f32, entity_idx: u32) {
-    let base = abs_idx * CACTUSG_FLOATS_PER_VERTEX;
-    cactusg_vertices[base + 0u] = px;
-    cactusg_vertices[base + 1u] = py;
-    cactusg_vertices[base + 2u] = pz;
-    cactusg_vertices[base + 3u] = nx;
-    cactusg_vertices[base + 4u] = ny;
-    cactusg_vertices[base + 5u] = nz;
-    cactusg_vertices[base + 6u] = cr;
-    cactusg_vertices[base + 7u] = cg;
-    cactusg_vertices[base + 8u] = cb;
-    cactusg_vertices[base + 9u] = f32(entity_idx);
-}
-
-fn cactus_hash(seed: u32, prop: u32) -> f32 {
-    var h = seed * 747796405u + prop * 2891336453u + 1u;
-    h = ((h >> 16u) ^ h) * 2654435769u;
-    h = ((h >> 16u) ^ h) * 2654435769u;
-    h = (h >> 16u) ^ h;
-    return f32(h) / 4294967295.0;
-}
-
-@compute @workgroup_size(MESHGEN_LANES)
-fn cactus_mesh_gen(
-    @builtin(workgroup_id) wid: vec3<u32>,
-    @builtin(local_invocation_id) lid: vec3<u32>
-) {
-    // ONE WORKGROUP PER SLOT (LATTICE_2). Dispatch shape unchanged.
-    // R3 LIVES HERE: the arm path accumulates (apx/apy/apz) down its
-    // length, so the ARM loop is the strided one and a lane walks its whole
-    // arm serially, exactly as the single thread did.
-    let slot = wid.x;
-    let lane = lid.x;
-    if (slot >= CACTUSG_MAX_SLOTS) { return; }
-
-    let p = cactusg_params[slot];
-    let vb_base = slot * CACTUSG_MAX_VERTS_PER_SLOT;
-    let ib_base = slot * CACTUSG_MAX_INDICES_PER_SLOT;
-
-    if (p.is_active == 0u) {
-        for (var i = lane; i < CACTUSG_MAX_INDICES_PER_SLOT; i += MESHGEN_LANES) {
-            cactusg_indices[ib_base + i] = vb_base;
-        }
-        return;
-    }
-
-    let cx = p.center_x;
-    let cz = p.center_z;
-    let lean_cos = cos(p.lean_dir);
-    let lean_sin = sin(p.lean_dir);
-
-    let ribs = u32(max(4.0, p.ribs));
-    let around = min(max(ribs * 2u, 12u), 20u);
-    let trunk_steps = min(u32(p.trunk_segs), 20u);
-
-    // THE SECTION BASES (LATTICE_2). Pure in (trunk_steps, around), both
-    // uniform per workgroup. `top_ring_vi` was already named below for the
-    // cap fan; it moves here so the trunk's totals derive from it.
-    let top_ring_vi = trunk_steps * around;        // first vertex of the trunk's last ring
-    let cap_tip_vi  = top_ring_vi + around;        // the single tip vertex
-    let cap_fan_ii  = trunk_steps * around * 6u;   // ii at the cap fan
-
-    // ── TRUNK: ribbed surface of revolution ──
-    // vi was ring * around + seg.
-
-    for (var ring = lane; ring <= trunk_steps; ring += MESHGEN_LANES) {
-        let t = f32(ring) / f32(trunk_steps);
-        let r_base = p.radius * (1.0 + (p.taper - 1.0) * t);
-
-        let cap_start = 1.0 - p.cap_round * 0.3;
-        let cap_t = max(0.0, (t - cap_start) / (p.cap_round * 0.3 + 0.001));
-        let cap_scale = select(1.0, cos(cap_t * PI * 0.5), cap_t > 0.0);
-
-        let lean_mag = p.lean * p.height * t * t;
-        let lx = lean_mag * lean_cos;
-        let lz = lean_mag * lean_sin;
-        let y = t * p.height;
-        let shade = 0.85 + 0.15 * t;
-
-        for (var seg = 0u; seg < around; seg++) {
-            let angle = f32(seg) / f32(around) * 2.0 * PI;
-            let rib_phase = angle * f32(ribs) / (2.0 * PI);
-            let rib_mod = 1.0 + cos(rib_phase * 2.0 * PI) * p.rib_depth;
-            let r = r_base * rib_mod * cap_scale;
-
-            let ca = cos(angle);
-            let sa = sin(angle);
-
-            let rib_frac = (cos(rib_phase * 2.0 * PI) + 1.0) * 0.5;
-            let cr = (p.body_r + (p.rib_r - p.body_r) * rib_frac * 0.6) * shade;
-            let cg = (p.body_g + (p.rib_g - p.body_g) * rib_frac * 0.6) * shade;
-            let cb = (p.body_b + (p.rib_b - p.body_b) * rib_frac * 0.6) * shade;
-
-            cactusg_write_vertex(vb_base + ring * around + seg,
-                cx + lx + ca * r, y, cz + lz + sa * r,
-                ca, 0.0, sa, cr, cg, cb, slot);
-        }
-    }
-
-    // Trunk indices — ii was (ring * around + seg) * 6u + j.
-    for (var ring = lane; ring < trunk_steps; ring += MESHGEN_LANES) {
-        for (var seg = 0u; seg < around; seg++) {
-            let next_seg = (seg + 1u) % around;
-            let row0 = ring * around;
-            let row1 = (ring + 1u) * around;
-
-            let ii = ib_base + (ring * around + seg) * 6u;
-            cactusg_indices[ii + 0u] = vb_base + row0 + seg;
-            cactusg_indices[ii + 1u] = vb_base + row1 + seg;
-            cactusg_indices[ii + 2u] = vb_base + row1 + next_seg;
-            cactusg_indices[ii + 3u] = vb_base + row0 + seg;
-            cactusg_indices[ii + 4u] = vb_base + row1 + next_seg;
-            cactusg_indices[ii + 5u] = vb_base + row0 + next_seg;
-        }
-    }
-
-    // ── TRUNK CAP (stitched to top ring) ──
-
-    let top_lean = p.lean * p.height;
-    let cap_cx = cx + top_lean * lean_cos;
-    let cap_cz = cz + top_lean * lean_sin;
-    let cap_y = p.height;
-    let cap_r = p.radius * p.taper * 0.6;
-    let cap_col_r = p.body_r * 0.6 + p.rib_r * 0.4;
-    let cap_col_g = p.body_g * 0.6 + p.rib_g * 0.4;
-    let cap_col_b = p.body_b * 0.6 + p.rib_b * 0.4;
-
-    // Single tip vertex above center — ONE VERTEX, so lane 0 writes it.
-    if (lane == 0u) {
-        cactusg_write_vertex(vb_base + cap_tip_vi,
-            cap_cx, cap_y + cap_r * 0.6, cap_cz,
-            0.0, 1.0, 0.0,
-            cap_col_r, cap_col_g, cap_col_b, slot);
-    }
-
-    // Fan from tip to trunk's existing top ring — no separate cap ring
-    for (var seg = lane; seg < around; seg += MESHGEN_LANES) {
-        let next = (seg + 1u) % around;
-        let ii = ib_base + cap_fan_ii + seg * 3u;
-        cactusg_indices[ii + 0u] = vb_base + cap_tip_vi;
-        cactusg_indices[ii + 1u] = vb_base + top_ring_vi + seg;
-        cactusg_indices[ii + 2u] = vb_base + top_ring_vi + next;
-    }
-
-    // ── ARMS: ribbed columns along upward-curving paths ──
-
-    let golden_angle = PI * (3.0 - sqrt(5.0));
-    let arm_segs_u = min(u32(p.arm_segs), 12u);
-    let arm_ribs = max(4u, ribs - 2u);
-    let arm_around = min(max(arm_ribs * 2u, 8u), 12u);
-
-    // THE SLOT IS THE AUTHORITY (mirrors the palm's frond ceiling). Every
-    // other quantity feeding the arm loops is clamped — arm_segs_u,
-    // arm_around, around, trunk_steps — and the TRIP COUNT was the one
-    // thing that was not, while ARM_COUNT carries 1e30f as its parameter
-    // ceiling. An unbounded loop writing into a fixed slot is a hole whose
-    // probability is a property of the current table, not of the code: a
-    // later table edit moves it with no warning.
-    //
-    // Costs are read from the loops, POST-F5. Trunk: rings are inclusive
-    // (ring <= trunk_steps) over `around` segs, plus ONE top-cap tip that
-    // fans to the existing top ring rather than emitting its own — which
-    // is precisely the pattern the arm tip lacked until F5. Per arm: the
-    // body rings are inclusive too, plus the single cap tip.
-    // n_arms moves BELOW arm_segs_u and arm_around because the ceiling
-    // depends on both. No floor to preserve — zero arms is a valid Finger.
-    let trunk_verts   = cap_tip_vi + 1u;              // (trunk_steps+1)*around + the tip
-    let trunk_indices = cap_fan_ii + around * 3u;     // the trunk quads + the cap fan
-    let verts_per_arm   = (arm_segs_u + 1u) * arm_around + 1u;
-    let indices_per_arm = arm_segs_u * arm_around * 6u + arm_around * 3u;
-    let arm_verts_left   = CACTUSG_MAX_VERTS_PER_SLOT   - min(trunk_verts,   CACTUSG_MAX_VERTS_PER_SLOT);
-    let arm_indices_left = CACTUSG_MAX_INDICES_PER_SLOT - min(trunk_indices, CACTUSG_MAX_INDICES_PER_SLOT);
-    let arm_ceiling = min(arm_verts_left / max(verts_per_arm, 1u),
-                          arm_indices_left / max(indices_per_arm, 1u));
-
-    let n_arms = min(u32(max(0.0, p.arm_count)), arm_ceiling);
-
-    // A LANE OWNS A WHOLE ARM (R3). The body below is verbatim — the
-    // apx/apy/apz path walk accumulates down the arm, and it accumulates
-    // inside one lane exactly as it did inside the one thread. Every arm
-    // is the same size (arm_segs_u and arm_around are per-slot), so the
-    // base is a product, not a prefix.
-    for (var a = lane; a < n_arms; a += MESHGEN_LANES) {
-        var vi = trunk_verts + a * verts_per_arm;
-        var ii = trunk_indices + a * indices_per_arm;
-
-        let arm_az = f32(a) * golden_angle + cactus_hash(p.seed, 1050u + a) * 0.5;
-        let fork_frac = p.arm_height + (cactus_hash(p.seed, 1060u + a) - 0.5) * 0.15;
-        let fork_y = p.height * fork_frac;
-        let arm_len = p.arm_length * (0.8 + cactus_hash(p.seed, 1070u + a) * 0.4);
-        let arm_r = p.arm_radius * (0.85 + cactus_hash(p.seed, 1080u + a) * 0.3);
-
-        let lean_at_fork = p.lean * p.height * fork_frac * fork_frac;
-        // The fork rides the trunk's FULL lean. The trunk centre at
-        // fork_y is displaced by lean_at_fork; taking 0.3 of it left the
-        // arm growing out of a point the trunk is not at, and the error
-        // scales with lean. The designer's 2D preview applies the whole
-        // offset, and the designer is the shape authority.
-        let fork_x = cx + cos(arm_az) * p.radius * p.taper * 0.9 + lean_at_fork * lean_cos;
-        let fork_z = cz + sin(arm_az) * p.radius * p.taper * 0.9 + lean_at_fork * lean_sin;
-
-        let out_x = cos(arm_az);
-        let out_z = sin(arm_az);
-
-        var apx = fork_x;
-        var apy = fork_y;
-        var apz = fork_z;
-        let seg_len = arm_len / f32(arm_segs_u);
-
-        let arm_vi_start = vi;
-
-        for (var s = 0u; s <= arm_segs_u; s++) {
-            let t = f32(s) / f32(arm_segs_u);
-            let blend = t * p.arm_curve;
-            let dx = out_x * (1.0 - blend);
-            let dy = blend;
-            let dz = out_z * (1.0 - blend);
-            let dl = sqrt(dx * dx + dy * dy + dz * dz);
-            let ndx = dx / max(dl, 0.001);
-            let ndy = dy / max(dl, 0.001);
-            let ndz = dz / max(dl, 0.001);
-
-            let seg_r = arm_r * (1.0 - t * 0.3);
-
-            // THE ARM'S PLANE IS FIXED. The path lies entirely in the
-            // vertical plane spanned by out = (cos az, 0, sin az) and world
-            // up, so ONE horizontal perpendicular serves every ring. The
-            // runtime branch it replaces flipped the reference axis mid-arm
-            // whenever |ndy| passed 0.95 — which arm_curve mu 1.00 now
-            // reaches around t ~ 0.75 (the old designer defaults peaked at
-            // 0.949, one hundredth below it). out is already unit, so this
-            // is too: no re-normalisation.
-            let rx = out_z;
-            let rz = -out_x;
-            let fx = 0.0 - rz * ndy;
-            let fy = rz * ndx - rx * ndz;
-            let fz = rx * ndy;
-
-            let arm_shade = 0.85 + 0.15 * t;
-
-            for (var seg = 0u; seg < arm_around; seg++) {
-                let angle = f32(seg) / f32(arm_around) * 2.0 * PI;
-                let ca = cos(angle);
-                let sa = sin(angle);
-
-                let arm_rib_phase = angle * f32(arm_ribs) / (2.0 * PI);
-                let arm_rib_mod = 1.0 + cos(arm_rib_phase * 2.0 * PI) * p.rib_depth * 0.8;
-                let r = seg_r * arm_rib_mod;
-
-                let vx = apx + (rx * ca + fx * sa) * r;
-                let vy = apy + fy * sa * r;
-                let vz = apz + (rz * ca + fz * sa) * r;
-
-                let arm_rib_frac = (cos(arm_rib_phase * 2.0 * PI) + 1.0) * 0.5;
-                let cr = (p.body_r + (p.rib_r - p.body_r) * arm_rib_frac * 0.6) * arm_shade;
-                let cg = (p.body_g + (p.rib_g - p.body_g) * arm_rib_frac * 0.6) * arm_shade;
-                let cb = (p.body_b + (p.rib_b - p.body_b) * arm_rib_frac * 0.6) * arm_shade;
-
-                // The normal takes the SAME basis as the position above.
-                // (ca, 0, sa) is the ring's local parameter, not a world
-                // direction — correct for the trunk, whose rings are
-                // horizontal circles about a vertical axis, and wrong here,
-                // where the ring lives in (r, f). r and f are orthonormal by
-                // construction (f = r x nd, both unit), so this is unit and
-                // needs no normalisation.
-                cactusg_write_vertex(vb_base + vi,
-                    vx, vy, vz,
-                    rx * ca + fx * sa, fy * sa, rz * ca + fz * sa,
-                    cr, cg, cb, slot);
-                vi++;
-            }
-
-            if (s < arm_segs_u) {
-                apx += ndx * seg_len;
-                apy += ndy * seg_len;
-                apz += ndz * seg_len;
-            }
-        }
-
-        // Arm indices
-        for (var s = 0u; s < arm_segs_u; s++) {
-            for (var seg = 0u; seg < arm_around; seg++) {
-                let next_seg = (seg + 1u) % arm_around;
-                let row0 = arm_vi_start + s * arm_around;
-                let row1 = arm_vi_start + (s + 1u) * arm_around;
-
-                cactusg_indices[ib_base + ii] = vb_base + row0 + seg; ii++;
-                cactusg_indices[ib_base + ii] = vb_base + row1 + seg; ii++;
-                cactusg_indices[ib_base + ii] = vb_base + row1 + next_seg; ii++;
-                cactusg_indices[ib_base + ii] = vb_base + row0 + seg; ii++;
-                cactusg_indices[ib_base + ii] = vb_base + row1 + next_seg; ii++;
-                cactusg_indices[ib_base + ii] = vb_base + row0 + next_seg; ii++;
-            }
-        }
-
-        // ── Arm cap: the tip fans DIRECTLY to the last body ring ──
-        // The cap used to emit its OWN ring at arm_r * 0.6 while the last
-        // body ring sat at arm_r * 0.7 with rib modulation — two concentric
-        // rings at the same height, unstitched, leaving an open annulus all
-        // the way round every arm tip. Fanning to the body ring closes it
-        // and deletes the ring's vertices outright.
-        //
-        // THE FAN USES arm_around, NOT the old min(arm_around, 8u). Those
-        // two differ at every tier's mu (arm_around 12 against a cap of 8),
-        // so a fan over the cap count would have skipped a third of the
-        // ring it is stitching to.
-        //
-        // Winding is taken from the body's own quad, not guessed: the body
-        // writes (row0+seg, row1+seg, row1+next) then (row0+seg, row1+next,
-        // row0+next). The tip plays row1, so the first triangle degenerates
-        // and the second is what survives — (last+seg, tip, last+next). That
-        // is the OPPOSITE cyclic order from the deleted cap fan, which wound
-        // against its own separate ring.
-        let arm_cap_r = arm_r * 0.6;
-        let arm_cap_tip = vi;
-        cactusg_write_vertex(vb_base + vi,
-            apx, apy + arm_cap_r * 0.6, apz,
-            0.0, 1.0, 0.0,
-            cap_col_r, cap_col_g, cap_col_b, slot);
-        vi++;
-
-        let arm_last_ring = arm_vi_start + arm_segs_u * arm_around;
-        for (var seg = 0u; seg < arm_around; seg++) {
-            let next = (seg + 1u) % arm_around;
-            cactusg_indices[ib_base + ii] = vb_base + arm_last_ring + seg;  ii++;
-            cactusg_indices[ib_base + ii] = vb_base + arm_cap_tip;          ii++;
-            cactusg_indices[ib_base + ii] = vb_base + arm_last_ring + next; ii++;
-        }
-    }
-
-    // Zero remaining indices — `used` was the final ii, which no lane holds.
-    let used = trunk_indices + n_arms * indices_per_arm;
-    for (var i = used + lane; i < CACTUSG_MAX_INDICES_PER_SLOT; i += MESHGEN_LANES) {
-        cactusg_indices[ib_base + i] = vb_base;
-    }
-}
-
-// ─── Cactus vertex shaders ──────────────────────────────────────────
-
-@vertex
-fn cactus_vs(in: ArchVertexInput) -> EntityVarying {
-    let idx = u32(in.arch_index);
-    let ground_y = textureLoad(entity_ground_atlas, vec2<i32>(i32(idx) + GROUND_ATLAS_CACTUS, 0), 0).r;
-    var world_pos = in.pos + vec3(0.0, ground_y, 0.0);
-    world_pos.y += sample_live_card(world_pos.xz).x;
-    var out: EntityVarying;
-    out.clip_pos = frame_r.vp.m * vec4(world_pos, 1.0);
-    out.world_pos = world_pos;
-    out.normal = in.normal;
-    out.entity_color = in.color;
-    // THE RING (draw authority) — see palm_vs: per-vertex kill beyond the ring.
-    if (distance(world_pos.xz, vec2(config.lod_point_x, config.lod_point_z)) > config.veil_ring) {
-        out.clip_pos = vec4(0.0, 0.0, -1e4, 1.0);
-    }
-    return out;
-}
-
-@vertex
-fn shadow_cactus_vs(in: ArchVertexInput) -> ShadowVarying {
-    let idx = u32(in.arch_index);
-    let ground_y = textureLoad(entity_ground_atlas, vec2<i32>(i32(idx) + GROUND_ATLAS_CACTUS, 0), 0).r;
-    var world_pos = in.pos + vec3(0.0, ground_y, 0.0);
-    world_pos.y += sample_live_card(world_pos.xz).x;
-    var out: ShadowVarying;
-    out.clip_pos = shadow_light_vp() * vec4(world_pos, 1.0);
-    return out;
-}
-
-// ─── §9.5 BLADE CLUSTER MESH GENERATION ─────────────────────────
-//
-// BladeClusterMeshParams MUST match state.hpp::GPUBladeClusterMeshParams
-// (size: 80 bytes). If this struct gains/loses a field, the CPU side
-// and its state.hpp sizeof static_assert must be updated together.
-
-// 16 floats + 4 u32 = 20 fields × 4 = 80 bytes
-struct BladeClusterMeshParams {
-    center_x: f32, center_z: f32,                   // 1-2
-    blade_count: f32,                                // 3
-    blade_h: f32, blade_h_var: f32, blade_w: f32,   // 4-6
-    splay: f32, curve: f32, twist: f32, taper: f32, // 7-10
-    blade_r: f32, blade_g: f32, blade_b: f32,       // 11-13
-    aged_r: f32, aged_g: f32, aged_b: f32,          // 14-16
-    blade_segs: u32,                                 // 17
-    is_active: u32,                                  // 18
-    seed: u32,                                       // 19
-    _pad0: u32,                                      // 20 = 80 bytes
-}
-
-const BLADEG_MAX_VERTS_PER_SLOT: u32 = 500u;
-const BLADEG_MAX_INDICES_PER_SLOT: u32 = 1998u;
-const BLADEG_FLOATS_PER_VERTEX: u32 = 10u;
-const BLADEG_MAX_SLOTS: u32 = 32u;
-
-@group(2) @binding(180) var<storage, read>       bladeg_params: array<BladeClusterMeshParams, 32>;
-@group(2) @binding(181) var<storage, read_write>  bladeg_vertices: array<f32>;
-@group(2) @binding(182) var<storage, read_write>  bladeg_indices: array<u32>;
-
-fn bladeg_write_vertex(abs_idx: u32, px: f32, py: f32, pz: f32,
-                       nx: f32, ny: f32, nz: f32,
-                       cr: f32, cg: f32, cb: f32, entity_idx: u32) {
-    let base = abs_idx * BLADEG_FLOATS_PER_VERTEX;
-    bladeg_vertices[base + 0u] = px;
-    bladeg_vertices[base + 1u] = py;
-    bladeg_vertices[base + 2u] = pz;
-    bladeg_vertices[base + 3u] = nx;
-    bladeg_vertices[base + 4u] = ny;
-    bladeg_vertices[base + 5u] = nz;
-    bladeg_vertices[base + 6u] = cr;
-    bladeg_vertices[base + 7u] = cg;
-    bladeg_vertices[base + 8u] = cb;
-    bladeg_vertices[base + 9u] = f32(entity_idx);
-}
-
-fn blade_hash(seed: u32, prop: u32) -> f32 {
-    var h = seed * 747796405u + prop * 2891336453u + 1u;
-    h = ((h >> 16u) ^ h) * 2654435769u;
-    h = ((h >> 16u) ^ h) * 2654435769u;
-    h = (h >> 16u) ^ h;
-    return f32(h) / 4294967295.0;
-}
-
-@compute @workgroup_size(MESHGEN_LANES)
-fn blade_cluster_mesh_gen(
-    @builtin(workgroup_id) wid: vec3<u32>,
-    @builtin(local_invocation_id) lid: vec3<u32>
-) {
-    // ONE WORKGROUP PER SLOT (LATTICE_2). Dispatch shape unchanged.
-    // The simplest of the five: ONE emission section, and every blade is
-    // the same size, so a lane owns a blade and the base is a product.
-    let slot = wid.x;
-    let lane = lid.x;
-    if (slot >= BLADEG_MAX_SLOTS) { return; }
-
-    let p = bladeg_params[slot];
-    let vb_base = slot * BLADEG_MAX_VERTS_PER_SLOT;
-    let ib_base = slot * BLADEG_MAX_INDICES_PER_SLOT;
-
-    if (p.is_active == 0u) {
-        for (var i = lane; i < BLADEG_MAX_INDICES_PER_SLOT; i += MESHGEN_LANES) {
-            bladeg_indices[ib_base + i] = vb_base;  // NOT 0u!
-        }
-        return;
-    }
-
-    let cx = p.center_x;
-    let cz = p.center_z;
-    let segs = max(3u, p.blade_segs);
-
-    // THE SLOT IS THE AUTHORITY (mirrors the palm's frond ceiling and the
-    // cactus arm's). n_blades was an unbounded trip count writing into a
-    // fixed slot, and BLADE_COUNT carries 1e30f as its parameter ceiling,
-    // so only the distribution's tail was holding it.
-    //
-    // Costs read from the loops: the vertex loop is INCLUSIVE (s <= segs)
-    // and writes TWO verts per step; the index loop is exclusive and writes
-    // six. There is NO base or root cost — vi and ii are still zero when
-    // the blade loop opens, so the whole slot is the blade budget.
-    //
-    // NOTE for a future table edit: `segs` above has a floor but no
-    // ceiling. It is safe today only because blade_segs is an authored
-    // TIER SCALAR (5/6/7), not a sampled parameter — unlike blade_count.
-    // The ceiling below is computed FROM segs, so it stays correct if that
-    // ever changes; the guard that would still be missing is on segs itself.
-    let verts_per_blade   = (segs + 1u) * 2u;
-    let indices_per_blade = segs * 6u;
-    let blade_ceiling = min(BLADEG_MAX_VERTS_PER_SLOT   / max(verts_per_blade, 1u),
-                            BLADEG_MAX_INDICES_PER_SLOT / max(indices_per_blade, 1u));
-
-    let n_blades = min(u32(max(2.0, p.blade_count)), blade_ceiling);
-    let GA = PI * (3.0 - sqrt(5.0));
-
-    // A LANE OWNS A BLADE: the body is verbatim, both inner loops and the
-    // per-blade cursor included. `verts_per_blade` / `indices_per_blade`
-    // were already named above for the ceiling; they are the stride too.
-    for (var b = lane; b < n_blades; b += MESHGEN_LANES) {
-        var vi = b * verts_per_blade;
-        var ii = b * indices_per_blade;
-
-        let azimuth = f32(b) * GA;
-        let ca = cos(azimuth);
-        let sa = sin(azimuth);
-
-        // Per-blade height variation
-        let h_mult = 1.0 + (blade_hash(p.seed, 970u + b) - 0.5) * p.blade_h_var * 2.0;
-        let blade_h = p.blade_h * max(0.4, h_mult);
-
-        // Splay: outer blades splay more
-        let rank = f32(b) / max(1.0, f32(n_blades - 1u));
-        let splay_ang = p.splay * (0.6 + 0.4 * (1.0 - rank));
-        let splay_j = (blade_hash(p.seed, 980u + b) - 0.5) * 0.15;
-        let final_splay = splay_ang + splay_j;
-
-        let cos_s = cos(final_splay);
-        let sin_s = sin(final_splay);
-        let fwd_x = ca * sin_s;
-        let fwd_y = cos_s;
-        let fwd_z = sa * sin_s;
-
-        // Right vector (perpendicular for blade width)
-        var rx: f32; var ry: f32; var rz: f32;
-        if (cos_s > 0.95) {
-            rx = -sa; ry = 0.0; rz = ca;
-        } else {
-            // cross(fwd, up)
-            rx = fwd_z; ry = 0.0; rz = -fwd_x;
-            let rl = sqrt(rx * rx + rz * rz);
-            rx /= max(rl, 0.001);
-            rz /= max(rl, 0.001);
-        }
-
-        let twist_dir = select(-1.0, 1.0, b % 2u == 0u);
-        let twist_amt = p.twist * twist_dir;
-
-        // Base color for this blade
-        let age_blend = (1.0 - rank) * 0.5;
-        let base_r = p.blade_r + (p.aged_r - p.blade_r) * age_blend;
-        let base_g = p.blade_g + (p.aged_g - p.blade_g) * age_blend;
-        let base_b = p.blade_b + (p.aged_b - p.blade_b) * age_blend;
-
-        let blade_vi_start = vi;
-
-        // Two vertices per segment step (left + right of midrib)
-        for (var s = 0u; s <= segs; s++) {
-            let t = f32(s) / f32(segs);
-            let dist = t * blade_h;
-
-            // Curve: quadratic outward arc
-            let curve_off = p.curve * blade_h * t * t;
-
-            // Position along forward + curve
-            let px = fwd_x * dist + ca * curve_off;
-            let py = fwd_y * dist;
-            let pz = fwd_z * dist + sa * curve_off;
-
-            // Width: ramp in at root, taper to point
-            let base_frac = 0.3 + 0.7 * min(1.0, t * 4.0);
-            let tip_frac = 1.0 - pow(t, p.taper * 2.5 + 0.5);
-            let w = p.blade_w * base_frac * tip_frac;
-
-            // Twist
-            let tw_angle = twist_amt * t * PI;
-            let ct = cos(tw_angle);
-            let st_tw = sin(tw_angle);
-            let trx = rx * ct + fwd_x * st_tw;
-            let try_ = ry * ct + fwd_y * st_tw;
-            let trz = rz * ct + fwd_z * st_tw;
-
-            let half_w = w * 0.5;
-            let perp_x = trx * half_w;
-            let perp_y = try_ * half_w;
-            let perp_z = trz * half_w;
-
-            // Color: shade by height, age at tip
-            let shade = 0.7 + 0.3 * sin(t * PI * 0.8);
-            let tip_age = t * t * 0.3;
-            let cr = min(1.0, (base_r + (p.aged_r - base_r) * tip_age) * shade);
-            let cg = min(1.0, (base_g + (p.aged_g - base_g) * tip_age) * shade);
-            let cb = min(1.0, (base_b + (p.aged_b - base_b) * tip_age) * shade);
-
-            // Normal: blade face normal (cross of forward and right)
-            let nx = fwd_y * trz - fwd_z * try_;
-            let ny = fwd_z * trx - fwd_x * trz;
-            let nz = fwd_x * try_ - fwd_y * trx;
-            let nl = sqrt(nx * nx + ny * ny + nz * nz);
-            let nnx = nx / max(nl, 0.001);
-            let nny = ny / max(nl, 0.001);
-            let nnz = nz / max(nl, 0.001);
-
-            // Left vertex
-            bladeg_write_vertex(vb_base + vi,
-                cx + px + perp_x, py + perp_y, cz + pz + perp_z,
-                nnx, nny, nnz, cr, cg, cb, slot);
-            vi++;
-
-            // Right vertex
-            bladeg_write_vertex(vb_base + vi,
-                cx + px - perp_x, py - perp_y, cz + pz - perp_z,
-                -nnx, -nny, -nnz, cr, cg, cb, slot);
-            vi++;
-        }
-
-        // Index the quad strip: 2 tris per segment
-        let vps = 2u;  // verts per step (left + right)
-        for (var s = 0u; s < segs; s++) {
-            let i0 = blade_vi_start + s * vps;       // left  row s
-            let i1 = blade_vi_start + s * vps + 1u;  // right row s
-            let i2 = blade_vi_start + (s + 1u) * vps;      // left  row s+1
-            let i3 = blade_vi_start + (s + 1u) * vps + 1u; // right row s+1
-
-            bladeg_indices[ib_base + ii] = vb_base + i0; ii++;
-            bladeg_indices[ib_base + ii] = vb_base + i2; ii++;
-            bladeg_indices[ib_base + ii] = vb_base + i3; ii++;
-            bladeg_indices[ib_base + ii] = vb_base + i0; ii++;
-            bladeg_indices[ib_base + ii] = vb_base + i3; ii++;
-            bladeg_indices[ib_base + ii] = vb_base + i1; ii++;
-        }
-    }
-
-    // Fill remaining indices with vb_base (NOT 0u!).
-    // `used` was the final ii, which no lane holds any more.
-    let used = n_blades * indices_per_blade;
-    for (var i = used + lane; i < BLADEG_MAX_INDICES_PER_SLOT; i += MESHGEN_LANES) {
-        bladeg_indices[ib_base + i] = vb_base;
-    }
-}
-
-// ─── Blade cluster vertex shaders ──────────────────────────────────
-
-@vertex
-fn blade_cluster_vs(in: ArchVertexInput) -> EntityVarying {
-    let idx = u32(in.arch_index);
-    let ground_y = textureLoad(entity_ground_atlas, vec2<i32>(i32(idx) + GROUND_ATLAS_BLADE, 0), 0).r;
-    var world_pos = in.pos + vec3(0.0, ground_y, 0.0);
-    world_pos.y += sample_live_card(world_pos.xz).x;
-    var out: EntityVarying;
-    out.clip_pos = frame_r.vp.m * vec4(world_pos, 1.0);
-    out.world_pos = world_pos;
-    out.normal = in.normal;
-    out.entity_color = in.color;
-    // THE RING (draw authority) — see palm_vs: per-vertex kill beyond the ring.
-    if (distance(world_pos.xz, vec2(config.lod_point_x, config.lod_point_z)) > config.veil_ring) {
-        out.clip_pos = vec4(0.0, 0.0, -1e4, 1.0);
-    }
-    return out;
-}
-
-@vertex
-fn shadow_blade_cluster_vs(in: ArchVertexInput) -> ShadowVarying {
-    let idx = u32(in.arch_index);
-    let ground_y = textureLoad(entity_ground_atlas, vec2<i32>(i32(idx) + GROUND_ATLAS_BLADE, 0), 0).r;
-    var world_pos = in.pos + vec3(0.0, ground_y, 0.0);
-    world_pos.y += sample_live_card(world_pos.xz).x;
-    var out: ShadowVarying;
-    out.clip_pos = shadow_light_vp() * vec4(world_pos, 1.0);
-    return out;
-}
 
 // ═══════════════════════════════════════════════════════════════════
 // §ORB — Sky orb layer: init, dynamics, render

@@ -9,20 +9,20 @@
 // ─── spawn_engine.hpp (S3 · MERGED: vocabulary + state + impl) ─────
 //
 // How and when things appear: shared spawn helpers, footprint
-// registry, proximity affinity, mesh-param rebuilds, distance
+// registry, mesh-param rebuilds, distance
 // culling, census, plus the dispatch loops that drive both generic
 // and bespoke families through select → place → commit.
 //
 // SEAM[spawn_engine:P11] home of pattern P11 (templated active-array
 //   helper) — run_spawn_preamble<C, ActiveT> is the canonical
-//   instance. One implementation, ten callers.
+//   instance. One implementation, four callers.
 // The EntityQueueEntry / PlacementEntry unions and every type they
 //   embed live in entity_types.hpp (the contract home); this module
 //   holds only the queues and loops. spawn_engine stays ONE pair.
 //
 // Depends on cohort include order: roster.hpp (PopFamily),
 // entity_types.hpp (queue unions), state.hpp (GPU mesh params),
-// grounded.hpp (ActiveColumn/EntitiesState — COMPLETE, the merged
+// grounded.hpp (EntitiesState — COMPLETE, the merged
 // bodies deref them), patch_system.hpp (Dim::PATCH_EXTENT — the preamble
 // template reads it at definition), renderer.hpp. MERGED at the
 // cohort tail (the B ruling): the decl tier
@@ -45,7 +45,6 @@ namespace the_board {
 //                                            the whole band → invisible exit)
 // Both toggle edges are behind the icing — materialize inside the fade.
 inline constexpr float ENTITY_CULL_HYSTERESIS     = 40.0f;   // toggle band, wholly beyond the ring
-inline constexpr float ENTITY_THIN_EXTENT         = 5.0f;    // columns/antennas: conservative horizontal half-reach
 
 // ── Footprint registry vocabulary ──────────────────────────────────
 
@@ -68,65 +67,18 @@ inline constexpr float CENSUS_DUMP_INTERVAL = 30.0f;
 // must be cheap enough not to become the phenomenon.
 inline constexpr uint32_t CENSUS_LISTING_MAX = 12;
 
-// ── Proximity affinity ─────────────────────────────────────────────
+// THE PROXIMITY SUBSYSTEM stood here — five PopFamily-indexed tables
+// (RADIUS / MAX_BOOST / THRESHOLD / GAP_REDUCTION and the
+// AFFINITY matrix) and one mechanism: a family with a non-zero
+// affinity row was drawn toward standing neighbours, which both
+// multiplied its spawn chance and shrank its separation gap.
 //
-// WHAT: the clustering system — five tables, one mechanism. When a
-//   family with a non-zero AFFINITY row is being placed, nearby
-//   attractor footprints (a) MULTIPLY its spawn chance (boost) and
-//   (b) SHRINK its required separation gap (gap reduction).
-// AXES: the four vectors are indexed by the PLACING family; the matrix
-//   is PROXIMITY_AFFINITY[placing][existing-neighbor] — e.g.
-//   [Palm][Palm]=0.65 means a palm being placed is strongly attracted
-//   to standing palms; [Palm][Cactus]=0.3 a milder pull.
-// UNITS: RADIUS = wu (neighbor-scan distance around the candidate);
-//   MAX_BOOST = multiplier ceiling on the spawn-chance boost;
-//   THRESHOLD = count (minimum qualifying neighbors before any boost);
-//   GAP_REDUCTION = fraction 0-1 of MIN_SEPARATION removed, scaled by
-//   the pair's affinity; AFFINITY = dimensionless weight 0-1, summed
-//   over neighbors into boost = min(1 + Σaff, MAX_BOOST).
-// ORDER: every axis follows PopFamily order (PYRAMID=0 … GOL=10),
-//   PINNED by the F-1 static_assert at roster.hpp.
-// CONSUMERS: proximity_affinity_boost() below (RADIUS/MAX_BOOST/
-//   THRESHOLD/AFFINITY → the adj_mod spawn multiplier);
-//   check_position() (AFFINITY × GAP_REDUCTION → the effective gap);
-//   proximity_row_active() (constexpr row precheck).
-// SENTINELS: RADIUS 0 = family never scans (boost hard-disabled);
-//   MAX_BOOST 1.0 = no boost possible; THRESHOLD 0 = no minimum;
-//   GAP_REDUCTION 0 = gap never shrinks; an all-zero AFFINITY row
-//   short-circuits the whole mechanism for that family.
-// Spawn + placement determinant — frozen biography (§12): these numbers
-// shape both the rate and the geometry of every cluster ever born.
-// Only COLUMN and the flora trio (PALM/CACTUS/BLADE) cluster today.
-
-//                              Pyr    Arch   Col    Ant    Palm   Cact   Blad   Sph    Ribn   Cube   GoL
-inline constexpr float    PROXIMITY_RADIUS[PopFamily::COUNT] = { 0.0f,  0.0f, 60.0f,  0.0f,150.0f,120.0f,120.0f,  0.0f,  0.0f,  0.0f,  0.0f };   // wu; 0 = never scans
-inline constexpr float    PROXIMITY_MAX_BOOST[PopFamily::COUNT] = { 1.0f,  1.0f,  2.0f,  1.0f,  3.0f,  3.0f,  3.0f,  1.0f,  1.0f,  1.0f,  1.0f };   // ×ceiling; 1 = no boost
-inline constexpr uint32_t PROXIMITY_THRESHOLD[PopFamily::COUNT] = { 0,     0,     2,     0,     1,     1,     1,     0,     0,     0,     0 };   // min neighbors; 0 = none
-inline constexpr float    PROXIMITY_GAP_REDUCTION[PopFamily::COUNT] = { 0.0f, 0.0f, 0.3f, 0.0f, 0.6f, 0.6f, 0.6f, 0.0f, 0.0f, 0.0f, 0.0f };   // fraction of MIN_SEPARATION; 0 = keep full gap
-
-// AFFINITY[placing][existing]: rows follow PopFamily; only Col + the
-// flora trio have non-zero rows (all others never cluster).
-inline constexpr float PROXIMITY_AFFINITY[PopFamily::COUNT][PopFamily::COUNT] = {
-    //           near: Pyr   Arch  Col   Ant   Palm  Cact  Blad  Sph   Ribn  Cube  GoL
-    /* Pyr   */ { 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f },
-    /* Arch  */ { 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f },
-    /* Col   */ { 0.0f, 0.0f, 0.4f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f },
-    /* Ant   */ { 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f },
-    /* Palm  */ { 0.0f, 0.0f, 0.0f, 0.0f, 0.65f, 0.3f, 0.3f, 0.0f, 0.0f, 0.0f, 0.0f },
-    /* Cact  */ { 0.0f, 0.0f, 0.0f, 0.0f, 0.3f, 0.5f, 0.3f, 0.0f, 0.0f, 0.0f, 0.0f },
-    /* Blad  */ { 0.0f, 0.0f, 0.0f, 0.0f, 0.3f, 0.3f, 0.5f, 0.0f, 0.0f, 0.0f, 0.0f },
-    /* Sph   */ { 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f },
-    /* Ribn  */ { 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f },
-    /* Cube  */ { 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f },
-    /* GoL   */ { 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f },
-};
-
-// Precomputed: does this family have any non-zero affinity?
-inline constexpr bool proximity_row_active(uint32_t family) {
-    for (uint32_t f = 0; f < PopFamily::COUNT; f++)
-        if (PROXIMITY_AFFINITY[family][f] > 0.0f) return true;
-    return false;
-}
+// EVERY CLUSTERING FAMILY IS GONE. COLUMN, PALM, CACTUS and BLADE
+// left at PRUNE_2 and the whole matrix has read zero since; the
+// mechanism has been standing unexercised, folding to false at
+// compile time, waiting for a family that never came. ONE_WORLD-I
+// U5 retires it: a mechanism kept for a hypothetical is exactly
+// what the sweep is for, and git holds the numbers (L30).
 
 // ═══ MODULE STATE ══════════════════════════════════════════════════
 
@@ -170,7 +122,7 @@ inline constexpr bool proximity_row_active(uint32_t family) {
 // caller — the per-frame budgeted spawn, two patches. The fullRegen arm hands
 // the same function all 49 patches of the priority window in one call, and the
 // budget is not consulted there: 49 x 12 selections into 24 slots. The
-// `[SPAWN] entityQueue_ OVERFLOW` line fired at boot and at every portal on
+// `[SPAWN] entityQueue_ OVERFLOW` line fired at boot and at every rebirth on
 // every device, and the families it dropped were the tail of PLACEMENT_ORDER —
 // galleries first. No number would have fixed that; only the drain does.
 //
@@ -192,7 +144,7 @@ struct SpawnEngineState {
 // DECLARATIONS live in contracts/spawn_services.hpp (the
 // machine's decl tier) with the boundary DTOs
 // (SpawnGatePreambleResult / PositionResult / SpawnPreamble), the
-// ActiveColumn fwd, MIN_SEPARATION, and GLOBAL_ENTITY_DENSITY (gol
+// MIN_SEPARATION and GLOBAL_ENTITY_DENSITY (gol
 // reads it pre-tail). Definitions are all below.
 
 // ── Helper 1: SpawnGatePreamble ──────────────────────────────
@@ -200,9 +152,9 @@ struct SpawnEngineState {
 // SEAM[spawn_engine:P11] the canonical templated active-array helper.
 // THE TEMPLATE KEYHOLE, retired to a doorway:
 // every instantiation now deduces C = MachineCtx (the machine face);
-// the DECLARATION lives in contracts/spawn_services.hpp so the ten
+// the DECLARATION lives in contracts/spawn_services.hpp so the
 // pre-tail callers bind here at end-of-TU instantiation. The typename
-// C stays — one implementation, ten callers, the active-array type
+// C stays — one implementation, four callers, the active-array type
 // still varies per family (ActiveT).
 template<typename C, typename ActiveT>
 SpawnGatePreambleResult run_spawn_preamble(C* c,
@@ -225,13 +177,13 @@ SpawnGatePreambleResult run_spawn_preamble(C* c,
     }
 
     // 2-6. THE COMPOSITION LAW: the stack, authored once —
-    // mood → global → tile (F3) → proximity → base × adj → min(·,1).
+    // mood → global → tile (F3) → base × adj → min(·,1).
     // Generic semantics: multiply-through on mood zero (no veto flag),
-    // proximity ON, MIN1 clamp.
+    // MIN1 clamp.
     r.theme_idx = c->themes_state_.temporal_flavor;
     auto composed = compose_spawn_chance(c, gx, gz, family,
         spawn_chance, mood_mult,
-        /*use_proximity=*/true, /*veto_on_zero_mood=*/false,
+        /*veto_on_zero_mood=*/false,
         SpawnClamp::MIN1);
 
     // 7. Spawn gate (seed + roll; the chance arrives composed)
@@ -255,7 +207,7 @@ SpawnGatePreambleResult run_spawn_preamble(C* c,
 
 // ── The generic gate: one law, one per-family fact ─────────────────
 //
-// Nine families ran identical bodies here, each restating five constants that
+// The generic families ran identical bodies here, each restating five constants that
 // its own TRAITS row already declares — max_instances, spawn_roll_prop,
 // spawn_chance, mood_multiplier, family_id — around one call. The restating
 // was why four of those fields read as DEAD: the row was the right home and
@@ -288,7 +240,7 @@ inline SpawnGateOutput gate_from_traits(MachineCtx* c, int32_t gx, int32_t gz,
 //
 // The engine's verbs: position negotiation, the footprint registry,
 // mesh-param rebuilds + distance culling, the census, gate
-// evaluation, proximity affinity, and the select → place → commit
+// evaluation, and the select → place → commit
 // dispatch loops. Reaches the machine face for the root organs
 // (c->world_state_ / c->time_state_ / c->mood_state_ /
 // c->themes_state_ / c->tile_world_state_ / c->entities_state_ /
@@ -408,71 +360,6 @@ inline PositionResult negotiate_position(MachineCtx* c,
 
 // ═══ MESH GEN PREPARERS + CULLING ════════════════════════════════
 
-// ─── Column / Arch / Pyramid mesh-gen preparers ───────────────
-
-// Rebuild GPUArchMeshParams from cached ActiveArch data.
-inline GPUArchMeshParams build_arch_mesh_params(MachineCtx* c, uint32_t slot) {
-    const auto& a = c->entities_state_.arches[slot];
-    GPUArchMeshParams p{};
-    p.center_x = a.world_x;
-    p.center_z = a.world_z;
-    p.rotation = a.rotation;
-    p.half_span = a.half_span;
-    p.rise = a.rise;
-    p.depth = a.depth;
-    p.thickness = a.thickness;
-    p.pier_height = a.pier_height;
-    p.burial = a.burial;
-    p.catenary_a = solve_catenary_a(a.half_span, a.rise);
-    p.segs_u = a.segs_u;
-    p.segs_v = a.segs_v;
-    // PORTAL_1: no branch. col_* carries the portal override from the decision.
-    p.color_r = a.col_r; p.color_g = a.col_g; p.color_b = a.col_b;
-    p.mosaic_seed = a.mosaic_seed;   // portals zeroed at the decision — MOSAIC_2b
-    p.is_active = 1;
-    return p;
-}
-
-// Rebuild GPUColumnMeshParams from cached ActiveColumn data.
-inline GPUColumnMeshParams build_column_mesh_params_from(const ActiveColumn& c) {
-    GPUColumnMeshParams p{};
-    p.center_x = c.world_x;
-    p.center_z = c.world_z;
-    p.height = c.height;
-    p.shaft_radius = c.shaft_radius;
-    p.taper = c.taper;
-    p.entasis = c.entasis;
-    p.base_height = c.base_height;
-    p.base_overhang = c.base_overhang;
-    p.capital_height = c.cap_height;
-    p.capital_overhang = c.cap_overhang;
-    p.burial = c.burial;
-    p.color_r = c.col_r;
-    p.color_g = c.col_g;
-    p.color_b = c.col_b;
-    p.mosaic_seed = c.mosaic_seed;   // MOSAIC_1 — the Q3 one-producer: commit + reupload/cull both ride this; antennas arrive plain (zeroed ActiveColumn)
-    p.base_layers = c.base_layers;
-    p.capital_layers = c.cap_layers;
-    p.segs_around = c.segs_around;
-    p.shaft_rings = c.shaft_rings;
-    p.is_active = 1;
-    p.tier = c.tier_idx;
-    p.drum_color_r1 = c.drum_colors[0];
-    p.drum_color_g1 = c.drum_colors[1];
-    p.drum_color_b1 = c.drum_colors[2];
-    p.drum_color_r2 = c.drum_colors[3];
-    p.drum_color_g2 = c.drum_colors[4];
-    p.drum_color_b2 = c.drum_colors[5];
-    p.drum_color_r3 = c.drum_colors[6];
-    p.drum_color_g3 = c.drum_colors[7];
-    p.drum_color_b3 = c.drum_colors[8];
-    return p;
-}
-
-inline GPUColumnMeshParams build_column_mesh_params(MachineCtx* c, uint32_t slot) {
-    return build_column_mesh_params_from(c->entities_state_.columns[slot]);
-}
-
 // Scan all active entities, toggle draw_visible with hysteresis,
 // and upload mesh param changes. Returns count of currently hidden entities.
 // THE RING is the correctness gate (re-ruled): draw membership = any part
@@ -484,90 +371,12 @@ inline uint32_t update_entity_draw_visibility(MachineCtx* c, wgpu::Queue& queue)
 
     const float ring = c->gpuState_.veil_ring();   // live chain value — the draw authority
 
-    // Arches
-    for (uint32_t i = 0; i < Dim::MAX_ARCH_INSTANCES; i++) {
-        if (!c->entities_state_.arches[i].active) continue;
-        const auto& a = c->entities_state_.arches[i];
-        float dx = a.world_x - c->point_.x;
-        float dz = a.world_z - c->point_.z;
-        float dist = std::sqrt(dx * dx + dz * dz);
-
-        float nearest = dist - a.half_span;            // the arch's closest reach (center − extent)
-        bool should_show = a.draw_visible
-            ? (nearest <= ring + ENTITY_CULL_HYSTERESIS)  // visible: hide once fully iced past the band
-            : (nearest <= ring);                          // hidden:  show as fragments enter the icing
-
-        if (should_show != a.draw_visible) {
-            c->entities_state_.arches[i].draw_visible = should_show;
-            if (should_show) {
-                c->gpuState_.upload_arch_mesh_params_slot(queue, i, build_arch_mesh_params(c, i));
-            }
-            else {
-                GPUArchMeshParams empty{};
-                c->gpuState_.upload_arch_mesh_params_slot(queue, i, empty);
-            }
-            c->entities_state_.arch_mesh_gen_pending = true;
-        }
-
-        if (!c->entities_state_.arches[i].draw_visible) culled++;
-    }
-
-    // Columns
-    for (uint32_t i = 0; i < Dim::MAX_COLUMN_ONLY; i++) {
-        if (!c->entities_state_.columns[i].active) continue;
-        const auto& col = c->entities_state_.columns[i];
-        float dx = col.world_x - c->point_.x;
-        float dz = col.world_z - c->point_.z;
-        float dist = std::sqrt(dx * dx + dz * dz);
-
-        float nearest = dist - std::max(col.shaft_radius, ENTITY_THIN_EXTENT);
-        bool should_show = col.draw_visible
-            ? (nearest <= ring + ENTITY_CULL_HYSTERESIS)
-            : (nearest <= ring);
-
-        if (should_show != col.draw_visible) {
-            c->entities_state_.columns[i].draw_visible = should_show;
-            if (should_show) {
-                c->gpuState_.upload_column_mesh_params_slot(queue, i, build_column_mesh_params(c, i));
-            }
-            else {
-                GPUColumnMeshParams empty{};
-                c->gpuState_.upload_column_mesh_params_slot(queue, i, empty);
-            }
-            c->entities_state_.column_mesh_gen_pending = true;
-        }
-
-        if (!c->entities_state_.columns[i].draw_visible) culled++;
-    }
-
-    // Antennas
-    for (uint32_t i = 0; i < Dim::MAX_ANTENNA_ONLY; i++) {
-        if (!c->entities_state_.antennas[i].active) continue;
-        const auto& ant = c->entities_state_.antennas[i];
-        float dx = ant.world_x - c->point_.x;
-        float dz = ant.world_z - c->point_.z;
-        float dist = std::sqrt(dx * dx + dz * dz);
-        uint32_t gpu_slot = i + Dim::ANTENNA_SLOT_OFFSET;
-
-        float nearest = dist - ENTITY_THIN_EXTENT;   // antennas are thin masts
-        bool should_show = ant.draw_visible
-            ? (nearest <= ring + ENTITY_CULL_HYSTERESIS)
-            : (nearest <= ring);
-
-        if (should_show != ant.draw_visible) {
-            c->entities_state_.antennas[i].draw_visible = should_show;
-            if (should_show) {
-                c->gpuState_.upload_column_mesh_params_slot(queue, gpu_slot, build_column_mesh_params_from(ant));
-            }
-            else {
-                GPUColumnMeshParams empty{};
-                c->gpuState_.upload_column_mesh_params_slot(queue, gpu_slot, empty);
-            }
-            c->entities_state_.column_mesh_gen_pending = true;
-        }
-
-        if (!c->entities_state_.antennas[i].draw_visible) culled++;
-    }
+    // THE ARCH LOOP stood here — the only family whose mesh could be
+    // zeroed at range, because it was the only family with a GPU mesh to
+    // zero. It left at ONE_WORLD-I U3, and with it the whole reason this
+    // sweep touched the GPU. No surviving family carries generated
+    // geometry, so nothing is culled here today.
+    (void)queue; (void)ring;
 
     return culled;
 }
@@ -583,11 +392,7 @@ inline bool check_position(MachineCtx* c, float px, float pz, float placing_radi
         float effective_min = placing_radius + c->spawn_engine_state_.footprints_[i].radius;
         if (c->spawn_engine_state_.footprints_[i].family < PopFamily::COUNT) {
             float min_gap = MIN_SEPARATION[placing_family][c->spawn_engine_state_.footprints_[i].family];
-            if (min_gap > 0.0f) {
-                float aff = PROXIMITY_AFFINITY[placing_family][c->spawn_engine_state_.footprints_[i].family];
-                if (aff > 0.0f) min_gap *= (1.0f - aff * PROXIMITY_GAP_REDUCTION[placing_family]);
-                effective_min += min_gap;
-            }
+            if (min_gap > 0.0f) effective_min += min_gap;
         }
         if (dx * dx + dz * dz < effective_min * effective_min) return false;
     }
@@ -636,7 +441,20 @@ inline void unregister_footprint_for(MachineCtx* c, uint32_t family, uint32_t sl
 // ═══ ENTITY CENSUS ═══════════════════════════════════════════════
 
 inline const char* family_short_name(uint32_t family) {
-    static const char* NAMES[] = { "pyr", "arch", "col", "ant", "palm", "cact", "blad", "sph", "ribn", "cube", "gol" };
+    static const char* NAMES[] = { "pyr", "sph", "ribn", "cube", "gol" };
+    // F-1's ELEVENTH positional table, and until PRUNE_2 the only one with
+    // no compile-time tie to PopFamily::COUNT. The runtime bound below reads
+    // COUNT, not this array, so the two could disagree in silence: trim
+    // COUNT without trimming NAMES and the tail rows go unnameable; trim
+    // NAMES without trimming COUNT and NAMES[family] reads OUT OF BOUNDS —
+    // and F-2's boot name-check would then compare against garbage, reaching
+    // UB BEFORE the abort that exists to catch exactly that. PRUNE_2 trimmed
+    // this array five times by hand with nothing checking it; this is the
+    // check.
+    static_assert(sizeof(NAMES) / sizeof(NAMES[0]) == PopFamily::COUNT,
+        "F-1: family_short_name's NAMES[] is PopFamily-positional — re-column "
+        "it with the other ten tables before renumbering any family (F-2's "
+        "boot name-check indexes it by family id)");
     return (family < PopFamily::COUNT) ? NAMES[family] : "???";
 }
 
@@ -685,7 +503,7 @@ inline void dump_entity_census(MachineCtx* c, const char* trigger) {
     // that disagreement is exactly what the delta column exists to catch.
     uint32_t claimed[PopFamily::COUNT] = {};
     uint32_t arrived[PopFamily::COUNT] = {};
-    uint32_t claimed_total = 0;   // sum over the eleven families
+    uint32_t claimed_total = 0;   // sum over the six families
     uint32_t arrived_total = 0;
     uint32_t occupancy = 0;       // every live slot, family or not
     for (uint32_t i = 0; i < MAX_FOOTPRINTS; i++) {
@@ -705,7 +523,7 @@ inline void dump_entity_census(MachineCtx* c, const char* trigger) {
         << c->time_state_.seconds << " trigger=" << trigger << "]\n"
         << "  fam    active  claimed   delta     new\n";
 
-    uint32_t active_total = 0;            // all eleven — reports what EXISTS
+    uint32_t active_total = 0;            // all six — reports what EXISTS
     uint32_t active_grounded_total = 0;   // registrants only — feeds the delta
     for (uint32_t f = 0; f < PopFamily::COUNT; f++) {
         const uint32_t a = FAMILY_DISPATCH[f].active_count(c);
@@ -728,7 +546,7 @@ inline void dump_entity_census(MachineCtx* c, const char* trigger) {
     }
 
     // TOTAL's columns answer different questions, deliberately. `active` sums
-    // all eleven, because it reports what exists. `claimed` sums only
+    // all six, because it reports what exists. `claimed` sums only
     // registrants, because only registrants can have footprints. The delta
     // must therefore be the sum of the PRINTED deltas — measured against
     // active_grounded_total — or TOTAL would report a permanent leak equal to
@@ -759,7 +577,7 @@ inline void dump_entity_census(MachineCtx* c, const char* trigger) {
     // weights have to be read against.
     //
     // WHY IT DECIDES: ArchConfig::SPAWN_CHANCE sets how many arches are
-    // ATTEMPTED; ARCH_TIERS' three weights only choose WHICH tier each
+    // ATTEMPTED; a family's tier weights only choose WHICH tier each
     // attempt becomes. They are zero-sum in absolute counts. So a tier
     // reweight adds big arches only while the array has room — if live is
     // already sitting at capacity, the same reweight adds nothing and
@@ -767,12 +585,12 @@ inline void dump_entity_census(MachineCtx* c, const char* trigger) {
     // sixteen slots. Same table, opposite conclusion, and the only thing
     // that tells them apart is printed here.
     //
-    // ALL ELEVEN ROWS, not the grounded ten. The dash convention above is
+    // ALL SIX ROWS, not the grounded four. The dash convention above is
     // for FOOTPRINT-derived columns, and a family that claims no ground
     // genuinely has nothing to report there. These columns are
     // ARRAY-derived: every family has an instance array with a bound, so
-    // every family has an honest answer, floaters included. The one dash
-    // here is `portal`, below.
+    // every family has an honest answer, floaters included — and with the
+    // portal column gone there is no dash left in this table at all.
     //
     // hi-wtr is one past the highest live slot AT THIS SCAN — the
     // allocator's reach, not a session peak. Nothing is stored between
@@ -781,29 +599,17 @@ inline void dump_entity_census(MachineCtx* c, const char* trigger) {
     // a population cycling against its ceiling looks like when the census
     // samples it mid-breath. Both readings mean "the ceiling is binding".
     //
-    // portal is arch-only and DASHED elsewhere — not zeroed. A palm has no
-    // portal count to be zero; portal_density applies to the DOORWAY arch
-    // tier alone (the world-draw bank), so `0` on a palm row would be a measurement
-    // of something that does not exist. Same law as census_put_dash.
-    // It is a SUBSET of the arch row's live, never a separate population:
-    // portals are force-spawned into the same sixteen slots every rolled
-    // arch competes for (force_spawn_portal_arch, grounded.hpp), which is
-    // precisely why a portal-heavy tier skew costs big arches.
-    uint32_t portal_arches = 0;
-    for (uint32_t i = 0; i < Dim::MAX_ARCH_INSTANCES; i++) {
-        const auto& a = c->entities_state_.arches[i];
-        if (a.active && a.is_portal) portal_arches++;
-    }
+    // THE PORTAL COLUMN STOOD HERE, arch-only and dashed on every other
+    // row: a subset of the arch row's live, counting the doors among the
+    // arches. It left with the doors (ONE_WORLD-I).
 
-    std::cout << "  fam      live   hi-wtr     cap  portal\n";
+    std::cout << "  fam      live   hi-wtr     cap\n";
     for (uint32_t f = 0; f < PopFamily::COUNT; f++) {
         const SlotCensus s = FAMILY_DISPATCH[f].slot_census(c);
         std::cout << "  " << std::left << std::setw(7) << family_short_name(f) << std::right
             << std::setw(6) << s.live
             << std::setw(9) << s.high_water
             << std::setw(8) << s.capacity;
-        if (f == PopFamily::ARCH) std::cout << std::setw(8) << portal_arches;
-        else                      census_put_dash(8);
         std::cout << "\n";
     }
 
@@ -872,7 +678,7 @@ inline void dump_entity_census(MachineCtx* c, const char* trigger) {
 // ═══ SPAWN UTILITIES ═════════════════════════════════════════════
 //
 // The spawn lifecycle's smallest building blocks: the composition
-// law, gate evaluation, jittered position, and the proximity
+// law, gate evaluation, jittered position, and the
 // affinity boost.
 
 // ─── Spawn gate ──────────────────────────────────────────────────
@@ -884,16 +690,11 @@ inline void dump_entity_census(MachineCtx* c, const char* trigger) {
 // clamp. Exact argument orders of min/max preserved per policy.
 inline SpawnChanceResult compose_spawn_chance(MachineCtx* c, int32_t gx, int32_t gz,
     uint32_t family, float base_chance, const float* mood_mult,
-    bool use_proximity, bool veto_on_zero_mood, SpawnClamp clamp) {
+    bool veto_on_zero_mood, SpawnClamp clamp) {
     float adj_mod = mood_mult[c->mood_state_.active];
     if (veto_on_zero_mood && adj_mod <= 0.0f) return { 0.0f, true };
     adj_mod *= GLOBAL_ENTITY_DENSITY;
     tile_apply_spawn_mult(c->tile_world_state_, gx, gz, family, adj_mod);  // F3: the S2 boundary face
-    if (use_proximity) {
-        float pcx = (gx + 0.5f) * Dim::PATCH_EXTENT;
-        float pcz = (gz + 0.5f) * Dim::PATCH_EXTENT;
-        adj_mod *= proximity_affinity_boost(c, pcx, pcz, family);
-    }
     float chance = base_chance * adj_mod;
     switch (clamp) {
         case SpawnClamp::MIN1:    chance = std::min(chance, 1.0f); break;
@@ -923,28 +724,6 @@ inline void jittered_position(uint32_t seed, int32_t gx, int32_t gz,
     out_z = (gz + 0.5f) * Dim::PATCH_EXTENT + (cpu_hash_f(seed, prop_z) - 0.5f) * Dim::PATCH_EXTENT * jitter;
 }
 
-inline float proximity_affinity_boost(MachineCtx* c, float cx, float cz, uint32_t family) {
-    if (!proximity_row_active(family)) return 1.0f;
-    float radius = PROXIMITY_RADIUS[family];
-    if (radius <= 0.0f) return 1.0f;
-    float r2 = radius * radius;
-    float weighted = 0.0f;
-    uint32_t count = 0;
-    for (uint32_t i = 0; i < MAX_FOOTPRINTS; i++) {
-        if (!c->spawn_engine_state_.footprints_[i].active) continue;
-        if (c->spawn_engine_state_.footprints_[i].family >= PopFamily::COUNT) continue;
-        float aff = PROXIMITY_AFFINITY[family][c->spawn_engine_state_.footprints_[i].family];
-        if (aff <= 0.0f) continue;
-        float dx = cx - c->spawn_engine_state_.footprints_[i].x;
-        float dz = cz - c->spawn_engine_state_.footprints_[i].z;
-        if (dx * dx + dz * dz < r2) {
-            weighted += aff;
-            count++;
-        }
-    }
-    if (count < PROXIMITY_THRESHOLD[family]) return 1.0f;
-    return std::min(1.0f + weighted, PROXIMITY_MAX_BOOST[family]);
-}
 
 // ─── Select / Place / Commit dispatch loops ─────────────────────
 

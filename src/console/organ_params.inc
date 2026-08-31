@@ -128,14 +128,6 @@ ORGAN_PARAM_GEN(WORLD, WorldDrawSurface, scheme_weights[3], F32, 0.0f, 1.0f, 0.0
 // ─── Sky & Light · Portals — EDITS THE NEXT PORTAL ──────────────
 // A portal's colour is a fact about its DESTINATION, so the per-mood rows
 // are indexed by destination mood and the last is the way back.
-ORGAN_PARAM_GEN(WORLD, WorldDrawSurface, portal_colors[0][0], VEC3, 0.0f, 1.0f, 0.01f, "Sky & Light · Portals", "to open sunset")
-ORGAN_PARAM_GEN(WORLD, WorldDrawSurface, portal_colors[1][0], VEC3, 0.0f, 1.0f, 0.01f, "Sky & Light · Portals", "to indoor flat")
-ORGAN_PARAM_GEN(WORLD, WorldDrawSurface, portal_colors[2][0], VEC3, 0.0f, 1.0f, 0.01f, "Sky & Light · Portals", "to indoor vault")
-ORGAN_PARAM_GEN(WORLD, WorldDrawSurface, portal_colors[3][0], VEC3, 0.0f, 1.0f, 0.01f, "Sky & Light · Portals", "to finite outdoor")
-ORGAN_PARAM_GEN(WORLD, WorldDrawSurface, portal_colors[4][0], VEC3, 0.0f, 1.0f, 0.01f, "Sky & Light · Portals", "to open night")
-ORGAN_PARAM_GEN(WORLD, WorldDrawSurface, portal_colors[5][0], VEC3, 0.0f, 1.0f, 0.01f, "Sky & Light · Portals", "to open noon")
-ORGAN_PARAM_GEN(WORLD, WorldDrawSurface, portal_colors[6][0], VEC3, 0.0f, 1.0f, 0.01f, "Sky & Light · Portals", "to atrium")
-ORGAN_PARAM_GEN(WORLD, WorldDrawSurface, portal_color_back[0], VEC3, 0.0f, 1.0f, 0.01f, "Sky & Light · Portals", "back portal")
 
 // ─── Atmosphere · Regimes — THE REGIME LAW ──────────────────────────
 // One weight per regime, the MOOD's. The walk normalises, so these are
@@ -229,12 +221,6 @@ ORGAN_PARAM(DRIVERS, DriverSurface, checker.gain,           F32,  0.0f, 1.0f, 0.
 ORGAN_PARAM_RO(CONFIG, GPUDesignConfig, checker_resultant,      VEC3, "Atmosphere · Checker", "colour (driven)")
 ORGAN_PARAM_RO(CONFIG, GPUDesignConfig, checker_music_amount,   F32,  "Atmosphere · Checker", "amount (driven)")
 ORGAN_PARAM_RO(CONFIG, GPUDesignConfig, checker_music_variance, F32,  "Atmosphere · Checker", "variance (driven)")
-
-// ─── Atmosphere · Transition (witnesses only) ───────────────────
-// The transition fade is authored per frame by the transition system, so
-// a dial here would fight an author and lose confusingly.
-ORGAN_PARAM_RO(CONFIG, GPUDesignConfig, fade_alpha,       F32,  "Atmosphere · Transition", "fade alpha (driven)")
-ORGAN_PARAM_RO(CONFIG, GPUDesignConfig, fade_color,       VEC3, "Atmosphere · Transition", "fade colour (driven)")
 
 
 // ─── Atmosphere · Fog envelope ──────────────────────────────────
@@ -543,34 +529,15 @@ ORGAN_PARAM_DEF(AGENT_ROOM, GPUAgentRoomConstants, behaviors[9].drag,           
 ORGAN_PARAM_DEF(AGENT_ROOM, GPUAgentRoomConstants, behaviors[9].home_pull,       F32, 0.0f,  10.0f,  0.05f,   "Agents · levy_flight", "home pull", BEHAVIOR, AgentBehaviorBank, b[9].home_pull)
 ORGAN_PARAM_DEF(AGENT_ROOM, GPUAgentRoomConstants, behaviors[9].neighbor_radius, F32, 0.0f,  50.0f,  0.25f,   "Agents · levy_flight", "neighbour radius", BEHAVIOR, AgentBehaviorBank, b[9].neighbor_radius)
 ORGAN_PARAM_DEF(AGENT_ROOM, GPUAgentRoomConstants, behaviors[9].speed_cap,       F32, 0.0f,  10.0f,  0.05f,   "Agents · levy_flight", "speed cap", BEHAVIOR, AgentBehaviorBank, b[9].speed_cap)
-// ATRIUM_4 — the passer. Row 5's ranges (it is slow_patrol's row, tuned),
-// plus the aux column: the band, wu, either side of a door's plane.
-ORGAN_PARAM_DEF(AGENT_ROOM, GPUAgentRoomConstants, behaviors[10].step_rate,      F32, 0.0f,  1.0f,   0.005f,  "Agents · passer", "step rate", BEHAVIOR, AgentBehaviorBank, b[10].step_rate)
-ORGAN_PARAM_DEF(AGENT_ROOM, GPUAgentRoomConstants, behaviors[10].step_size,      F32, 0.0f,  10.0f,  0.05f,   "Agents · passer", "step size (waypoint radius)", BEHAVIOR, AgentBehaviorBank, b[10].step_size)
-ORGAN_PARAM_DEF(AGENT_ROOM, GPUAgentRoomConstants, behaviors[10].persistence,    F32, 0.0f,  1.0f,   0.005f,  "Agents · passer", "persistence", BEHAVIOR, AgentBehaviorBank, b[10].persistence)
-ORGAN_PARAM_DEF(AGENT_ROOM, GPUAgentRoomConstants, behaviors[10].drag,           F32, 0.0f,  3.75f,  0.02f,   "Agents · passer", "drag", BEHAVIOR, AgentBehaviorBank, b[10].drag)
-ORGAN_PARAM_DEF(AGENT_ROOM, GPUAgentRoomConstants, behaviors[10].home_pull,      F32, 0.0f,  10.0f,  0.05f,   "Agents · passer", "home pull", BEHAVIOR, AgentBehaviorBank, b[10].home_pull)
-ORGAN_PARAM_DEF(AGENT_ROOM, GPUAgentRoomConstants, behaviors[10].neighbor_radius,F32, 0.0f,  50.0f,  0.25f,   "Agents · passer", "neighbour radius", BEHAVIOR, AgentBehaviorBank, b[10].neighbor_radius)
-ORGAN_PARAM_DEF(AGENT_ROOM, GPUAgentRoomConstants, behaviors[10].speed_cap,      F32, 0.0f,  30.0f,  0.25f,   "Agents · passer", "speed cap", BEHAVIOR, AgentBehaviorBank, b[10].speed_cap)
-ORGAN_PARAM_DEF(AGENT_ROOM, GPUAgentRoomConstants, behaviors[10].aux,            F32, 0.0f,  20.0f,  0.25f,   "Agents · passer", "band", BEHAVIOR, AgentBehaviorBank, b[10].aux)
 
 // ─── Agents · Portals — EDITS THE NEXT DRAW ─────────────────────
 // WORLD_DRAW_LIVE again, the population half. THE DESTINATION LAW: one
 // weight per mood, normalised by the walk, and a 0 shuts a door.
-ORGAN_PARAM_GEN(WORLD, WorldDrawSurface, portal_density,        F32, 0.0f, 1.0f, 0.005f, "Agents · Portals", "portal density")
-ORGAN_PARAM_GEN(WORLD, WorldDrawSurface, mood_weights[0], F32, 0.0f, 1.0f, 0.005f, "Agents · Portals", "draw · open sunset")
-ORGAN_PARAM_GEN(WORLD, WorldDrawSurface, mood_weights[1], F32, 0.0f, 1.0f, 0.005f, "Agents · Portals", "draw · indoor flat")
-ORGAN_PARAM_GEN(WORLD, WorldDrawSurface, mood_weights[2], F32, 0.0f, 1.0f, 0.005f, "Agents · Portals", "draw · indoor vault")
-ORGAN_PARAM_GEN(WORLD, WorldDrawSurface, mood_weights[3], F32, 0.0f, 1.0f, 0.005f, "Agents · Portals", "draw · finite outdoor")
-ORGAN_PARAM_GEN(WORLD, WorldDrawSurface, mood_weights[4], F32, 0.0f, 1.0f, 0.005f, "Agents · Portals", "draw · open night")
-ORGAN_PARAM_GEN(WORLD, WorldDrawSurface, mood_weights[5], F32, 0.0f, 1.0f, 0.005f, "Agents · Portals", "draw · open noon")
-ORGAN_PARAM_GEN(WORLD, WorldDrawSurface, mood_weights[6], F32, 0.0f, 1.0f, 0.005f, "Agents · Portals", "draw · atrium")
 
 // ─── Interaction · Field ───────────────────────────────────────
 // GPUDesignConfig, boot-pinned from contracts/control_panel.hpp and read
 // by both dialects. field_k is clamped against the beacon's S at the writer.
 ORGAN_PARAM(CONFIG, GPUDesignConfig, field_slack,         F32, 0.0f, 12.0f,   0.05f, "Interaction · Field", "slack")
-ORGAN_PARAM(CONFIG, GPUDesignConfig, field_arch_slack,    F32, 0.5f,  4.0f,   0.05f, "Interaction · Field", "arch slack")
 ORGAN_PARAM(CONFIG, GPUDesignConfig, field_k,             F32, 0.0f, 1200.0f, 5.0f,  "Interaction · Field", "k (accel)")
 ORGAN_PARAM(CONFIG, GPUDesignConfig, field_fmax,          F32, 0.0f, 2400.0f, 10.0f, "Interaction · Field", "f max")
 ORGAN_PARAM(CONFIG, GPUDesignConfig, field_occupier_gain, F32, 0.0f, 4.0f,    0.02f, "Interaction · Field", "occupier gain")

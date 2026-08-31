@@ -50,16 +50,11 @@ namespace t7 {
             constexpr const char* SHADOW_MONOLITH_VS = "shadow_monolith_vs";
             constexpr const char* RIBBON_VS = "ribbon_vs";
             constexpr const char* SHADOW_RIBBON_VS = "shadow_ribbon_vs";
-            constexpr const char* ARCH_VS = "arch_vs";
-            constexpr const char* SHADOW_ARCH_VS = "shadow_arch_vs";
-            constexpr const char* COLUMN_VS = "column_vs";
-            constexpr const char* SHADOW_COLUMN_VS = "shadow_column_vs";
             // PYRAMID_VS / SHADOW_PYRAMID_VS CUT — pyramid mesh never drawn
             constexpr const char* SHELL_VS = "shell_vs";
             constexpr const char* SHADOW_SHELL_VS = "shadow_shell_vs";
 
             // Entity placement Y-correction
-            constexpr const char* COMPUTE_ENTITY_PLACEMENT = "compute_entity_placement";
 
             // GPU frustum culling (every frame, after update_camera_vp)
             constexpr const char* FRUSTUM_CULL_PATCHES = "frustum_cull_patches";
@@ -68,23 +63,6 @@ namespace t7 {
             constexpr const char* ZONE_GOL_SYNC = "zone_gol_sync";
             constexpr const char* ZONE_GOL_EVOLVE = "zone_gol_evolve";
             constexpr const char* ZONE_DERIVE_PARAMS = "zone_derive_params";
-
-            // GPU Entity Mesh Gen (Phase 2: Arches, Phase 3: Columns — pyramid mesh-gen CUT)
-            constexpr const char* ARCH_MESH_GEN = "arch_mesh_gen";
-            constexpr const char* COLUMN_MESH_GEN = "column_mesh_gen";
-            constexpr const char* PALM_MESH_GEN = "palm_mesh_gen";
-            constexpr const char* PALM_VS = "palm_vs";
-            constexpr const char* SHADOW_PALM_VS = "shadow_palm_vs";
-            constexpr const char* CACTUS_MESH_GEN = "cactus_mesh_gen";
-            constexpr const char* CACTUS_VS = "cactus_vs";
-            constexpr const char* SHADOW_CACTUS_VS = "shadow_cactus_vs";
-            constexpr const char* BLADE_MESH_GEN = "blade_cluster_mesh_gen";
-            constexpr const char* BLADE_VS = "blade_cluster_vs";
-            constexpr const char* SHADOW_BLADE_VS = "shadow_blade_cluster_vs";
-
-            // Fade overlay (fullscreen transition)
-            constexpr const char* FADE_OVERLAY_VS = "fade_overlay_vs";
-            constexpr const char* FADE_OVERLAY_FS = "fade_overlay_fs";
 
             // Orb sky layer (luminous points on a dome)
             constexpr const char* ORB_INIT           = "orb_init";             // 1D compute
@@ -209,11 +187,6 @@ namespace t7 {
             wgpu::RenderPipeline spherePipeline_;        // Sphere entity
             wgpu::RenderPipeline monolithPipeline_;      // Monolith entity
             wgpu::RenderPipeline ribbonPipeline_;        // Sky ribbon entity
-            wgpu::RenderPipeline archPipeline_;          // Catenary arch entity
-            wgpu::RenderPipeline columnPipeline_;        // Generative column entity
-            wgpu::RenderPipeline palmPipeline_;          // Palm tree entity
-            wgpu::RenderPipeline cactusPipeline_;         // Cactus entity
-            wgpu::RenderPipeline bladePipeline_;          // Blade cluster entity
             // pyramidPipeline_ CUT — pyramid mesh never drawn
             wgpu::RenderPipeline shellPipeline_;         // Indoor shell (ceiling + walls)
 
@@ -222,11 +195,6 @@ namespace t7 {
             wgpu::RenderPipeline shadowSpherePipeline_;
             wgpu::RenderPipeline shadowMonolithPipeline_;
             wgpu::RenderPipeline shadowRibbonPipeline_;
-            wgpu::RenderPipeline shadowArchPipeline_;
-            wgpu::RenderPipeline shadowColumnPipeline_;
-            wgpu::RenderPipeline shadowPalmPipeline_;
-            wgpu::RenderPipeline shadowCactusPipeline_;
-            wgpu::RenderPipeline shadowBladePipeline_;
             // shadowPyramidPipeline_ CUT
             wgpu::RenderPipeline shadowShellPipeline_;
 
@@ -237,7 +205,6 @@ namespace t7 {
             wgpu::RenderPipeline shadowPatchTerrainPipeline_;
 
             // Entity placement Y-correction pipeline (0D)
-            wgpu::ComputePipeline entityPlacementPipeline_;
             wgpu::ComputePipeline frustumCullPipeline_;
             wgpu::ComputePipeline pawnAuraPipeline_;
             wgpu::ComputePipeline liveCardPipeline_;         // TRUEBAND_CONTACT_1, fused at LATTICE_4
@@ -263,16 +230,6 @@ namespace t7 {
             // Zone parameter derivation (shares the GoL compute layout; one
             // workgroup per pending derive request)
             wgpu::ComputePipeline zoneDeriveParamsPipeline_;
-
-            // Fade overlay (fullscreen alpha-blended triangle)
-            wgpu::RenderPipeline fadeOverlayPipeline_;
-
-            // GPU entity mesh gen (Phase 2: arches, Phase 3: columns — pyramid mesh-gen CUT)
-            wgpu::ComputePipeline archMeshGenPipeline_;
-            wgpu::ComputePipeline columnMeshGenPipeline_;
-            wgpu::ComputePipeline palmMeshGenPipeline_;
-            wgpu::ComputePipeline cactusMeshGenPipeline_;
-            wgpu::ComputePipeline bladeMeshGenPipeline_;
 
         public:
             // ═══ THE BUNDLES (BUNDLE_1) ═══════════════════════════════════
@@ -352,8 +309,6 @@ namespace t7 {
                 orbsBStateLayout_ = gpuState.orbs_b_state_layout();
                 patchgenStateLayout_ = gpuState.patchgen_state_layout();
                 patchgenTexturesLayout_ = gpuState.patchgen_textures_layout();
-                placeStateLayout_ = gpuState.place_state_layout();
-                placeTexturesLayout_ = gpuState.place_textures_layout();
                 ribbonStateLayout_ = gpuState.ribbon_state_layout();
                 ribbonTexturesLayout_ = gpuState.ribbon_textures_layout();
                 sceneStateLayout_ = gpuState.scene_state_layout();
@@ -505,16 +460,6 @@ namespace t7 {
                 pass.DispatchWorkgroups(body_workgroups, 1, 1);
             }
 
-            void dispatch_entity_placement(
-                wgpu::ComputePassEncoder& pass,
-                wgpu::BindGroup stateGroup,
-                wgpu::BindGroup texGroup
-            ) {
-                pass.SetPipeline(entityPlacementPipeline_);
-                pass.SetBindGroup(2, stateGroup);
-                pass.SetBindGroup(3, texGroup);
-                pass.DispatchWorkgroups(1, 1, 1);
-            }
 
             void dispatch_frustum_cull(
                 wgpu::ComputePassEncoder& pass,
@@ -698,72 +643,6 @@ namespace t7 {
             // dispatch_pyramid_mesh_gen CUT — mesh never drawn;
             // the FAMILY_DISPATCH pyramid mesh hook now routes to the none-fork.
 
-            // GPU arch mesh gen — generates all 16 slots × 4 sub-meshes.
-            // The shape is unchanged by LATTICE_2; what it counts is not.
-            // workgroup_id.x = slot (0..15), workgroup_id.y = sub-mesh
-            // (outer shell, inner shell, front cap, back cap), and
-            // MESHGEN_LANES lanes inside each.
-            void dispatch_arch_mesh_gen(
-                wgpu::ComputePassEncoder& pass,
-                wgpu::BindGroup stateGroup,
-                wgpu::BindGroup texGroup
-            ) {
-                if constexpr (!(ROSTER.arch)) return;  // ROSTER-GATE arch (a') — pipeline never created; the holder tolerates
-                pass.SetPipeline(archMeshGenPipeline_);
-                pass.SetBindGroup(2, stateGroup);
-                pass.SetBindGroup(3, texGroup);
-                pass.DispatchWorkgroups(Dim::MAX_ARCH_INSTANCES, 4, 1);
-            }
-
-            // GPU column mesh gen — all 32 slots in one dispatch, one
-            // workgroup each (LATTICE_2).
-            void dispatch_column_mesh_gen(
-                wgpu::ComputePassEncoder& pass,
-                wgpu::BindGroup stateGroup,
-                wgpu::BindGroup texGroup
-            ) {
-                if constexpr (!(ROSTER.column || ROSTER.antenna)) return;  // ROSTER-GATE column+antenna (shared pipelines) (a') — pipeline never created; the holder tolerates
-                pass.SetPipeline(columnMeshGenPipeline_);
-                pass.SetBindGroup(2, stateGroup);
-                pass.SetBindGroup(3, texGroup);
-                pass.DispatchWorkgroups(Dim::MAX_COLUMN_INSTANCES, 1, 1);
-            }
-
-            void dispatch_palm_mesh_gen(
-                wgpu::ComputePassEncoder& pass,
-                wgpu::BindGroup stateGroup,
-                wgpu::BindGroup texGroup
-            ) {
-                if constexpr (!(ROSTER.palm)) return;  // ROSTER-GATE palm (a') — pipeline never created; the holder tolerates
-                pass.SetPipeline(palmMeshGenPipeline_);
-                pass.SetBindGroup(2, stateGroup);
-                pass.SetBindGroup(3, texGroup);
-                pass.DispatchWorkgroups(Dim::MAX_PALM_INSTANCES, 1, 1);
-            }
-
-            void dispatch_cactus_mesh_gen(
-                wgpu::ComputePassEncoder& pass,
-                wgpu::BindGroup stateGroup,
-                wgpu::BindGroup texGroup
-            ) {
-                if constexpr (!(ROSTER.cactus)) return;  // ROSTER-GATE cactus (a') — pipeline never created; the holder tolerates
-                pass.SetPipeline(cactusMeshGenPipeline_);
-                pass.SetBindGroup(2, stateGroup);
-                pass.SetBindGroup(3, texGroup);
-                pass.DispatchWorkgroups(Dim::MAX_CACTUS_INSTANCES, 1, 1);
-            }
-
-            void dispatch_blade_mesh_gen(
-                wgpu::ComputePassEncoder& pass,
-                wgpu::BindGroup stateGroup,
-                wgpu::BindGroup texGroup
-            ) {
-                if constexpr (!(ROSTER.blade)) return;  // ROSTER-GATE blade (a') — pipeline never created; the holder tolerates
-                pass.SetPipeline(bladeMeshGenPipeline_);
-                pass.SetBindGroup(2, stateGroup);
-                pass.SetBindGroup(3, texGroup);
-                pass.DispatchWorkgroups(Dim::MAX_BLADE_INSTANCES, 1, 1);
-            }
 
             // THE DRAW PLAN: one helper, three invocations — the args slot
             // rides the offset (0 / 20 / 40 bytes into the 3 x 5-u32 args
@@ -935,71 +814,7 @@ namespace t7 {
                 pass.DrawIndirect(ledger, ledgerOffset);
             }
 
-            template <class Enc>
-            void draw_arch(
-                Enc& pass,
-                wgpu::Buffer vertexBuffer,
-                wgpu::Buffer indexBuffer,
-                wgpu::Buffer ledger,
-                uint64_t ledgerOffset
-            ) {
-                if constexpr (!(ROSTER.arch)) return;  // ROSTER-GATE arch (a') — pipeline never created; the holder tolerates
-                draw_indexed_mesh_indirect(pass, archPipeline_,
-                    vertexBuffer, indexBuffer, ledger, ledgerOffset);
-            }
-
-            template <class Enc>
-            void draw_column(
-                Enc& pass,
-                wgpu::Buffer vertexBuffer,
-                wgpu::Buffer indexBuffer,
-                wgpu::Buffer ledger,
-                uint64_t ledgerOffset
-            ) {
-                if constexpr (!(ROSTER.column || ROSTER.antenna)) return;  // ROSTER-GATE column+antenna (shared pipelines) (a') — pipeline never created; the holder tolerates
-                draw_indexed_mesh_indirect(pass, columnPipeline_,
-                    vertexBuffer, indexBuffer, ledger, ledgerOffset);
-            }
-
-            template <class Enc>
-            void draw_palm(
-                Enc& pass,
-                wgpu::Buffer vertexBuffer,
-                wgpu::Buffer indexBuffer,
-                wgpu::Buffer ledger,
-                uint64_t ledgerOffset
-            ) {
-                if constexpr (!(ROSTER.palm)) return;  // ROSTER-GATE palm (a') — pipeline never created; the holder tolerates
-                draw_indexed_mesh_indirect(pass, palmPipeline_,
-                    vertexBuffer, indexBuffer, ledger, ledgerOffset);
-            }
-
-            template <class Enc>
-            void draw_cactus(
-                Enc& pass,
-                wgpu::Buffer vertexBuffer,
-                wgpu::Buffer indexBuffer,
-                wgpu::Buffer ledger,
-                uint64_t ledgerOffset
-            ) {
-                if constexpr (!(ROSTER.cactus)) return;  // ROSTER-GATE cactus (a') — pipeline never created; the holder tolerates
-                draw_indexed_mesh_indirect(pass, cactusPipeline_,
-                    vertexBuffer, indexBuffer, ledger, ledgerOffset);
-            }
-
-            template <class Enc>
-            void draw_blade(
-                Enc& pass,
-                wgpu::Buffer vertexBuffer,
-                wgpu::Buffer indexBuffer,
-                wgpu::Buffer ledger,
-                uint64_t ledgerOffset
-            ) {
-                if constexpr (!(ROSTER.blade)) return;  // ROSTER-GATE blade (a') — pipeline never created; the holder tolerates
-                draw_indexed_mesh_indirect(pass, bladePipeline_,
-                    vertexBuffer, indexBuffer, ledger, ledgerOffset);
-            }
-
+            // draw_arch CUT — the family left at ONE_WORLD-I U3
             // draw_pyramid CUT — caller-free; pyramid mesh never drawn
 
             template <class Enc>
@@ -1017,29 +832,6 @@ namespace t7 {
                 draw_indexed_mesh_indirect(pass, shellPipeline_,
                     vertexBuffer, indexBuffer, ledger, ledgerOffset);
             }
-
-            // HALF AN LSB IS THE BOUND (LATTICE_4 R4). The overlay is a
-            // fullscreen alpha blend over an 8-bit target: at
-            // fadeAlpha < 0.5/255 every channel's blend quantizes back to
-            // the destination, so the skipped draw is PIXEL-IDENTICAL to the
-            // drawn one — not approximately, exactly. The 0.001 that stood
-            // here was an arbitrary epsilon that happened to be smaller;
-            // this is the number the argument actually rests on.
-            //
-            // The caller passes config().fade_alpha — the same value
-            // fade_overlay_fs reads — so the gate and the shader cannot
-            // disagree about whether the frame is at rest.
-            template <class Enc>
-            void draw_fade_overlay(
-                Enc& pass,
-                float fadeAlpha
-            ) {
-                if constexpr (!(ROSTER.transitions)) return;  // ROSTER-GATE transitions (a') — pipeline never created; the holder tolerates
-                if (fadeAlpha < 0.5f / 255.0f) return;
-                pass.SetPipeline(fadeOverlayPipeline_);
-                pass.Draw(3);  // fullscreen triangle from vertex ID
-            }
-
 
             // Shared helper for all "indexed mesh" shadow draws. Per-family
             // wrappers below differ only in pipeline + (rarely) instance count.
@@ -1156,71 +948,7 @@ namespace t7 {
                 pass.DrawIndirect(ledger, ledgerOffset);
             }
 
-            template <class Enc>
-            void draw_shadow_arch(
-                Enc& pass,
-                wgpu::Buffer vertexBuffer,
-                wgpu::Buffer indexBuffer,
-                wgpu::Buffer ledger,
-                uint64_t ledgerOffset
-            ) {
-                if constexpr (!(ROSTER.arch)) return;  // ROSTER-GATE arch (a') — pipeline never created; the holder tolerates
-                draw_shadow_indexed_mesh_indirect(pass, shadowArchPipeline_,
-                    vertexBuffer, indexBuffer, ledger, ledgerOffset);
-            }
-
-            template <class Enc>
-            void draw_shadow_column(
-                Enc& pass,
-                wgpu::Buffer vertexBuffer,
-                wgpu::Buffer indexBuffer,
-                wgpu::Buffer ledger,
-                uint64_t ledgerOffset
-            ) {
-                if constexpr (!(ROSTER.column || ROSTER.antenna)) return;  // ROSTER-GATE column+antenna (shared pipelines) (a') — pipeline never created; the holder tolerates
-                draw_shadow_indexed_mesh_indirect(pass, shadowColumnPipeline_,
-                    vertexBuffer, indexBuffer, ledger, ledgerOffset);
-            }
-
-            template <class Enc>
-            void draw_shadow_palm(
-                Enc& pass,
-                wgpu::Buffer vertexBuffer,
-                wgpu::Buffer indexBuffer,
-                wgpu::Buffer ledger,
-                uint64_t ledgerOffset
-            ) {
-                if constexpr (!(ROSTER.palm)) return;  // ROSTER-GATE palm (a') — pipeline never created; the holder tolerates
-                draw_shadow_indexed_mesh_indirect(pass, shadowPalmPipeline_,
-                    vertexBuffer, indexBuffer, ledger, ledgerOffset);
-            }
-
-            template <class Enc>
-            void draw_shadow_cactus(
-                Enc& pass,
-                wgpu::Buffer vertexBuffer,
-                wgpu::Buffer indexBuffer,
-                wgpu::Buffer ledger,
-                uint64_t ledgerOffset
-            ) {
-                if constexpr (!(ROSTER.cactus)) return;  // ROSTER-GATE cactus (a') — pipeline never created; the holder tolerates
-                draw_shadow_indexed_mesh_indirect(pass, shadowCactusPipeline_,
-                    vertexBuffer, indexBuffer, ledger, ledgerOffset);
-            }
-
-            template <class Enc>
-            void draw_shadow_blade(
-                Enc& pass,
-                wgpu::Buffer vertexBuffer,
-                wgpu::Buffer indexBuffer,
-                wgpu::Buffer ledger,
-                uint64_t ledgerOffset
-            ) {
-                if constexpr (!(ROSTER.blade)) return;  // ROSTER-GATE blade (a') — pipeline never created; the holder tolerates
-                draw_shadow_indexed_mesh_indirect(pass, shadowBladePipeline_,
-                    vertexBuffer, indexBuffer, ledger, ledgerOffset);
-            }
-
+            // draw_shadow_arch CUT — the family left at ONE_WORLD-I U3
             // draw_shadow_pyramid CUT — caller-free
 
             template <class Enc>
@@ -1244,18 +972,12 @@ namespace t7 {
                 if (!(ROSTER.sphere)) n += 3;
                 if (!(ROSTER.cube)) n += 3;
                 if (!(ROSTER.ribbon)) n += 3;
-                if (!(ROSTER.arch)) n += 3;
-                if (!(ROSTER.column || ROSTER.antenna)) n += 3;
-                if (!(ROSTER.palm)) n += 3;
-                if (!(ROSTER.cactus)) n += 3;
-                if (!(ROSTER.blade)) n += 3;
                 // pyramid: 0 pipelines (mesh-gen + render + shadow all cut)
                 if (!(ROSTER.gol)) n += 7;
                 if (!(ROSTER.orbs)) n += 5;
                 if (!(ROSTER.pawn_aura)) n += 1;
                 if (!(ROSTER.indoor_shell)) n += 2;
                 if (!(ROSTER.wanderers)) n += 1;
-                if (!(ROSTER.transitions)) n += 1;
                 return n;
             }
 
@@ -1520,8 +1242,6 @@ namespace t7 {
                     // layout must cover the shader, not vice versa.
                     wgpu::PipelineLayout pl = strataLayoutFor("placeComputeLayout", frameCLayout_, placeStateLayout_, placeTexturesLayout_);
                     if (!pl) return false;
-                    if (!makeComputePipeline("compute_entity_placement", "Compute Entity Placement (0D)",
-                        pl, Entry::COMPUTE_ENTITY_PLACEMENT, entityPlacementPipeline_)) return false;
                 }
 
                 // GPU frustum cull pipeline (dedicated layout)
@@ -1591,44 +1311,9 @@ namespace t7 {
                         pl, Entry::ZONE_SEED_MASK, zoneSeedMaskPipeline_)) return false;
                 }
 
-                // Mesh-gen compute pipelines — one dedicated single-group layout each,
-                // per-family ROSTER gate; identical creation modulo (layout, entry, member).
-                // pyramid mesh-gen pipeline CUT — mesh never drawn.
-
-                if constexpr (ROSTER.arch) {  // ROSTER-GATE arch (a') — shader compile skipped when disabled
-                    wgpu::PipelineLayout pl = strataLayoutFor("meshgenComputeLayout", frameCLayout_, meshgenStateLayout_, emptyLayout_);   // bindings 193-195
-                    if (!pl) return false;
-                    if (!makeComputePipeline("arch_mesh_gen", "Arch Mesh Gen",
-                        pl, Entry::ARCH_MESH_GEN, archMeshGenPipeline_)) return false;
-                }
-
-                if constexpr (ROSTER.column || ROSTER.antenna) {  // ROSTER-GATE column+antenna (shared pipelines) (a') — shader compile skipped when disabled
-                    wgpu::PipelineLayout pl = strataLayoutFor("meshgenComputeLayout", frameCLayout_, meshgenStateLayout_, emptyLayout_);  // bindings 196-198
-                    if (!pl) return false;
-                    if (!makeComputePipeline("column_mesh_gen", "Column Mesh Gen",
-                        pl, Entry::COLUMN_MESH_GEN, columnMeshGenPipeline_)) return false;
-                }
-
-                if constexpr (ROSTER.palm) {  // ROSTER-GATE palm (a') — shader compile skipped when disabled
-                    wgpu::PipelineLayout pl = strataLayoutFor("meshgenComputeLayout", frameCLayout_, meshgenStateLayout_, emptyLayout_);
-                    if (!pl) return false;
-                    if (!makeComputePipeline("palm_mesh_gen", "Palm Mesh Gen",
-                        pl, Entry::PALM_MESH_GEN, palmMeshGenPipeline_)) return false;
-                }
-
-                if constexpr (ROSTER.cactus) {  // ROSTER-GATE cactus (a') — shader compile skipped when disabled
-                    wgpu::PipelineLayout pl = strataLayoutFor("meshgenComputeLayout", frameCLayout_, meshgenStateLayout_, emptyLayout_);
-                    if (!pl) return false;
-                    if (!makeComputePipeline("cactus_mesh_gen", "Cactus Mesh Gen",
-                        pl, Entry::CACTUS_MESH_GEN, cactusMeshGenPipeline_)) return false;
-                }
-
-                if constexpr (ROSTER.blade) {  // ROSTER-GATE blade (a') — shader compile skipped when disabled
-                    wgpu::PipelineLayout pl = strataLayoutFor("meshgenComputeLayout", frameCLayout_, meshgenStateLayout_, emptyLayout_);
-                    if (!pl) return false;
-                    if (!makeComputePipeline("blade_cluster_mesh_gen", "Blade Mesh Gen",
-                        pl, Entry::BLADE_MESH_GEN, bladeMeshGenPipeline_)) return false;
-                }
+                // NO MESH-GEN COMPUTE PIPELINES REMAIN. The pyramid's was cut
+                // when its mesh stopped being drawn; PRUNE_2 took four more;
+                // the arch held the last one and left at ONE_WORLD-I U3.
 
                 return true;
             }
@@ -1657,8 +1342,8 @@ namespace t7 {
                 // renderLayout + depthStencil + colorTarget + ENTITY_FS + TriangleList + CCW.
                 // The genuine forks are parameters: the VS entry (passed VERBATIM), the
                 // vertex-buffer layout (nullptr = bufferless, GPU-generated from vertex_index),
-                // and cullMode — a REAL per-pipeline field, NOT noise: single-sided frond/
-                // blade/column quads disable backface cull (None), solids keep Back. Same
+                // and cullMode — a REAL per-pipeline field, NOT noise: single-sided
+                // quads disable backface cull (None), solids keep Back. Same
                 // shared desc the originals mutated in place, rebuilt fresh per call
                 // (byte-identical result). Captures renderLayout/depthStencil/colorTarget.
                 auto makeEntity = [&](const char* label, const char* dbgLabel, const char* vsEntry,
@@ -1809,54 +1494,6 @@ namespace t7 {
                     if (!makeEntity("monolith", "Monolith Entity (Rasterized)", Entry::MONOLITH_VS,
                         &meshVBL, wgpu::CullMode::Back, monolithPipeline_)) return false;
                     }
-                }
-
-                // Arch pipeline -- catenary arch, ArchVertex (pos+normal+color+arch_index), static world-space
-                {
-                    std::array<wgpu::VertexAttribute, 4> archAttrs{};
-                    archAttrs[0].format = wgpu::VertexFormat::Float32x3;
-                    archAttrs[0].offset = 0;
-                    archAttrs[0].shaderLocation = 0;
-                    archAttrs[1].format = wgpu::VertexFormat::Float32x3;
-                    archAttrs[1].offset = 12;
-                    archAttrs[1].shaderLocation = 1;
-                    archAttrs[2].format = wgpu::VertexFormat::Float32x3;
-                    archAttrs[2].offset = 24;
-                    archAttrs[2].shaderLocation = 2;
-                    archAttrs[3].format = wgpu::VertexFormat::Float32;
-                    archAttrs[3].offset = 36;
-                    archAttrs[3].shaderLocation = 3;
-
-                    wgpu::VertexBufferLayout archVBL{};
-                    archVBL.arrayStride = 40;
-                    archVBL.stepMode = wgpu::VertexStepMode::Vertex;
-                    archVBL.attributeCount = archAttrs.size();
-                    archVBL.attributes = archAttrs.data();
-
-                    // Arch/column/palm/cactus/blade/pyramid — same ArchVertex format; differ by
-                    // VS + cull. Single-sided column/palm/cactus/blade quads disable backface
-                    // cull (None); arch + pyramid are solids (Back). (cullMode is a real fork.)
-                    if constexpr (ROSTER.arch) {  // ROSTER-GATE arch (a') — shader compile skipped when disabled
-                    if (!makeEntity("arch", "Catenary Arch (Rasterized)", Entry::ARCH_VS,
-                        &archVBL, wgpu::CullMode::Back, archPipeline_)) return false;
-                    }
-                    if constexpr (ROSTER.column || ROSTER.antenna) {  // ROSTER-GATE column+antenna (shared pipelines) (a') — shader compile skipped when disabled
-                    if (!makeEntity("column", "Generative Column (Rasterized)", Entry::COLUMN_VS,
-                        &archVBL, wgpu::CullMode::None, columnPipeline_)) return false;
-                    }
-                    if constexpr (ROSTER.palm) {  // ROSTER-GATE palm (a') — shader compile skipped when disabled
-                    if (!makeEntity("palm", "Palm Tree (Rasterized)", Entry::PALM_VS,
-                        &archVBL, wgpu::CullMode::None, palmPipeline_)) return false;
-                    }
-                    if constexpr (ROSTER.cactus) {  // ROSTER-GATE cactus (a') — shader compile skipped when disabled
-                    if (!makeEntity("cactus", "Cactus (Rasterized)", Entry::CACTUS_VS,
-                        &archVBL, wgpu::CullMode::None, cactusPipeline_)) return false;
-                    }
-                    if constexpr (ROSTER.blade) {  // ROSTER-GATE blade (a') — shader compile skipped when disabled
-                    if (!makeEntity("blade", "Blade Cluster (Rasterized)", Entry::BLADE_VS,
-                        &archVBL, wgpu::CullMode::None, bladePipeline_)) return false;
-                    }
-                    // pyramid render pipeline CUT — mesh never drawn
                 }
 
                 // Shell pipeline -- indoor ceiling + walls, ShellVertex (pos+normal+color), static world-space
@@ -2132,8 +1769,9 @@ namespace t7 {
                     // the floor. mix(MAX, MIN, cos) could never exceed
                     // SHADOW_BIAS_MAX by construction; slope-scale with no
                     // clamp WAS unbounded, running 4.3x the old term at 85 deg
-                    // and 10.1x at 88 deg. Seven of the eleven shadow pipelines
-                    // are CullMode::None, and an unbounded bias on a body whose
+                    // and 10.1x at 88 deg. Three of the seven shadow pipelines
+                    // are CullMode::None (it was seven of eleven before PRUNE_2
+                    // took four of them), and an unbounded bias on a body whose
                     // faces reach grazing could push a caster clean out of the
                     // depth range so it stopped occluding at all.
                     //
@@ -2211,8 +1849,8 @@ namespace t7 {
                     // from makeEntity (not one with an isShadow flag): color-vs-depth is a
                     // real category boundary (different layout, different depth state, no FS).
                     // Forks are parameters: shadow-VS (verbatim), VBL, cullMode — same
-                    // Back/None split as the entity family (single-sided column/palm/cactus/
-                    // blade + pawn/ribbon/shell → None; solids → Back).
+                    // Back/None split as the entity family (single-sided
+                    // pawn/ribbon/shell → None; solids → Back).
                     // TWO BIAS PROFILES (PENUMBRA_3 C2). The profile rides the
                     // existing cullMode fork as a DEFAULTED 7th parameter, so the
                     // ten call sites that keep SOLID stay byte-identical. It must
@@ -2344,54 +1982,6 @@ namespace t7 {
                         &shadowMeshVBL, wgpu::CullMode::Back, shadowMonolithPipeline_)) return false;
                     }
 
-                    // Shadow Arch (ArchVertex buffer: pos+normal+color+arch_index, stride 40)
-                    {
-                        std::array<wgpu::VertexAttribute, 4> shadowArchAttrs{};
-                        shadowArchAttrs[0].format = wgpu::VertexFormat::Float32x3;
-                        shadowArchAttrs[0].offset = 0;
-                        shadowArchAttrs[0].shaderLocation = 0;
-                        shadowArchAttrs[1].format = wgpu::VertexFormat::Float32x3;
-                        shadowArchAttrs[1].offset = 12;
-                        shadowArchAttrs[1].shaderLocation = 1;
-                        shadowArchAttrs[2].format = wgpu::VertexFormat::Float32x3;
-                        shadowArchAttrs[2].offset = 24;
-                        shadowArchAttrs[2].shaderLocation = 2;
-                        shadowArchAttrs[3].format = wgpu::VertexFormat::Float32;
-                        shadowArchAttrs[3].offset = 36;
-                        shadowArchAttrs[3].shaderLocation = 3;
-
-                        wgpu::VertexBufferLayout shadowArchVBL{};
-                        shadowArchVBL.arrayStride = 40;
-                        shadowArchVBL.stepMode = wgpu::VertexStepMode::Vertex;
-                        shadowArchVBL.attributeCount = shadowArchAttrs.size();
-                        shadowArchVBL.attributes = shadowArchAttrs.data();
-
-                        // arch/column/palm/cactus/blade shadows — same ArchVertex
-                        // format; cull matches the color pass (arch Back, the
-                        // single-sided column/palm/cactus/blade None). pyramid shadow cut.
-                        if constexpr (ROSTER.arch) {  // ROSTER-GATE arch (a') — shader compile skipped when disabled
-                        if (!makeShadow("shadow_arch", "Shadow Catenary Arch", Entry::SHADOW_ARCH_VS,
-                            &shadowArchVBL, wgpu::CullMode::Back, shadowArchPipeline_)) return false;
-                        }
-                        if constexpr (ROSTER.column || ROSTER.antenna) {  // ROSTER-GATE column+antenna (shared pipelines) (a') — shader compile skipped when disabled
-                        if (!makeShadow("shadow_column", "Shadow Generative Column", Entry::SHADOW_COLUMN_VS,
-                            &shadowArchVBL, wgpu::CullMode::None, shadowColumnPipeline_)) return false;
-                        }
-                        if constexpr (ROSTER.palm) {  // ROSTER-GATE palm (a') — shader compile skipped when disabled
-                        if (!makeShadow("shadow_palm", "Shadow Palm Tree", Entry::SHADOW_PALM_VS,
-                            &shadowArchVBL, wgpu::CullMode::None, shadowPalmPipeline_)) return false;
-                        }
-                        if constexpr (ROSTER.cactus) {  // ROSTER-GATE cactus (a') — shader compile skipped when disabled
-                        if (!makeShadow("shadow_cactus", "Shadow Cactus", Entry::SHADOW_CACTUS_VS,
-                            &shadowArchVBL, wgpu::CullMode::None, shadowCactusPipeline_)) return false;
-                        }
-                        if constexpr (ROSTER.blade) {  // ROSTER-GATE blade (a') — shader compile skipped when disabled
-                        if (!makeShadow("shadow_blade", "Shadow Blade Cluster", Entry::SHADOW_BLADE_VS,
-                            &shadowArchVBL, wgpu::CullMode::None, shadowBladePipeline_)) return false;
-                        }
-                        // shadow_pyramid pipeline CUT — mesh never drawn
-                    }
-
                     // Shadow Shell (ShellVertex: pos+normal+color, stride 36)
                     {
                         std::array<wgpu::VertexAttribute, 3> shadowShellAttrs{};
@@ -2426,54 +2016,6 @@ namespace t7 {
                         nullptr, wgpu::CullMode::None, shadowRibbonPipeline_)) return false;
                     }
 
-                }
-
-                // ─── Fade Overlay Pipeline ───────────────────────────────────────
-                // Fullscreen triangle, alpha blending, no depth write.
-                // Binds WORLD only (config) — the fade overlay's whole surface.
-                {
-                    wgpu::PipelineLayoutDescriptor pld{};
-                    wgpu::PipelineLayout layout = strataLayoutFor("fadeOverlayLayout", emptyLayout_, emptyLayout_, emptyLayout_);
-
-                    wgpu::ColorTargetState colorTarget{};
-                    colorTarget.format = colorFormat_;
-                    colorTarget.writeMask = wgpu::ColorWriteMask::All;
-
-                    wgpu::BlendState blend{};
-                    blend.color.srcFactor = wgpu::BlendFactor::SrcAlpha;
-                    blend.color.dstFactor = wgpu::BlendFactor::OneMinusSrcAlpha;
-                    blend.alpha.srcFactor = wgpu::BlendFactor::One;
-                    blend.alpha.dstFactor = wgpu::BlendFactor::OneMinusSrcAlpha;
-                    colorTarget.blend = &blend;
-
-                    wgpu::FragmentState frag{};
-                    frag.module = shaderModule_;
-                    frag.entryPoint = Entry::FADE_OVERLAY_FS;
-                    frag.targetCount = 1;
-                    frag.targets = &colorTarget;
-
-                    wgpu::RenderPipelineDescriptor desc{};
-                    desc.label = "Fade Overlay";
-                    desc.layout = layout;
-                    desc.vertex.module = shaderModule_;
-                    desc.vertex.entryPoint = Entry::FADE_OVERLAY_VS;
-                    desc.vertex.bufferCount = 0;
-                    desc.primitive.topology = wgpu::PrimitiveTopology::TriangleList;
-                    desc.fragment = &frag;
-                    desc.multisample.count = effective_msaa();   // B10: 1 = the default, byte-identical descriptor
-
-                    wgpu::DepthStencilState fadeDepth{};
-                    fadeDepth.format = depthFormat_;
-                    fadeDepth.depthWriteEnabled = false;
-                    fadeDepth.depthCompare = wgpu::CompareFunction::Always;
-                    desc.depthStencil = &fadeDepth;
-
-                    if constexpr (ROSTER.transitions) {  // ROSTER-GATE transitions (a') — shader compile skipped when disabled
-                    if (!tPipe("fade_overlay", [&]() {
-                        fadeOverlayPipeline_ = device_.CreateRenderPipeline(&desc);
-                        return fadeOverlayPipeline_ != nullptr;
-                    })) return false;
-                    }
                 }
 
                 return true;

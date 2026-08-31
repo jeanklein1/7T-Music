@@ -66,7 +66,7 @@ inline void evict_patch_entities(MachineCtx* c, ActivePatch& patch, wgpu::Queue&
 
 // ── World lifecycle ────────────────────────────────────────────────
 //
-// Root-called owner verb. CALLER: the transition machine
+// Root-called owner verb. CALLER: rebirth_world
 // (root); OWNER: patch_system. The bulk
 // sweep over sibling organs dissolved into per-owner teardown verbs
 // called by the score's TEARDOWN movement; this core keeps the
@@ -79,8 +79,8 @@ inline void request_recenter(WorldState& ws) {
     ws.world_young = true;   // RIBBON_6: a re-centred window is a world beginning again
 }
 
-// THE ONE SURFACE RESET. Called from BOTH paths — boot and the transition
-// machine — because boot is a transition from nothing (LAWS L10). Every line
+// THE ONE SURFACE RESET. Called from BOTH paths — boot and rebirth_world
+// — because boot is a birth from nothing (LAWS L10). Every line
 // below was already true at boot, but by in-struct default rather than by
 // call: the equality was asserted by luck and would have parted silently the
 // day any default moved. Now it is enforced by call.
@@ -305,8 +305,8 @@ inline bool in_priority_window(MachineCtx* c, int32_t gx, int32_t gz, int32_t cx
 // capacity a function of the CANDIDATE COUNT, and the fullRegen arm hands
 // this function all 49 patches of the priority window in one call — so the
 // queue overflowed at boot and at every portal, and what it dropped was the
-// tail of PLACEMENT_ORDER: galleries first, then arches, cubes, columns,
-// GoL. The birth of every world was being truncated by a bound that called
+// tail of PLACEMENT_ORDER — whatever the order listed last, dropped first.
+// The birth of every world was being truncated by a bound that called
 // itself proven.
 //
 // Draining per patch makes the bound true instead of arguing it: at most one
@@ -598,19 +598,6 @@ inline void stream_patches(MachineCtx* c, wgpu::CommandEncoder& encoder, wgpu::Q
                     ensure_tile(tile_world_state, &tile_world_deps, gx, gz);  // owner door
                 }
             }
-
-            // NOW spawn portals — tile cache is populated, terrain heights are correct
-            if (c->mood_state_.back_portal_pending) {
-                force_spawn_back_portal(&mood_deps, queue, *c);
-            }
-            // ATRIUM_0 — BACK FIRST, THEN THE FORWARDS. The forward roster
-            // reads the standing arches to learn which wall the back owns,
-            // so its order against the line above is structural, not
-            // stylistic. Both stay ahead of force_spawn_door_fallback,
-            // whose gate counts standing doors.
-            if (c->mood_state_.forward_portals_pending) {
-                force_spawn_forward_portals(&mood_deps, queue, *c);
-            }
             // Built ONCE before the window loop: bit-identical to the old
             // per-cell O(N) scan (each cell is unique, so a patch added at an
             // earlier cell never matches a later one). Kills the O(N^2).
@@ -657,12 +644,6 @@ inline void stream_patches(MachineCtx* c, wgpu::CommandEncoder& encoder, wgpu::Q
             generate_selected_patches(c, genCands, genCount,
                 encoder, queue, tileGridDirty, tile_world_state, tile_world_deps);
             bakedThisFrame = true;
-
-            // THE DOOR GUARANTEE (U2) — after the synchronous population
-            // above, so Channel A's DOORWAY portals are countable: a world
-            // that populated doorless gets one forced door; every other
-            // world sees a no-op (the count-gate is inside).
-            force_spawn_door_fallback(&mood_deps, queue, *c);
 
             // THE BIRTH CENSUS (OVERTURE_0). `boot` prints before population
             // and reads zero by construction; this is the first count of a
@@ -880,7 +861,7 @@ inline void stream_patches(MachineCtx* c, wgpu::CommandEncoder& encoder, wgpu::Q
             [](const ActivePatch& p) {
                 return p.phase == PatchPhase::ALLOCATED;
             }, true);
-        // RIBBON_5: the burst is the transition's, the one-a-frame is the
+        // RIBBON_5: the burst is the young world's, the one-a-frame is the
         // steady world's.
         spawn_selected_patches(c, candidates,
             std::min(count, young ? 4u : SPAWN_BUDGET_PER_FRAME), queue, themes_state);

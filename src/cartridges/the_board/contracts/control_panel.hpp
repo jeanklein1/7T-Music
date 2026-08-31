@@ -59,7 +59,11 @@ inline constexpr float FIELD_OCCUPIER_GAIN = 1.0f;  // standing geometry (shafts
 inline constexpr float FIELD_AUTHORED_GAIN = 1.0f;  // the authored table (the beacon, the lure)
 
 // ── THE DOORWAY (ATRIUM_7) ───────────────────────────────────────
-// AN ARCH LEG WEARS ITS OWN SHELL FACTOR. The social slack is 3.0 — tuned
+// AN ARCH LEG WORE ITS OWN SHELL FACTOR — and the legs left with the
+// family at ONE_WORLD-I U3, so nothing reads this dial today. The reading
+// is kept whole because the dial is kept whole: retiring it is a
+// GPUDesignConfig relayout, which is the sweep's call, not U3's.
+// The social slack is 3.0 — tuned
 // for bodies parting around shafts and around each other — and an arch is
 // TWO leg sources, half_span either side of the door's centre (world.wgsl
 // field_sum, the occupier_amg loop). Two shells of (r_leg + r_agent) * 3.0
@@ -90,15 +94,12 @@ inline constexpr float FIELD_AUTHORED_GAIN = 1.0f;  // the authored table (the b
 //
 // Shafts, bodies, the beacon and the authored table keep the social slack —
 // the parting crowd is Jean's stamp and is not touched here.
-inline constexpr float FIELD_ARCH_SLACK = 1.25f;   // shell factor over an arch leg
+// FIELD_ARCH_SLACK stood here at 1.25 — retired with the legs it was
+// cut for (ONE_WORLD-I U3/U5). Its two asserts went with it.
 // The channel the gate reads. 2.0 and not 5.0: at slack 1.0 — the floor —
 // the geometry's widest possible channel is 4.30 wu, so a 5 wu channel is
 // not a tighter shell, it is a wider door.
 inline constexpr float ATRIUM_DOOR_CHANNEL_MIN = 2.0f;   // wu
-static_assert(FIELD_ARCH_SLACK < FIELD_SLACK,
-    "the doorway's shell must be tighter than the social shell");
-static_assert(FIELD_ARCH_SLACK >= 1.0f,
-    "a shell inside the leg's own surface would let a body stand in the stone");
 
 // The gate instrument's subscriber half — any class zeroes
 // independently. Applied AFTER the FMAX clamp: the summed shape is
@@ -110,12 +111,11 @@ inline constexpr float FIELD_GAIN_CUBE   = 4.0f;
 inline constexpr float FIELD_GAIN_SPHERE = 1.0f;
 inline constexpr float FIELD_GAIN_AGENT  = 4.0f;
 
-// ── The ribbon's per-family occupier dials ───────────────────────
-// The head's CPU sum reads the three standing families from separate
-// arrays (columns / antennas / arch legs), so it can weigh them
-// independently — the GPU cannot without a slot split, since columns
-// and antennas share agent_room.occupier_cmg. Ribbon-only: these do
-// not touch what floaters and agents feel.
+// THE RIBBON'S PER-FAMILY OCCUPIER DIALS ARE GONE. The head's CPU sum
+// read the standing families from separate arrays so it could weigh them
+// independently; PRUNE_2 U4 excised columns and antennas, and the dials
+// this banner introduced left with them. The arch legs are the standing
+// family that remains, weighed through config.field_occupier_gain alone.
 //
 // ═══ THE BEACON (FIELD_4 — the first authored emitter) ════════════
 // S rides config.floater_coordination: strength is s * coord, and

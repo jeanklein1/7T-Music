@@ -28,15 +28,6 @@
                 if (doors & (1u << t7::organ::ORGAN_DOOR_ORB_GESTURE))
                     cycle_orb_gesture(orbs_state_, &orbs_deps_, queue);
 
-                // THE MOOD DOOR — the same request keys 5-9 press, with its
-                // own guards. A door with a parameter, taken once.
-                {
-                    uint32_t go = 0;
-                    if (t7::organ::take_go_mood(go))
-                        request_mood_transition(transitionPhase_, pendingDestination_,
-                                                mood_state_, world_state_, go);
-                }
-
                 // THE HOST DOOR (RIBBON_1) — the same transaction key R
                 // presses, with its own guards. A door with a parameter,
                 // taken once; possess() early-returns on a no-op and on a

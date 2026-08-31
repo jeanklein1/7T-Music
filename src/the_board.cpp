@@ -226,7 +226,7 @@ static void offer_controls_when_ready() {
         std::chrono::steady_clock::now() - app->world_live).count();
     if (waited < OVERTURE_READY_TIMEOUT_S) return;
     app->controls_offered = true;
-    std::cout << "Controls: WASD=move, Mouse=camera, 5-8=moods, Esc=quit\n\n";
+    std::cout << "Controls: WASD=move, Mouse=camera, Esc=quit\n\n";
 }
 
 // =========================================================================

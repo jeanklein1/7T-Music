@@ -2394,16 +2394,16 @@ RECUT_COMPUTE_FAMILY = {
     "orb_state_prev_copy": "ORBS",
     "ribbon_head": "RIBBON", "ribbon_body": "RIBBON",
     "compute_photographer_vp": "PHOTO_K",   # A7: was GALLERY pre-split
-    "arch_mesh_gen": "MESHGEN", "column_mesh_gen": "MESHGEN",
-    "palm_mesh_gen": "MESHGEN", "cactus_mesh_gen": "MESHGEN",
-    "blade_cluster_mesh_gen": "MESHGEN",
+    "arch_mesh_gen": "MESHGEN",
     "compute_vp": "FRAME_K", "update_camera": "FRAME_K",           # A3
 }
 
-# MESHGEN role convergence: the five kernels' scratch trios share slot
-# numbers so four families fit ONE layout (MESHGEN3) and column adds
-# its ground read (MESHGEN4).
-RECUT_MESHGEN_ROLE = re.compile(r"^(?:amg|cmg|palmg|cactusg|bladeg)_"
+# MESHGEN role convergence, CONVERGED (PRUNE_2 U4): five kernels' scratch
+# trios shared slot numbers so four families could ride ONE layout
+# (MESHGEN3), and the column added its ground read (MESHGEN4). All four
+# riders were excised; the arch's trio is the sole occupant and holds the
+# numbers under its own names, so the pattern matches one prefix now.
+RECUT_MESHGEN_ROLE = re.compile(r"^(?:amg)_"
                                 r"(params|vertices|indices)$")
 
 # Authored homes from the roster's parentheticals and R5: AGENTS
@@ -2845,9 +2845,11 @@ def _layout_names(nm):
     return member, label, accessor
 
 
-R1_FILL = {"cmg_config": ("configBuffer_", "sizeof(GPUDesignConfig)"),
-           "cmg_column_ground": ("columnGroundBuffer_",
-                                 "sizeof(GPUColumnGroundEntry) * Dim::MAX_COLUMN_INSTANCES")}
+# The R1 ruled fills were the column meshgen room's two seats, bound inert
+# in the arch's group so a group stayed complete over a shared layout. Both
+# seats retired with the room (PRUNE_2 U4) and the layout is the arch trio
+# alone, so no group has anything left to fill.
+R1_FILL = {}
 
 
 def recut_schema(P):
@@ -3060,7 +3062,7 @@ def recut_schema(P):
             if vi > 0:
                 s0 = src[0]
                 for tok in ("PlanB", "PlanC", "Photographer", "Gallery",
-                            "Arch", "Column", "Palm", "Cactus", "Blade"):
+                            "Arch"):
                     if tok.lower() in s0.lower():
                         suffix = tok
                         break
@@ -3212,15 +3214,15 @@ def recut_registry(R, P):
         "// The shape of the table: numbers are GROUP-SCOPED (g0..g3 are the",
         "// four strata of the LOOM_2 recut — WORLD, FRAME, FAMILY-STATE,",
         "// FAMILY-TEXTURES), and ONE CONSTANT PER SLOT; a slot may carry",
-        "// several declarations (the fc_ cull aliases; the MESHGEN",
-        "// convergence, where five kernels' scratch trios share three",
-        "// numbers so four families fit one layout).",
+        "// several declarations (the fc_ cull aliases). The MESHGEN",
+        "// convergence CONVERGED: five kernels shared three numbers so",
+        "// four families could ride one layout, and PRUNE_2 excised all",
+        "// four. The arch's trio is the sole occupant now and holds the",
+        "// numbers under its own names.",
         "//",
         "// The WGSL @binding literals in world.wgsl (%d declarations over "
         "%d slots;" % (len(new_decls), n_slots),
-        "// aliases: %s," % ", ".join(a for a in aliases if a.startswith("fc_")),
-        "// and the %d MESHGEN convergence names)"
-        % sum(1 for a in aliases if not a.startswith("fc_")),
+        "// aliases: %s)" % ", ".join(a for a in aliases if a.startswith("fc_")),
         "// are a MIRROR of this file, kept in lockstep by boot-time",
         "// validation and by binding_gen.py --check. The render = compute",
         "// + 200 witness band is RETIRED — its epitaph closes this file.",
@@ -3276,9 +3278,10 @@ def emit_plan(P, out_path):
     A("  width %d in roster order (%s) within groups 2 and 3;" % (
         RECUT_BAND, ", ".join(RECUT_FAMILIES)))
     A("  home slots ascend by old number; aliases keep shared numbers;")
-    A("  the five MESHGEN scratch trios CONVERGE onto one params, one")
-    A("  vertices, one indices slot (MESHGEN3; column adds its ground")
-    A("  read as MESHGEN4).")
+    A("  the five MESHGEN scratch trios CONVERGED onto one params, one")
+    A("  vertices, one indices slot (MESHGEN3; the column added its")
+    A("  ground read as MESHGEN4). PRUNE_2 excised the four riders and")
+    A("  the column's ground seat; the arch trio holds the numbers alone.")
     A("- fade_overlay binds WORLD only. Render families derive from")
     A("  today's layout lists: gallery-entity users are GALLERY,")
     A("  depth-only are SHADOW, the fade overlay is FADE, the rest are")
