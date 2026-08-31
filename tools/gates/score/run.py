@@ -61,7 +61,7 @@ PHASE_DEFS = set(re.findall(r'void (phase_\w+)\s*\(', CART))
 
 # The roster bits (gate families must resolve to one of these).
 KNOWN_FAMILIES = {
-    'pyramid', 'arch', 'column', 'antenna', 'palm', 'cactus', 'blade',
+    'pyramid', 'arch',
     'sphere', 'ribbon', 'cube', 'gol', 'pawn_aura', 'orbs',
     'spot_lights', 'indoor_shell', 'portal', 'transitions', 'wanderers',
 }
@@ -126,11 +126,6 @@ def blk(bit, *calls):
 GREP_MANIFEST = {
     'pyramid':  [('cartridge.hpp', 'mesh prep', imm(r'ROSTER\.pyramid', r'[^;]*?\.prepare_mesh'))],
     'arch':     [('cartridge.hpp', 'mesh prep', imm(r'ROSTER\.arch',    r'[^;]*?\.prepare_mesh'))],
-    'column':   [('cartridge.hpp', 'mesh prep', imm(r'ROSTER\.column',  r'[^;]*?\.prepare_mesh'))],
-    'antenna':  [('cartridge.hpp', 'mesh prep', imm(r'ROSTER\.antenna', r'[^;]*?\.prepare_mesh'))],
-    'palm':     [('cartridge.hpp', 'mesh prep', imm(r'ROSTER\.palm',    r'[^;]*?\.prepare_mesh'))],
-    'cactus':   [('cartridge.hpp', 'mesh prep', imm(r'ROSTER\.cactus',  r'[^;]*?\.prepare_mesh'))],
-    'blade':    [('cartridge.hpp', 'mesh prep', imm(r'ROSTER\.blade',   r'[^;]*?\.prepare_mesh'))],
     'sphere':   [('cartridge.hpp', 'mirror',    imm(r'ROSTER\.sphere',  r'reconcile_sphere_mirror')),
                  ('cartridge.hpp', 'teardown',  imm(r'ROSTER\.sphere',  r'clear_spheres')),
                  ('cartridge.hpp', 'mesh prep', imm(r'ROSTER\.sphere',  r'[^;]*?\.prepare_mesh'))],
