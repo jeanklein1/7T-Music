@@ -5953,9 +5953,6 @@ fn shadow_shell_vs(in: ShellVertexInput) -> ShadowVarying {
 const RIBBON_SPINE_SLOTS: u32 = 402u;        // Dim::RIBBON_SPINE_SLOTS
 const RIBBON_EMIT_STRIDE: u32 = 4u;          // Dim::RIBBON_EMIT_STRIDE
 const RIBBON_EMIT_SLOTS: u32 = 100u;         // Dim::RIBBON_EMIT_SLOTS — one half; the table is two
-const RIBBON_CLEAR_Y: f32 = 20.0;            // vertical clearance above a standing thing's top
-const RIBBON_PUSH_OUT: f32 = 1.0;            // weight of the out-of-disc component
-const RIBBON_PUSH_UP: f32 = 0.6;             // weight of the over-the-top component
 const RIBBON_STEER_GAIN: f32 = 3.0;          // head: lateral push -> yaw command (saturates at |push.lateral| = 1/gain)
 const RIBBON_YAW_SIGN: f32 = 1.0;            // the rider's A/D sign; flip if the hands feel mirrored
 const RIBBON_DT_MAX: f32 = 0.0333333;        // 1/30 s — the integrators never see a hitch longer than this
@@ -6041,29 +6038,12 @@ fn mount_ease(t: f32) -> f32 { let x = saturate(t); return x * x * (3.0 - 2.0 * 
 // edge must not step. The two forms differ by at most the fine band's
 // amplitude (0.12 wu) — the lattice carries every band the analytic form
 // does, and the ONE thing it does not carry is band 4's ripple below the
-// lattice's own spacing — against a body flying RIBBON_CLEAR_Y above the
-// ground. Sub-visible, and stated rather than assumed.
+// lattice's own spacing — against a body flying well above the ground.
+// Sub-visible, and stated rather than assumed.
 fn ribbon_ground(xz: vec2<f32>) -> f32 {
     let r = sample_terrain_y_found(xz);
     if (r.y == 0.0) { return ground_formed_with_complexity(xz).x; }
     return r.x;
-}
-
-// One standing thing: a disc of radius r and a top at top_agl above local
-// ground. Inside r + clear and under top + CLEAR_Y it pushes OUT (quadratic
-// shell) and UP (fading as the reader clears the top). Zero elsewhere.
-fn sky_shell(p: vec3<f32>, agl: f32, c_xz: vec2<f32>, r: f32, top_agl: f32, clear: f32) -> vec3<f32> {
-    let shell = r + clear;
-    let d = p.xz - c_xz;
-    let len = length(d);
-    if (len >= shell) { return vec3(0.0); }
-    let u = saturate((top_agl + RIBBON_CLEAR_Y - agl) / RIBBON_CLEAR_Y);
-    if (u <= 0.0) { return vec3(0.0); }
-    var out_dir = vec2(1.0, 0.0);
-    if (len > 1e-3) { out_dir = d / len; }
-    let s = 1.0 - len / shell;
-    let mag = s * s * u;
-    return vec3(out_dir.x * mag * RIBBON_PUSH_OUT, mag * RIBBON_PUSH_UP, out_dir.y * mag * RIBBON_PUSH_OUT);
 }
 
 // One moving thing: a sphere of radius r. Radial quadratic shell.
