@@ -123,7 +123,7 @@ inline void dispatch_placement_correction(MachineCtx* c, wgpu::CommandEncoder& e
 inline void stage_draw_ledger(MachineCtx* c, OrbsState& orbs_state_) {
     GPUState& g = c->gpuState_;
 
-    // The five generated families + the shell: their index counts are
+    // The generated geometry (arch) + the shell: their index counts are
     // (maxSlot + 1) * MAX_INDICES_PER_SLOT, zero when nothing is active.
     g.stage_draw_indexed(GPUState::DR_ARCH,   g.arch_index_count(),   1u);
     g.stage_draw_indexed(GPUState::DR_SHELL,  g.shell_index_count(),  1u);

@@ -103,7 +103,8 @@ inline constexpr uint32_t PROXIMITY_THRESHOLD[PopFamily::COUNT] = { 0,     0,   
 inline constexpr float    PROXIMITY_GAP_REDUCTION[PopFamily::COUNT] = { 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f };   // fraction of MIN_SEPARATION; 0 = keep full gap
 
 // AFFINITY[placing][existing]: rows follow PopFamily. Every row is zero
-// since PRUNE_2 — the clustering families were COLUMN and the flora, and
+// since PRUNE_2 — the clustering families were COLUMN, PALM, CACTUS and
+// BLADE, and
 // all four left. The mechanism stands, unexercised, for the next family
 // that wants it: proximity_row_active() folds to false for all six and
 // the whole path short-circuits at compile time.
@@ -617,7 +618,7 @@ inline void dump_entity_census(MachineCtx* c, const char* trigger) {
         << c->time_state_.seconds << " trigger=" << trigger << "]\n"
         << "  fam    active  claimed   delta     new\n";
 
-    uint32_t active_total = 0;            // all eleven — reports what EXISTS
+    uint32_t active_total = 0;            // all six — reports what EXISTS
     uint32_t active_grounded_total = 0;   // registrants only — feeds the delta
     for (uint32_t f = 0; f < PopFamily::COUNT; f++) {
         const uint32_t a = FAMILY_DISPATCH[f].active_count(c);
@@ -640,7 +641,7 @@ inline void dump_entity_census(MachineCtx* c, const char* trigger) {
     }
 
     // TOTAL's columns answer different questions, deliberately. `active` sums
-    // all eleven, because it reports what exists. `claimed` sums only
+    // all six, because it reports what exists. `claimed` sums only
     // registrants, because only registrants can have footprints. The delta
     // must therefore be the sum of the PRINTED deltas — measured against
     // active_grounded_total — or TOTAL would report a permanent leak equal to

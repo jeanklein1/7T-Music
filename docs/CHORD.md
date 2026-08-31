@@ -14,7 +14,9 @@ document is the taxonomy's record until ORGAN gives it an instrument.
 
 ## The blocks (CHORD_1..4)
 - agent_room  (g2:1, uniform, C)  = portals + behaviors + tier_gains
-  + occupier_cmg + occupier_amg. 6928 B. Cadence: world/mood.
+  + occupier_amg. 2864 B. Cadence: world/mood. (It carried a second
+  occupier window, occupier_cmg, for the column/antenna shafts; that
+  window and those families left at PRUNE_2 U4, 6960 B -> 2864 B.)
 - field_bus   (g2:9, uniform, C)  = head_poses + ribbon + authored.
   6656 B. Cadence: frame (fastest member governs).
 - frame_r     (g1:1, uniform, VF) = lighting + vp + camera + sphere_pos

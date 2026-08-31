@@ -2832,8 +2832,8 @@ fn occupier_contact(self_p: vec3<f32>, body_radius: f32, dt: f32) -> vec2<f32> {
     }
 
     // ONE clamp on the SUM (config.field_fmax's pattern). Per-row caps
-    // summed are not a speed limit: columns cluster, so a body can sit
-    // inside three shells at once. BRANCHLESS — this function inlines into
+    // summed are not a speed limit: standing bodies can cluster, so a body
+    // can sit inside several shells at once. BRANCHLESS — this function inlines into
     // behavior_player_controlled, one line above the box clamp and two
     // above pawn_ground_resolve; the banner forbids new runtime branching
     // in that chain. At dv = 0 the quotient is 0/1e-4 = 0, so the identity
@@ -5014,10 +5014,10 @@ fn patch_terrain_vs(
 // order (charter C6). Reordering is a RULING, not a refactor.
 @fragment
 fn patch_terrain_fs(in: PatchTerrainVarying) -> @location(0) vec4<f32> {
-    // THE RIM — the terrain sibling of the flora/zone per-vertex kill:
+    // THE RIM — the terrain sibling of the zone per-vertex kill:
     // discard beyond the ring so the visible edge is a smooth CIRCLE (the
     // patch-granular banded draw set is its invisible superset). Staged
-    // point (lod_point) — concentric with the flora/zone/instance kills, so
+    // point (lod_point) — concentric with the zone/instance kills, so
     // every hard draw-set edge is ONE circle (no scallops, no silhouettes).
     // Optional dither-dissolve inside the icing band handled in shade_lit.
     if (distance(in.world_pos.xz, vec2(config.lod_point_x, config.lod_point_z)) > config.veil_ring) {
@@ -5240,7 +5240,7 @@ fn patch_terrain_fs(in: PatchTerrainVarying) -> @location(0) vec4<f32> {
 // Shadow pass variant — same geometry, light VP instead of camera VP.
 // THE RIM (flagged, not chased): the shadow pass is DEPTH-ONLY (no FS), so
 // the visible rim's per-fragment discard has no equivalent here — terrain
-// (and flora/zone, whose shadow VS also omit the ring kill) cast shadows
+// (and the zones, whose shadow VS also omits the ring kill) cast shadows
 // out to the patch-granular banded set, ~one patch (≤50wu) beyond the
 // smooth visible rim. Logged for the rig; a shadow-side ring gate is a
 // follow-on only if it reads as a shadow with no visible caster.
@@ -5896,8 +5896,9 @@ fn shadow_arch_vs(in: ArchVertexInput) -> ShadowVarying {
 //     sweep) — the pyramid mesh was never drawn (draw_pyramid /
 //     draw_shadow_pyramid were caller-free). Both read the
 //     ground-atlas slot range (48..55); the write path followed as residue
-//     (the pyramid-ground husk) — the range stays a documented hole in the
-//     atlas table.
+//     (the pyramid-ground husk). That range was a hole BETWEEN live ranges;
+//     PRUNE_2 excised every range above arch's, so the atlas now runs
+//     0..15 (arch) and everything above is simply unallocated.
 
 // --- Indoor Shell (ceiling + walls)
 // Pre-baked world-space geometry, no per-instance transforms.
@@ -6187,9 +6188,10 @@ fn sky_self(p: vec3<f32>, k_reader: u32, n: u32, cs: f32, emit_half: u32, clear:
 }
 
 // THE WALL — the shell was advice; this is law. After the string has moved:
-// no ring center inside a shaft's disc (widened by half) while under its
-// top — the cheaper exit wins, out or up; none inside an arch's capsules;
-// none inside a mover's sphere; none under ground + half. Returns the
+// no ring center inside an arch's capsules; none inside a mover's sphere;
+// none under ground + half. (A shaft's disc was the first clause — out or
+// up, the cheaper exit winning — and it left with COLUMN/ANTENNA in
+// PRUNE_2 U4.) Returns the
 // displacement that restores the law. Applied after the leash: law
 // outranks leash.
 fn sky_wall(p: vec3<f32>, g: f32, half: f32, skip_agent: u32) -> vec3<f32> {
@@ -6443,18 +6445,20 @@ fn ribbon_head(@builtin(global_invocation_id) gid: vec3<u32>) {
 
     // The pen owns altitude (B0, kept): the birth altitude, biased by the
     // vertical word above — the body's and the world's; never under the
-    // floor here or ahead; never under a SHAFT's roofline here or ahead (an
-    // arch has no roof: it is a doorway, and its word is in the bias);
-    // low-passed by travel; critically damped; climb-capped. The floor is
-    // a guarantee.
+    // floor here or ahead; low-passed by travel; critically damped;
+    // climb-capped. The floor is a guarantee.
+    //
+    // THE ROOF TERM IS GONE (PRUNE_2 U4). It read
+    //   roof_y = max(gp + sky_roof(probe), gh + sky_roof(here))
+    // and sky_roof answered the SHAFTS' roofline — an arch has no roof, it
+    // is a doorway and its word is in the bias. The shafts left with
+    // COLUMN/ANTENNA, so sky_roof could only answer 0 and roof_y collapsed
+    // to max(gp, gh). That is floor_y minus config.ribbon_floor_margin,
+    // and the dial's range is [0, 100] — never negative — so the floor
+    // dominates the roof at every legal setting and the term could not
+    // change raw_target. Dead computation, removed rather than folded.
     let floor_y = max(ground_here, ground_probe) + config.ribbon_floor_margin;
-    // sky_roof went with COLUMN/ANTENNA (PRUNE_2 U4): the shafts were the
-    // only bodies that roofed the sky, and it added their roofline to the
-    // ground under each probe. With no shaft left it added zero, so the
-    // term is exactly the ground pair — written out here rather than
-    // called through a function that could only answer 0.
-    let roof_y = max(ground_probe, ground_here);
-    let raw_target = max(max(birth_y + lift * RIBBON_LIFT_GAIN, floor_y), roof_y);
+    let raw_target = max(birth_y + lift * RIBBON_LIFT_GAIN, floor_y);
     let alpha = 1.0 - exp(-step / max(config.ribbon_alt_smooth_dist, 1e-3));
     hd.alt_target += (raw_target - hd.alt_target) * alpha;
     hd.alt_target = max(hd.alt_target, floor_y);
@@ -7020,8 +7024,11 @@ fn render_pawn_vel_xz() -> vec2<f32> {
 
 // Atlas slot offsets (must match Dim:: constants in state.hpp)
 const GROUND_ATLAS_ARCH: i32     = 0;
-// slots 48..55: A DOCUMENTED HOLE. Do NOT re-pack — these offsets are
-// hand-mirrored with state.hpp Dim::GROUND_ATLAS_*.
+// Arch holds 0..15 and nothing else is allocated: PRUNE_2 excised every
+// range above it, and with them the documented pyramid hole at 48..55 that
+// only existed BETWEEN live ranges. This offset stays hand-mirrored with
+// state.hpp Dim::GROUND_ATLAS_* — the texture is still 256 wide, so the
+// unallocated columns above 16 are unnamed, not reserved.
 
 // --- The ribbon room (ribbonStateLayout_; RIBBON_1)
 // ring_xforms: written by ribbon_body, read by the render rooms as 143.
@@ -9161,8 +9168,9 @@ fn field_sum(sub_i: u32) -> vec3<f32> {
     // would hear standing geometry from nothing at all.
     // Emitter y := subscriber y makes the pair test PLANAR —
     // row_occupier's cylindrical ruling inherited verbatim ("a standing body
-    // is a vertical body"). Accepted percept v1: shafts are infinite
-    // is vertical") to floaters and agents alike; if altitude phantoms ever
+    // is a vertical body"). Accepted percept v1: a standing body reads as an
+    // infinite vertical shell to floaters and agents alike; if altitude
+    // phantoms ever
     // read wrong, the deferral is a base_y cached at spawn (where
     // ground is queried once), not a manifold query here. True radii,
     // no skin — config.field_slack is the standoff. Flat,

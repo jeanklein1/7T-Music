@@ -70,7 +70,7 @@ struct DrawBind {
 //
 // THE TABLE ITSELF IS WRITTEN ONCE (R-E: the table-template spelling, not
 // the pointer-pair one). A pair of function pointers per row would have
-// duplicated ten rows' worth of initialiser to say the same thing twice;
+// duplicated every row's initialiser to say the same thing twice;
 // a variable template instantiates the one list per encoder type. One draw
 // list, two encoders, no second list — which is R3's requirement stated as
 // code rather than as discipline.

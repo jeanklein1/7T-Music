@@ -438,12 +438,13 @@ namespace t7 {
             // SEAM[spine:owns] FAMILY_DISPATCH is the integration hub that
             //   ties the six families together. Each row's body lives in
             //   the family's owning module.
-            // SEAM[spine:K2-related] the five real dispatch_prepare_mesh_* /
-            //   dispatch_mesh_gen_* adapter pairs below are integration glue
+            // SEAM[spine:K2-related] the one real dispatch_prepare_mesh_* /
+            //   dispatch_mesh_gen_* adapter pair below (arch; PRUNE_2 took the
+            //   other four) is integration glue
             //   between FAMILY_DISPATCH and the per-family modules (their
             //   signatures adapt module preparers and renderer dispatches to
             //   the row slots). The bespoke select/place/commit funnels AND
-            //   the eleven evictors live with their owners (§5 EVICTION
+            //   the six evictors live with their owners (§5 EVICTION
             //   THUNKS: retirement fulfilled); the no-op mesh adapters are
             //   shared (inlined beside the table, post-class).
             // SEAM[spine:family-dispatch] anchor for cross-file references —
@@ -1353,7 +1354,7 @@ namespace t7 {
                         // Fires AFTER reset_surface (:901) and every teardown
                         // verb above, and before stream_patches (a RENDER_SPINE
                         // row) can re-stream. Both columns must therefore read
-                        // 0 for all eleven — a teardown-completeness assertion,
+                        // 0 for all six — a teardown-completeness assertion,
                         // not an observation.
                         dump_entity_census(&machine_ctx_, "mood-transition");
                         // ROSTER-GATE ribbon (c) — finite-mode release, owner
@@ -1954,7 +1955,7 @@ namespace t7 {
                 ribbon_frame_tick(ribbon_state_, &ribbon_deps_, queue);
             }
 
-            // R8 — ENTITY MESH GEN (algo; dirty-driven). Eleven constexpr-gated
+            // R8 — ENTITY MESH GEN (algo; dirty-driven). Six constexpr-gated
             // prepare lines set dirty[]; one compute pass dispatches the dirty
             // families (branches on dirty-ness, not the enable bit). The
             // per-family gates are intra-movement.

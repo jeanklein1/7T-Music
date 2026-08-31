@@ -10,9 +10,9 @@ Last commit touching any scanned file: `1888e6faf77dbee73030283ccdf247271c978919
 
 | file scanned | sha256 |
 |---|---|
-| `src/cartridges/the_board/realization/render_passes.hpp` | `sha256:e1766ac70cb95549f96caf6b68e19eb21dc5ece6a7ea199c84d1fceee48961d5` |
-| `src/cartridges/the_board/realization/renderer.hpp` | `sha256:676fb29a4f8f8d3e49bf76256aa15e12fa8430ca6cf97346b57bdc8653c4967b` |
-| `src/cartridges/the_board/cartridge.hpp` | `sha256:afb8d65482034919719238f801ce88f18e67dd87edf298071ecde696ed3dd06b` |
+| `src/cartridges/the_board/realization/render_passes.hpp` | `sha256:bbeac5c7a0c4be2af2b836aea9fe2cab88e2457568275cbaa22f3b5686242982` |
+| `src/cartridges/the_board/realization/renderer.hpp` | `sha256:0bceaa69c54446023cd890919e075915d114ec8ed45ad9ff83b0589b240861b4` |
+| `src/cartridges/the_board/cartridge.hpp` | `sha256:994681051bc67e3e6ee3ac69b202ed5e4c8fb6bd6bfeb1688f22708a456289a3` |
 | `src/cartridges/the_board/surface/patch_system.hpp` | `sha256:83b4e65651d2805b71637361be602ac0da59a04a28c9ba1b6593c54d1c9c9874` |
 | `src/cartridges/the_board/bodies/gol_zones.hpp` | `sha256:4bd7091667bbab0a92e94011c5ab37b2b4f5c1d5b0d688c69a44e6fc95c74339` |
 | `src/cartridges/the_board/bodies/pawn.hpp` | `sha256:bac566779a35e46048585b51426d4bfe7b971093ea5e38e9b0219150774b3fbf` |
@@ -38,7 +38,7 @@ in `console.hpp`.
 | 4 | Shadow Atlas | render | `render_shadow_pass` | `src/cartridges/the_board/realization/render_passes.hpp:338` | (none: depth-only) | Clear/Store, readOnly (absent) → `(tex == 0) ? c->gpuState_.shadow_map_view() : c->gpuState_.spot_shadow_map_view()` | (no stencil aspect) |
 | 5 | Shadow Pass | render | `render_shadow_pass` | `src/cartridges/the_board/realization/render_passes.hpp:382` | (none: depth-only) | Clear/Store, readOnly (absent) → `c->gpuState_.shadow_map_view()` | (no stencil aspect) |
 | 6 | Rasterized Scene | render | `render_main_pass` | `src/cartridges/the_board/realization/render_passes.hpp:654` | Clear/Store or Discard → `backbuffer or msaaColor` resolve → `backbuffer` | Clear/Discard, readOnly (absent) → `depth` | (no stencil aspect) |
-| 7 | Entity Mesh Gen | compute | `phase_entity_mesh_gen` | `src/cartridges/the_board/cartridge.hpp:2000` | — | — | — |
+| 7 | Entity Mesh Gen | compute | `phase_entity_mesh_gen` | `src/cartridges/the_board/cartridge.hpp:2001` | — | — | — |
 | 8 | Patch Bake (fused) | compute | `generate_patch_batch` | `src/cartridges/the_board/surface/patch_system.hpp:184` | — | — | — |
 | 9 | Zone Derive Params | compute | `flush_zone_derive_requests` | `src/cartridges/the_board/bodies/gol_zones.hpp:822` | — | — | — |
 | 10 | GoL Zone Sync | compute | `dispatch_zone_sync` | `src/cartridges/the_board/bodies/gol_zones.hpp:910` | — | — | — |

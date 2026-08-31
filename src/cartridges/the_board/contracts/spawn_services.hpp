@@ -87,13 +87,13 @@ inline constexpr float GLOBAL_ENTITY_DENSITY = 1.0f;
 //     · their COLUMNS never match — they register no footprint, so no
 //       sphere or cube entry will ever be found by the scan.
 //   The rows and columns REMAIN because F-1 pins this table in PopFamily
-//   order and it is one of ten positional tables — deleting a line for a
+//   order and it is one of ELEVEN positional tables — deleting a line for a
 //   family that still EXISTS would re-column all of them behind F-1's back.
 //   They are held as structural zeros.
 //   (PRUNE_1 U6 shrank the arity from 12: GALLERY was the TAIL family, so
 //   its row and column were truncated off the end and no survivor moved.
 //   PRUNE_2 then cut MID-TABLE lines — but only for families it EXCISED
-//   whole, re-columning all ten tables and FAMILY_DISPATCH in the same
+//   whole, re-columning all eleven tables and FAMILY_DISPATCH in the same
 //   commit and rewriting F-1 to the surviving pins. That is the licensed
 //   form. What this note still forbids is dropping a LIVE family's line.)
 //   Their diagonals were 20 (sph) and 15 (cube); ruling 22 retired them with

@@ -1,7 +1,6 @@
 #pragma once
 #include <cstdint>
 #include <cmath>      // std::round, std::min/max, std::cos/sin/abs   // (impl, merged)
-#include <cstring>    // std::memcpy (drum colors)   // (impl, merged)
 #include "cartridges/the_board/contracts/wgpu_fwd.hpp"   // wgpu handle fwds (lockstep insurance)
 
 // ─── entity_pipeline.hpp (S3 · MERGED: the pipeline law + impl) ─────
@@ -33,9 +32,12 @@ namespace the_board {
 // Policy rides INDOOR_TREATMENT + the dials
 // (contracts/indoor_module.hpp); the families below keep only their
 // hand-curated param-index lists — only LENGTH dimensions get
-// scaled, never ratios (TAPER, ENTASIS, ASPECT...), counts
-// (BASE_LAYERS, RIBS, ARM_COUNT...), or angles (LEAN_DIR,
-// FROND_DROOP...). CAP families call the shared cap_to_ceiling law.
+// scaled, never ratios (PyrIdx::ASPECT, PyrIdx::TRUNCATION), counts,
+// or angles. (The list used to cite TAPER/ENTASIS, BASE_LAYERS/RIBS/
+// ARM_COUNT and LEAN_DIR/FROND_DROOP; every one of those props was a
+// column's, cactus's or palm's and left at PRUNE_2 — the LAW is
+// unchanged, only its examples.) CAP families call the shared
+// cap_to_ceiling law.
 // (EXACT — snap HEIGHT to wall_height and scale every other length
 // param by the same ratio so proportions hold — left with the column,
 // its only practitioner; IndoorSize::EXACT stands unclaimed.)

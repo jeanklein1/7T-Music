@@ -1447,8 +1447,8 @@ namespace t7 {
                 // renderLayout + depthStencil + colorTarget + ENTITY_FS + TriangleList + CCW.
                 // The genuine forks are parameters: the VS entry (passed VERBATIM), the
                 // vertex-buffer layout (nullptr = bufferless, GPU-generated from vertex_index),
-                // and cullMode — a REAL per-pipeline field, NOT noise: single-sided frond/
-                // single-sided quads disable backface cull (None), solids keep Back. Same
+                // and cullMode — a REAL per-pipeline field, NOT noise: single-sided
+                // quads disable backface cull (None), solids keep Back. Same
                 // shared desc the originals mutated in place, rebuilt fresh per call
                 // (byte-identical result). Captures renderLayout/depthStencil/colorTarget.
                 auto makeEntity = [&](const char* label, const char* dbgLabel, const char* vsEntry,
@@ -1906,8 +1906,9 @@ namespace t7 {
                     // the floor. mix(MAX, MIN, cos) could never exceed
                     // SHADOW_BIAS_MAX by construction; slope-scale with no
                     // clamp WAS unbounded, running 4.3x the old term at 85 deg
-                    // and 10.1x at 88 deg. Seven of the eleven shadow pipelines
-                    // are CullMode::None, and an unbounded bias on a body whose
+                    // and 10.1x at 88 deg. Three of the seven shadow pipelines
+                    // are CullMode::None (it was seven of eleven before PRUNE_2
+                    // took four of them), and an unbounded bias on a body whose
                     // faces reach grazing could push a caster clean out of the
                     // depth range so it stopped occluding at all.
                     //

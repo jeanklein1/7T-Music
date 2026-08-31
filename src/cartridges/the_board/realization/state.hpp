@@ -191,7 +191,7 @@ namespace t7 {
             // fog is ICING. Declared here (the registry pattern: authored
             // once, checked by asserts, never computed); point-anchored.
             //   RING (325 = 6.5 patches, Jean's enlargement from 5.5): the
-            //     SOLE draw authority — terrain banding, entity cull, flora,
+            //     SOLE draw authority — terrain banding, entity cull,
             //     agents, floaters all gate DRAW MEMBERSHIP on it. Metric:
             //     nearest-edge for patches; center±extent for entities.
             //     Nothing is drawn beyond the ring — no wall-colored
@@ -637,7 +637,7 @@ namespace t7 {
 
             // ─── THE VEIL (re-ruled: RING = draw authority, fog = icing) ──
             // veil_ring: the SOLE draw authority (325 default) — terrain
-            //   banding, entity cull, flora/agent/floater VS gates all read
+            //   banding, entity cull, agent/floater VS gates all read
             //   it; nothing draws beyond it. Live-tunable.
             // veil_icing: δ — the narrow fade band [ring−δ, ring] in
             //   shade_lit (cosmetic; joins materialize inside it).

@@ -110,13 +110,11 @@ inline constexpr float FIELD_GAIN_CUBE   = 4.0f;
 inline constexpr float FIELD_GAIN_SPHERE = 1.0f;
 inline constexpr float FIELD_GAIN_AGENT  = 4.0f;
 
-// ── The ribbon's per-family occupier dials ───────────────────────
-// The head's CPU sum read the standing families from separate arrays so
-// it could weigh them independently. PRUNE_2 U4 excised columns and
-// antennas; the arch legs are the standing family that remains, and
-// occupier_cmg — the shared window that made the columns and antennas
-// inseparable GPU-side — went with them. Ribbon-only: these do not
-// touch what floaters and agents feel.
+// THE RIBBON'S PER-FAMILY OCCUPIER DIALS ARE GONE. The head's CPU sum
+// read the standing families from separate arrays so it could weigh them
+// independently; PRUNE_2 U4 excised columns and antennas, and the dials
+// this banner introduced left with them. The arch legs are the standing
+// family that remains, weighed through config.field_occupier_gain alone.
 //
 // ═══ THE BEACON (FIELD_4 — the first authored emitter) ════════════
 // S rides config.floater_coordination: strength is s * coord, and
