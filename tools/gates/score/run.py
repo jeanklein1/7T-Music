@@ -63,7 +63,7 @@ PHASE_DEFS = set(re.findall(r'void (phase_\w+)\s*\(', CART))
 KNOWN_FAMILIES = {
     'pyramid', 'arch',
     'sphere', 'ribbon', 'cube', 'gol', 'pawn_aura', 'orbs',
-    'spot_lights', 'indoor_shell', 'portal', 'wanderers',
+    'spot_lights', 'indoor_shell', 'wanderers',
 }
 
 def gate_families(gate):
@@ -98,7 +98,7 @@ FOUNDATIONAL_PHASES = {
     'phase_stream_patches':        'S2 streaming conductor (SEAM[patch:spawn-trigger])',
     'phase_census_dumps':          'spine diagnostics (constitution §5; gol residue proof at G3)',
     'phase_entity_mesh_gen':       'the mesh-gen pass — per-family gating is intra-phase',
-    'phase_upload_portal_lights':  'flag/count-guarded uploads (portals_dirty; light count=0 disables)',
+    'phase_upload_lights':         'flag-guarded uploads (lights_dirty; light count=0 disables)',
     'phase_dispatch_compute':      'REALIZATION — the frame compute dispatch',
     'phase_witness_capture':       'the witness capture (O-2) — spine-owned readback',
     'phase_live_card_write':       'the live-card field write — spine-owned, rest-skipped by its own clean flag',
@@ -142,7 +142,6 @@ GREP_MANIFEST = {
     # DELEGATED pieces: the gate lives at the module door (cited), not the spine.
     'spot_lights': [('direction/mood.hpp', 'apply door', rf'if constexpr \(ROSTER\.spot_lights\)')],
     'indoor_shell':[('direction/mood.hpp', 'apply door', rf'if constexpr \(ROSTER\.indoor_shell\)')],
-    'portal':      [('bodies/grounded.hpp', 'force-spawn door', rf'if constexpr \(!ROSTER\.portal\)')],
     'wanderers':   [('cartridge.hpp', 'boot population', imm(r'ROSTER\.wanderers', r'spawn_population_for_mood'))],
 }
 

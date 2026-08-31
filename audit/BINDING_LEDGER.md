@@ -14,9 +14,9 @@ merge rows the API charges separately.
 | field | value |
 |---|---|
 | demo column censused | `full` |
-| source commit | `1d974936f82d6d6bf70f367b80ca6ff2d316190a` |
-| | ONE_WORLD-I U1: transitions — the machine that moved between worlds |
-| `src/cartridges/the_board/realization/state.hpp` | `sha256:c32b8f0af9ef09b0639488a4ffb1485f3c179501c3ea5287ff844a791066cf24` |
+| source commit | `87cbefd6ff6aa18ebe8b4a96fce96476bb269bf6` |
+| | ONE_WORLD-I U1b: the veil, and the voice that still offered its keys |
+| `src/cartridges/the_board/realization/state.hpp` | `sha256:07d9022eaa489d0b2c7bc1a879760de4b7b4f0abbf4c7bc347bad5f44096b10d` |
 | `src/cartridges/the_board/realization/binding_surface.gen.inc` | `sha256:10db23b94bbbf533075648ba609f61817195e9bbd1da45d0931bb18f1ef4b253` |
 | `src/cartridges/the_board/realization/binding_registry.hpp` | `sha256:b87c7d6fd8d95fdebab27c7bfbf235d6217edcef17a4c834e685558e2280889c` |
 | `src/cartridges/the_board/realization/renderer.hpp` | `sha256:cc2f43816c15cd5b97537f316f6dd6c156088a18b27fa379e6195fb78ff9d1af` |
@@ -32,11 +32,11 @@ only — `draw_orbs` is called from `bodies/orbs.hpp`, not from
 | `src/cartridges/the_board/bodies/gol_zones.hpp` | `4bd7091667bbab0a92e94011c5ab37b2b4f5c1d5b0d688c69a44e6fc95c74339` |
 | `src/cartridges/the_board/bodies/orbs.hpp` | `a3bde8f506af81f67844572f51e88f2f0cb9336b9cfbddbc946883faef8d4a0c` |
 | `src/cartridges/the_board/bodies/pawn.hpp` | `bac566779a35e46048585b51426d4bfe7b971093ea5e38e9b0219150774b3fbf` |
-| `src/cartridges/the_board/cartridge.hpp` | `47d6393becbf5bea9f5fd557f4930a93ea7ecb4e52d772a8989912c99bd12309` |
-| `src/cartridges/the_board/contracts/spine_state.hpp` | `0ef97047625a81980d57c7d9f8a9f4530e5ab45fde57bbb2f3dc1336f04817b9` |
-| `src/cartridges/the_board/direction/mood.hpp` | `c31fc610777bfc6e1411e7b48ad06862f995e35ae59213ea942417b0b2fdb03f` |
+| `src/cartridges/the_board/cartridge.hpp` | `f1258a5ac5f0aa807c7546a14608ce2ad5ca074f2311ac8ab2cc4563f55fa940` |
+| `src/cartridges/the_board/contracts/spine_state.hpp` | `0afbce7d09b4f380389183b4a6b5b1e5f97bebb27f17ae04fe1605d52f26bc47` |
+| `src/cartridges/the_board/direction/mood.hpp` | `257b0e38167f5691228726f0694374babc2c6e165dd853ea2c46ef527828566d` |
 | `src/cartridges/the_board/realization/render_passes.hpp` | `ae6f287db64575f7f0c8b1d278f53f5839d1e26e75e5bc4f91e79f2d7aa60295` |
-| `src/cartridges/the_board/surface/patch_system.hpp` | `4c2b6e47ed4fccefbbbdc3a3ea9d383db2d9d3b32964279b9acd8716ee73e54c` |
+| `src/cartridges/the_board/surface/patch_system.hpp` | `f448ff115f91c0d9ebbd9f3db29625ac590bbddc912727624db6722f274fee3e` |
 
 The source commit is the last commit touching any of the four primary
 inputs — not `HEAD`, which moves when this file is committed. The content
@@ -937,14 +937,14 @@ one column that can.
 | `shadowPatchTerrainPipeline_` | pipeline | `src/cartridges/the_board/realization/renderer.hpp` | 2075 | `measured` | A:proximity |
 | `shadowPawnPipeline_` | pipeline | `src/cartridges/the_board/realization/renderer.hpp` | 2078 | `measured` | A:proximity |
 | `(file banner)` | file | `src/cartridges/the_board/realization/state.hpp` | 1 | `law-ref` | banner |
-| `Frame R Layout` | layout | `src/cartridges/the_board/realization/state.hpp` | 4617 | `law-ref` | A:proximity, B:named |
-| `Agents State Layout entries[7]` | layout entry | `src/cartridges/the_board/realization/state.hpp` | 4707 | `law-ref` | A:proximity |
-| `Cull State Layout entries[4]` | layout entry | `src/cartridges/the_board/realization/state.hpp` | 4819 | `witness` | A:proximity |
-| `Frame K State Layout entries[5]` | layout entry | `src/cartridges/the_board/realization/state.hpp` | 4866 | `law-ref` | A:proximity |
-| `Orbs A State Layout entries[0]` | layout entry | `src/cartridges/the_board/realization/state.hpp` | 4941 | `law-ref` | A:proximity |
-| `Orbs A State Layout` | layout | `src/cartridges/the_board/realization/state.hpp` | 4954 | `law-ref` | A:proximity, B:named |
-| `Scene State Layout entries[5]` | layout entry | `src/cartridges/the_board/realization/state.hpp` | 5227 | `budget`, `per-stage`, `slot-cap` | A:proximity |
-| `Shadow State Layout entries[4]` | layout entry | `src/cartridges/the_board/realization/state.hpp` | 5334 | `budget`, `per-stage`, `slot-cap` | A:proximity |
+| `Frame R Layout` | layout | `src/cartridges/the_board/realization/state.hpp` | 4610 | `law-ref` | A:proximity, B:named |
+| `Agents State Layout entries[7]` | layout entry | `src/cartridges/the_board/realization/state.hpp` | 4700 | `law-ref` | A:proximity |
+| `Cull State Layout entries[4]` | layout entry | `src/cartridges/the_board/realization/state.hpp` | 4812 | `witness` | A:proximity |
+| `Frame K State Layout entries[5]` | layout entry | `src/cartridges/the_board/realization/state.hpp` | 4859 | `law-ref` | A:proximity |
+| `Orbs A State Layout entries[0]` | layout entry | `src/cartridges/the_board/realization/state.hpp` | 4934 | `law-ref` | A:proximity |
+| `Orbs A State Layout` | layout | `src/cartridges/the_board/realization/state.hpp` | 4947 | `law-ref` | A:proximity, B:named |
+| `Scene State Layout entries[5]` | layout entry | `src/cartridges/the_board/realization/state.hpp` | 5220 | `budget`, `per-stage`, `slot-cap` | A:proximity |
+| `Shadow State Layout entries[4]` | layout entry | `src/cartridges/the_board/realization/state.hpp` | 5327 | `budget`, `per-stage`, `slot-cap` | A:proximity |
 | `(file banner)` | file | `src/cartridges/the_board/realization/world.wgsl` | 1 | `FXC`, `budget`, `compile-time`, `law-ref`, `per-stage`, `witness` | banner |
 | `cell_address` | wgsl function | `src/cartridges/the_board/realization/world.wgsl` | 271 | `law-ref` | A:proximity, B:named |
 | `hash_property` | wgsl function | `src/cartridges/the_board/realization/world.wgsl` | 418 | `law-ref` | A:proximity, B:named |

@@ -142,12 +142,11 @@ static_assert(placement_order_is_permutation(),
 
 struct Roster {
     bool pyramid, arch, sphere, ribbon, cube, gol;
-    // FEATURES (6)
+    // FEATURES (5)
     bool pawn_aura;     // presence ramp + aura terrain compute
     bool orbs;          // sky dome (distinct from the sphere family)
     bool spot_lights;   // indoor spot array + shadow atlas
     bool indoor_shell;  // walls + ceiling mesh
-    bool portal;        // force-spawn portal arches (lives in entities' force_spawn_portal_arch, the arch owner's authoring channel)
     bool wanderers;     // mood-authored NPC population (agent slots 1+)
 
     constexpr bool family_enabled(uint32_t f) const {
@@ -164,7 +163,7 @@ struct Roster {
 
     constexpr bool all_enabled() const {
         return pyramid && arch && sphere && ribbon && cube && gol &&
-               pawn_aura && orbs && spot_lights && indoor_shell && portal &&
+               pawn_aura && orbs && spot_lights && indoor_shell &&
                wanderers;
     }
 
@@ -174,7 +173,7 @@ struct Roster {
     // still equals the retired minimal.hpp.
     constexpr bool none_enabled() const {
         return !pyramid && !arch && !sphere && !ribbon && !cube && !gol &&
-               !pawn_aura && !orbs && !spot_lights && !indoor_shell && !portal &&
+               !pawn_aura && !orbs && !spot_lights && !indoor_shell &&
                !wanderers;
     }
 };

@@ -1,7 +1,7 @@
 #pragma once
 #include <cstdint>
 #include "cartridges/the_board/realization/state.hpp"                    // Dim::*, GPUPyramidArray, wgpu
-#include "cartridges/the_board/contracts/mood_constants.hpp"   // MOOD_COUNT, PortalDestination, WORLD_DRAW_LIVE (the portal palette), portal_color_for
+#include "cartridges/the_board/contracts/mood_constants.hpp"   // MOOD_COUNT, WORLD_DRAW_LIVE
 #include "cartridges/the_board/contracts/wgpu_fwd.hpp"   // wgpu handle fwds (lockstep insurance)
 #include "cartridges/the_board/contracts/entity_types.hpp"     // queue types (the dispatch funnels' signatures)
 
@@ -24,8 +24,6 @@
 //   ArchTier, PyramidTier) stay here — they're indexing semantics, not data.
 // ─────────────────────────────────────────────────────────────────
 
-#include <algorithm>   // std::max (portal-arch burial floor)   // (impl, merged)
-#include <cmath>       // std::floor, std::cos, std::sin (portal-arch placement)   // (impl, merged)
 #include <cstdint>   // (impl, merged)
 
 namespace t7 {
@@ -124,7 +122,7 @@ struct ActiveArch {
     bool active = false;
     bool draw_visible = true;    // false = mesh zeroed for distance culling
 
-    // Geometry (for portal detection + mesh rebuild)
+    // Geometry (for mesh rebuild)
     float world_x = 0.0f, world_z = 0.0f;
     float rotation = 0.0f;               // facing angle (radians)
     float half_span = 0.0f;
@@ -143,11 +141,7 @@ struct ActiveArch {
     // Placement (computed once at spawn, immutable)
     float cached_ground_y = 0.0f;         // absolute ground Y for VS offset
 
-    // Portal state
-    bool is_portal = false;
-    bool is_back_portal = false;
     uint32_t position_hash = 0;           // for crossing_seed
-    PortalDestination destination{};      // world this portal leads to
 
     uint32_t mosaic_seed = 0;   // MOSAIC_1 — frozen at spawn; 0 = plain
 };
@@ -225,12 +219,6 @@ void evict_pyramid(MachineCtx* self, uint32_t slot, wgpu::Queue& queue);
 void evict_arch(MachineCtx* self, uint32_t slot, wgpu::Queue& queue);
 void teardown_entities(MachineCtx* c, wgpu::Queue& queue);
 
-// ═══ THE ARCH FORCE-SPAWN AUTHOR (the portal channel) ═══════════
-//
-uint32_t force_spawn_portal_arch(EntitiesState& es, MachineCtx* c, wgpu::Queue& queue,
-    float cx, float cz, float rotation,
-    const PortalDestination& dest, bool is_back_portal);
-
 // ═══ IMPL:
 // bodies deref EntitiesState(own) + World/Mood/GPU via MachineCtx; no
 // Cartridge. COHORT: after contracts/spawn_services.hpp (generic_* +
@@ -294,135 +282,6 @@ inline bool prepare_arch_mesh_gen(EntitiesState& es, MachineCtx* c, wgpu::Queue&
     return true;
 }
 
-// ═══ THE ARCH FORCE-SPAWN AUTHOR (the portal channel) ═══════════
-
-inline uint32_t force_spawn_portal_arch(EntitiesState& es, MachineCtx* c, wgpu::Queue& queue,
-    float cx, float cz, float rotation,
-    const PortalDestination& dest, bool is_back_portal) {
-    // ROSTER-GATE portal (b) — THE SECOND DOOR. Portals force-spawn arches
-    // directly (bypassing FAMILY_DISPATCH — R3), so this is the
-    // single choke point every portal spawner routes through (back, finite,
-    // future). Disabled: spawn nothing (no arch, no mesh-pending),
-    // return the no-free-slot sentinel so callers treat it as "none placed".
-    // HOME (K4): MIGRATED here from mood's force_spawn_portal_at. The
-    // door's written retirement condition ("when mood converts and
-    // force-spawn becomes a request channel, this door MIGRATES INTO
-    // that channel") RESOLVED at REQUEST_1: the request channel exists —
-    // for the RIBBON, the author the prophecy was really about. This
-    // door deliberately does NOT migrate: a portal is the transition's
-    // own machinery (the way in and the way out), not a patient request,
-    // and it already claims lawfully (register_footprint below). The
-    // arch's owner holds the door to the arch's storage; mood computes
-    // values upstream.
-    if constexpr (!ROSTER.portal) { (void)queue; (void)cx; (void)cz; (void)rotation; (void)dest; (void)is_back_portal; return UINT32_MAX; }
-
-    uint32_t slot = UINT32_MAX;
-    for (uint32_t i = 0; i < Dim::MAX_ARCH_INSTANCES; i++) {
-        if (!es.arches[i].active) { slot = i; break; }
-    }
-    if (slot == UINT32_MAX) return UINT32_MAX;
-
-    const auto& tp = ARCH_TIERS[static_cast<uint32_t>(ArchTier::DOORWAY)];
-    float half_span = tp.profile.params[ArchIdx::SPAN].mean * 0.5f;
-    float rise = tp.profile.params[ArchIdx::RISE].mean;
-    float depth = tp.profile.params[ArchIdx::DEPTH].mean;
-    float thickness = tp.profile.params[ArchIdx::THICKNESS].mean;
-    float pier_height = tp.profile.params[ArchIdx::PIER_HEIGHT].mean;
-
-    int32_t gx = static_cast<int32_t>(std::floor(cx / Dim::PATCH_EXTENT));
-    int32_t gz = static_cast<int32_t>(std::floor(cz / Dim::PATCH_EXTENT));
-
-    auto& aa = es.arches[slot];
-    aa.patch_gx = gx;
-    aa.patch_gz = gz;
-    // RULING 20, and it must land BEFORE the registration below. This channel
-    // never wrote the host patch — the slot kept whatever the previous arch
-    // left there, so registering first would have filed the portal's ground
-    // under an arbitrary patch, and released it when THAT patch evicted. The
-    // generic path has always written both (entity_pipeline.hpp): patch_* is
-    // the trigger, host_* is the patch actually covering the body. Here they
-    // coincide, because a forced portal has no trigger patch — gx/gz above are
-    // derived from its own world position.
-    aa.host_gx = gx;
-    aa.host_gz = gz;
-    aa.active = true;
-    aa.draw_visible = true;
-    aa.world_x = cx;
-    aa.world_z = cz;
-    aa.rotation = rotation;
-    aa.half_span = half_span;
-    aa.total_height = pier_height + rise;
-    aa.tier = ArchTier::DOORWAY;
-    aa.depth = depth;
-    aa.thickness = thickness;
-    aa.rise = rise;
-    aa.pier_height = pier_height;
-    aa.burial = std::max(0.2f, pier_height * tp.burial);
-    aa.segs_u = tp.segs_u;
-    aa.segs_v = tp.segs_v;
-    // PORTAL_1 C4/C5 — the one home, in this channel too. This function only
-    // ever makes portals, so it is its own decision point: col_* takes the
-    // destination's colour here, and meshParams below reads col_* rather
-    // than a value handed in. The sandstone literal that stood here was the
-    // mirrored disease — after C3c deleted the recomputing branch in
-    // build_arch_mesh_params, it would have cemented every forced portal at
-    // its first ring toggle.
-    // Derived from the PARAMETERS, not from aa.destination / aa.is_back_portal
-    // — those are written below, at the portal-state block.
-    const float* pc = portal_color_for(dest, is_back_portal);
-    aa.col_r = pc[0];  aa.col_g = pc[1];  aa.col_b = pc[2];
-
-    {
-        // GPU compute_entity_placement handles ground_y from heightfield
-        aa.cached_ground_y = 0.0f;
-    }
-
-    aa.mosaic_seed = 0;   // MOSAIC_1: portals are functional markers — always plain (recycled slot must not inherit)
-    aa.is_portal = true;
-    aa.is_back_portal = is_back_portal;
-    aa.position_hash = cpu_hash(static_cast<uint32_t>(cx * 73856093.0f), static_cast<uint32_t>(cz * 19349663.0f));
-    aa.destination = dest;
-
-    // RULING 14 — CHANNEL B ONLY. A portal you can walk a pyramid into is a
-    // real artifact and claims real ground. Channel A (generic, dispatch-
-    // spawned) already registers through negotiate_position, and with
-    // WORLD_DRAW_LIVE.portal_density at 1.0 every DOORWAY-tier arch through dispatch IS a
-    // portal — so this is the one channel that claimed nothing. The census
-    // measured the gap exactly twice: arch delta -2 in a world with two forced
-    // portals, -4 in a world with four.
-    //
-    // NO check_position, deliberately. This is a FORCE-spawn: the transition
-    // machinery has already chosen where the portal goes and the arch is
-    // committed by this point. It claims its ground; it does not ask for it.
-    // A full registry therefore cannot deny the portal — the loud line inside
-    // register_footprint reports it and the portal stands anyway, which is the
-    // correct trade for the one family the world cannot do without.
-    (void)register_footprint(c, cx, cz, half_span,
-        gx, gz, PopFamily::ARCH, slot, static_cast<uint32_t>(ArchTier::DOORWAY));
-
-    GPUArchMeshParams meshParams{};
-    meshParams.center_x = cx;
-    meshParams.center_z = cz;
-    meshParams.rotation = rotation;
-    meshParams.half_span = half_span;
-    meshParams.rise = rise;
-    meshParams.depth = depth;
-    meshParams.thickness = thickness;
-    meshParams.pier_height = pier_height;
-    meshParams.burial = aa.burial;
-    meshParams.catenary_a = solve_catenary_a(half_span, rise);
-    meshParams.segs_u = tp.segs_u;
-    meshParams.segs_v = tp.segs_v;
-    meshParams.color_r = aa.col_r;
-    meshParams.color_g = aa.col_g;
-    meshParams.color_b = aa.col_b;
-    meshParams.is_active = 1;
-    c->gpuState_.upload_arch_mesh_params_slot(queue, slot, meshParams);
-    es.arch_mesh_gen_pending = true;
-
-    return slot;
-}
-
 // ═══ THE EVICTORS ═════════════════════════════════════════════════
 
 inline void evict_pyramid(MachineCtx* self,
@@ -446,18 +305,6 @@ inline void evict_arch(MachineCtx* self,
 {
     unregister_footprint_for(self, PopFamily::ARCH, slot);   // the hand that claims is the hand that frees
     self->entities_state_.arches[slot].active = false;
-    // THE STALE-DESTINATION LATCH. A freed slot keeps its bytes, and the
-    // spawn preamble re-reserves by setting active=true ALONE
-    // (run_spawn_preamble) — arch_write_active rewrites the portal
-    // fields only at commit. In that window an evicted portal's
-    // is_portal/destination would read as a LIVE portal on the reserved
-    // slot to every active && is_portal scan (upload_portal_array, the
-    // trigger validation, the census, the door-guarantee gate). Portal
-    // identity dies with the arch.
-    self->entities_state_.arches[slot].is_portal = false;
-    self->entities_state_.arches[slot].is_back_portal = false;
-    self->entities_state_.arches[slot].destination = PortalDestination{};
-    self->mood_state_.portals_dirty = true;
     { GPUArchMeshParams ep{}; self->gpuState_.upload_arch_mesh_params_slot(queue, slot, ep); }
     self->entities_state_.arch_mesh_gen_pending = true;
 }
@@ -467,14 +314,12 @@ inline void evict_arch(MachineCtx* self,
 // clears + GPU param-slot clears + mesh-gen re-arm, two families in
 // their one organ. UNGATED by design: the two families share this
 // organ, and per-family gating buys nothing (empty arrays clear to
-// empty). The arch clear announces the portal-set change on the
-// standing flag channel (mood_state_.portals_dirty).
+// empty).
 inline void teardown_entities(MachineCtx* c, wgpu::Queue& queue) {
     // Arches
     for (uint32_t i = 0; i < Dim::MAX_ARCH_INSTANCES; i++) {
         c->entities_state_.arches[i] = ActiveArch{};
     }
-    c->mood_state_.portals_dirty = true;
     c->gpuState_.set_arch_index_count(0);
     // Clear all arch mesh gen param slots
     {

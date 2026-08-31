@@ -128,14 +128,6 @@ ORGAN_PARAM_GEN(WORLD, WorldDrawSurface, scheme_weights[3], F32, 0.0f, 1.0f, 0.0
 // ─── Sky & Light · Portals — EDITS THE NEXT PORTAL ──────────────
 // A portal's colour is a fact about its DESTINATION, so the per-mood rows
 // are indexed by destination mood and the last is the way back.
-ORGAN_PARAM_GEN(WORLD, WorldDrawSurface, portal_colors[0][0], VEC3, 0.0f, 1.0f, 0.01f, "Sky & Light · Portals", "to open sunset")
-ORGAN_PARAM_GEN(WORLD, WorldDrawSurface, portal_colors[1][0], VEC3, 0.0f, 1.0f, 0.01f, "Sky & Light · Portals", "to indoor flat")
-ORGAN_PARAM_GEN(WORLD, WorldDrawSurface, portal_colors[2][0], VEC3, 0.0f, 1.0f, 0.01f, "Sky & Light · Portals", "to indoor vault")
-ORGAN_PARAM_GEN(WORLD, WorldDrawSurface, portal_colors[3][0], VEC3, 0.0f, 1.0f, 0.01f, "Sky & Light · Portals", "to finite outdoor")
-ORGAN_PARAM_GEN(WORLD, WorldDrawSurface, portal_colors[4][0], VEC3, 0.0f, 1.0f, 0.01f, "Sky & Light · Portals", "to open night")
-ORGAN_PARAM_GEN(WORLD, WorldDrawSurface, portal_colors[5][0], VEC3, 0.0f, 1.0f, 0.01f, "Sky & Light · Portals", "to open noon")
-ORGAN_PARAM_GEN(WORLD, WorldDrawSurface, portal_colors[6][0], VEC3, 0.0f, 1.0f, 0.01f, "Sky & Light · Portals", "to atrium")
-ORGAN_PARAM_GEN(WORLD, WorldDrawSurface, portal_color_back[0], VEC3, 0.0f, 1.0f, 0.01f, "Sky & Light · Portals", "back portal")
 
 // ─── Atmosphere · Regimes — THE REGIME LAW ──────────────────────────
 // One weight per regime, the MOOD's. The walk normalises, so these are
@@ -551,14 +543,6 @@ ORGAN_PARAM_DEF(AGENT_ROOM, GPUAgentRoomConstants, behaviors[10].aux,           
 // ─── Agents · Portals — EDITS THE NEXT DRAW ─────────────────────
 // WORLD_DRAW_LIVE again, the population half. THE DESTINATION LAW: one
 // weight per mood, normalised by the walk, and a 0 shuts a door.
-ORGAN_PARAM_GEN(WORLD, WorldDrawSurface, portal_density,        F32, 0.0f, 1.0f, 0.005f, "Agents · Portals", "portal density")
-ORGAN_PARAM_GEN(WORLD, WorldDrawSurface, mood_weights[0], F32, 0.0f, 1.0f, 0.005f, "Agents · Portals", "draw · open sunset")
-ORGAN_PARAM_GEN(WORLD, WorldDrawSurface, mood_weights[1], F32, 0.0f, 1.0f, 0.005f, "Agents · Portals", "draw · indoor flat")
-ORGAN_PARAM_GEN(WORLD, WorldDrawSurface, mood_weights[2], F32, 0.0f, 1.0f, 0.005f, "Agents · Portals", "draw · indoor vault")
-ORGAN_PARAM_GEN(WORLD, WorldDrawSurface, mood_weights[3], F32, 0.0f, 1.0f, 0.005f, "Agents · Portals", "draw · finite outdoor")
-ORGAN_PARAM_GEN(WORLD, WorldDrawSurface, mood_weights[4], F32, 0.0f, 1.0f, 0.005f, "Agents · Portals", "draw · open night")
-ORGAN_PARAM_GEN(WORLD, WorldDrawSurface, mood_weights[5], F32, 0.0f, 1.0f, 0.005f, "Agents · Portals", "draw · open noon")
-ORGAN_PARAM_GEN(WORLD, WorldDrawSurface, mood_weights[6], F32, 0.0f, 1.0f, 0.005f, "Agents · Portals", "draw · atrium")
 
 // ─── Interaction · Field ───────────────────────────────────────
 // GPUDesignConfig, boot-pinned from contracts/control_panel.hpp and read

@@ -57,14 +57,6 @@ generator, so the book and the manifest cannot disagree. `driven` is an
 | Sky & Light · Schemes | quartet | `WORLD.scheme_weights[1]` | WORLD | F32 | 0 … 1 | 0.005 | gen | none |  |
 | Sky & Light · Schemes | gallery | `WORLD.scheme_weights[2]` | WORLD | F32 | 0 … 1 | 0.005 | gen | none |  |
 | Sky & Light · Schemes | sanctum | `WORLD.scheme_weights[3]` | WORLD | F32 | 0 … 1 | 0.005 | gen | none |  |
-| Sky & Light · Portals | to open sunset | `WORLD.portal_colors[0][0]` | WORLD | VEC3 | 0 … 1 | 0.01 | gen | none |  |
-| Sky & Light · Portals | to indoor flat | `WORLD.portal_colors[1][0]` | WORLD | VEC3 | 0 … 1 | 0.01 | gen | none |  |
-| Sky & Light · Portals | to indoor vault | `WORLD.portal_colors[2][0]` | WORLD | VEC3 | 0 … 1 | 0.01 | gen | none |  |
-| Sky & Light · Portals | to finite outdoor | `WORLD.portal_colors[3][0]` | WORLD | VEC3 | 0 … 1 | 0.01 | gen | none |  |
-| Sky & Light · Portals | to open night | `WORLD.portal_colors[4][0]` | WORLD | VEC3 | 0 … 1 | 0.01 | gen | none |  |
-| Sky & Light · Portals | to open noon | `WORLD.portal_colors[5][0]` | WORLD | VEC3 | 0 … 1 | 0.01 | gen | none |  |
-| Sky & Light · Portals | to atrium | `WORLD.portal_colors[6][0]` | WORLD | VEC3 | 0 … 1 | 0.01 | gen | none |  |
-| Sky & Light · Portals | back portal | `WORLD.portal_color_back[0]` | WORLD | VEC3 | 0 … 1 | 0.01 | gen | none |  |
 | Atmosphere · Regimes | draw · regime 1 | `MoodProfile.regime_weight[0]` | NONE (255) | F32 | 0 … 1 | 0.01 | boundary | mood |  |
 | Atmosphere · Regimes | draw · regime 2 | `MoodProfile.regime_weight[1]` | NONE (255) | F32 | 0 … 1 | 0.01 | boundary | mood |  |
 | Atmosphere · Regimes | draw · regime 3 | `MoodProfile.regime_weight[2]` | NONE (255) | F32 | 0 … 1 | 0.01 | boundary | mood |  |
@@ -361,14 +353,6 @@ generator, so the book and the manifest cannot disagree. `driven` is an
 | Agents · passer | neighbour radius | `AGENT_ROOM.behaviors[10].neighbor_radius` | AGENT_ROOM | F32 | 0 … 50 | 0.25 | boundary | behavior |  |
 | Agents · passer | speed cap | `AGENT_ROOM.behaviors[10].speed_cap` | AGENT_ROOM | F32 | 0 … 30 | 0.25 | boundary | behavior |  |
 | Agents · passer | band | `AGENT_ROOM.behaviors[10].aux` | AGENT_ROOM | F32 | 0 … 20 | 0.25 | boundary | behavior |  |
-| Agents · Portals | portal density | `WORLD.portal_density` | WORLD | F32 | 0 … 1 | 0.005 | gen | none |  |
-| Agents · Portals | draw · open sunset | `WORLD.mood_weights[0]` | WORLD | F32 | 0 … 1 | 0.005 | gen | none |  |
-| Agents · Portals | draw · indoor flat | `WORLD.mood_weights[1]` | WORLD | F32 | 0 … 1 | 0.005 | gen | none |  |
-| Agents · Portals | draw · indoor vault | `WORLD.mood_weights[2]` | WORLD | F32 | 0 … 1 | 0.005 | gen | none |  |
-| Agents · Portals | draw · finite outdoor | `WORLD.mood_weights[3]` | WORLD | F32 | 0 … 1 | 0.005 | gen | none |  |
-| Agents · Portals | draw · open night | `WORLD.mood_weights[4]` | WORLD | F32 | 0 … 1 | 0.005 | gen | none |  |
-| Agents · Portals | draw · open noon | `WORLD.mood_weights[5]` | WORLD | F32 | 0 … 1 | 0.005 | gen | none |  |
-| Agents · Portals | draw · atrium | `WORLD.mood_weights[6]` | WORLD | F32 | 0 … 1 | 0.005 | gen | none |  |
 | Interaction · Field | slack | `CONFIG.field_slack` | CONFIG | F32 | 0 … 12 | 0.05 | live | none |  |
 | Interaction · Field | arch slack | `CONFIG.field_arch_slack` | CONFIG | F32 | 0.5 … 4 | 0.05 | live | none |  |
 | Interaction · Field | k (accel) | `CONFIG.field_k` | CONFIG | F32 | 0 … 1200 | 5 | live | none |  |
@@ -407,14 +391,14 @@ generator, so the book and the manifest cannot disagree. `driven` is an
 
 | | |
 | --- | --- |
-| entries | **379** |
-| by section | Agents 118 · Atmosphere 71 · Ribbon 55 · Sky & Light 42 · Terrain 42 · Interaction 23 · Pawn 18 · Debug 4 · Camera 3 · Measure 3 |
-| by cadence | boundary 188 · driven 18 · gen 42 · live 131 |
-| by macro form | PARAM 135 · PARAM_DEF 110 · PARAM_DEFONLY 74 · PARAM_GEN 42 · PARAM_RO 18 |
-| definition kinds | BEHAVIOR 78 · MOOD 55 · NONE 195 · ORB_MOOD 19 · TIER 32 |
+| entries | **363** |
+| by section | Agents 110 · Atmosphere 71 · Ribbon 55 · Terrain 42 · Sky & Light 34 · Interaction 23 · Pawn 18 · Debug 4 · Camera 3 · Measure 3 |
+| by cadence | boundary 188 · driven 18 · gen 26 · live 131 |
+| by macro form | PARAM 135 · PARAM_DEF 110 · PARAM_DEFONLY 74 · PARAM_GEN 26 · PARAM_RO 18 |
+| definition kinds | BEHAVIOR 78 · MOOD 55 · NONE 179 · ORB_MOOD 19 · TIER 32 |
 | witnesses (`ro`) | 18 |
 | blocks and sentinels used | AGENT_ROOM, CANVAS, CONFIG, DRIVERS, INDOOR, LIGHTING, NONE (255), NONE_ORB (254), ORBS, PANEL, PAWN, RIBBON, RIBBON_SPAWN, WORLD |
-| namespaces | canvas 15 · the_board 364 |
+| namespaces | canvas 15 · the_board 348 |
 
 ### Doors
 
@@ -472,7 +456,7 @@ states a belief; only the reader proves it. The tail of its run,
 verbatim:
 
 ```
-      · force_spawn_portal_arch            src/cartridges/the_board/bodies/grounded.hpp
+      ! force_spawn_portal_arch            src/cartridges/the_board/bodies/grounded.hpp
 
   OUT OF SCOPE, with the reason:
       AGENT_ROOM   GPU-side: tier_gains and behaviors ship as whole arrays through two WriteBuffers and are read in world.wgsl
@@ -481,7 +465,7 @@ verbatim:
 
 THE ANSWER, ROW BY ROW
 ------------------------------------------------------------------------
-  proved    280   a declared reader names the field
+  proved    264   a declared reader names the field
   SUSPECT     0   no declared reader names it
   witness    18   an _RO meter: the question is inverted (blind spot 5)
   scope      81   GPU-side or whole-struct (blind spots 2, 3)

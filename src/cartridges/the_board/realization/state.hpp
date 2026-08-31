@@ -3389,13 +3389,6 @@ namespace t7 {
                 writeStruct(queue, zoneDeriveRequestBuffer_, requests);
             }
 
-            void upload_portal_array(wgpu::Queue& queue, const GPUPortalArray& arr) {
-                agentRoomStage_.portals = arr;
-                queue.WriteBuffer(agentRoomBuffer_,
-                    offsetof(GPUAgentRoomConstants, portals),
-                    &agentRoomStage_.portals, sizeof(agentRoomStage_.portals));
-            }
-
             void upload_zone_life(wgpu::Queue& queue, uint32_t slot,
                 const float* life_data, const float* height_factors,
                 uint32_t cell_count) {

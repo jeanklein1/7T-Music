@@ -32,11 +32,6 @@
 //   are explicit latent infrastructure: aura_presence is live here;
 //   the other deferred fields await the unified entity layer.
 //   Pattern P8 visible in source.
-// SEAM[spine:portal-system] the portal working state. Owns
-//   cpuPortalArray_ and the back-portal anchor; direction/mood.hpp
-//   drives portal spawning (force_spawn_portal_at,
-//   force_spawn_back_portal). The request → activation flow it used
-//   to own left with the transition machine (ONE_WORLD-I).
 // SEAM[spine:family-dispatch] all evict_<family> (owner-side),
 //   dispatch_prepare_mesh_<family>, dispatch_mesh_gen_<family>
 //   wrapper functions land here — referenced by FAMILY_DISPATCH and
@@ -54,7 +49,7 @@
 #include "cartridges/the_board/contracts/entity_types.hpp"         // THE CONTRACT HOME: pipeline contracts + boundary DTOs + queue unions + dispatch row/table decl
 #include "cartridges/the_board/contracts/indoor_module.hpp"        // THE INDOOR MODULE: mood's insert on the spawn chain — one policy table + three dials; consumers ride the cohort (grounded/floaters/ribbon/the machine)
 #include "cartridges/the_board/contracts/spawn_services.hpp"      // THE MACHINE'S DECL TIER: spawn/pipeline service decls + boundary DTOs + arch vocabulary + MIN_SEPARATION (bodies ride the merged machine headers at the cohort tail)
-#include "cartridges/the_board/contracts/mood_constants.hpp"       // MOOD_COUNT + the Mood IDs + PortalDestination
+#include "cartridges/the_board/contracts/mood_constants.hpp"       // MOOD_COUNT + the Mood IDs
 #include "cartridges/the_board/contracts/spine_state.hpp"          // TimeState + PlayerState + InputState + MoodState/MoodProfile/MOOD_TABLE (spine organ TYPES; instances stay at the root)
 #include "cartridges/the_board/contracts/point.hpp"                // THE POINT: the parent of the player system — host enum + the bubble decl; instance at the root
 #include "cartridges/the_board/contracts/control_panel.hpp"        // THE PANEL: the field's dials + the beacon rests — one home, every room
@@ -78,7 +73,7 @@
 #include "cartridges/the_board/bodies/ribbon.hpp"               // RibbonState + RibbonDeps + impl — MERGED; after visual_canvas for the coupling face; after agents/cubes/spheres for the FIELD_2 mirror deps
 #include "cartridges/the_board/direction/input.hpp"             // KeyState/MouseState + InputDeps + impl — MERGED; after ribbon for RibbonState (the sky fixture); InputState graduated to spine_state
 #include "cartridges/the_board/realization/render_passes.hpp"   // the pass/dispatch bodies on THE MACHINE FACE + light-VP helpers — MERGED; before mood (compute_spot_light_vp)
-#include "cartridges/the_board/direction/mood.hpp"              // MoodDeps + portal/palette vocabulary + impl — MERGED; after ribbon/input (fan targets), before the machine natives (they call its derivers); MoodState/MoodProfile/MOOD_TABLE graduated to spine_state
+#include "cartridges/the_board/direction/mood.hpp"              // MoodDeps + the atmosphere vocabulary + impl — MERGED; after ribbon/input (fan targets), before the machine natives (they call its derivers); MoodState/MoodProfile/MOOD_TABLE graduated to spine_state
 #include "cartridges/the_board/machine/spawn_engine.hpp"        // S3: proximity tables + footprints + SpawnEngineState + the preamble template + impl — MERGED; after entities/renderer for complete organs; decl tier in contracts/spawn_services.hpp
 #include "cartridges/the_board/machine/entity_pipeline.hpp"     // S3: the three-phase verbs + the welded four — MERGED; after spawn_engine (services) + entities (vocab)
 #include "cartridges/the_board/surface/patch_system.hpp"        // S2: the active-patch machine's bodies on THE MACHINE FACE — MERGED; decl tier in contracts/surface_services.hpp
@@ -317,30 +312,20 @@ namespace t7 {
 
             GPUSpotLightArray cpuSpotLights_{};  // count=0 disables (outdoor)
 
-            // ═══ PORTAL WORKING STATE ════════════════════════════════════
-            //
             // SEAM[spine:transitions] (K4, Jean, 2026-07-11): the transition
             //   machine and its working members were DECLARED SPINE-OWNED
             //   ORCHESTRATION per the §2 residency law, the same legitimacy
-            //   class as the P5 readbacks. ONE_WORLD-I took the machine; the
-            //   ruling stands over what remains — mood_state_ and the portal
-            //   arrays below — and over rebirth_world, the machine's one
+            //   class as the P5 readbacks. ONE_WORLD-I took the machine and
+            //   then the doors; the ruling stands over what remains —
+            //   mood_state_ — and over rebirth_world, the machine's one
             //   survivor. Mood (direction/mood.hpp) supplies vocabulary +
-            //   appliers + four doors and owns NO instance; struct MoodState's
+            //   appliers + three doors and owns NO instance; struct MoodState's
             //   TYPE lives in contracts/spine_state.hpp. Constitution §2
             //   carries the K4 line.
-            // SEAM[spine:portal-system] consumed by the mood module (the
-            //   force_spawn_* internals fill these arrays). The portal palette
-            //   lives in contracts/mood_constants.hpp, beside PortalDestination
-            //   — a portal's colour is a fact about its destination, so the
-            //   palette sits with the type that names it (PORTAL_1 C5) and
-            //   every channel derives.
+            // SEAM[spine:portal-system] CLOSED at ONE_WORLD-I U2 — its whole
+            //   subject (the portal arrays, the back-portal anchor, the
+            //   force-spawn channel) left with the doors.
 
-            GPUPortalArray cpuPortalArray_{};
-
-            // ── Back-portal (guaranteed exit from finite worlds) ──
-            // Position is configurable so special-case layouts can relocate it.
-            float backPortalPosition_[2] = { 10.0f, 0.0f };   // world XZ
 
             // ═══ GPU READBACK + WORLDGEN ═════════════════════════════════
             //
@@ -463,7 +448,7 @@ namespace t7 {
             //    (declared in entity_types.hpp). ──
             //
             // The spine-owned piece-enable manifest (struct Roster, the
-            // ROSTER constant, the transitions=>portal edge, and the full doc
+            // ROSTER constant and the full doc
             // block — RIDER A / MATURITY DIAL / FOUNDATIONAL / LATENT /
             // gate-(a) status column) now lives in
             // cartridges/the_board/contracts/roster.hpp. It met its SECOND CONSUMER —
@@ -492,7 +477,7 @@ namespace t7 {
                 , gol_deps_{ gpuState_, renderer_, device_, time_state_ }
                 , ribbon_deps_{ gpuState_, time_state_, tile_world_state_, player_, point_, inputState_, world_state_, mood_state_, visual_canvas_, ribbon_amp_lat_dst_, ribbon_amp_vert_dst_, ribbon_tint_stim_dst_, ribbon_tint_mix_dst_ }
                 , input_deps_{ inputState_, keys_, mouse_, touch_, player_, world_state_, ribbon_state_, gpuState_, device_, point_, mount_, camera_ }
-                , mood_deps_{ mood_state_, world_state_, gpuState_, renderer_, gol_state_, entities_state_, sunDirection_, sunColor_, clearColor_, cpuSpotLights_, cpuPortalArray_, backPortalPosition_ } {
+                , mood_deps_{ mood_state_, world_state_, gpuState_, renderer_, gol_state_, entities_state_, sunDirection_, sunColor_, clearColor_, cpuSpotLights_ } {
                 // THE ROOT AUTHORS THE BOOT VALUES (the demo sentence lands
                 // here, not via in-struct defaults — no include-order cable).
                 // DRAW_0: the seed is DRAWN, not authored — boot_seed()
@@ -724,7 +709,6 @@ namespace t7 {
                     mark(ROSTER.pawn_aura, "pawn_aura"); mark(ROSTER.orbs, "orbs");
                     mark(ROSTER.spot_lights, "spot_lights");
                     mark(ROSTER.indoor_shell, "indoor_shell");
-                    mark(ROSTER.portal, "portal");
                     mark(ROSTER.wanderers, "wanderers");
                     // Buffer creation: only indoor_shell (SEP) skips in v0;
                     // pipelines gate per piece (gate a').
@@ -871,7 +855,7 @@ namespace t7 {
             };
             enum class RPhase : uint32_t {
                 WitnessHarvest, StreamPatches, RespawnAgents,
-                CensusDumps, RibbonTick, EntityMeshGen, UploadPortalLights, LiveCardWrite, DispatchCompute,
+                CensusDumps, RibbonTick, EntityMeshGen, UploadLights, LiveCardWrite, DispatchCompute,
                 WitnessCapture, GolDeriveFlush, GolZoneCompute, PawnAura, OrbSky,
                 GroundEntries, PlacementCorrection, FrustumCull, ShadowPass, MainPass,
                 COUNT
@@ -1398,8 +1382,8 @@ namespace t7 {
             }
 
             // SEAM[spine:owns] render() is genuinely spine work: readback state
-            //   machines, stale-callback guards, portal trigger handling,
-            //   patch streaming. The K1 observation
+            //   machines, stale-callback guards, patch streaming. The K1
+            //   observation
             //   doesn't apply to render() the same way it applies to update();
             //   render() mixes orchestration (correct) with smaller per-module
             //   GPU upload calls (each lives in its module already).
@@ -1953,10 +1937,10 @@ namespace t7 {
                 }
             }
 
-            // R9 — PORTAL + LIGHTS UPLOAD (algo).
-            void phase_upload_portal_lights(RenderCtx& c) {
+            // R9 — LIGHTS UPLOAD (algo). The portal array upload that shared
+            // this row left with the doors (ONE_WORLD-I U2).
+            void phase_upload_lights(RenderCtx& c) {
                 auto& queue = c.queue;
-                upload_portal_array(&mood_deps_, queue);
                 upload_lights(&mood_deps_, queue);
             }
 
@@ -2305,7 +2289,7 @@ namespace t7 {
                 { RPhase::CensusDumps,         "census_dumps",          &Cartridge::phase_census_dumps,          Driver::WallClock, true,                                   F_NONE },
                 { RPhase::RibbonTick,          "ribbon_tick",           &Cartridge::phase_ribbon_tick,           Driver::Mixed,     ROSTER.ribbon,                          F_SIGNAL },
                 { RPhase::EntityMeshGen,       "entity_mesh_gen",       &Cartridge::phase_entity_mesh_gen,       Driver::Algo,      true,                                   F_COMPUTE },
-                { RPhase::UploadPortalLights,  "upload_portal_lights",  &Cartridge::phase_upload_portal_lights,  Driver::Algo,      true,                                   F_CONFIG },
+                { RPhase::UploadLights,        "upload_lights",         &Cartridge::phase_upload_lights,         Driver::Algo,      true,                                   F_CONFIG },
                 { RPhase::LiveCardWrite,       "live_card_write",       &Cartridge::phase_live_card_write,       Driver::Mixed,     true,                                   F_COMPUTE },
                 { RPhase::DispatchCompute,     "dispatch_compute",      &Cartridge::phase_dispatch_compute,      Driver::Mixed,     true,                                   F_COMPUTE },
                 { RPhase::WitnessCapture,      "witness_capture",       &Cartridge::phase_witness_capture,       Driver::None,      true,                                   F_WITNESS },
@@ -2484,7 +2468,7 @@ namespace t7 {
             static_assert((uint32_t)RPhase::GroundEntries < (uint32_t)RPhase::PlacementCorrection, "O-4: ground entries (raises placement_dirty) before placement correction");
             static_assert((uint32_t)RPhase::FrustumCull < (uint32_t)RPhase::ShadowPass, "O-7: frustum cull precedes the shadow pass (ordering pin)");
             static_assert((uint32_t)RPhase::FrustumCull < (uint32_t)RPhase::MainPass, "O-7: frustum cull before the main pass (indirect draws consume the cull)");
-            static_assert((uint32_t)RPhase::LiveCardWrite > (uint32_t)RPhase::UploadPortalLights &&
+            static_assert((uint32_t)RPhase::LiveCardWrite > (uint32_t)RPhase::UploadLights &&
                           (uint32_t)RPhase::LiveCardWrite < (uint32_t)RPhase::DispatchCompute,
                 "GROUND_CARD_1: the card writes before the consumers "
                 "(pre-evolve zone read preserved, R10<R13 order intact)");
@@ -2731,17 +2715,17 @@ namespace t7 {
                 }
             }
 
-            // Mood is VOCABULARY + APPLIERS + FOUR DOORS: CeilingType /
-            // MoodProfile / MOOD_TABLE / portal colors / indoor palettes +
+            // Mood is VOCABULARY + APPLIERS + THREE DOORS: CeilingType /
+            // MoodProfile / MOOD_TABLE / indoor palettes +
             // the door, applier, and deriver declarations are in mood.hpp
             // (file scope, above the class); the definitions live in the
             // same header's MODULE IMPLEMENTATION zone (the merged file,
             // pre-class in the cohort). MOOD OWNS NO STATE —
             // nothing at the COMPOSITION ROOT; mood_state_ is spine-resident
-            // (SEAM[spine:transitions], L38 — assembly only; this is declared orchestration). The force-spawn
-            // mutation belongs to the arch's owner: entities'
-            // force_spawn_portal_arch (the ROSTER portal door lives
-            // there). The lighting-scheme tables stay impl-side. See §1.
+            // (SEAM[spine:transitions], L38 — assembly only; this is declared
+            // orchestration). The force-spawn mutation that belonged to the
+            // arch's owner left with the doors (ONE_WORLD-I U2). The
+            // lighting-scheme tables stay impl-side. See §1.
 
         public:
 

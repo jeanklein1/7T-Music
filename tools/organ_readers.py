@@ -123,12 +123,7 @@ READERS = {
         ("src/coupling/visual_canvas.hpp", "tick"),
     ]),
     "WORLD": ("WORLD_DRAW_LIVE", "WorldDrawSurface", [
-        ("src/cartridges/the_board/contracts/mood_constants.hpp", "portal_color_for"),
         ("src/cartridges/the_board/direction/mood.hpp", "derive_indoor_lights"),
-        # pick_portal_mood and pick_open_mood are one-line faces on the
-        # weighted walk; mood_weights is named in the walk's body.
-        ("src/cartridges/the_board/direction/mood.hpp", "pick_mood_weighted_"),
-        ("src/cartridges/the_board/direction/mood.hpp", "pick_portal_mood"),
         ("src/cartridges/the_board/machine/entity_pipeline.hpp", "arch_write_active"),
         ("src/cartridges/the_board/bodies/grounded.hpp", "force_spawn_portal_arch"),
     ]),
@@ -318,7 +313,7 @@ def owners_of(symbol, cache):
 # mood's. So the match is `<handle>.<…>.<leaf>` — the leaf must be reached
 # THROUGH a name that IS the bank.
 
-# A handle is the LIVE symbol itself (WORLD_DRAW_LIVE.portal_density), a
+# A handle is the LIVE symbol itself (WORLD_DRAW_LIVE.scheme_weights), a
 # parameter whose type is the bank's struct (cfg, in configure_orbs), or a
 # reference alias bound to either (const auto& S = RIBBON_SPAWN_LIVE),
 # resolved to a fixed point because aliases chain.

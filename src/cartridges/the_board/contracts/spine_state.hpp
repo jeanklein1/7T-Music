@@ -127,15 +127,6 @@ struct MoodState {
     float terrain_amp_ceiling = 0.0f;       // mirrors GPU config.terrain_amp_ceiling
     bool  spot_light_active = false;
 
-    // ── Portal upload flag ──
-    bool portals_dirty = true;              // true at boot → first upload guaranteed
-
-    // ── Back-portal return state ──
-    bool     back_portal_pending       = false;
-    uint32_t back_portal_return_seed   = 0;
-    uint32_t back_portal_return_mood   = 0;
-    uint32_t back_portal_return_radius = 2;
-
     // ── Sun orbit (musical coupling) ──
     float sun_orbit_phase = 0.0f;
 

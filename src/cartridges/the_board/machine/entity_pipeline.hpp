@@ -18,7 +18,7 @@
 // Depends on cohort include order: entity_types.hpp (traits/adapter/
 // instance vocabulary), grounded.hpp (props/configs/palettes + the
 // tier enums — COMPLETE, the merged bodies deref them), state.hpp
-// (GPU mesh params), mood.hpp (MOOD_TABLE / portal
+// (GPU mesh params), mood.hpp (MOOD_TABLE + the mood
 // doors), machine/spawn_engine.hpp (the services, defined just above
 // in the cohort). MERGED at the cohort tail (the
 // B ruling): the decl tier (the generic_* decls, the arch
@@ -560,41 +560,11 @@ inline void arch_write_active(MachineCtx* c, const EntityInstance& inst) {
     aa.cached_ground_y = 0.0f;
     aa.mosaic_seed = inst.mosaic_seed;
 
-    // Portal state: recompute from seed
-    aa.is_portal = false;
-    aa.is_back_portal = false;
     aa.position_hash = cpu_hash(inst.seed, ArchProp::ROTATION + 100u);
-    aa.destination = PortalDestination{};
-    if (inst.tier_idx == static_cast<uint32_t>(ArchTier::DOORWAY)
-        && !c->world_state_.finite_mode) {
-        // PORTAL_2 — the triad is a finite world's whole roster. A
-        // dispatch DOORWAY indoors stays an arch; it opens nowhere.
-        float portal_roll = cpu_hash_f(inst.seed, ArchProp::ROTATION + 200u);
-        if (portal_roll < WORLD_DRAW_LIVE.portal_density) {
-            aa.is_portal = true;
-            uint32_t dest_seed = cpu_hash(aa.position_hash, 1u);
-            uint32_t mood = pick_portal_mood(aa.position_hash, 2u);
-            const auto& mp = mood_def(mood);
-            aa.destination.seed = dest_seed;
-            aa.destination.mood = mood;
-            aa.destination.finite = mp.shape.finite;
-            aa.destination.finite_radius = derive_finite_radius(dest_seed, mp);
-            // A portal wears its destination's color — paint has no home here.
-            // Zeroed AT THE DECISION so both mesh-param producers read one
-            // correct value (MOSAIC_2b: the guard had two homes and they
-            // disagreed across a cull cycle).
-            aa.mosaic_seed = 0u;
-            // PORTAL_1 — the SAME decision, for the same reason, one line
-            // later. This is the only point in the tree that knows this arch
-            // is a portal while its appearance is still being set. col_* is
-            // now the ONE home of an arch's colour; every mesh-param producer
-            // reads it and asks nothing.
-            const float* pc = portal_color_for(aa.destination, aa.is_back_portal);
-            aa.col_r = pc[0]; aa.col_g = pc[1]; aa.col_b = pc[2];
-        }
-    }
-
-    c->mood_state_.portals_dirty = true;
+    // THE PORTAL ROLL STOOD HERE. A DOORWAY-tier arch in an open world
+    // rolled against WORLD_DRAW_LIVE.portal_density, drew a destination
+    // and wore its colour. Doors led somewhere until ONE_WORLD-I; the
+    // arch keeps the colour its tier rolled, like every other family.
 }
 
 inline void arch_write_gpu(MachineCtx* c, const EntityInstance& inst, wgpu::Queue& queue) {
@@ -614,17 +584,16 @@ inline void arch_write_gpu(MachineCtx* c, const EntityInstance& inst, wgpu::Queu
     mp.catenary_a = solve_catenary_a(half_span, rise);
     mp.segs_u     = ARCH_TIERS[inst.tier_idx].segs_u;
     mp.segs_v     = ARCH_TIERS[inst.tier_idx].segs_v;
-    // PORTAL_1: col_* is the one home — written by arch_write_active, which
-    // generic_commit calls first, and already carrying the portal override.
-    // The instance's own colours would miss that decision, and did.
+    // PORTAL_1's LAW OUTLIVES ITS SUBJECT: col_* is the one home — written
+    // by arch_write_active, which generic_commit calls first. The
+    // instance's own colours would miss that decision, and did.
     {
         const auto& aa = c->entities_state_.arches[inst.slot];
         mp.color_r = aa.col_r; mp.color_g = aa.col_g; mp.color_b = aa.col_b;
     }
     // MOSAIC_2b: the ONE home. arch_write_active (generic_commit calls it
-    // first) has already written this slot's seed and zeroed it if the
-    // arch is a portal, so both producers read one correct value — the
-    // instance's own field would miss that decision.
+    // first) has already written this slot's seed, so both producers read
+    // one correct value — the instance's own field would miss that.
     mp.mosaic_seed = c->entities_state_.arches[inst.slot].mosaic_seed;
     mp.is_active  = 1;
     c->gpuState_.upload_arch_mesh_params_slot(queue, inst.slot, mp);

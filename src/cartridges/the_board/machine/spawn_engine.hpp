@@ -167,7 +167,7 @@ inline constexpr bool proximity_row_active(uint32_t family) {
 // caller — the per-frame budgeted spawn, two patches. The fullRegen arm hands
 // the same function all 49 patches of the priority window in one call, and the
 // budget is not consulted there: 49 x 12 selections into 24 slots. The
-// `[SPAWN] entityQueue_ OVERFLOW` line fired at boot and at every portal on
+// `[SPAWN] entityQueue_ OVERFLOW` line fired at boot and at every rebirth on
 // every device, and the families it dropped were the tail of PLACEMENT_ORDER —
 // galleries first. No number would have fixed that; only the drain does.
 //
@@ -423,9 +423,8 @@ inline GPUArchMeshParams build_arch_mesh_params(MachineCtx* c, uint32_t slot) {
     p.catenary_a = solve_catenary_a(a.half_span, a.rise);
     p.segs_u = a.segs_u;
     p.segs_v = a.segs_v;
-    // PORTAL_1: no branch. col_* carries the portal override from the decision.
     p.color_r = a.col_r; p.color_g = a.col_g; p.color_b = a.col_b;
-    p.mosaic_seed = a.mosaic_seed;   // portals zeroed at the decision — MOSAIC_2b
+    p.mosaic_seed = a.mosaic_seed;
     p.is_active = 1;
     return p;
 }
@@ -684,8 +683,8 @@ inline void dump_entity_census(MachineCtx* c, const char* trigger) {
     // for FOOTPRINT-derived columns, and a family that claims no ground
     // genuinely has nothing to report there. These columns are
     // ARRAY-derived: every family has an instance array with a bound, so
-    // every family has an honest answer, floaters included. The one dash
-    // here is `portal`, below.
+    // every family has an honest answer, floaters included — and with the
+    // portal column gone there is no dash left in this table at all.
     //
     // hi-wtr is one past the highest live slot AT THIS SCAN — the
     // allocator's reach, not a session peak. Nothing is stored between
@@ -694,30 +693,17 @@ inline void dump_entity_census(MachineCtx* c, const char* trigger) {
     // a population cycling against its ceiling looks like when the census
     // samples it mid-breath. Both readings mean "the ceiling is binding".
     //
-    // portal is arch-only and DASHED elsewhere — not zeroed. A sphere has
-    // no portal count to be zero; portal_density applies to the DOORWAY arch
-    // tier alone (the world-draw bank), so `0` on a sphere row would be a
-    // measurement of something that does not exist. Same law as
-    // census_put_dash.
-    // It is a SUBSET of the arch row's live, never a separate population:
-    // portals are force-spawned into the same sixteen slots every rolled
-    // arch competes for (force_spawn_portal_arch, grounded.hpp), which is
-    // precisely why a portal-heavy tier skew costs big arches.
-    uint32_t portal_arches = 0;
-    for (uint32_t i = 0; i < Dim::MAX_ARCH_INSTANCES; i++) {
-        const auto& a = c->entities_state_.arches[i];
-        if (a.active && a.is_portal) portal_arches++;
-    }
+    // THE PORTAL COLUMN STOOD HERE, arch-only and dashed on every other
+    // row: a subset of the arch row's live, counting the doors among the
+    // arches. It left with the doors (ONE_WORLD-I).
 
-    std::cout << "  fam      live   hi-wtr     cap  portal\n";
+    std::cout << "  fam      live   hi-wtr     cap\n";
     for (uint32_t f = 0; f < PopFamily::COUNT; f++) {
         const SlotCensus s = FAMILY_DISPATCH[f].slot_census(c);
         std::cout << "  " << std::left << std::setw(7) << family_short_name(f) << std::right
             << std::setw(6) << s.live
             << std::setw(9) << s.high_water
             << std::setw(8) << s.capacity;
-        if (f == PopFamily::ARCH) std::cout << std::setw(8) << portal_arches;
-        else                      census_put_dash(8);
         std::cout << "\n";
     }
 

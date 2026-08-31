@@ -189,14 +189,11 @@ struct ArchTierRow {
 // changing a number changes every arch ever born.
 inline constexpr ArchTierRow ARCH_TIERS[] = {
     //   {  weight, color_var, { {μ,σ}: SPAN      RISE        DEPTH       THICKNESS     PIER_HEIGHT  PIER_PAD     EDGE_BLEND } },  col_ovr  mosaic  burial  segs_u  segs_v
-    // DOORWAY's weight IS the open world's portal density.
-    // WORLD_DRAW_LIVE.portal_density is 1.0 (mood_constants.hpp, the
-    // world-draw bank): every doorway arch becomes a portal, so this
-    // number and ArchConfig::SPAWN_CHANCE are the only two dials deciding
-    // how many ways out the field has.
+    // DOORWAY was the open world's portal tier until the doors left
+    // (ONE_WORLD-I U2); it is a silhouette now, like the other two.
     // ZERO-SUM (ARCH_2): at a fixed SPAWN_CHANCE these three weights trade
     // against each other in ABSOLUTE counts — the mix is theirs, the count
-    // is the chance's. Every portal bought by skewing is a big arch sold.
+    // is the chance's. Every doorway bought by skewing is a big arch sold.
     // STANDARD and MONUMENTAL are the outdoor silhouette and are held by
     // ruling: buy portals with the chance, never out of them.
     /* DOORWAY    */ {

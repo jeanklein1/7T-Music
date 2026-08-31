@@ -598,11 +598,6 @@ inline void stream_patches(MachineCtx* c, wgpu::CommandEncoder& encoder, wgpu::Q
                     ensure_tile(tile_world_state, &tile_world_deps, gx, gz);  // owner door
                 }
             }
-
-            // NOW spawn portals — tile cache is populated, terrain heights are correct
-            if (c->mood_state_.back_portal_pending) {
-                force_spawn_back_portal(&mood_deps, queue, *c);
-            }
             // Built ONCE before the window loop: bit-identical to the old
             // per-cell O(N) scan (each cell is unique, so a patch added at an
             // earlier cell never matches a later one). Kills the O(N^2).
