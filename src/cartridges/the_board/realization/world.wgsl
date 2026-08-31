@@ -5873,7 +5873,7 @@ struct ArchVertexInput {
     // bitcast<f32>(u32)). slot < 64 (census C-12); seed < 65536 →
     // enc < 2^22, f32-exact. Families that never paint write seed 0 —
     // their bytes are unchanged and their VSes keep the plain u32()
-    // read (identity on a bare slot: palm untouched).
+    // read (identity on a bare slot).
     // Painted families (arch, column) and their shadow twins decode
     // via entity_index_decode below.
     @location(3) arch_index: f32,
@@ -7132,7 +7132,6 @@ const GROUND_ATLAS_ARCH: i32     = 0;
 const GROUND_ATLAS_COLUMN: i32   = 16;
 // slots 48..55: A DOCUMENTED HOLE. Do NOT re-pack — these offsets are
 // hand-mirrored with state.hpp Dim::GROUND_ATLAS_*.
-const GROUND_ATLAS_PALM: i32     = 56;
 
 // --- The ribbon room (ribbonStateLayout_; RIBBON_1)
 // ring_xforms: written by ribbon_body, read by the render rooms as 143.
@@ -11377,16 +11376,6 @@ struct ColumnGroundEntry {
 };
 @group(2) @binding(82) var<storage, read_write> column_ground: array<ColumnGroundEntry, 32>;
 
-struct PalmGroundEntry {
-    center_x: f32,
-    center_z: f32,
-    ground_y: f32,
-    is_active: u32,
-    _pad0: f32, _pad1: f32, _pad2: f32, _pad3: f32,
-}
-// Plant ground for compute Y-correction: palm[0..23]
-@group(2) @binding(83) var<storage, read_write> plant_ground: array<PalmGroundEntry, 24>;
-
 // Entity ground atlas — compute writes corrected ground_y (r32float, 256×1)
 @group(3) @binding(80) var entity_ground_atlas_write: texture_storage_2d<r32float, write>;
 
@@ -11500,10 +11489,10 @@ fn sample_terrain_grad_at(world_xz: vec2<f32>) -> vec2<f32> {
 //
 // Arch: 2-point min at the leg positions + pier_height offset (the legs' visual height).
 // Pyramid: 5-point min at center + 4 rotated corners.
-// Column/antenna, palm: single-point center.
+// Column/antenna: single-point center.
 //
 // b2b — WORLD-ANCHORED OVERLAY RIDE. The surface-STANDING
-// families (column/antenna, palm, arch feet) add
+// families (column/antenna, arch feet) add
 // contrib_gol_zones_at so they sit on the LIVE zone surface the mesh
 // renders, not the baked static height — the sink/float fix. Raw GoL, no
 // pawn suppression (structures are not movers). PYRAMIDS are EXCLUDED:
@@ -11533,16 +11522,6 @@ fn compute_entity_placement() {
             // compute_entity_placement's banner.)
             column_ground[i].ground_y = sample_terrain_y_at(xz) + sample_live_card_gol(xz);
             textureStore(entity_ground_atlas_write, vec2<i32>(i32(i) + GROUND_ATLAS_COLUMN, 0), vec4<f32>(column_ground[i].ground_y, 0.0, 0.0, 0.0));
-        }
-    }
-
-    // --- Palm: plant_ground[0..23]
-    for (var i = 0u; i < 24u; i++) {
-        if (plant_ground[i].is_active != 0u) {
-            let xz = vec2(plant_ground[i].center_x, plant_ground[i].center_z);
-            // b2b: + world-anchored GoL (see column).
-            plant_ground[i].ground_y = sample_terrain_y_at(xz) + sample_live_card_gol(xz);
-            textureStore(entity_ground_atlas_write, vec2<i32>(i32(i) + GROUND_ATLAS_PALM, 0), vec4<f32>(plant_ground[i].ground_y, 0.0, 0.0, 0.0));
         }
     }
 
@@ -12740,370 +12719,6 @@ fn column_mesh_gen(
     }
 }
 
-
-// ─── §9.3 PALM MESH GENERATION (trunk + radial frond crown) ──────────────
-//
-// PalmMeshParams MUST match state.hpp::GPUPalmMeshParams (size: 128 bytes).
-// If this struct gains/loses a field, the CPU side and
-// its state.hpp sizeof static_assert must be updated together.
-
-struct PalmMeshParams {
-    center_x: f32, center_z: f32,
-    height: f32,
-    base_r: f32, top_r: f32,
-    lean: f32, lean_dir: f32,
-    bark_rings: f32, bark_depth: f32,
-    frond_count: f32,
-    frond_len: f32, frond_width: f32,
-    frond_droop: f32, frond_arch: f32,
-    crown_spread: f32, crown_skirt: f32,
-    burial: f32,
-    trunk_r: f32, trunk_g: f32, trunk_b: f32,
-    frond_r: f32, frond_g: f32, frond_b: f32,
-    aged_r: f32, aged_g: f32, aged_b: f32,
-    trunk_segs: u32, frond_segs: u32,
-    is_active: u32,
-    _pad0: f32,
-    _pad1: f32,
-    _pad2: f32,
-}
-
-const PALMG_MAX_VERTS_PER_SLOT: u32 = 1200u;
-const PALMG_MAX_INDICES_PER_SLOT: u32 = 6000u;
-const PALMG_FLOATS_PER_VERTEX: u32 = 10u;
-const PALMG_MAX_SLOTS: u32 = 24u;
-
-@group(2) @binding(180) var<storage, read>       palmg_params: array<PalmMeshParams, 24>;
-@group(2) @binding(181) var<storage, read_write>  palmg_vertices: array<f32>;
-@group(2) @binding(182) var<storage, read_write>  palmg_indices: array<u32>;
-
-fn palmg_write_vertex(abs_idx: u32, px: f32, py: f32, pz: f32,
-                      nx: f32, ny: f32, nz: f32,
-                      cr: f32, cg: f32, cb: f32, entity_idx: u32) {
-    let base = abs_idx * PALMG_FLOATS_PER_VERTEX;
-    palmg_vertices[base + 0u] = px;
-    palmg_vertices[base + 1u] = py;
-    palmg_vertices[base + 2u] = pz;
-    palmg_vertices[base + 3u] = nx;
-    palmg_vertices[base + 4u] = ny;
-    palmg_vertices[base + 5u] = nz;
-    palmg_vertices[base + 6u] = cr;
-    palmg_vertices[base + 7u] = cg;
-    palmg_vertices[base + 8u] = cb;
-    palmg_vertices[base + 9u] = f32(entity_idx);
-}
-
-@compute @workgroup_size(MESHGEN_LANES)
-fn palm_mesh_gen(
-    @builtin(workgroup_id) wid: vec3<u32>,
-    @builtin(local_invocation_id) lid: vec3<u32>
-) {
-    // ONE WORKGROUP PER SLOT (LATTICE_2). Dispatch shape unchanged.
-    let slot = wid.x;
-    let lane = lid.x;
-    if (slot >= PALMG_MAX_SLOTS) { return; }
-
-    let p = palmg_params[slot];
-    let vb_base = slot * PALMG_MAX_VERTS_PER_SLOT;
-    let ib_base = slot * PALMG_MAX_INDICES_PER_SLOT;
-
-    if (p.is_active == 0u) {
-        for (var i = lane; i < PALMG_MAX_INDICES_PER_SLOT; i += MESHGEN_LANES) {
-            palmg_indices[ib_base + i] = vb_base;
-        }
-        return;
-    }
-
-    let cx = p.center_x;
-    let cz = p.center_z;
-    let burial = p.burial;
-    let lean_cos = cos(p.lean_dir);
-    let lean_sin = sin(p.lean_dir);
-
-    // ── TRUNK: surface of revolution with taper + bark rings + lean ──
-
-    let trunk_rings = min(u32(max(8.0, p.bark_rings)), 40u);
-    let trunk_segs = min(p.trunk_segs, 24u);
-
-    // THE SECTION BASES (LATTICE_2). Hoisted from the frond block, where
-    // they were already named for the ceiling arithmetic — the crown cap
-    // needs them too now, and one number has one home. Every count here is
-    // pure in (trunk_rings, trunk_segs), which are uniform per workgroup.
-    let cap_tip_vi    = (trunk_rings + 1u) * trunk_segs;   // vi at the crown tip
-    let cap_ring_vi   = cap_tip_vi + 1u;                   // vi at the crown ring
-    let cap_fan_ii    = trunk_rings * trunk_segs * 6u;     // ii at the crown fan
-    let trunk_verts   = cap_ring_vi + trunk_segs;
-    let trunk_indices = cap_fan_ii + trunk_segs * 3u;
-
-    // vi was ring * trunk_segs + seg.
-    for (var ring = lane; ring <= trunk_rings; ring += MESHGEN_LANES) {
-        let t = f32(ring) / f32(trunk_rings);
-
-        var r = p.base_r + (p.top_r - p.base_r) * t;
-        let ring_phase = t * p.bark_rings * 2.0 * PI;
-        r += sin(ring_phase) * p.bark_depth * (1.0 - t * 0.5);
-        r = max(0.01, r);
-
-        let lean_mag = p.lean * p.height * t * t;
-        let lean_x = lean_mag * lean_cos;
-        let lean_z = lean_mag * lean_sin;
-        let y = t * p.height - burial;
-
-        let shade = 0.85 + 0.15 * t;
-        let cr = p.trunk_r * shade;
-        let cg = p.trunk_g * shade;
-        let cb = p.trunk_b * shade;
-
-        for (var seg = 0u; seg < trunk_segs; seg++) {
-            let angle = f32(seg) / f32(trunk_segs) * 2.0 * PI;
-            let ca = cos(angle);
-            let sa = sin(angle);
-
-            palmg_write_vertex(vb_base + ring * trunk_segs + seg,
-                cx + lean_x + ca * r, y, cz + lean_z + sa * r,
-                ca, 0.0, sa,
-                cr, cg, cb, slot);
-        }
-    }
-
-    // Trunk indices: quads between consecutive rings.
-    // ii was (ring * trunk_segs + seg) * 6u + j.
-    for (var ring = lane; ring < trunk_rings; ring += MESHGEN_LANES) {
-        for (var seg = 0u; seg < trunk_segs; seg++) {
-            let next_seg = (seg + 1u) % trunk_segs;
-            let row0 = ring * trunk_segs;
-            let row1 = (ring + 1u) * trunk_segs;
-
-            let v00 = vb_base + row0 + seg;
-            let v10 = vb_base + row1 + seg;
-            let v11 = vb_base + row1 + next_seg;
-            let v01 = vb_base + row0 + next_seg;
-
-            let ii = ib_base + (ring * trunk_segs + seg) * 6u;
-            palmg_indices[ii + 0u] = v00;
-            palmg_indices[ii + 1u] = v10;
-            palmg_indices[ii + 2u] = v11;
-            palmg_indices[ii + 3u] = v00;
-            palmg_indices[ii + 4u] = v11;
-            palmg_indices[ii + 5u] = v01;
-        }
-    }
-
-    // ── CROWN CAP: triangle fan at trunk top ──
-
-    let top_lean_mag = p.lean * p.height;
-    let crown_lean_x = top_lean_mag * lean_cos;
-    let crown_lean_z = top_lean_mag * lean_sin;
-    let crown_y = p.height - burial;
-    let crown_r = p.top_r * 1.3;
-
-    let crown_cr = p.trunk_r * 0.6 + p.frond_r * 0.4;
-    let crown_cg = p.trunk_g * 0.6 + p.frond_g * 0.4;
-    let crown_cb = p.trunk_b * 0.6 + p.frond_b * 0.4;
-
-    // ONE VERTEX, ONE LANE: the tip is not a loop, so lane 0 writes it.
-    if (lane == 0u) {
-        palmg_write_vertex(vb_base + cap_tip_vi,
-            cx + crown_lean_x, crown_y + crown_r * 0.6, cz + crown_lean_z,
-            0.0, 1.0, 0.0,
-            crown_cr, crown_cg, crown_cb, slot);
-    }
-
-    for (var seg = lane; seg < trunk_segs; seg += MESHGEN_LANES) {
-        let angle = f32(seg) / f32(trunk_segs) * 2.0 * PI;
-        palmg_write_vertex(vb_base + cap_ring_vi + seg,
-            cx + crown_lean_x + cos(angle) * crown_r,
-            crown_y,
-            cz + crown_lean_z + sin(angle) * crown_r,
-            0.0, 1.0, 0.0,
-            crown_cr, crown_cg, crown_cb, slot);
-    }
-
-    for (var seg = lane; seg < trunk_segs; seg += MESHGEN_LANES) {
-        let next_seg = (seg + 1u) % trunk_segs;
-        let ii = ib_base + cap_fan_ii + seg * 3u;
-        palmg_indices[ii + 0u] = vb_base + cap_tip_vi;
-        palmg_indices[ii + 1u] = vb_base + cap_ring_vi + seg;
-        palmg_indices[ii + 2u] = vb_base + cap_ring_vi + next_seg;
-    }
-
-    // ── FRONDS: radial quad strips with golden-angle packing ──
-
-    let golden_angle = PI * (3.0 - sqrt(5.0));
-    let frond_segs = min(p.frond_segs, 14u);
-
-    // THE SLOT IS THE AUTHORITY. Trunk and crown are already written, so
-    // the frond count is whatever the remaining vertex and index budgets
-    // afford — never a per-family constant, because the cost is per-tier.
-    // The authored floor of 3 yields to the ceiling: a floor that can
-    // overrun the slot is not a guard. The two saturating min() calls keep
-    // the subtraction total rather than dependent on the ring/seg clamps
-    // above staying where they are. (`trunk_verts` / `trunk_indices` are
-    // hoisted to the section-base block now; the crown cap needs them too.)
-    let verts_left    = PALMG_MAX_VERTS_PER_SLOT   - min(trunk_verts,   PALMG_MAX_VERTS_PER_SLOT);
-    let indices_left  = PALMG_MAX_INDICES_PER_SLOT - min(trunk_indices, PALMG_MAX_INDICES_PER_SLOT);
-    let frond_ceiling = min(verts_left / ((frond_segs + 1u) * 2u),
-                            indices_left / max(frond_segs * 6u, 1u));
-
-    let n_fronds = min(u32(max(3.0, p.frond_count)), frond_ceiling);
-    let crown_frond_y = crown_y + crown_r * 0.3;
-
-    // A LANE OWNS A WHOLE FROND, so the body below is verbatim — the
-    // per-frond cursor is ordinary serial state inside one lane's range.
-    // Only the frond's starting cursor is arithmetic, and every frond is
-    // the same size, so no prefix loop is needed.
-    for (var f = lane; f < n_fronds; f += MESHGEN_LANES) {
-        var vi = trunk_verts + f * (frond_segs + 1u) * 2u;
-        var ii = trunk_indices + f * frond_segs * 6u;
-
-        let base_angle = f32(f) * golden_angle;
-        let rank = f32(f) / max(1.0, f32(n_fronds - 1u));
-
-        let elev_top = p.crown_spread * PI * 0.42;
-        let elev_bot = -p.crown_skirt * PI * 0.25;
-        let elevation = elev_bot + (elev_top - elev_bot) * rank;
-
-        let droop_scale = 0.25 + 0.75 * (1.0 - rank);
-        let len_scale = 0.6 + 0.4 * (1.0 - rank);
-
-        let cos_az = cos(base_angle);
-        let sin_az = sin(base_angle);
-        let cos_el = cos(elevation);
-        let sin_el = sin(elevation);
-        let fwd_x = cos_az * cos_el;
-        let fwd_y = sin_el;
-        let fwd_z = sin_az * cos_el;
-
-        // Right vector: cross(forward, up)
-        var right_x: f32; var right_y: f32; var right_z: f32;
-        if (sin_el > 0.95) {
-            right_x = -sin_az; right_y = 0.0; right_z = cos_az;
-        } else {
-            let rx = fwd_z; let rz = -fwd_x;
-            let rl = sqrt(rx * rx + rz * rz);
-            if (rl > 0.001) {
-                right_x = rx / rl; right_y = 0.0; right_z = rz / rl;
-            } else {
-                right_x = -sin_az; right_y = 0.0; right_z = cos_az;
-            }
-        }
-
-        let frond_len = p.frond_len * len_scale;
-        let frond_vi_start = vi;
-
-        for (var s = 0u; s <= frond_segs; s++) {
-            let t = f32(s) / f32(frond_segs);
-            let dist = t * frond_len;
-
-            let arch_up = p.frond_arch * frond_len * sin(t * PI * 0.4);
-            let droop_down = p.frond_droop * frond_len * t * t * t * droop_scale;
-            let dy = arch_up - droop_down;
-
-            let mx = cx + crown_lean_x + fwd_x * dist;
-            let my = crown_frond_y + fwd_y * dist + dy;
-            let mz = cz + crown_lean_z + fwd_z * dist;
-
-            let w = p.frond_width * (1.0 - t * 0.85) * (0.3 + 0.7 * min(1.0, t * 3.0));
-            let half_w = w * 0.5;
-            let px_off = right_x * half_w;
-            let py_off = right_y * half_w;
-            let pz_off = right_z * half_w;
-
-            // Color: blend young→aged by rank + tip aging
-            let aged_blend = rank;
-            let fr = p.aged_r + (p.frond_r - p.aged_r) * aged_blend;
-            let fg = p.aged_g + (p.frond_g - p.aged_g) * aged_blend;
-            let fb = p.aged_b + (p.frond_b - p.aged_b) * aged_blend;
-            let tip_age = min(1.0, t * t * (1.0 - rank * 0.7)) * 0.3;
-            let seg_r = fr + (p.aged_r - fr) * tip_age;
-            let seg_g = fg + (p.aged_g - fg) * tip_age;
-            let seg_b = fb + (p.aged_b - fb) * tip_age;
-            let seg_shade = 0.75 + 0.25 * t;
-            let frond_var = f32(f % 3u) * 0.03;
-
-            let ny_approx = 0.8;
-            let nx_approx = fwd_x * 0.2;
-            let nz_approx = fwd_z * 0.2;
-
-            // Left vertex
-            palmg_write_vertex(vb_base + vi,
-                mx + px_off, my + py_off, mz + pz_off,
-                nx_approx, ny_approx, nz_approx,
-                min(1.0, seg_r * seg_shade - frond_var * 0.5),
-                min(1.0, seg_g * seg_shade + frond_var),
-                min(1.0, seg_b * seg_shade - frond_var * 0.5),
-                slot);
-            vi++;
-
-            // Right vertex
-            palmg_write_vertex(vb_base + vi,
-                mx - px_off, my - py_off, mz - pz_off,
-                -nx_approx, ny_approx, -nz_approx,
-                min(1.0, seg_r * seg_shade - frond_var * 0.5),
-                min(1.0, seg_g * seg_shade + frond_var),
-                min(1.0, seg_b * seg_shade - frond_var * 0.5),
-                slot);
-            vi++;
-        }
-
-        // Quad strip indices for this frond
-        for (var s = 0u; s < frond_segs; s++) {
-            let base_v = vb_base + frond_vi_start + s * 2u;
-            let left0  = base_v;
-            let right0 = base_v + 1u;
-            let left1  = base_v + 2u;
-            let right1 = base_v + 3u;
-
-            palmg_indices[ib_base + ii] = left0;  ii++;
-            palmg_indices[ib_base + ii] = left1;  ii++;
-            palmg_indices[ib_base + ii] = right1; ii++;
-            palmg_indices[ib_base + ii] = left0;  ii++;
-            palmg_indices[ib_base + ii] = right1; ii++;
-            palmg_indices[ib_base + ii] = right0; ii++;
-        }
-    }
-
-    // Zero remaining indices (degenerate padding).
-    // `used` was the final ii, which no lane holds any more.
-    let used = trunk_indices + n_fronds * frond_segs * 6u;
-    for (var i = used + lane; i < PALMG_MAX_INDICES_PER_SLOT; i += MESHGEN_LANES) {
-        palmg_indices[ib_base + i] = vb_base;
-    }
-}
-
-// ─── Palm vertex shaders ─────────────────────────────────────────────
-
-@vertex
-fn palm_vs(in: ArchVertexInput) -> EntityVarying {
-    let idx = u32(in.arch_index);
-    let ground_y = textureLoad(entity_ground_atlas, vec2<i32>(i32(idx) + GROUND_ATLAS_PALM, 0), 0).r;
-    var world_pos = in.pos + vec3(0.0, ground_y, 0.0);
-    world_pos.y += sample_live_card(world_pos.xz).x;
-    var out: EntityVarying;
-    out.clip_pos = frame_r.vp.m * vec4(world_pos, 1.0);
-    out.world_pos = world_pos;
-    out.normal = in.normal;
-    out.entity_color = in.color;
-    // THE RING (draw authority) — flora's first draw gate: per-vertex kill
-    // beyond the ring (the mesh is baked world-space, no instance channel).
-    // Anchor = the STAGED point (the band's yardstick). The boundary sits
-    // where the icing is 1, so any mixed-triangle clip sliver is invisible.
-    if (distance(world_pos.xz, vec2(config.lod_point_x, config.lod_point_z)) > config.veil_ring) {
-        out.clip_pos = vec4(0.0, 0.0, -1e4, 1.0);   // far behind the near plane — clipped
-    }
-    return out;
-}
-
-@vertex
-fn shadow_palm_vs(in: ArchVertexInput) -> ShadowVarying {
-    let idx = u32(in.arch_index);
-    let ground_y = textureLoad(entity_ground_atlas, vec2<i32>(i32(idx) + GROUND_ATLAS_PALM, 0), 0).r;
-    var world_pos = in.pos + vec3(0.0, ground_y, 0.0);
-    world_pos.y += sample_live_card(world_pos.xz).x;
-    var out: ShadowVarying;
-    out.clip_pos = shadow_light_vp() * vec4(world_pos, 1.0);
-    return out;
-}
 
 // ═══════════════════════════════════════════════════════════════════
 // §ORB — Sky orb layer: init, dynamics, render

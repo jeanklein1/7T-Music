@@ -105,26 +105,6 @@ inline void upload_ground_entries(MachineCtx* c, wgpu::Queue& queue) {
         columnOrigins[gpu_slot].pier_correction = 0.0f;
     }
     c->gpuState_.upload_column_origins(queue, columnOrigins, Dim::MAX_COLUMN_INSTANCES);
-
-    // ── Plant ground entries (palm) ──
-    // Compute buffer: [0..23] palm.
-    // Individual render uniform buffers kept for VS bindings (383, 384, 385).
-    static constexpr uint32_t PALM_OFF = 0;
-    static constexpr uint32_t PLANT_COUNT = PALM_OFF + Dim::MAX_PALM_INSTANCES;
-
-    GPUPalmGroundEntry plantOrigins[PLANT_COUNT]{};
-
-    for (uint32_t i = 0; i < Dim::MAX_PALM_INSTANCES; i++) {
-        if (!c->entities_state_.palms[i].active) continue;
-        plantOrigins[PALM_OFF + i].center_x = c->entities_state_.palms[i].world_x;
-        plantOrigins[PALM_OFF + i].center_z = c->entities_state_.palms[i].world_z;
-        plantOrigins[PALM_OFF + i].is_active = 1;
-        plantOrigins[PALM_OFF + i].ground_y = c->entities_state_.palms[i].cached_ground_y;
-    }
-
-    // One write to the combined compute storage buffer
-    queue.WriteBuffer(c->gpuState_.plant_compute_ground_buffer(), 0,
-        plantOrigins, sizeof(plantOrigins));
 }
 
 inline void dispatch_placement_correction(MachineCtx* c, wgpu::CommandEncoder& encoder) {
@@ -168,7 +148,6 @@ inline void stage_draw_ledger(MachineCtx* c, OrbsState& orbs_state_) {
     // (maxSlot + 1) * MAX_INDICES_PER_SLOT, zero when nothing is active.
     g.stage_draw_indexed(GPUState::DR_ARCH,   g.arch_index_count(),   1u);
     g.stage_draw_indexed(GPUState::DR_COLUMN, g.column_index_count(), 1u);
-    g.stage_draw_indexed(GPUState::DR_PALM,   g.palm_index_count(),   1u);
     g.stage_draw_indexed(GPUState::DR_SHELL,  g.shell_index_count(),  1u);
 
     // The ribbon: RIBBON_1's live vertex count, and its liveness. A ribbon

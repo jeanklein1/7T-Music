@@ -2395,14 +2395,13 @@ RECUT_COMPUTE_FAMILY = {
     "ribbon_head": "RIBBON", "ribbon_body": "RIBBON",
     "compute_photographer_vp": "PHOTO_K",   # A7: was GALLERY pre-split
     "arch_mesh_gen": "MESHGEN", "column_mesh_gen": "MESHGEN",
-    "palm_mesh_gen": "MESHGEN",
     "compute_vp": "FRAME_K", "update_camera": "FRAME_K",           # A3
 }
 
 # MESHGEN role convergence: the five kernels' scratch trios share slot
 # numbers so four families fit ONE layout (MESHGEN3) and column adds
 # its ground read (MESHGEN4).
-RECUT_MESHGEN_ROLE = re.compile(r"^(?:amg|cmg|palmg)_"
+RECUT_MESHGEN_ROLE = re.compile(r"^(?:amg|cmg)_"
                                 r"(params|vertices|indices)$")
 
 # Authored homes from the roster's parentheticals and R5: AGENTS
@@ -3059,7 +3058,7 @@ def recut_schema(P):
             if vi > 0:
                 s0 = src[0]
                 for tok in ("PlanB", "PlanC", "Photographer", "Gallery",
-                            "Arch", "Column", "Palm"):
+                            "Arch", "Column"):
                     if tok.lower() in s0.lower():
                         suffix = tok
                         break

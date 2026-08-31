@@ -515,7 +515,7 @@
 
                 // Place State Layout — stratum 2 (Place family) of the LOOM_2 recut.
                 {
-                    std::array<wgpu::BindGroupLayoutEntry, 4> entries{};
+                    std::array<wgpu::BindGroupLayoutEntry, 3> entries{};
 
                     entries[0].binding = bind::g2::patch_grid;  // patch_grid (O(1) spatial index for sample_terrain_y_at)
                     entries[0].visibility = wgpu::ShaderStage::Compute;
@@ -528,14 +528,6 @@
                     entries[2].binding = bind::g2::column_ground;
                     entries[2].visibility = wgpu::ShaderStage::Compute;
                     entries[2].buffer.type = wgpu::BufferBindingType::Storage;
-
-                    // (GROUND_CARD_1 [5c]: zone_config 160 + zone_life 161 evicted —
-                    //  placement's GoL term rides the card's cell-exact fetch via
-                    //  group 1. The zone pair is now bound only by the GoL sim
-                    //  layouts and the live-card writer.)
-                    entries[3].binding = bind::g2::plant_ground;  // plant_ground: palm[0..23]
-                    entries[3].visibility = wgpu::ShaderStage::Compute;
-                    entries[3].buffer.type = wgpu::BufferBindingType::Storage;
 
                     wgpu::BindGroupLayoutDescriptor desc{};
                     desc.label = "Place State Layout";
@@ -1277,41 +1269,6 @@
                     if (!meshgenStateColumnGroup_) return false;
                 }
 
-                // Projected from: palmMeshGenBindGroup_.
-                {
-                    std::array<wgpu::BindGroupEntry, 5> entries{};
-
-                    // R1 ruled fill: inert but present — a group is complete over its layout.
-                    entries[0].binding = bind::g2::cmg_column_ground;
-                    entries[0].buffer = columnGroundBuffer_;
-                    entries[0].size = sizeof(GPUColumnGroundEntry) * Dim::MAX_COLUMN_INSTANCES;
-
-                    entries[1].binding = bind::g2::amg_params;
-                    entries[1].buffer = palmMeshParamsBuffer_;
-                    entries[1].size = Dim::MAX_PALM_INSTANCES * sizeof(GPUPalmMeshParams);
-
-                    entries[2].binding = bind::g2::amg_vertices;
-                    entries[2].buffer = palmVertexBuffer_;
-                    entries[2].size = Dim::PALMG_TOTAL_VERTICES * sizeof(ArchVertex);
-
-                    entries[3].binding = bind::g2::amg_indices;
-                    entries[3].buffer = palmIndexBuffer_;
-                    entries[3].size = Dim::PALMG_TOTAL_INDICES * sizeof(uint32_t);
-
-                    // R1 ruled fill: inert but present — a group is complete over its layout.
-                    entries[4].binding = bind::g2::cmg_config;
-                    entries[4].buffer = configBuffer_;
-                    entries[4].size = sizeof(GPUDesignConfig);
-
-                    wgpu::BindGroupDescriptor desc{};
-                    desc.label = "Meshgen State BindGroup (Palm)";
-                    desc.layout = meshgenStateLayout_;
-                    desc.entryCount = entries.size();
-                    desc.entries = entries.data();
-                    meshgenStatePalmGroup_ = device_.CreateBindGroup(&desc);
-                    if (!meshgenStatePalmGroup_) return false;
-                }
-
                 // A8b: the A face set — orb_state rw / config / prev ro. Faces of one
                 // buffer never share a group (L23-prime, group-local law).
                 {
@@ -1406,9 +1363,7 @@
 
                 // Projected from: entityPlacementComputeBindGroup_.
                 {
-                    std::array<wgpu::BindGroupEntry, 4> entries{};
-                    // Plant ground: palm[0..23]
-                    static constexpr uint32_t PLANT_GROUND_COUNT = Dim::MAX_PALM_INSTANCES;
+                    std::array<wgpu::BindGroupEntry, 3> entries{};
 
                     entries[0].binding = bind::g2::patch_grid;
                     entries[0].buffer = patchGridBuffer_;
@@ -1421,10 +1376,6 @@
                     entries[2].binding = bind::g2::column_ground;
                     entries[2].buffer = columnGroundBuffer_;
                     entries[2].size = sizeof(GPUColumnGroundEntry) * Dim::MAX_COLUMN_INSTANCES;
-
-                    entries[3].binding = bind::g2::plant_ground;
-                    entries[3].buffer = plantComputeGroundBuffer_;
-                    entries[3].size = sizeof(GPUPalmGroundEntry) * PLANT_GROUND_COUNT;
 
                     wgpu::BindGroupDescriptor desc{};
                     desc.label = "Place State BindGroup";

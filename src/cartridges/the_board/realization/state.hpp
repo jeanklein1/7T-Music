@@ -141,7 +141,7 @@ namespace t7 {
             // (LATTICE_4 R-A). Every entity VS samples the card at its
             // VERTEX position, and a mesh reaches past its anchor. The
             // binding case is the arch: `arch_vs` has NO ring gate (unlike
-            // palm, which kills per vertex beyond veil_ring), so
+            // column_vs, which kills per vertex beyond veil_ring), so
             // an arch anywhere in the allocation window is drawn and read at
             // every vertex. Its per-axis reach is half_span + half_depth,
             // and cpu_sample_gaussian clamps z to ±3, so the widest is
@@ -347,13 +347,6 @@ namespace t7 {
             // (contrib_pyramids_at); there is no mesh-gen scratch.
             constexpr uint32_t MAX_PYRAMID_INSTANCES = 8;
 
-            // Generative palms — GPU mesh gen (slot-based addressing)
-            constexpr uint32_t MAX_PALM_INSTANCES = 24;
-            constexpr uint32_t PALMG_MAX_VERTS_PER_SLOT = 1200;
-            constexpr uint32_t PALMG_MAX_INDICES_PER_SLOT = 6000;
-            constexpr uint32_t PALMG_TOTAL_VERTICES = MAX_PALM_INSTANCES * PALMG_MAX_VERTS_PER_SLOT;   // 28800
-            constexpr uint32_t PALMG_TOTAL_INDICES = MAX_PALM_INSTANCES * PALMG_MAX_INDICES_PER_SLOT; // 144000
-
             // Entity ground atlas (r32float, 256×1 — VS reads ground_y via textureLoad)
             constexpr uint32_t GROUND_ATLAS_WIDTH = 256;
             constexpr uint32_t GROUND_ATLAS_ARCH = 0;    // 16 slots
@@ -361,8 +354,7 @@ namespace t7 {
             // slots 48..55: DOCUMENTED HOLE — the retired pyramid range (readers
             // cut, then the write path — the ground-atlas residue). Do NOT re-pack; the
             // offsets below are hand-mirrored with world.wgsl's atlas table.
-            constexpr uint32_t GROUND_ATLAS_PALM = 56;   // 24 slots
-            constexpr uint32_t GROUND_ATLAS_USED = 80;
+            constexpr uint32_t GROUND_ATLAS_USED = 56;
 
             // GoL zone system — per-zone automaton grids
             constexpr uint32_t MAX_GOL_ZONES = 8;
@@ -1372,41 +1364,6 @@ namespace t7 {
         static_assert(sizeof(GPUColumnMeshParams) == 128,
             "GPUColumnMeshParams must be 128 bytes — keep in sync with world.wgsl::ColumnMeshParams");
 
-        // ─── Palm GPU structs ─────────────────────────────────────────────
-        //
-        // MUST match world.wgsl::PalmMeshParams (§9.3).
-        // If this struct gains/loses a field, the WGSL side and
-        // its sizeof static_assert must be updated together.
-        struct alignas(16) GPUPalmMeshParams {
-            float center_x, center_z;
-            float height;
-            float base_r, top_r;
-            float lean, lean_dir;
-            float bark_rings, bark_depth;
-            float frond_count;
-            float frond_len, frond_width;
-            float frond_droop, frond_arch;
-            float crown_spread, crown_skirt;
-            float burial;
-            float trunk_r, trunk_g, trunk_b;
-            float frond_r, frond_g, frond_b;
-            float aged_r, aged_g, aged_b;
-            uint32_t trunk_segs, frond_segs;
-            uint32_t is_active;
-            float _pad0;
-        };
-        static_assert(sizeof(GPUPalmMeshParams) == 128,
-            "GPUPalmMeshParams must be 128 bytes — keep in sync with world.wgsl::PalmMeshParams");
-
-        struct alignas(16) GPUPalmGroundEntry {
-            float center_x;
-            float center_z;
-            float ground_y;
-            uint32_t is_active;
-            float _pad0, _pad1, _pad2, _pad3;
-        };
-        static_assert(sizeof(GPUPalmGroundEntry) == 32, "GPUPalmGroundEntry must be 32 bytes");
-
         // GoL zone config — per-zone parameters for compute + fragment shader
         struct alignas(16) GPUGoLZoneConfig {
             float origin[2];
@@ -2055,7 +2012,7 @@ namespace t7 {
         // arrayStride the render/shadow pipelines declare — the stride is ALSO the WGSL
         // ArchVertexInput/ShellVertexInput layout, so this is the C++<->WGSL contract that
         // was previously unguarded. ArchVertex is the
-        // SHARED format for four families (arch/column/palm/pyramid mesh-gen).
+        // SHARED format for three families (arch/column/pyramid mesh-gen).
         static_assert(sizeof(ArchVertex) == 40, "ArchVertex must be 40 bytes (arch/shadow VBL arrayStride = 40; WGSL ArchVertexInput)");
         static_assert(sizeof(ShellVertex) == 36, "ShellVertex must be 36 bytes (shell/shadow VBL arrayStride = 36; WGSL ShellVertexInput)");
         static_assert(sizeof(GPUPatchParams) == 16, "LATTICE_1: the twin is 16 bytes");
@@ -2121,7 +2078,7 @@ namespace t7 {
             // (GPUState::DR_ARCH). The ledger's own prose lives with its
             // methods, beside reset_frustum_indirect.
             enum DrawRecord : uint32_t {
-                DR_ARCH, DR_COLUMN, DR_PALM, DR_SHELL,
+                DR_ARCH, DR_COLUMN, DR_SHELL,
                 DR_RIBBON, DR_ORBS,
                 DR_SHADOW_TERRAIN,          // both bands at LOD1 density, ONE draw
                 DR_COUNT
@@ -2285,14 +2242,6 @@ namespace t7 {
             wgpu::Buffer columnMeshParamsBuffer_;  // GPU mesh gen: per-slot parameters
             uint32_t columnIndexCount_ = 0;
 
-            wgpu::Buffer palmVertexBuffer_, palmIndexBuffer_;
-            wgpu::Buffer palmMeshParamsBuffer_;
-            uint32_t palmIndexCount_ = 0;
-
-            // The palm ground buffer for compute Y-correction.
-            // [0..23] palm.  One storage binding.
-            wgpu::Buffer plantComputeGroundBuffer_;
-
             wgpu::Buffer pyramidInstancesBuffer_;  // GPU-side pyramid array for heightfield baking (LIVE)
 
             // Indoor shell (ceiling + walls)
@@ -2339,7 +2288,6 @@ namespace t7 {
             wgpu::BindGroup frameKTexturesGroup_;
             wgpu::BindGroup meshgenStateGroup_;
             wgpu::BindGroup meshgenStateColumnGroup_;
-            wgpu::BindGroup meshgenStatePalmGroup_;
             wgpu::BindGroup orbsAStateGroup_;
             wgpu::BindGroup orbsBStateGroup_;
             wgpu::BindGroup patchgenStateGroup_;
@@ -2811,7 +2759,6 @@ namespace t7 {
             wgpu::BindGroup frame_k_textures_group() const { return frameKTexturesGroup_; }
             wgpu::BindGroup meshgen_state_group() const { return meshgenStateGroup_; }
             wgpu::BindGroup meshgen_state_column_group() const { return meshgenStateColumnGroup_; }
-            wgpu::BindGroup meshgen_state_palm_group() const { return meshgenStatePalmGroup_; }
             wgpu::BindGroup orbs_a_state_group() const { return orbsAStateGroup_; }
             wgpu::BindGroup orbs_b_state_group() const { return orbsBStateGroup_; }
             wgpu::BindGroup patchgen_state_group() const { return patchgenStateGroup_; }
@@ -3277,18 +3224,6 @@ namespace t7 {
                 writeArray(queue, columnGroundBuffer_, entries, std::min(count, Dim::MAX_COLUMN_INSTANCES));
             }
 
-            // --- Palm accessors and upload ---
-            wgpu::Buffer palm_vertex_buffer() const { return palmVertexBuffer_; }
-            wgpu::Buffer palm_index_buffer() const { return palmIndexBuffer_; }
-            uint32_t palm_index_count() const { return palmIndexCount_; }
-            void set_palm_index_count(uint32_t count) { palmIndexCount_ = count; }
-
-            void upload_palm_mesh_params_slot(wgpu::Queue& queue, uint32_t slot, const GPUPalmMeshParams& params) {
-                writeSlot(queue, palmMeshParamsBuffer_, slot, params);
-            }
-
-
-            wgpu::Buffer plant_compute_ground_buffer() const { return plantComputeGroundBuffer_; }
 
             // --- Pyramid accessors and upload --- (the instance array only:
             //   pyramids ARE terrain, so there is no mesh to generate.)
@@ -4216,7 +4151,7 @@ namespace t7 {
                     q.WriteBuffer(patchIndexBufferLOD1_, 0, idx.data(), ib_bytes_u16(patchIndexCountRingZoned_));
                 }
 
-                return createSphereMesh() && createMonolithMesh() && createArchMesh() && createColumnMesh() && createPalmMesh() && createPyramidMesh() && createShellMesh() && createGoLZoneBuffers();
+                return createSphereMesh() && createMonolithMesh() && createArchMesh() && createColumnMesh() && createPyramidMesh() && createShellMesh() && createGoLZoneBuffers();
             }
 
             bool createSphereMesh() {
@@ -4412,44 +4347,6 @@ namespace t7 {
                 std::cout << "[GPUState] Column buffers (GPU mesh gen): "
                     << Dim::CMG_TOTAL_VERTICES << " vert, "
                     << Dim::CMG_TOTAL_INDICES << " index capacity\n";
-                return true;
-            }
-
-            bool createPalmMesh() {
-                // LATENT[gate-a-shared] palm (SH·dc): VB/IB/params exclusive+droppable, and it now solely owns plantComputeGroundBuffer_ (allocated below); draw_palm isn't self-count-gated. Retire = draw self-gate, then skip.
-                palmVertexBuffer_ = makeBuffer("Palm VB (GPU mesh gen)",
-                    Dim::PALMG_TOTAL_VERTICES * sizeof(ArchVertex),
-                    wgpu::BufferUsage::Vertex | wgpu::BufferUsage::CopyDst | wgpu::BufferUsage::Storage);
-                palmIndexBuffer_ = makeBuffer("Palm IB (GPU mesh gen)",
-                    Dim::PALMG_TOTAL_INDICES * sizeof(uint32_t),
-                    wgpu::BufferUsage::Index | wgpu::BufferUsage::CopyDst | wgpu::BufferUsage::Storage);
-                palmMeshParamsBuffer_ = makeBuffer("Palm Mesh Params",
-                    Dim::MAX_PALM_INSTANCES * sizeof(GPUPalmMeshParams),
-                    wgpu::BufferUsage::Storage | wgpu::BufferUsage::CopyDst);
-
-                if (!palmVertexBuffer_ || !palmIndexBuffer_ ||
-                    !palmMeshParamsBuffer_) return false;
-
-                palmIndexCount_ = 0;
-                {
-                    GPUPalmMeshParams emptyParams[Dim::MAX_PALM_INSTANCES]{};
-                    device_.GetQueue().WriteBuffer(palmMeshParamsBuffer_, 0, emptyParams,
-                        sizeof(GPUPalmMeshParams) * Dim::MAX_PALM_INSTANCES);
-                }
-                {
-                    std::vector<uint8_t> zeros(Dim::PALMG_TOTAL_VERTICES * sizeof(ArchVertex), 0);
-                    device_.GetQueue().WriteBuffer(palmVertexBuffer_, 0, zeros.data(), zeros.size());
-                }
-
-                // The plant ground buffer for compute. Allocated by the LAST
-                // plant creator in the boot chain, so the organ outlives any
-                // one plant but never outlives them all.
-                static constexpr uint32_t PLANT_GROUND_COUNT = Dim::MAX_PALM_INSTANCES;
-                plantComputeGroundBuffer_ = makeBuffer("Plant Compute Ground Y",
-                    PLANT_GROUND_COUNT * sizeof(GPUPalmGroundEntry),
-                    wgpu::BufferUsage::Storage | wgpu::BufferUsage::CopyDst);
-                if (!plantComputeGroundBuffer_) return false;
-
                 return true;
             }
 

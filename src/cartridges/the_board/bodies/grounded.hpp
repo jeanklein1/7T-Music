@@ -3,7 +3,7 @@
 #include "cartridges/the_board/realization/state.hpp"                    // Dim::*, GPUPyramidArray, wgpu
 #include "cartridges/the_board/contracts/mood_constants.hpp"   // MOOD_COUNT, PortalDestination, WORLD_DRAW_LIVE (the portal palette), portal_color_for
 #include "cartridges/the_board/contracts/wgpu_fwd.hpp"   // wgpu handle fwds (lockstep insurance)
-#include "cartridges/the_board/contracts/entity_types.hpp"     // queue types (the clean three's funnel signatures)
+#include "cartridges/the_board/contracts/entity_types.hpp"     // queue types (the dispatch funnels' signatures)
 
 // ─── grounded.hpp (HEADER: the grounded-seven registry) ──────────
 //
@@ -291,64 +291,6 @@ struct ActiveColumn {
     uint32_t mosaic_seed = 0;   // MOSAIC_1 — frozen at spawn; 0 = plain
 };
 
-// ═══ VOCABULARY: PALM ════════════════════════════════════════════
-
-enum class PalmTier : uint32_t { SAPLING = 0, COASTAL = 1, ROYAL = 2, COUNT = 3 };
-inline constexpr uint32_t PALM_TIER_COUNT = static_cast<uint32_t>(PalmTier::COUNT);
-
-// ── Color Palette ────────────────────────────────────────────────
-inline constexpr float PALM_TRUNK_BASE[3] = { 0.45f, 0.35f, 0.25f };
-inline constexpr float PALM_FROND_BASE[3] = { 0.25f, 0.45f, 0.20f };
-inline constexpr float PALM_AGED_BASE[3] = { 0.35f, 0.38f, 0.18f };
-
-// ── Spawn Configuration ──────────────────────────────────────────
-struct PalmConfig {
-    static constexpr float SPAWN_CHANCE = 0.200f;
-    static constexpr float POSITION_JITTER = 0.45f;
-};
-
-// ── Property Index Registry ──────────────────────────────────────
-struct PalmProp {
-    static constexpr uint32_t SPAWN_ROLL = 950u;
-    static constexpr uint32_t POSITION_X = 951u;
-    static constexpr uint32_t POSITION_Z = 952u;
-    static constexpr uint32_t ROTATION = 953u;
-    static constexpr uint32_t TIER = 954u;
-    static constexpr uint32_t HEIGHT = 960u;
-    static constexpr uint32_t BASE_R = 961u;
-    static constexpr uint32_t TOP_R = 962u;
-    static constexpr uint32_t LEAN = 963u;
-    static constexpr uint32_t LEAN_DIR = 964u;
-    static constexpr uint32_t BARK_RINGS = 965u;
-    static constexpr uint32_t BARK_DEPTH = 966u;
-    static constexpr uint32_t FROND_COUNT = 970u;
-    static constexpr uint32_t FROND_LEN = 971u;
-    static constexpr uint32_t FROND_WIDTH = 972u;
-    static constexpr uint32_t FROND_DROOP = 973u;
-    static constexpr uint32_t FROND_ARCH = 974u;
-    static constexpr uint32_t CROWN_SPREAD = 975u;
-    static constexpr uint32_t CROWN_SKIRT = 976u;
-    static constexpr uint32_t SOLID_PADDING = 980u;
-    static constexpr uint32_t EDGE_BLEND = 981u;
-    static constexpr uint32_t COLOR_OVER = 990u;
-    static constexpr uint32_t COLOR_VAR_R = 991u;
-    static constexpr uint32_t COLOR_VAR_G = 992u;
-    static constexpr uint32_t COLOR_VAR_B = 993u;
-};
-
-// ── Active Palm Tracking ─────────────────────────────────────────
-struct ActivePalm {
-    int32_t patch_gx = 0, patch_gz = 0;
-    int32_t host_gx = 0, host_gz = 0;
-    bool active = false;
-    bool draw_visible = true;
-    float world_x = 0.0f, world_z = 0.0f;
-    float height = 0.0f;
-    float base_r = 0.0f;
-    uint32_t tier_idx = 0;
-    float cached_ground_y = 0.0f;
-};
-
 // ═══ VOCABULARY: PYRAMID ═════════════════════════════════════════
 
 enum class PyramidTier : uint32_t {
@@ -413,11 +355,6 @@ struct EntitiesState {
     bool         column_mesh_gen_pending = false;  // shared by column + antenna
     float        column_mesh_gen_since = -1.0f;
 
-    // ── Palm ─────────────────────────────────────────────────────
-    ActivePalm palms[Dim::MAX_PALM_INSTANCES]{};
-    bool       palm_mesh_gen_pending = false;
-    float      palm_mesh_gen_since = -1.0f;
-
     // ── Pyramid ──────────────────────────────────────────────────
     ActivePyramid   pyramids[Dim::MAX_PYRAMID_INSTANCES]{};
     GPUPyramidArray cpu_pyramids{};                 // CPU mirror for heightfield baking
@@ -425,7 +362,6 @@ struct EntitiesState {
 
 // ═══ MESH-GEN PREPARERS — DECLARATIONS ════════════════════════════
 
-bool prepare_palm_mesh_gen(EntitiesState& es, MachineCtx* c, wgpu::Queue& queue);
 bool prepare_column_mesh_gen(EntitiesState& es, MachineCtx* c, wgpu::Queue& queue);
 bool prepare_arch_mesh_gen(EntitiesState& es, MachineCtx* c, wgpu::Queue& queue);
 
@@ -435,12 +371,6 @@ void evict_pyramid(MachineCtx* self, uint32_t slot, wgpu::Queue& queue);
 void evict_arch(MachineCtx* self, uint32_t slot, wgpu::Queue& queue);
 void evict_column(MachineCtx* self, uint32_t slot, wgpu::Queue& queue);
 void evict_antenna(MachineCtx* self, uint32_t slot, wgpu::Queue& queue);
-void evict_palm(MachineCtx* self, uint32_t slot, wgpu::Queue& queue);
-// Dispatch funnels for the clean one (table-shaped; defined below
-// beside its recipes)
-bool dispatch_select_palm_generic(MachineCtx* self, int32_t gx, int32_t gz, EntityQueueEntry& e);
-bool dispatch_place_palm_generic(MachineCtx* self, EntityQueueEntry& e, PlacementEntry& pe);
-void dispatch_commit_palm_generic(MachineCtx* self, PlacementEntry& pe, wgpu::Queue& queue);
 void teardown_entities(MachineCtx* c, wgpu::Queue& queue);
 
 // ═══ THE ARCH FORCE-SPAWN AUTHOR (the portal channel) ═══════════
@@ -496,20 +426,6 @@ inline bool mesh_gen_settled(bool& pending, float& since, const TimeState& ts,
     return true;
 }
 
-
-inline bool prepare_palm_mesh_gen(EntitiesState& es, MachineCtx* c, wgpu::Queue& queue) {
-    (void)queue;
-    if (!mesh_gen_settled(es.palm_mesh_gen_pending, es.palm_mesh_gen_since,
-                          c->time_state_, c->world_state_)) return false;
-    uint32_t maxSlot = 0;
-    bool anyActive = false;
-    for (uint32_t i = 0; i < Dim::MAX_PALM_INSTANCES; i++) {
-        if (es.palms[i].active) { maxSlot = i; anyActive = true; }
-    }
-    c->gpuState_.set_palm_index_count(anyActive
-        ? (maxSlot + 1) * Dim::PALMG_MAX_INDICES_PER_SLOT : 0);
-    return true;
-}
 
 inline bool prepare_column_mesh_gen(EntitiesState& es, MachineCtx* c, wgpu::Queue& queue) {
     (void)queue;
@@ -734,270 +650,10 @@ inline void evict_antenna(MachineCtx* self,
     self->entities_state_.column_mesh_gen_pending = true;
 }
 
-inline void evict_palm(MachineCtx* self,
-    uint32_t slot, wgpu::Queue& queue)
-{
-    unregister_footprint_for(self, PopFamily::PALM, slot);   // the hand that claims is the hand that frees
-    self->entities_state_.palms[slot].active = false;
-    { GPUPalmMeshParams ep{}; self->gpuState_.upload_palm_mesh_params_slot(queue, slot, ep); }
-    self->entities_state_.palm_mesh_gen_pending = true;
-    self->world_state_.ground_entries_dirty = true;
-}
-
-// ═══ THE CLEAN ONE — PALM RECIPES ════════════════════════════════
-//
-// Per-family tier tables, traits, adapters, and dispatch funnels.
-// Each funnels into the machine's generic three-phase verbs via
-// MachineCtx; the table rows point here (FAMILY_DISPATCH,
-// cartridge.hpp post-class).
-
-// ═══ FAMILY: PALM ═════════════════════════════════════════════════
-
-struct PalmIdx {
-    static constexpr uint32_t HEIGHT       = 0;
-    static constexpr uint32_t BASE_R       = 1;
-    static constexpr uint32_t TOP_R        = 2;
-    static constexpr uint32_t LEAN         = 3;
-    static constexpr uint32_t LEAN_DIR     = 4;
-    static constexpr uint32_t BARK_RINGS   = 5;
-    static constexpr uint32_t BARK_DEPTH   = 6;
-    static constexpr uint32_t FROND_COUNT  = 7;
-    static constexpr uint32_t FROND_LEN    = 8;
-    static constexpr uint32_t FROND_WIDTH  = 9;
-    static constexpr uint32_t FROND_DROOP  = 10;
-    static constexpr uint32_t FROND_ARCH   = 11;
-    static constexpr uint32_t CROWN_SPREAD = 12;
-    static constexpr uint32_t CROWN_SKIRT  = 13;
-    static constexpr uint32_t SOLID_PAD    = 14;
-    static constexpr uint32_t EDGE_BLEND   = 15;
-    static constexpr uint32_t COUNT        = 16;
-};
-
-inline constexpr TierParamDef PALM_PARAM_DEFS[] = {
-    { PalmProp::HEIGHT,       2.0f, 1e30f,  false, ParamDist::GAUSSIAN },
-    { PalmProp::BASE_R,       0.1f, 1e30f,  false, ParamDist::GAUSSIAN },
-    { PalmProp::TOP_R,        0.05f, 1e30f, false, ParamDist::GAUSSIAN },
-    { PalmProp::LEAN,         0.0f, 1e30f,  false, ParamDist::GAUSSIAN },
-    { PalmProp::LEAN_DIR,     0.0f, 1e30f,  false, ParamDist::UNIFORM_TAU },
-    { PalmProp::BARK_RINGS,   3.0f, 1e30f,  true,  ParamDist::GAUSSIAN },
-    { PalmProp::BARK_DEPTH,   0.0f, 1e30f,  false, ParamDist::GAUSSIAN },
-    { PalmProp::FROND_COUNT,  3.0f, 1e30f,  true,  ParamDist::GAUSSIAN },
-    { PalmProp::FROND_LEN,    1.0f, 1e30f,  false, ParamDist::GAUSSIAN },
-    { PalmProp::FROND_WIDTH,  0.3f, 1e30f,  false, ParamDist::GAUSSIAN },
-    { PalmProp::FROND_DROOP,  0.0f, 1e30f,  false, ParamDist::GAUSSIAN },
-    { PalmProp::FROND_ARCH,   0.0f, 1e30f,  false, ParamDist::GAUSSIAN },
-    { PalmProp::CROWN_SPREAD, 0.1f, 1e30f,  false, ParamDist::GAUSSIAN },
-    { PalmProp::CROWN_SKIRT,  0.0f, 1e30f,  false, ParamDist::GAUSSIAN },
-    { PalmProp::SOLID_PADDING,0.1f, 1e30f,  false, ParamDist::GAUSSIAN },
-    { PalmProp::EDGE_BLEND,   0.1f, 1e30f,  false, ParamDist::GAUSSIAN },
-};
-inline constexpr uint32_t PALM_PARAM_COUNT = sizeof(PALM_PARAM_DEFS) / sizeof(TierParamDef);
-static_assert(PALM_PARAM_COUNT == PalmIdx::COUNT,
-    "F-4: PALM_PARAM_DEFS must cover PalmIdx exactly (row order IS the index)");
-
-// params[] order MUST match PALM_PARAM_DEFS:
-//   [0]HEIGHT [1]BASE_R [2]TOP_R [3]LEAN [4]LEAN_DIR(uniform — {0,0})
-//   [5]BARK_RINGS [6]BARK_DEPTH [7]FROND_COUNT [8]FROND_LEN
-//   [9]FROND_WIDTH [10]FROND_DROOP [11]FROND_ARCH [12]CROWN_SPREAD
-//   [13]CROWN_SKIRT [14]SOLID_PAD [15]EDGE_BLEND
-//
-// LEAN_DIR is UNIFORM_TAU — uniform [0, 2π] has no meaningful mean/sigma,
-// the slot is a literal {0, 0} placeholder.
-struct PalmTierRow {
-    TierProfile profile;
-    float       color_over;
-    float       burial;
-    float       trunk_var;
-    float       frond_var;
-    uint32_t    trunk_segs;
-    uint32_t    frond_segs;
-};
-
-// ── Palm tier table ────────────────────────────────────────────────
-// Row = PalmTier order (0 SAPLING / 1 COASTAL / 2 ROYAL); each row =
-// { weight, color_var, { 16 {μ,σ} pairs in PalmIdx order, wrapped:
-//   line 1: HEIGHT  BASE_R  TOP_R  LEAN  LEAN_DIR
-//   line 2: BARK_RINGS  BARK_DEPTH  FROND_COUNT  FROND_LEN  FROND_WIDTH
-//   line 3: FROND_DROOP  FROND_ARCH  CROWN_SPREAD  CROWN_SKIRT  SOLID_PAD
-//   line 4: EDGE_BLEND } },
-//   then: color_over, burial, trunk_var, frond_var, trunk_segs, frond_segs.
-// UNITS: lengths = wu; LEAN/FROND_DROOP/FROND_ARCH = radians;
-//   BARK_RINGS/FROND_COUNT = counts (do_round); LEAN_DIR row is a {0,0}
-//   PLACEHOLDER — it samples ParamDist::UNIFORM_TAU, ignoring μ/σ;
-//   weight = tier-selection weight; burial = fraction sunk;
-//   trunk/frond_var = color variance; segs = mesh tessellation.
-// CONSUMERS: palm_get_tier_profile (generic sampling); burial at
-//   palm solid-half; trunk/frond_var at palm_compute_colors; segs at
-//   palm write_active. Biography determinant — frozen biography (§12).
-inline constexpr PalmTierRow PALM_TIERS[] = {
-    /* SAPLING */ {
-        { 0.45f, 0.0f, { {25.2f, 1.8f}, {0.55f, 0.06f}, {0.28f, 0.03f}, {0.08f, 0.04f}, {0.0f, 0.0f},
-                   {12.0f, 3.0f}, {0.04f, 0.01f}, {20.0f, 3.0f},  {6.8f, 0.85f},  {0.80f, 0.15f},
-                   {1.20f, 0.10f}, {0.45f, 0.08f}, {0.65f, 0.10f}, {0.20f, 0.08f}, {0.20f, 0.05f},
-                   {0.30f, 0.05f} }},
-        0.15f, 0.15f, 0.06f, 0.06f, 12, 8
-    },
-    /* COASTAL */ {
-        { 0.35f, 0.0f, { {28.8f, 3.6f}, {0.55f, 0.08f}, {0.28f, 0.04f}, {0.14f, 0.06f}, {0.0f, 0.0f},
-                   {20.0f, 4.0f}, {0.06f, 0.01f}, {24.0f, 5.0f},  {6.8f, 1.28f},  {1.00f, 0.20f},
-                   {0.65f, 0.12f}, {0.45f, 0.20f}, {0.95f, 0.12f}, {0.60f, 0.10f}, {0.30f, 0.08f},
-                   {0.40f, 0.08f} }},
-        0.20f, 0.15f, 0.06f, 0.06f, 16, 10
-    },
-    /* ROYAL   */ {
-        { 0.20f, 0.0f, { {37.8f, 7.2f}, {0.90f, 0.12f}, {0.40f, 0.06f}, {0.06f, 0.03f}, {0.0f, 0.0f},
-                   {30.0f, 5.0f}, {0.08f, 0.02f}, {30.0f, 7.0f},  {8.8f, 2.0f},   {1.40f, 0.35f},
-                   {0.75f, 0.22f}, {0.40f, 0.12f}, {0.85f, 0.10f}, {0.50f, 0.12f}, {0.50f, 0.10f},
-                   {0.50f, 0.10f} }},
-        0.25f, 0.20f, 0.08f, 0.08f, 20, 12
-    },
-};
-static_assert(sizeof(PALM_TIERS) / sizeof(PalmTierRow) == static_cast<uint32_t>(PalmTier::COUNT),
-    "F-5: PALM_TIERS must have exactly one row per PalmTier");
-
-inline const TierProfile& palm_get_tier_profile(uint32_t tier_idx) {
-    return PALM_TIERS[tier_idx].profile;
-}
-
-inline constexpr ColorPartDef PALM_COLOR_PARTS[] = {
-    { {0.45f,0.35f,0.25f}, 0.0f, PalmProp::COLOR_VAR_R, 0 },   // trunk
-    { {0.25f,0.45f,0.20f}, 0.0f, PalmProp::COLOR_VAR_R, 10 },  // frond
-    { {0.35f,0.38f,0.18f}, 0.0f, PalmProp::COLOR_VAR_R, 20 },  // aged
-};
-
-inline constexpr EntityFamilyTraits PALM_TRAITS = {
-    PopFamily::PALM, Dim::MAX_PALM_INSTANCES,
-    true,                 // grounded
-    PalmProp::SPAWN_ROLL, PalmConfig::SPAWN_CHANCE,
-    mood_mult_for(PopFamily::PALM), PalmConfig::POSITION_JITTER,
-    PALM_TIER_COUNT, PalmProp::TIER,
-    PALM_PARAM_DEFS, PALM_PARAM_COUNT,
-    PalmProp::POSITION_X, PalmProp::POSITION_Z, PalmProp::ROTATION,
-    3, PALM_COLOR_PARTS,
-};
-
-// ── Palm adapter functions ──
-
-inline SpawnGateOutput palm_run_gate(MachineCtx* c, int32_t gx, int32_t gz) {
-    return gate_from_traits(c, gx, gz, PALM_TRAITS, c->entities_state_.palms);
-}
-
-
-inline constexpr uint32_t PALM_INDOOR_RESCALE_PARAMS[] = {
-    PalmIdx::HEIGHT, PalmIdx::BASE_R, PalmIdx::TOP_R, PalmIdx::BARK_DEPTH,
-    PalmIdx::FROND_LEN, PalmIdx::FROND_WIDTH, PalmIdx::CROWN_SPREAD,
-    PalmIdx::CROWN_SKIRT, PalmIdx::SOLID_PAD, PalmIdx::EDGE_BLEND,
-    // LEAN/LEAN_DIR (angles), BARK_RINGS/FROND_COUNT (counts),
-    // FROND_DROOP/FROND_ARCH (angles) intentionally not scaled.
-};
-
-// Palm policy: CAP (INDOOR_TREATMENT) — outdoor size stands unless
-// taller than the cap. The old tighter rolled band ([0.80, 0.95],
-// canopy-anchor rationale) is held by git.
-inline void palm_apply_indoor_rescale(EntityInstance& inst, float ceiling_h) {
-    cap_to_ceiling(inst, ceiling_h, INDOOR_LIVE.height_cap_fraction,
-        /*current_h*/ inst.params[PalmIdx::HEIGHT],
-        PALM_INDOOR_RESCALE_PARAMS);
-}
-
-inline void palm_compute_solid_half(EntityInstance& inst, const TierProfile&) {
-    float base_r = inst.params[PalmIdx::BASE_R];
-    float pad    = inst.params[PalmIdx::SOLID_PAD];
-    float blend  = inst.params[PalmIdx::EDGE_BLEND];
-    inst.solid_half = base_r + pad + blend;
-    inst.burial = PALM_TIERS[inst.tier_idx].burial;
-}
-
-inline void palm_compute_colors(EntityInstance& inst, const EntityFamilyTraits& traits, const TierProfile& /*tier*/) {
-    const auto& tp = PALM_TIERS[inst.tier_idx];
-    // trunk: trunk_var
-    inst.colors[0] = traits.color_parts[0].base[0] + (cpu_hash_f(inst.seed, PalmProp::COLOR_VAR_R) - 0.5f) * tp.trunk_var;
-    inst.colors[1] = traits.color_parts[0].base[1] + (cpu_hash_f(inst.seed, PalmProp::COLOR_VAR_G) - 0.5f) * tp.trunk_var;
-    inst.colors[2] = traits.color_parts[0].base[2] + (cpu_hash_f(inst.seed, PalmProp::COLOR_VAR_B) - 0.5f) * tp.trunk_var;
-    // frond: frond_var
-    inst.colors[3] = traits.color_parts[1].base[0] + (cpu_hash_f(inst.seed, PalmProp::COLOR_VAR_R + 10u) - 0.5f) * tp.frond_var;
-    inst.colors[4] = traits.color_parts[1].base[1] + (cpu_hash_f(inst.seed, PalmProp::COLOR_VAR_G + 10u) - 0.5f) * tp.frond_var;
-    inst.colors[5] = traits.color_parts[1].base[2] + (cpu_hash_f(inst.seed, PalmProp::COLOR_VAR_B + 10u) - 0.5f) * tp.frond_var;
-    // aged: frond_var (same variance as frond)
-    inst.colors[6] = traits.color_parts[2].base[0] + (cpu_hash_f(inst.seed, PalmProp::COLOR_VAR_R + 20u) - 0.5f) * tp.frond_var;
-    inst.colors[7] = traits.color_parts[2].base[1] + (cpu_hash_f(inst.seed, PalmProp::COLOR_VAR_G + 20u) - 0.5f) * tp.frond_var;
-    inst.colors[8] = traits.color_parts[2].base[2] + (cpu_hash_f(inst.seed, PalmProp::COLOR_VAR_B + 20u) - 0.5f) * tp.frond_var;
-}
-
-inline void palm_write_active(MachineCtx* c, const EntityInstance& inst) {
-    auto& ap = c->entities_state_.palms[inst.slot];
-    ap.patch_gx = inst.trigger_gx; ap.patch_gz = inst.trigger_gz;
-    ap.host_gx = inst.host_gx; ap.host_gz = inst.host_gz;
-    ap.active = true; ap.draw_visible = true;
-    ap.world_x = inst.cx; ap.world_z = inst.cz;
-    ap.height = inst.params[PalmIdx::HEIGHT];
-    ap.base_r = inst.params[PalmIdx::BASE_R];
-    ap.tier_idx = inst.tier_idx;
-    ap.cached_ground_y = inst.cached_ground_y;
-}
-
-inline void palm_write_gpu(MachineCtx* c, const EntityInstance& inst, wgpu::Queue& queue) {
-    const auto& tp = PALM_TIERS[inst.tier_idx];
-    GPUPalmMeshParams mp{};
-    mp.center_x     = inst.cx;
-    mp.center_z     = inst.cz;
-    mp.height       = inst.params[PalmIdx::HEIGHT];
-    mp.base_r       = inst.params[PalmIdx::BASE_R];
-    mp.top_r        = inst.params[PalmIdx::TOP_R];
-    mp.lean         = inst.params[PalmIdx::LEAN];
-    mp.lean_dir     = inst.params[PalmIdx::LEAN_DIR];
-    mp.bark_rings   = inst.params[PalmIdx::BARK_RINGS];
-    mp.bark_depth   = inst.params[PalmIdx::BARK_DEPTH];
-    mp.frond_count  = inst.params[PalmIdx::FROND_COUNT];
-    mp.frond_len    = inst.params[PalmIdx::FROND_LEN];
-    mp.frond_width  = inst.params[PalmIdx::FROND_WIDTH];
-    mp.frond_droop  = inst.params[PalmIdx::FROND_DROOP];
-    mp.frond_arch   = inst.params[PalmIdx::FROND_ARCH];
-    mp.crown_spread = inst.params[PalmIdx::CROWN_SPREAD];
-    mp.crown_skirt  = inst.params[PalmIdx::CROWN_SKIRT];
-    mp.burial       = inst.burial;
-    mp.trunk_r = inst.colors[0]; mp.trunk_g = inst.colors[1]; mp.trunk_b = inst.colors[2];
-    mp.frond_r = inst.colors[3]; mp.frond_g = inst.colors[4]; mp.frond_b = inst.colors[5];
-    mp.aged_r  = inst.colors[6]; mp.aged_g  = inst.colors[7]; mp.aged_b  = inst.colors[8];
-    mp.trunk_segs = tp.trunk_segs;
-    mp.frond_segs = tp.frond_segs;
-    mp.is_active = 1;
-    c->gpuState_.upload_palm_mesh_params_slot(queue, inst.slot, mp);
-    c->entities_state_.palm_mesh_gen_pending = true;
-}
-
-inline constexpr EntityFamilyAdapter PALM_ADAPTER = {
-    palm_run_gate,
-    palm_apply_indoor_rescale,
-    palm_compute_solid_half, palm_compute_colors,
-    palm_write_active, palm_write_gpu, nullptr,
-    palm_get_tier_profile,
-};
-
-// ── Palm dispatch wrappers ──
-
-inline bool dispatch_select_palm_generic(MachineCtx* self, int32_t gx, int32_t gz, EntityQueueEntry& e) {
-    EntityInstance inst{};
-    if (!generic_select(self, PALM_TRAITS, PALM_ADAPTER, gx, gz, inst)) return false;
-    e.family = PopFamily::PALM; e.gx = gx; e.gz = gz; e.generic = inst; return true;
-}
-inline bool dispatch_place_palm_generic(MachineCtx* self, EntityQueueEntry& e, PlacementEntry& pe) {
-    pe.family = e.family; pe.gx = e.gx; pe.gz = e.gz;
-    if (generic_place(self, PALM_TRAITS, e.generic)) { pe.generic = e.generic; return true; }
-    self->entities_state_.palms[e.generic.slot].active = false; return false;
-}
-inline void dispatch_commit_palm_generic(MachineCtx* self, PlacementEntry& pe, wgpu::Queue& queue) {
-    auto* host = find_patch(self, pe.generic.host_gx, pe.generic.host_gz);
-    if (host) { generic_commit(self, PALM_TRAITS, PALM_ADAPTER, pe.generic, queue); host->record_entity(PopFamily::PALM, pe.generic.slot); }
-    // HOST PATCH GONE. The footprint was registered at place; its host
-    // vanished before commit. Release by OWNER — the one release path.
-    else { unregister_footprint_for(self, PopFamily::PALM, pe.generic.slot); self->entities_state_.palms[pe.generic.slot].active = false; }
-}
-
 // ─── Teardown (owner verb) ────────────────────────────────────────
 // The grounded families' half of the world-teardown sweep — CPU slot
-// clears + GPU param-slot clears + mesh-gen re-arm, five families in
-// their one organ. UNGATED by design: the five families share this
+// clears + GPU param-slot clears + mesh-gen re-arm, four families in
+// their one organ. UNGATED by design: the four families share this
 // organ, and per-family gating buys nothing (empty arrays clear to
 // empty). The arch clear announces the portal-set change on the
 // standing flag channel (mood_state_.portals_dirty).
@@ -1032,19 +688,6 @@ inline void teardown_entities(MachineCtx* c, wgpu::Queue& queue) {
             c->gpuState_.upload_column_mesh_params_slot(queue, i, emptyParams);
         }
         c->entities_state_.column_mesh_gen_pending = true;
-    }
-
-    // Palms
-    for (uint32_t i = 0; i < Dim::MAX_PALM_INSTANCES; i++) {
-        c->entities_state_.palms[i] = ActivePalm{};
-    }
-    c->gpuState_.set_palm_index_count(0);
-    {
-        GPUPalmMeshParams emptyParams{};
-        for (uint32_t i = 0; i < Dim::MAX_PALM_INSTANCES; i++) {
-            c->gpuState_.upload_palm_mesh_params_slot(queue, i, emptyParams);
-        }
-        c->entities_state_.palm_mesh_gen_pending = true;
     }
 
     // Pyramids
