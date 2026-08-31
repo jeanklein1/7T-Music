@@ -32,6 +32,13 @@
 //   are explicit latent infrastructure: aura_presence is live here;
 //   the other deferred fields await the unified entity layer.
 //   Pattern P8 visible in source.
+// SEAM[spine:P8] rebirth_world stands UNCALLED AND MARKED — the
+//   file's second P8, and the larger one. Its caller is the panel's
+//   seed dial (gen cadence, C3-destructive), arriving with the PANEL
+//   campaign; boot walks become_world alone and by ruling always
+//   will. Ten teardown/reseed verbs are latent WITH it, plus one
+//   transitive GPUState upload. The category, the forward cue and
+//   the whole latent chain are named at the verb.
 // SEAM[spine:family-dispatch] all evict_<family> (owner-side),
 //   dispatch_prepare_mesh_<family>, dispatch_mesh_gen_<family>
 //   wrapper functions land here — referenced by FAMILY_DISPATCH and
@@ -1202,12 +1209,79 @@ namespace t7 {
             // root organ, so the verb IS the assembly and cannot live
             // anywhere else without a deps face wider than the root itself.
             //
-            // NO CALLER TODAY, by ruling. Boot walks become_world alone — a
-            // boot world has nothing to tear down — and the six keys that
-            // used to ignite a transition are gone. The panel's seed dial is
-            // the caller this verb waits for; it arrives in a later campaign.
-            // Kept live, not parked: it is the one survivor of the machine
-            // and the teardown verbs below have no other assembly.
+            // SEAM[spine:P8] — EXPLICIT LATENT INFRASTRUCTURE, the same
+            // category PlayerState's deferred fields carry (contracts/
+            // spine_state.hpp). Zero callers today: MARKED, not dead.
+            // A zero-caller verb may not stand UNMARKED; this is the mark.
+            //
+            // THE FORWARD CUE. The caller is THE PANEL'S SEED DIAL —
+            // cadence GEN (once per rebirth, never per frame),
+            // C3-DESTRUCTIVE (it tears the standing world down before it
+            // re-draws one) — and it arrives with the PANEL campaign. The
+            // six keys that used to ignite a transition are gone and are
+            // not coming back; the dial is the door that replaces them.
+            //
+            // BOOT-AS-CALLER IS REFUSED, NOT DEFERRED. Boot and mid-run
+            // rebirth are different operations sharing one door: a birth
+            // from nothing seeds slot 0 over pristine organs and has
+            // nothing to tear down; a rebirth tears the world down first
+            // and then zeroes the whole slot array on BOTH sides of the
+            // mirror (reset_player_agent writes a zeroed Dim::MAX_AGENTS
+            // buffer; reseed_player_body memsets AgentState::slots
+            // whole) before re-authoring slot 0. One wrapper over both
+            // is false unification — a mode flag, or changed boot
+            // behaviour, and both lose to the PRIME INVARIANT's
+            // byte-for-byte boot order, and to the ROSTER gates that
+            // exist to eliminate exactly the zero-writes a boot-side
+            // teardown would re-introduce. become_world above is the L10
+            // door the two operations DO share, and it is the whole of
+            // what they share.
+            //
+            // THE LATENT CHAIN. Each verb below has exactly one call site
+            // tree-wide and it is inside this body, so each is latent
+            // WITH the seam and is read as MARKED by this note — not as
+            // an orphan a sweep may take:
+            //   teardown_entities (bodies/grounded.hpp)
+            //   teardown_gol (bodies/gol_zones.hpp)
+            //   teardown_ribbon, release_finite_ribbons (bodies/ribbon.hpp)
+            //   clear_spheres (bodies/spheres.hpp)
+            //   clear_cubes (bodies/cube_behaviors.hpp)
+            //   teardown_pawn_aura (bodies/pawn.hpp)
+            //   teardown_orbs (bodies/orbs.hpp)
+            //   GPUState::reset_player_agent (realization/state.hpp)
+            //   reseed_player_body (bodies/agents.hpp)
+            // One hop deeper: GPUState::upload_zone_config is called only
+            // by teardown_gol, so it is latent transitively. Its
+            // near-twins are LIVE and are not in the chain —
+            // upload_zone_config_header and deactivate_zone_slot both run
+            // per-frame from gol_zones.
+            // NOT LATENT, though this body calls them: become_world,
+            // reset_surface, apply_mood, spawn_population_for_mood,
+            // dump_agent_census, dump_entity_census, set_world_seed,
+            // set_possessed_slot — every one has a live caller at boot or
+            // in the frame.
+            //
+            // THE CHAIN IS GATE-HELD, not merely tolerated. The score
+            // census (tools/gates/score/run.py, Direction A) names seven
+            // of them — the sphere/ribbon/cube/gol/pawn_aura/orbs
+            // teardowns and the ribbon finite release — and asserts each
+            // roster bit's gated call site in THIS file. Those sites are
+            // the ones below. Deleting the seam takes the roster/spine
+            // bijection with it, which is why the graduation kept the
+            // machine's ordering knowledge as living code instead of
+            // attic archaeology (L30).
+            //
+            // MAINTAINED, NOT FROZEN — latency is not exemption. Later
+            // campaigns treat this body as a first-class reader: its mood
+            // reads rewire like any live caller's, its narration rides
+            // probate, twin-room discipline applies. A latent verb rots
+            // if a campaign walks past it.
+            //
+            // THE VOICE IS KEPT. The [World] Rebirth complete line at the
+            // tail is the honest voice for the caller that is coming; it
+            // never prints at boot, because boot never enters here. Its
+            // TRANSCRIPT belongs to the campaign that gives the verb a
+            // caller — parked in docs/OPEN.md with the panel candidates.
             void rebirth_world(uint32_t seed, wgpu::Queue& queue) {
                 // ═══ THE FIXED SEQUENCE (O-3) ══════════════════════
                 // SEAM[spine:P5] world_state_.world_gen++ at the top is the

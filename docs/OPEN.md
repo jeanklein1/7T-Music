@@ -228,7 +228,9 @@ program moves between worlds.
 
 **A REBIRTH IS A HARD CUT** — the crossfade left with the machine that
 drove it. `rebirth_world` has no caller by ruling; the panel's seed dial
-is the caller it waits for. FLAGGED for Jean's visual gate.
+is the caller it waits for. FLAGGED for Jean's visual gate. The verb now
+stands **marked** — `SEAM[spine:P8]`, with its latent chain named at the
+verb; the forward cue is THE PANEL below.
 
 ### PRUNE_2 — THE GROUNDED FIVE (landed)
 
@@ -386,3 +388,35 @@ The socket is already open: `parse_boot_params(int, char**)` kept its full
 signature through the sunset with both parameters unnamed, `main()` still
 calls it with real `argc`/`argv`, and N1 restores the
 `--seed/--mood/--cap/--msaa` loop behind it.
+
+## THE PANEL (held — the campaign that gives the rebirth a caller)
+
+A seed dial the player turns: one gen-cadence, C3-destructive control that
+re-draws the standing world under a new seed. It is the named future caller
+of `rebirth_world`, which stands uncalled and **marked `SEAM[spine:P8]` —
+explicit latent infrastructure** since ONE_WORLD-I. Boot-as-caller was
+**refused, not deferred**: a birth from nothing and a rebirth are different
+operations sharing one door (`become_world`, L10), and one wrapper over both
+loses to the PRIME INVARIANT's byte-for-byte boot order.
+
+The socket is already open, the same way the Ableton seam's is: the verb is
+whole and spine-resident, it walks the machine's own fixed sequence (O-3),
+and ten teardown/reseed verbs plus one transitive `GPUState` upload are
+latent with it — every one named at the verb, so no sweep reads them as
+orphans. Seven of the ten are **gate-held**: the score census asserts each
+roster bit's gated teardown call site in `cartridge.hpp`, and those sites are
+the seam's. The dial has to author a seed and call one verb; nothing else in
+the program has to move first.
+
+**Parked here, for the campaign that lands the dial:**
+* **The rebirth transcript.** The verb keeps its `[World] Rebirth complete`
+  line — the honest voice for a caller that does not exist yet, and it never
+  prints at boot. A side-by-side transcript witness can only be written once
+  something turns the dial, so the duty parks here rather than going stale
+  in a campaign that cannot exercise it.
+* **The voice gate** (print-literal probate against each campaign's kill
+  vocabulary). Parked as a PANEL-era candidate by the rulings after
+  ONE_WORLD-I: no gate sees a print literal today, and the standing cover is
+  the narration rule — narration dies with its subject, in the subject's own
+  commit. ONE_WORLD-II's close payload may restate this line; it is recorded
+  here now because the rebirth transcript parks beside it.
