@@ -123,7 +123,7 @@ declaration alone — no hand-authored field.
 | `fc_vp` | 2:240 | storage, read | `VPMatrix` | storage |
 | `fc_patches` | 2:61 | storage, read | `array<PatchInstance>` | storage |
 | `fc_visible` | 2:63 | storage, read_write | `array<u32>` | storage |
-| `fc_indirect` | 2:64 | storage, read_write | `array<atomic<u32>, 15>` | storage |
+| `fc_indirect` | 2:64 | storage, read_write | `array<atomic<u32>, 10>` | storage |
 | `fc_draw_plan` | 2:60 | uniform | `DrawPlanParams` | uniform |
 | `orb_state` | 2:120 | storage, read_write | `array<OrbState>` | storage |
 | `orb_config` | 2:121 | uniform | `OrbConfig` | uniform |

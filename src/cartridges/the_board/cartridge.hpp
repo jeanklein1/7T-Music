@@ -387,7 +387,7 @@ namespace t7 {
             // Timing is world-agnostic — no world_gen capture needed.
             enum class MeterReadbackState { IDLE, COPIED, MAPPING };
             MeterReadbackState meterReadbackState_ = MeterReadbackState::IDLE;
-            // WRAP_0 U4 — THE SLOT LINE'S SAMPLE. The draw plan's three
+            // WRAP_0 U4 — THE SLOT LINE'S SAMPLE. The draw plan's two
             // instance counters live only on the GPU, so the terrain's
             // milliseconds could never be divided by its geometry. Same
             // grammar as the meter's own readback and the same SKIP-IF-BUSY,
@@ -396,7 +396,11 @@ namespace t7 {
             // geometry — it moves at walking pace, so a sample a second or two
             // old is still a true reading, where a timing sample would not be.
             MeterReadbackState slotReadbackState_ = MeterReadbackState::IDLE;
-            uint32_t slotInstances_[3] = {};
+            // TWO, not three (the device gate's hotfix). It was three, and
+            // the callback read a[11] out of a 40-byte mapped range after
+            // U5 folded segment C — past the end of the map, in the one
+            // build that arms it.
+            uint32_t slotInstances_[2] = {};
             bool     slotSampleValid_ = false;
             bool meter_gpu_ = false;   // device carries timestamp-query (set at initialize)
 
@@ -1844,19 +1848,18 @@ namespace t7 {
                         // WRAP_0 U4 — THE SLOT LINE: milliseconds divided by
                         // geometry. `main_pass` is 11-12 ms on Kepler for a
                         // vertex and pixel count that does not explain it, and
-                        // the three terrain plan slots are where the vertices
+                        // the terrain plan slots are where the vertices
                         // are. n is the VISIBLE INSTANCE count the cull kernel
-                        // wrote (its three atomics); I is the slot's index
+                        // wrote (its two atomics); I is the slot's index
                         // count — so n x I is the slot's triangles x 3, and the
-                        // three products are what the pass is actually drawing.
+                        // two products are what the pass is actually drawing.
                         // TERRAIN_0 opens on this line and the mask table.
                         if (slotSampleValid_) {
                             char sl[160];
                             std::snprintf(sl, sizeof sl,
-                                "[METER] terrain  A %ux%u  B %ux%u  C %ux%u\n",
+                                "[METER] terrain  A %ux%u  B %ux%u\n",
                                 slotInstances_[0], gpuState_.patch_index_count(),
-                                slotInstances_[1], gpuState_.patch_index_count_cap_only(),
-                                slotInstances_[2], gpuState_.patch_index_count_lod1_live());
+                                slotInstances_[1], gpuState_.patch_index_count_cap_only());
                             std::cout << sl;
                         }
                         double u_sum = 0.0, r_sum = 0.0;
@@ -2609,12 +2612,13 @@ namespace t7 {
                                         self->gpuState_.frustum_count_readback().GetConstMappedRange(
                                             0, GPUState::frustum_indirect_size()));
                                     if (a) {
-                                        // instanceCounts at 1 / 6 / 11 — the three
+                                        // instanceCounts at 1 / 6 — the TWO
                                         // 5-u32 draw-arg slots (state.hpp's
-                                        // reset_frustum_indirect names the layout).
+                                        // reset_frustum_indirect names the
+                                        // layout). Index 11 was slot C's and
+                                        // is past the end of a 40-byte map.
                                         self->slotInstances_[0] = a[1];
                                         self->slotInstances_[1] = a[6];
-                                        self->slotInstances_[2] = a[11];
                                         self->slotSampleValid_ = true;
                                     }
                                     self->gpuState_.frustum_count_readback().Unmap();

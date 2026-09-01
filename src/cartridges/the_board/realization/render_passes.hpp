@@ -380,7 +380,7 @@ template <class Enc>
 inline void encode_main_opaque(MachineCtx* c, Enc& pass,
                                OrbsState& orbs_state_, OrbsDeps& orbs_deps_) {
     // Terrain — THE DRAW PLAN (ECONOMY_1 closing arm): the cull kernel
-    // authored three lists; the pass executes them as three indirect
+    // authored two lists; the pass executes them as two indirect
     // draws. An open world and a finite one go through the same plan
     // (the kernel sees all bands everywhere). The E1 global-flag selection
     // is RETIRED here — the plan is per-patch; the flag survives only
@@ -391,9 +391,9 @@ inline void encode_main_opaque(MachineCtx* c, Enc& pass,
     // difference. The mask rests open; a cleared bit is a measurement.
     const uint32_t dmask = c->gpuState_.config().draw_mask;
 
-    c->renderer_.begin_patch_terrain_plan(pass);   // OIL_1 U13: one SetPipeline for the three slots
+    c->renderer_.begin_patch_terrain_plan(pass);   // OIL_1 U13: one SetPipeline for both slots
     // DOMESDAY_0 B3: the per-slot list window rides the vertex-buffer
-    // offset now (FC_SEG_A/B/C — the same segments the retired g2:62
+    // offset now (FC_SEG_A/B — the same segments the retired g2:62
     // bind windows carved), delivered to the VS as @location(0).
     if (dmask & DrawBit::TERRAIN_A)
     c->renderer_.draw_patch_terrain_plan_slot(pass,

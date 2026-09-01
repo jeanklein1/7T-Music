@@ -1644,7 +1644,16 @@ namespace t7 {
         // contracts/surface_services.hpp, beside FINITE_RADIUS_MAX, because
         // that constant lives DOWNSTREAM of this header in the cohort and
         // an assert must stand where both of its terms are visible.
-        inline constexpr uint32_t FC_ARGS_BYTES  = 10 * sizeof(uint32_t);  // 2 x 5-u32 draw-args slots
+        // THE ARGS BUFFER IS ITS SLOT COUNT, DERIVED. Two draw-plan
+        // segments survive U5's fold, five u32 of DrawIndexedIndirect args
+        // each. TWIN: world.wgsl's `fc_indirect: array<atomic<u32>, 10>`,
+        // which is the pipeline's DECLARED MINIMUM BINDING SIZE — the two
+        // spellings must name the same number or Dawn rejects the bind
+        // group on the first frame, and no gate here can tell you.
+        inline constexpr uint32_t FC_ARGS_SEGMENTS = 2;   // A (full IB), B (cap-only IB)
+        inline constexpr uint32_t FC_ARGS_PER_SLOT = 5;   // DrawIndexedIndirect: indexCount, instanceCount, firstIndex, baseVertex, firstInstance
+        inline constexpr uint32_t FC_ARGS_SLOTS  = FC_ARGS_SEGMENTS * FC_ARGS_PER_SLOT;
+        inline constexpr uint32_t FC_ARGS_BYTES  = FC_ARGS_SLOTS * sizeof(uint32_t);
 
         // ─── ATLAS_1revB D3" — the shadow tile's light-index windows ──
         // One 256-byte window per spot light; window i holds the literal
@@ -2253,10 +2262,11 @@ namespace t7 {
             // (ONE_SURFACE-I U5).
             wgpu::Buffer frustumIndirectLOD0_;            // Indirect|CopyDst — 2 x 5-u32 draw-args (the plan)
             wgpu::Buffer frustumComputeBuffer_;           // Storage|CopySrc|CopyDst — compute writes here
-            // WRAP_0 U4 — the slot line's staging. The draw plan's three
+            // WRAP_0 U4 — the slot line's staging. The draw plan's two
             // instance counters are GPU-side atomics; this is the only way to
             // read them, and it is read ONCE PER METER WINDOW, so its cost is
-            // one 60-byte copy and one map a second. The source already
+            // one 40-byte copy and one map a second (it was three counters
+            // and 60 bytes before U5 folded segment C). The source already
             // carries CopySrc for its own indirect draws.
             wgpu::Buffer frustumCountReadback_;
             wgpu::Buffer drawPlanBuffer_;                 // Uniform — counts + zone rects for the cull kernel
@@ -2948,8 +2958,12 @@ namespace t7 {
             static_assert(FC_ARGS_BYTES == 10 * sizeof(uint32_t),
                 "the frustum plan is TWO 5-u32 arg slots (A full IB, B cap-only). "
                 "Change the slot count and this line, the reset_frustum_indirect "
-                "writer, the draw sites' byte offsets (0, 20) and the meter "
-                "readback all move together — they address one buffer");
+                "writer, the draw sites' byte offsets (0, 20), the meter "
+                "readback AND ITS INDICES (1, 6), and world.wgsl's "
+                "`fc_indirect: array<atomic<u32>, 10>` all move together — "
+                "they address one buffer. The WGSL extent is the one spelling "
+                "this assert cannot reach, and it is the binding size the "
+                "PIPELINE declares: the device enforces it, no gate here does");
             wgpu::Buffer visible_patch_indices_buffer() const { return visiblePatchIndicesBuffer_; }
 
             // ═══ THE DRAW LEDGER (BUNDLE_1) ══════════════════════════════
@@ -3028,7 +3042,7 @@ namespace t7 {
                 // A/B split SURVIVES and is not LOD: it is ZONE OVERLAP,
                 // full IB where a GoL curtain can reach a patch and
                 // cap-only where none can.
-                uint32_t args[10] = {
+                uint32_t args[FC_ARGS_SLOTS] = {
                     patchIndexCount_,        0, 0, 0, 0,
                     patchIndexCountCapOnly_, 0, 0, 0, 0,
                 };

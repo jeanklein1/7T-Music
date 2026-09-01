@@ -10656,17 +10656,31 @@ const FRUSTUM_PATCH_Y_MAX: f32 = 200.0;   // widened: tall entities (arches, rib
 @group(2) @binding(240)   var<storage, read>       fc_vp: VPMatrix;
 @group(2) @binding(61) var<storage, read>       fc_patches: array<PatchInstance>;
 @group(2) @binding(63) var<storage, read_write> fc_visible: array<u32>;
-@group(2) @binding(64) var<storage, read_write> fc_indirect: array<atomic<u32>, 15>;
+@group(2) @binding(64) var<storage, read_write> fc_indirect: array<atomic<u32>, 10>;
 
-// THE DRAW PLAN (ECONOMY_1 closing arm) — the kernel authors three
-// lists; the main pass executes them as three indirect draws.
-//   A: LOD0, zone-overlapped -> full IB    (fc_visible[  0..128))
-//   B: LOD0, clean           -> cap-only IB (fc_visible[128..256))
-//   C: LOD1, frustum-visible -> LOD1 IB    (fc_visible[256..512))
-// Segment BYTE offsets 0/512/1024 — 256-aligned for the render side's
+// THE DRAW PLAN (ECONOMY_1 closing arm) — the kernel authors two
+// lists; the main pass executes them as two indirect draws.
+//   A: zone-overlapped -> full IB     (fc_visible[  0..128))
+//   B: clean           -> cap-only IB (fc_visible[128..256))
+// C (LOD1, frustum-visible -> LOD1 IB, fc_visible[256..512)) left with
+// the half-mesh at ONE_SURFACE-I U5. A and B are NOT a LOD split: they
+// are ZONE OVERLAP — full IB where a GoL curtain can reach a patch,
+// cap-only where none can.
+// Segment BYTE offsets 0/512 — 256-aligned for the render side's
 // offset bind groups. TWIN: state.hpp FC segment constants (L3 MIRROR
-// — change both rooms together). fc_indirect: 3 x 5 draw-args slots;
-// instance counters at indices 1 / 6 / 11.
+// — change both rooms together). fc_indirect: 2 x 5 draw-args slots;
+// instance counters at indices 1 / 6.
+//
+// THE EXTENT ABOVE IS THE PIPELINE'S MINIMUM BINDING SIZE. Dawn reads
+// that literal and demands a binding at least that many bytes; the C++
+// room makes all three FC arg buffers at FC_ARGS_BYTES. U5 shrank the
+// C++ room to 10 u32 and left this array at 15, and the first native
+// boot failed validation on EVERY frame — [Buffer "Frustum Compute
+// Staging"] bound with size 40, requires at least 60 bytes — with
+// the whole frame's command buffer invalidated behind it. The world
+// could not draw. No gate in this tree saw it, because every gate in
+// this tree reads text and this was arithmetic across two languages.
+// The device is the only witness. Change the two rooms together.
 struct DrawPlanParams {
     _pad_lod0_count_retired: u32,   // ONE_SURFACE-I U5 — it was the CPU band boundary, instances [0, lod0) being LOD0. One density now.
     render_count: u32,   // draw set end — [lod0, render) LOD1; beyond: pregen
