@@ -1,36 +1,55 @@
 #!/usr/bin/env python3
 # ═══════════════════════════════════════════════════════════════════════
-# THE GoL CENSUS (GOL_ROWS_3 F1) — what a tier row actually does
+# THE AUTOMATON CENSUS (GOL_ROWS_3 F1; repointed at ONE_SURFACE-II U3)
+# — what a rule mask actually does
 #
-# WHY THIS EXISTS. A GoL tier row is a rule mask plus a dozen authored
-# floats, and NOTHING in the tree tells you what the pair does. The row
-# comments say "terminal", "plateaus", "walls"; three of those claims
+# WHY THIS EXISTS. A rule mask plus a handful of authored floats, and
+# NOTHING in the tree tells you what the pair does. The old tier rows'
+# comments said "terminal", "plateaus", "walls"; three of those claims
 # were false when GOL_RULES_1 wrote them, and the campaign that found
 # out did it with a harness that lived in a session transcript. The next
 # rule campaign would rebuild that harness and rebuild its
 # approximations differently — which already happened once: between
-# GOL_ROWS_1 and GOL_ROWS_2 the seeding gained the per-zone Gaussian it
-# had been missing and a headline dark count moved from 9 to 12.
+# GOL_ROWS_1 and GOL_ROWS_2 the seeding gained a Gaussian it had been
+# missing and a headline dark count moved from 9 to 12.
 #
 # So the harness lives here, reads the artifact, and is one thing.
+#
+# ITS SUBJECT CHANGED AND ITS QUESTION DID NOT (ONE_SURFACE-II).
+# It censused FOURTEEN TIER ROWS, each a candidate for an island. There
+# is one automaton and one rule now, over the whole ground — so the
+# question "does this mask go dark, saturate, or stay structured" stopped
+# being a comparison between rows and became THE question about the
+# world. And THE_PANEL is about to put `rule_mask` on a dial, which makes
+# it askable by anyone. That is why this tool was repointed rather than
+# attic'd.
+#
+# TWO THINGS THE MOVE CHANGED IN THE ANSWERS, and both matter:
+#   · THE GRID IS THE WORLD'S. Rows were censused at their tier's 8..32
+#     cells; the automaton runs at (2R+1) * PATCH_CELL_N, up to 144. A
+#     mask that goes dark on a 24-cell torus need not on a 144-cell one,
+#     and vice versa. Old numbers do not transfer.
+#   · THE VALUES ARE READ, NOT PARSED. The driver #includes
+#     contracts/automaton_surface.hpp, so AUTO_TABLE's fields are the
+#     program's own values — one taxonomy row better than the parse this
+#     replaced.
 #
 # WHAT IS REAL AND WHAT IS TRANSLITERATED
 #   REAL      the hashes and the bucket walk — this tool compiles a
 #             driver that #includes primitives/seed_utils.hpp, so
 #             cpu_lattice_node_seed, cpu_hash_f and cpu_sample_gaussian
 #             are the program's own, not a Python copy of them.
-#   REAL      the tier tables — parsed out of bodies/gol_zones.hpp at
-#             every run. Edit a row, rerun, get the new answer.
+#   REAL      AUTO_TABLE — #included, not parsed. Edit the bank, rerun,
+#             get the new answer.
 #   MIRRORED  coupling_gol_next_state, pulse_cell_target's SPIRAL
-#             branch, and zone_gol_evolve's spring + apply_boundary, all
+#             branch, and automaton_evolve's spring + apply_boundary, all
 #             transliterated from world.wgsl. If that file's versions
 #             move, these must move with them — the census is a mirror
-#             of the shader in the same sense the CPU tier table is
-#             (L3 MIRROR), and it is not gate-covered.
+#             of the shader (L3 MIRROR), and it is not gate-covered.
 #
 # THE STATED LIMITATION — READ THIS BEFORE QUOTING A NUMBER
-#   This tool does not reproduce zone_seed_mask, the GPU birth-moment
-#   kernel that multiplies the seeded life plane by
+#   This tool does not reproduce automaton_seed's MASK — the birth
+#   kernel multiplies the per-cell height factor by
 #   discrete_visibility_rest. Evaluating it needs the whole colour and
 #   field system. That kernel ONLY EVER REMOVES live cells at birth, so
 #   every dark count this tool reports is a LOWER BOUND on the real one.
@@ -74,88 +93,28 @@ import tempfile
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.dirname(HERE)
-BODIES = os.path.join(REPO, "src", "cartridges", "the_board", "bodies",
-                      "gol_zones.hpp")
+BANK = os.path.join(REPO, "src", "cartridges", "the_board", "contracts",
+                    "automaton_surface.hpp")
+STATE = os.path.join(REPO, "src", "cartridges", "the_board", "realization",
+                     "state.hpp")
 PRIMS = os.path.join(REPO, "src", "cartridges", "the_board", "primitives")
 INC = os.path.join(REPO, "src", "cartridges")
 
-# The property indices select_gol_zone / seed_gol_zone roll on. Mirrors
-# GoLZoneProp / PulseZoneProp in bodies/gol_zones.hpp.
-PROP_DENSITY = 930
+# The property index automaton_seed rolls aliveness on. Mirrors
+# AUTO_PROP_DENSITY (world.wgsl) — a CELL draw, band AUTO_SEED_BAND.
+PROP_DENSITY = 960
 
-# ── Parsing the tables out of the tree ────────────────────────────────
-
-CONWAY_FIELDS = ["rule_mask", "density_mean", "density_sigma",
-                 "tick_period_mean", "tick_period_sigma",
-                 "spring_stiffness_mean", "spring_stiffness_sigma",
-                 "transition_fraction_mean", "transition_fraction_sigma",
-                 "alive_height_mean", "alive_height_sigma",
-                 "spring_variance", "weight", "force_no_height", "grid_cells"]
-
-PULSE_FIELDS = ["field_fn", "tick_period_mean", "tick_period_sigma",
-                "spring_stiffness_mean", "spring_stiffness_sigma",
-                "transition_fraction_mean", "transition_fraction_sigma",
-                "phase_randomness_mean", "phase_randomness_sigma",
-                "tempo_randomness_mean", "tempo_randomness_sigma",
-                "alive_height_mean", "alive_height_sigma",
-                "wander_radius_mean", "wander_radius_sigma",
-                "spring_variance", "weight", "force_no_height",
-                "boundary_mode", "grid_cells"]
-
-
-def _num(tok):
-    """One initialiser token -> a float. Named constants resolve to their
-    value; the tables use them only for enums."""
-    t = tok.strip()
-    if t.startswith("0x"):
-        return float(int(t.rstrip("u"), 16))
-    if t in ("false", "true"):
-        return 1.0 if t == "true" else 0.0
-    for suffix, value in (("::BREATH", 0.0), ("::SPIRAL", 1.0),
-                          ("::REFLECT", 0.0), ("::WRAP", 1.0)):
-        if t.endswith(suffix):
-            return value
-    if t.endswith("u"):
-        return float(t[:-1])
-    return float(t.rstrip("f"))
-
-
-def _table(src, anchor, fields):
-    """Rows of `anchor`'s initialiser list, as (label, {field: value})."""
-    body = src.split(anchor, 1)[1].split("};", 1)[0]
-    rows = []
-    for label, init in re.findall(r"/\* \d+: ([\w&]+)\s*\*/ \{ (.*?) \},", body):
-        vals = [_num(t) for t in init.split(",")]
-        if len(vals) != len(fields):
-            raise SystemExit(
-                "gol-census: %s row %s has %d initialisers, the struct has "
-                "%d fields. The table and this tool have diverged — fix the "
-                "field list at the top of this file."
-                % (anchor, label, len(vals), len(fields)))
-        rows.append((label, dict(zip(fields, vals))))
-    return rows
-
-
-def _names(src, array):
-    body = src.split(array, 1)[1].split("};", 1)[0]
-    return re.findall(r'"([^"]+)"', body)
-
-
-def read_tables():
-    with open(BODIES, encoding="utf-8") as fh:
-        src = fh.read()
-    conway = _table(src, "GOL_TIERS[GOL_TIER_COUNT]", CONWAY_FIELDS)
-    pulse = _table(src, "GOL_PULSE_TIERS[GOL_PULSE_TIER_COUNT]", PULSE_FIELDS)
-    cnames = _names(src, "GOL_TIER_NAMES[]")
-    pnames = _names(src, "GOL_PULSE_TIER_NAMES[]")
-    if len(cnames) != len(conway) or len(pnames) != len(pulse):
-        raise SystemExit(
-            "gol-census: %d Conway rows vs %d names, %d Pulse rows vs %d "
-            "names — the tables and the name arrays disagree."
-            % (len(conway), len(cnames), len(pulse), len(pnames)))
-    return ([(n, r) for n, (_, r) in zip(cnames, conway)],
-            [(n, r) for n, (_, r) in zip(pnames, pulse)])
-
+# ── THE TABLE PARSER IS GONE, AND THAT IS AN UPGRADE ─────────────────
+#
+# _num / _table / _names / read_tables stood here: a positional parser
+# over GOL_TIERS[GOL_TIER_COUNT] and GOL_PULSE_TIERS[...] in
+# bodies/gol_zones.hpp, with a name-array cross-check because a
+# positional parse of a fourteen-column initializer is exactly as fragile
+# as it sounds. The file is gone (ONE_SURFACE-II U2) and so is the
+# fragility: the driver #includes contracts/automaton_surface.hpp and
+# reads AUTO_TABLE's fields as VALUES. Nothing is transliterated, nothing
+# is column-counted, and editing the bank changes the answer with no
+# parser to keep in step.
 
 # ── The driver ────────────────────────────────────────────────────────
 #
@@ -164,6 +123,7 @@ def read_tables():
 
 DRIVER = r'''
 #include "the_board/primitives/seed_utils.hpp"
+#include "the_board/contracts/automaton_surface.hpp"
 #include <cstdio>
 #include <cstdlib>
 #include <cmath>
@@ -173,8 +133,25 @@ DRIVER = r'''
 using namespace t7::the_board;
 
 static const float PI_ = 3.14159265359f;
-static const uint32_t SEED_BAND = 250u;   // GoLZoneProp::SEED_BAND
-static const uint32_t PROP_DENSITY = 930u;
+// AUTO_SEED_BAND / AUTO_PROP_DENSITY (world.wgsl, surface/automaton.hpp)
+static const uint32_t SEED_BAND = 260u;
+static const uint32_t PROP_DENSITY = 960u;
+
+// THE BANK'S OWN VALUES, not a transliteration of them. This is the
+// upgrade the parser's death bought: `bank` prints what AUTO_TABLE
+// actually holds, and the Python side packs its census row from that.
+static int print_bank() {
+    using namespace t7::the_board;
+    std::printf("%X %f %f %f %f %f %f %f %u %u\n",
+        AUTO_TABLE.rule_mask,
+        AUTO_TABLE.density, AUTO_TABLE.density_spread,
+        AUTO_TABLE.tick_period, AUTO_TABLE.transition_fraction,
+        AUTO_TABLE.phase_randomness, AUTO_TABLE.tempo_randomness,
+        AUTO_TABLE.spring_variance,
+        AUTO_TABLE.boundary_mode,
+        AUTO_TABLE.field_fn);
+    return 0;
+}
 
 // world.wgsl §3.7 — coupling_gol_next_state
 static float next_state(bool alive, int neighbors, uint32_t rule_mask) {
@@ -359,6 +336,7 @@ int main(int argc, char** argv) {
         spiral_run(f[0], f[1], f[2], f[3], f[4], (int)f[5], (int)f[6]);
         return 0;
     }
+    if (std::string(argv[1]) == "bank") { return print_bank(); }
     int seeds = atoi(argv[2]), gens = atoi(argv[3]);
     for (int a = 4; a < argc; a++) {
         std::string s = argv[a];
@@ -399,38 +377,75 @@ def decode(mask):
     return "B%s/S%s" % (born, surv)
 
 
+def read_bank(exe):
+    """AUTO_TABLE's fields, from the compiled driver — values, not text."""
+    out = subprocess.run([exe, "bank"], capture_output=True, text=True)
+    if out.returncode != 0 or not out.stdout.strip():
+        raise SystemExit("gol-census: the driver could not print AUTO_TABLE")
+    f = out.stdout.split()
+    return {
+        "rule_mask":           int(f[0], 16),
+        "density_mean":        float(f[1]),
+        "density_sigma":       float(f[2]),
+        "tick_period_mean":    float(f[3]),
+        "transition_fraction_mean": float(f[4]),
+        "phase_randomness_mean":    float(f[5]),
+        "tempo_randomness_mean":    float(f[6]),
+        "spring_variance":     float(f[7]),
+        "boundary_mode":       int(f[8]),
+        "field_fn":            int(f[9]),
+        # THE ONE THING STILL READ AS TEXT, and it is one integer with an
+        # unambiguous anchor rather than a fourteen-column initializer.
+        # Dim lives in realization/state.hpp, which pulls the instruments
+        # dial and the whole wgpu surface behind it — far too much to
+        # compile for one number. Grepping a `constexpr uint32_t
+        # AUTO_GRID_MAX = <n>;` is the honest trade, and it fails LOUD.
+        "grid_cells":          read_grid_max(),
+    }
+
+
+GRID_RE = re.compile(r"constexpr\s+uint32_t\s+AUTO_GRID_MAX\s*=\s*(\d+)\s*;")
+
+
+def read_grid_max():
+    with open(STATE, encoding="utf-8") as fh:
+        m = GRID_RE.search(fh.read())
+    if not m:
+        raise SystemExit("gol-census: no `constexpr uint32_t AUTO_GRID_MAX = "
+                         "<n>;` in realization/state.hpp — the automaton's "
+                         "grid capacity moved or was renamed")
+    return int(m.group(1))
+
+
 def main():
     ap = argparse.ArgumentParser(
-        description="Census what each GoL tier row actually does.")
+        description="Census what the automaton's rule mask actually does.")
     ap.add_argument("--seeds", type=int, default=32,
-                    help="zone seeds per row (default 32)")
+                    help="world seeds (default 32)")
     ap.add_argument("--gens", type=int, default=2000,
-                    help="generations per zone (default 2000)")
-    ap.add_argument("--row", action="append", default=[],
-                    help="census only this Conway row, by name. Repeatable.")
+                    help="generations per world (default 2000)")
     ap.add_argument("--candidate", action="append", default=[],
-                    help="a what-if row not in the tree: "
-                         "name:mask:density_mean:density_sigma:cells")
+                    help="a what-if rule not in the bank: "
+                         "name:mask:density_mean:density_sigma:cells. "
+                         "THIS IS THE POINT OF THE TOOL NOW — the bank has "
+                         "one rule and THE_PANEL puts it on a dial, so the "
+                         "question is always 'what would THIS mask do'.")
     ap.add_argument("--spiral", action="store_true",
-                    help="Pulse instead: the Spiral row's arm coherence")
+                    help="Pulse instead: the SPIRAL field's arm coherence")
     args = ap.parse_args()
-
-    conway, pulse = read_tables()
 
     tmp = tempfile.mkdtemp(prefix="gol_census_")
     try:
         exe = build(tmp)
+        bank = read_bank(exe)
 
         if args.spiral:
-            row = dict(pulse).get("Spiral")
-            if row is None:
-                raise SystemExit("gol-census: no Spiral row in GOL_PULSE_TIERS")
-            print("── the Spiral row's arm coherence, from the tree's own values ──\n")
+            print("── the SPIRAL field's arm coherence, from AUTO_TABLE ──\n")
             packed = "%f:%f:%f:%f:%f:%d:%d" % (
-                row["tick_period_mean"], row["transition_fraction_mean"],
-                row["phase_randomness_mean"], row["tempo_randomness_mean"],
-                row["spring_variance"], int(row["grid_cells"]),
-                int(row["boundary_mode"]))
+                bank["tick_period_mean"], bank["transition_fraction_mean"],
+                bank["phase_randomness_mean"], bank["tempo_randomness_mean"],
+                bank["spring_variance"], bank["grid_cells"],
+                bank["boundary_mode"])
             subprocess.run([exe, "spiral", packed])
             print("\n  shape corr 1.00 = the arms are intact. Tempo scatter is a "
                   "per-cell FREQUENCY\n  multiplier and its phase error integrates "
@@ -438,16 +453,10 @@ def main():
                   "one of the two can ever cost coherence.")
             return 0
 
-        rows = [(n, r) for n, r in conway if not args.row or n in args.row]
-        if args.row and not rows:
-            raise SystemExit("gol-census: no Conway row named %s. Rows: %s"
-                             % (", ".join(args.row),
-                                ", ".join(n for n, _ in conway)))
-
-        packed = ["%s:%X:%.4f:%.4f:%d" % (n.replace(" ", "_"), int(r["rule_mask"]),
-                                          r["density_mean"], r["density_sigma"],
-                                          int(r["grid_cells"]))
-                  for n, r in rows]
+        packed = ["%s:%X:%.4f:%.4f:%d" % ("AUTO_TABLE", bank["rule_mask"],
+                                          bank["density_mean"],
+                                          bank["density_sigma"],
+                                          bank["grid_cells"])]
         for c in args.candidate:
             f = c.split(":")
             if len(f) != 5:
@@ -457,15 +466,16 @@ def main():
                           % (f[0].replace(" ", "_"), int(f[1], 0),
                              float(f[2]), float(f[3]), int(f[4])))
 
-        print("── the Conway rows, %d zone seeds each, %d generations ──"
+        print("── the automaton's rule, %d world seeds each, %d generations ──"
               % (args.seeds, args.gens))
-        print("   dark counts are a LOWER BOUND: zone_seed_mask is not modelled "
+        print("   the grid is the WORLD's (%d cells/side), not a tier's 8..32 — "
+              "old tier numbers do NOT transfer." % bank["grid_cells"])
+        print("   dark counts are a LOWER BOUND: the birth mask is not modelled "
               "(see the header).\n")
-        for n, r in rows:
-            print("   %-16s %s" % (n, decode(r["rule_mask"])))
+        print("   %-16s %s   (AUTO_TABLE)" % ("AUTO_TABLE", decode(bank["rule_mask"])))
         for c in args.candidate:
             f = c.split(":")
-            print("   %-16s %s   (candidate, not in the tree)"
+            print("   %-16s %s   (candidate, not in the bank)"
                   % (f[0], decode(int(f[1], 0))))
         print()
         print("  %-16s %-8s %-9s %-2s | %-4s | %-4s | %-4s | %-6s | %-4s | %s"

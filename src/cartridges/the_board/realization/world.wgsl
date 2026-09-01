@@ -114,7 +114,7 @@
 // §4    DYNAMICS            PGA motor integration (pawn, camera)
 // §5    COMPOSITION         0D update split across compute entry points
 // §6    RENDERING           Lighting, terrain VS/FS, entity VS/FS, ribbon, shadows
-// §7    COMPUTE             Bindings, entry points, GoL zones, pawn aura
+// §7    COMPUTE             Bindings, entry points, the automaton, pawn aura
 // §8    PLACEMENT           Terrain sampling, entity Y-correction, frustum cull
 // §9    ENTITY MESH GEN     (retired at ONE_WORLD-I U3 with the arch)
 //
@@ -122,7 +122,7 @@
 // no line anchors):
 //   §2.2   TERRAIN_LOOKS — the master terrain panel; ROW 9 is the
 //          roster of pointers to every other strip.
-//   §7.0b  GOL ZONE panel — per-zone config struct + named visual
+//   §7.0b  THE AUTOMATON — its config struct + named visual
 //          constants (enums pinned to their CPU twins).
 //   PULSE_SPEED..PULSE_AGE_DECAY — the RADIAL PULSE panel, directly
 //          above fn contrib_radial_pulses_at.
@@ -247,7 +247,8 @@ const BAKE_STENCIL_EPS: f32 = PATCH_EXTENT / 255.0;
 const PATCH_CELL_N: u32 = 16u;          // cell color texture side per patch
 const PATCH_EXTENT: f32 = 50.0;         // world units per patch side
 // THE CELL — one spelling, and this is it. The card's window snap, the
-// one-address law, the zone extent + corner snap and the aura all read
+// one-address law, the automaton's grid (which IS the cell grid) and
+// the aura all read
 // THIS name. L3 MIRROR: Dim::PATCH_CELL_SIZE (state.hpp, beside
 // PATCH_CELL_N). Change both rooms together.
 const PATCH_CELL_SIZE: f32 = PATCH_EXTENT / f32(PATCH_CELL_N);   // 3.125
@@ -2136,7 +2137,7 @@ fn palette_color_smooth(weights: vec4<f32>, complexity: f32) -> vec3<f32> {
 // ── ROW 9 — THE CONTRIBUTOR ROSTER (pointers; navigable, NOT annexed)─
 //   Static landform: CONTRIBUTOR_DAG / POLICIES[] — the §3.4 Ground
 //     Architecture seam (CPU twin: contracts/ground_architecture.hpp).
-//   GoL zone tint: gol_composite_cell_color (§7.0b) — reads ROW 1/3
+//   the automaton's tint: gol_composite_cell_color (§7.0b) — reads ROW 1/3
 //     through palette_color_smooth; GoL/pulse keep their own panel.
 //   Radial pulses (music-onset rings): the PULSE_SPEED..PULSE_AGE_DECAY
 //     dials directly above fn contrib_radial_pulses_at.
@@ -2720,7 +2721,8 @@ fn occupier_contact(self_p: vec3<f32>, body_radius: f32, dt: f32) -> vec2<f32> {
     // antennas 16–31) left with those families in PRUNE_2 U4; the ARCH LEG
     // loop left with its family at ONE_WORLD-I U3. No standing body pushes
     // a walker any more — every surviving family either claims no ground
-    // (spheres, cubes) or IS the ground (pyramids, GoL zones). row_occupier
+    // (spheres, cubes) or IS the ground (pyramids; the automaton is the
+    // ground itself and has no occupier row). row_occupier
     // stands unexercised, as PROXIMITY_AFFINITY does, for the next family
     // that needs it.
 
@@ -3293,8 +3295,8 @@ fn query_ground_flyer(xz: vec2<f32>, qi: QueryInputs) -> f32 {
 // pawn-centered suppression factor inline — algebraically identical to
 //   h += contrib_automaton_at(xz);
 //   h -= contrib_gol_suppression_at(xz, consumer_pos);
-// but avoids a second full pass over the GoL zone loop — one traversal
-// of the zone set instead of two, which is a saving on every backend and
+// but avoided a second full pass over the GoL ZONE LOOP — one traversal
+// of the zone set instead of two, which was a saving on every backend and
 // at every unroll factor. (Shaped under FXC — retired, PIVOT_0;
 // docs/FXC_LAWS_RECORD.md §PROBATE.) See contrib_gol_suppression_at for
 // the standalone subtractive form.
@@ -3351,7 +3353,7 @@ fn query_ground_walker_tilt(xz: vec2<f32>, qi: QueryInputs) -> f32 {
 //
 // GoL carries inline pawn-centered suppression, equivalent to
 //   contrib_automaton_at(xz) - contrib_gol_suppression_at(xz, consumer_pos)
-// but evaluating the zone loop once instead of twice, kept as the SINGLE
+// but evaluating the (now retired) zone loop once instead of twice, kept as the SINGLE
 // term gol*(1-supp) so the arithmetic is bit-stable. Walker intent: "GoL
 // doesn't push me up into the air while I'm standing on it."
 fn query_ground_walker_pair(xz: vec2<f32>, qi: QueryInputs) -> vec2<f32> {
@@ -3381,7 +3383,7 @@ fn query_ground_walker_pair(xz: vec2<f32>, qi: QueryInputs) -> vec2<f32> {
 // Typical consumers: agent ground resolve (none today; reserved for
 //   the agent system).
 // Notes: agents feel the full GoL lift — no self-suppression. Design
-//   doc §3.3: revisit if agents stuck on top of GoL zones look wrong.
+//   doc §3.3: revisit if agents stuck on top of the automaton's lift look wrong.
 //   When agents grow their own self-centered auras, add analogous
 //   contrib_<agent>_aura_at_self() forms (defer until a second consumer
 //   asks for one).
@@ -3573,7 +3575,7 @@ fn coupling_terrain_to_sphere_orbit_height(sphere_xz: vec2<f32>, base_height: f3
         return base_height;
     }
 
-    // POLICY_FLYER — sphere rides static base + pyramids + gol zones +
+    // POLICY_FLYER — sphere rides static base + pyramids + the automaton +
     // terrain waves + radial pulses + pawn aura. No gol_suppression
     // (flyers don't flatten GoL at their own position).
     // consumer_pos is unused by flyer (no consumer-local fields); pass
@@ -3798,7 +3800,7 @@ fn coupling_velocity_to_pawn_heading(velocity: vec2<f32>, current_heading: f32, 
 
 // §3.7 GoL → evolution
 
-// --- [COUPLING:gol→next_state] the zone's own birth/survival rule
+// --- [COUPLING:gol→next_state] the automaton's own birth/survival rule
 // rule_mask is a bitset: bit n = birth on n neighbours, bit 9+n =
 // survival on n. neighbors is a Moore-neighbourhood count, 0..8 by
 // construction, so 9 + n never reaches the shift width.

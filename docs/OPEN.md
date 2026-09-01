@@ -598,7 +598,37 @@ tree and neither changing what shipped:
   surviving exemption, and it is worth restating that the exemption is
   now the ONLY thing distinguishing `ribbon_fs` from `entity_fs`.
 
-## ONE_SURFACE-II — THE AUTOMATON (the hold resolved at the UNBLOCK RIDER)
+## ONE_SURFACE-II — THE AUTOMATON (U1-U3 landed; the close is Jean's)
+
+> **THE UNITS ARE IN.** U1 the switchover, U2 the family, U3 this sweep.
+> What remains of the campaign is U4's instrument commit (the extent
+> witness the rider commissioned) and then the close: glaw1, build, **the
+> probe**, and the walk — the ground alive everywhere, wrap seams
+> invisible because a torus has no edge, the world otherwise itself.
+>
+> **THE SCALE QUESTION U1 FLAGGED IS ANSWERED, AND MEASURED.** U1 warned
+> that Glacier's density 0.12 over 20,736 cells might read as a forest
+> where it read as an island. `tools/gol_census.py`, repointed at
+> AUTO_TABLE by this sweep, ran the actual rule on the actual 144-cell
+> torus for 16 world seeds x 2000 generations:
+>
+>     AUTO_TABLE  B3/S23  0.12/0.03  N=144 | dark 0 | satu 0 | strc 16
+>                                          | live 3.1% | frze 0 | dark% 0.0
+>
+> **3.1% live, not 12%.** The seeded density is a transient; Conway thins
+> it to ~640 live cells of the 20,736. Zero worlds went dark, zero
+> saturated, all sixteen stayed structured, none froze. So the ground is
+> a sparse structured field that never flattens and never fills — which
+> is what the transcription was hoping for and is now evidence rather
+> than hope. The one number the census cannot give is whether ~640 cells
+> lifting 24 wu LOOKS right; that is the walk's, and `density` and
+> `alive_height` are the two dials to reach for.
+>
+> (The dark count is a LOWER BOUND — the tool does not model the birth
+> mask, which only ever removes cells. At 0 dark over 16 seeds the bound
+> is not close to binding.)
+
+### THE ORIGINAL HEADER (the hold, and how it resolved)
 
 The Game of Life stops being an ENTITY and becomes a PROPERTY OF THE
 GROUND: one automaton over the whole finite cell grid, WRAP topology, the
@@ -638,6 +668,22 @@ sentence the hotfix round paid for.
 - **The extent witness rides U4's instrument commit** (commissioned at
   the rider; specification under THE DEVICE GATE). The automaton reshapes
   bind groups and should land under that witness, not before it.
+
+### THE ABLETON SEAM GAINS ITS CUE (§1.2, recorded at U3)
+
+The automaton's `tick_period` is **in BEATS** — it always was, because
+`GolDeps` carried `TimeState` and the config header read beats rather
+than seconds. What changed is that there is now ONE period instead of
+eight rolled ones, and it is a dial on a bank.
+
+**So stepping the world on Ableton's bar is one dial away, and the dial
+already exists.** `upload_automaton_header`'s gate is
+`floor(beats / tick_period)` crossing an integer; point `beats` at a Link
+or MIDI-clock transport instead of the internal follower and the ground
+advances on the music's bar. Nothing in the automaton has to move for
+that — the wiring is the COUPLING campaign's, beside the seam below, and
+this line exists so that campaign does not have to rediscover that the
+hard half is already done.
 
 ### THE LIVE CARD'S REST LAW — RULED (for U1)
 
@@ -866,6 +912,13 @@ actually freezes is Jean's second acceptance pass to observe.
   campaign's side effect.
 
 ## THE ABLETON SEAM (held, after N)
+
+> **A CUE ARRIVED FROM ONE_SURFACE-II** (recorded in full at that
+> section): the automaton's `tick_period` is in BEATS and is one dial, so
+> stepping the ground on the bar is a matter of pointing `beats` at a
+> transport this seam opens. Named here so the coupling campaign finds it
+> where it will be looking.
+
 
 Link session (tempo/beat/phase ground truth) and/or DAW loopback as native
 audio-in, so the pre-modulation hint gains a real carrier — an explicit

@@ -102,8 +102,8 @@ namespace t7 {
         // THE WORLD'S MASTER SEED IS CHOSEN AT BOOT, NOT AUTHORED AS A
         // CONSTANT. Each visit is a draw from the same latent space, the
         // way each of them is. One number changes and the generator
-        // does the rest: terrain, the activity lattice, the waves, GoL
-        // zone seeding, agent spawn and every entity placement all hang
+        // does the rest: terrain, the activity lattice, the waves, the
+        // automaton's seeding, agent spawn and every entity placement all hang
         // off world_state_.active_seed and follow it without a further
         // edit anywhere.
         //
@@ -724,17 +724,17 @@ namespace t7 {
                 // restamp — so it reports the state the first frame will
                 // actually see.
                 {
-                    zoneRectsInCorePrev_ = zone_rects_in_core();
-                    std::cout << "[Ground] zone rects in core: "
-                              << zoneRectsInCorePrev_ << " (boot)\n";
-                    // OPT_1e's switch and OPT_1a's landed with transition
-                    // logs but no boot line — the exact half of P6 the
-                    // Release boot paid for. Both seeded here from the same
-                    // functions their gates read, so frame 1 can only print
-                    // a REAL transition.
-                    zonesActiveAnywherePrev_ = zones_active_anywhere();
-                    std::cout << "[Ground] zones active anywhere: "
-                              << zonesActiveAnywherePrev_ << " (boot)\n";
+                    // THE TWO [Ground] SWITCH LINES ARE RETIRED, and P6 is
+                    // the reason rather than an exception to it. A witness
+                    // exists so silence means "no transition" instead of "no
+                    // witness" — but both switches are PINNED now
+                    // (zone_rects_in_core and zones_active_anywhere each
+                    // return 1, and the tombstones at their definitions say
+                    // why), so neither can transition and a per-boot line
+                    // announcing a constant is noise pretending to be
+                    // evidence. The pin's own reason is at the functions;
+                    // when the panel's pause dial unpins them, the lines
+                    // come back with the switch.
                     // The [Card] boot line left with the rest law it
                     // witnessed (P6's corollary applies to a SWITCH, and
                     // there is no switch). The automaton's own line below
@@ -810,7 +810,7 @@ namespace t7 {
             //
             // Gates are ROW COLUMNS: a disabled family's row is skipped at
             // runtime (row.enabled folds from its constexpr ROSTER bit). Runtime
-            // data-guards (zone_count>0, dirty flags) live INSIDE their phase.
+            // data-guards (dirty flags) live INSIDE their phase.
             // ═══════════════════════════════════════════════════════════════
 
             // Frame-transient inputs, bundled so every phase has ONE uniform
@@ -1494,8 +1494,9 @@ namespace t7 {
             // of calls. PURE LIFT — no reordering, no logic change. A whole-
             // movement `if constexpr(ROSTER.x)` gate stays at the CALL SITE
             // (→ CUT-2 spine-row column); runtime data-guards live inside the
-            // phase. R12 splits per the ruling: the HIDDEN SUBMIT (derive flush)
-            // is its own named phase, distinct from the zone sync/evolve/mesh.
+            // phase. (R12's SPLIT — the hidden submit as its own named phase,
+            // distinct from the sim passes — was the derive flush's, and
+            // both halves left at ONE_SURFACE-II U1: one row remains.)
             // ═══════════════════════════════════════════════════════════════
 
             // R1 — WITNESS HARVEST (algo; P5 maps; consumes LAST frame's
@@ -2022,14 +2023,18 @@ namespace t7 {
             // texel centers; every consumer then samples one card. Before
             // DispatchCompute (the consumers).
             //
-            // OPT_1a — THE REST SKIP: both dispatches (819,200 invocations)
-            // are skipped while the card's field is at rest. The full
-            // three-conjunct rest law, evaluated CPU-side and conservative
-            // (any doubt => write): no GoL zone live, pulse ring empty,
-            // terrain_time <= 0. Post-CUT_1 the last two are structurally
-            // pinned at rest (O0-d: the ring's only writer is the boot
-            // zero-pin; terrain_time's only writers pin 0.0) — checked
-            // anyway so a future re-arming of either conjunct wakes the
+            // OPT_1a — THE REST SKIP IS RETIRED (ONE_SURFACE-II U1); the
+            // tombstone at phase_live_card_write holds the whole account.
+            // In short: the dispatch (819,200 invocations) was skipped while
+            // the card's field was at rest, on a three-conjunct law
+            // evaluated CPU-side and conservative (any doubt => write): no
+            // GoL zone live, pulse ring empty, terrain_time <= 0. The first
+            // conjunct is false everywhere once the automaton is the ground.
+            // The last two remain structurally pinned at rest (O0-d: the
+            // ring's only writer is the boot zero-pin; terrain_time's only
+            // writers pin 0.0) — so the KERNEL still writes zeros at rest;
+            // it is simply no longer skipped. A future re-arming of either
+            // conjunct wakes the
             // writer without an edit here. On the transition into rest, ONE
             // final write runs so consumers never read stale non-zero
             // texels; the flag resets at world teardown so a fresh world's
@@ -2189,8 +2194,9 @@ namespace t7 {
             // retired the re-raise, when the column stopped feeding
             // corrected ground back into its mesh.)
 
-            uint32_t zoneRectsInCorePrev_ = 0;   // P6 witness memory (transitions only)
-            uint32_t zonesActiveAnywherePrev_ = 0;   // OPT_1e witness memory
+            // The two P6 witness memories (zoneRectsInCorePrev_ and
+            // zonesActiveAnywherePrev_) left with the transitions they
+            // remembered — both switches are pinned (ONE_SURFACE-II U3).
             // liveCardLivePrev_ (OPT_1a's witness memory) left with the
             // transition it remembered.
 
@@ -2331,16 +2337,13 @@ namespace t7 {
                 // zone_rects_in_core for why widening is the safe direction.
                 {
                     const uint32_t in_core = zone_rects_in_core();
-                    // PROCESS P6 — every switch has a witness. The draw
-                    // plan made the selection per-patch, so the witness
-                    // reports the INPUT that drives it: the rect count in
-                    // the core, on change of N only, never per frame. The
-                    // boot state is printed once at init (P6 corollary), so
-                    // silence here means "no transition", not "no witness".
-                    if (in_core != zoneRectsInCorePrev_) {
-                        std::cout << "[Ground] zone rects in core: " << in_core << "\n";
-                        zoneRectsInCorePrev_ = in_core;
-                    }
+                    // P6's WITNESS IS RETIRED BECAUSE THE SWITCH IS PINNED,
+                    // which is P6 applied rather than P6 waived: it reported
+                    // the rect count on change of N, and N is 1 forever now
+                    // (zone_rects_in_core's tombstone says why). A witness
+                    // that cannot report a change is not a witness; it is a
+                    // line. When the panel's pause dial unpins the count,
+                    // this comes back with it.
                     // THE FLAG HAS NO READER LEFT. The draw plan retired the
                     // global-flag selection for the main pass and the
                     // indirect reset; the shadow pass draws both bands
@@ -2358,12 +2361,9 @@ namespace t7 {
                 // fresh for both same-frame). P6: witness the INPUT that
                 // drives the switch, on change of N only.
                 {
-                    const uint32_t anywhere = zones_active_anywhere();
-                    if (anywhere != zonesActiveAnywherePrev_) {
-                        std::cout << "[Ground] zones active anywhere: " << anywhere << "\n";
-                        zonesActiveAnywherePrev_ = anywhere;
-                    }
-                    gpuState_.set_zones_active_anywhere(anywhere > 0);
+                    // Same pin, same retirement (see above): the count is 1
+                    // forever, so there is no transition to witness.
+                    gpuState_.set_zones_active_anywhere(zones_active_anywhere() > 0);
                 }
                 dispatch_frustum_cull(&machine_ctx_, encoder, queue);
             }
