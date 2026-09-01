@@ -410,11 +410,31 @@ uncaptured error verbatim and nonzero. It exists because ONE_SURFACE-I U5
 moved one room of an L3 MIRROR pair, nine text-reading gates went green,
 and every frame of the first native boot failed validation.
 
+**RATIFIED at the UNBLOCK RIDER: both deviations stand.** Not-headless is
+right — L10's one loop outranks the commission's "headless" spec; the
+probe gives the loop a reason to stop, not a second loop. And
+`--probe-backend` defaulting to `any` is right — the known-boots
+configuration is the one worth probing, and an instrument that will not
+boot is worse than none. One run with `=null` settles the rest, at Jean's
+leisure. Nothing below is a re-litigation of either.
+
+**AND IT IS NOW LOAD-BEARING.** ONE_SURFACE-II's U1 is not "landed" until
+`--probe=120` passes on it; THE_PANEL's U1 (the seed door, the campaign's
+riskiest live path) is the same. The probe went from an instrument to a
+precondition in one rider.
+
 **IT HAS NEVER RUN.** CC's environment carries `third_party/dawn_native_headers`
 and no built Dawn, no GLFW and no display; the TU gate type-checks
 `console.hpp` and `the_board.cpp` and that is the whole of what CC can
 witness about it. Its first run is Jean's, and it is the pre-walk for
 every constructive GPU commit from here.
+
+**THE AMENDMENT-A INJECTION IS ORDERED, AND IT IS TWO RUNS, NOT ONE.**
+Before the probe's first load-bearing use it must be proven to bite: run
+it at the tip (must be GREEN) **and** at `2905ed68` (must be RED, with the
+binding-size error as its first line). One run alone proves nothing — a
+probe that always says GREEN passes the first test and fails the job. An
+instrument is trusted only after it bites.
 
 Three things the first runs settle, in order:
 
@@ -435,7 +455,16 @@ Three things the first runs settle, in order:
    the switch is a dead letter and should be retired with a tombstone
    saying so, rather than left as an option nobody can take.
 
-### A SECOND, STATIC HALF OF THE SAME CLASS (commission — not CC's to take)
+### A SECOND, STATIC HALF OF THE SAME CLASS — **COMMISSIONED**
+
+> **RULED at the UNBLOCK RIDER.** The witness is commissioned in exactly
+> the measured shape below: a relation row inside `binding_gen --check`
+> (not a tenth gate) comparing every WGSL fixed array extent to its C++
+> count, exact via the recorded reduction, proven by the recorded
+> injection. **It rides ONE_SURFACE-II's U4 instrument commit** — sooner
+> is better, because the automaton reshapes bind groups and should land
+> under this witness rather than before it. The measurement below stands
+> as written; it is the specification.
 
 A sweep after the hotfix asked whether `fc_indirect` was alone. It measured
 this, at this commit:
@@ -569,16 +598,46 @@ tree and neither changing what shipped:
   surviving exemption, and it is worth restating that the exemption is
   now the ONLY thing distinguishing `ribbon_fs` from `entity_fs`.
 
-## ONE_SURFACE-II — THE AUTOMATON (U0 landed; U1-U4 held)
+## ONE_SURFACE-II — THE AUTOMATON (the hold resolved at the UNBLOCK RIDER)
 
 The Game of Life stops being an ENTITY and becomes a PROPERTY OF THE
 GROUND: one automaton over the whole finite cell grid, WRAP topology, the
-GOL family retired. U0's recon is done and is below. **U1 is HELD, and
-the handoff's own precondition is why**: "RUN AFTER THE STILLNESS CLOSES
-GREEN." ONE_SURFACE-I is green on every gate CC can run, but its close is
-`glaw1, build, **the walk**` — and the walk is the whole point of a
-campaign whose acceptance test is "the world must look untouched". Two
-of those three are Jean's.
+GOL family retired. U0's recon is done and is below.
+
+**THE HOLD IS RESOLVED.** The Stillness closed at Jean's device; the
+precondition ("RUN AFTER THE STILLNESS CLOSES GREEN") is met. What
+replaces it is narrower and harder: **U1 lands only probe-GREEN.** The
+switchover commit is not "landed" until `--probe=120` passes on it, and
+before that first load-bearing use the probe itself takes its Amendment-A
+injection — Jean's two runs, GREEN at the tip and RED at `2905ed68`. See
+THE DEVICE GATE above.
+
+The reason the bar is a device and not a battery is unchanged, and worth
+restating because it is the whole shape of this unit: every unit of
+ONE_SURFACE-I was a REMOVAL whose behaviour could be reasoned to exactly
+— a fold table, a reader census, an arithmetic bound. **U1 is
+CONSTRUCTIVE**: a new world-sized field, two new kernels, a reshaped bind
+group, a swapped contributor row. "It type-checks and the gates are green"
+is much weaker evidence about a shader that has never run — which is the
+sentence the hotfix round paid for.
+
+### THE RIDER'S AMENDMENTS, FOLDED (the handoff is not reissued)
+
+- **§1.5 is answered precisely and the answer is BOTH**, in the two
+  distinct mechanisms enumerated below: the pedestal is a LIVE-CARD
+  contributor (the `.a` channel), the tint is a separate draw-time
+  array-layer sample. **U1 globalizes both AS FOUND** — same mechanisms,
+  world-sized. No new visual behaviour is invented; the dials inherit
+  today's values.
+- **The live-card ruling is already law** (recorded below) and U1
+  executes it deliberately rather than discovering it.
+- Everything else in ONE_SURFACE-II stands as written: WRAP pinned,
+  CONWAY boots with PULSE dialable, AUTO_LIVE transcribed-and-pinned, the
+  derive-submit seam dying with its cause, teardown reshaped under P8's
+  law.
+- **The extent witness rides U4's instrument commit** (commissioned at
+  the rider; specification under THE DEVICE GATE). The automaton reshapes
+  bind groups and should land under that witness, not before it.
 
 ### THE LIVE CARD'S REST LAW — RULED (for U1)
 
@@ -610,13 +669,6 @@ automaton pause dial, "the ground is not advancing" becomes a real state
 again and the rest law is the right answer to it — one condition, at the
 tombstone, which is why the tombstone names it. Decided on purpose, not
 by omission.
-
-That matters more here than it would elsewhere. Every unit of I was a
-REMOVAL whose behaviour could be reasoned to exactly — a fold table, a
-reader census, an arithmetic bound. II's U1 is CONSTRUCTIVE: a new
-world-sized field, two new kernels, a reshaped bind group, and a swapped
-contributor row. "It type-checks and the gates are green" is much weaker
-evidence about a shader that has never run.
 
 ### §1.5 IS ANSWERED, and the answer is BOTH — with a precision the
 handoff's phrasing leaves open.
@@ -654,10 +706,21 @@ alive — which, at a seeded density over the whole grid, is essentially
 always. The rest gate would never close again, and the live-card
 dispatch would run every frame for the life of the program.
 
-That is not a reason not to do it. It is a decision U1 has to make ON
-PURPOSE — re-found the rest law on the automaton's own tick (the card is
-clean between ticks), or accept a per-frame card and price it — rather
-than discover afterwards that an optimisation quietly stopped firing.
+That is not a reason not to do it. It was a decision U1 had to make ON
+PURPOSE rather than discover afterwards that an optimisation quietly
+stopped firing — and **it is made: the rest law RETIRES and the card is
+per-frame, priced.** (The ruling is above; the rider made it law.)
+
+**The alternative that was NOT taken, recorded at the tombstone rather
+than lost:** re-found the rest law on the automaton's own tick — the card
+is clean BETWEEN ticks, so a tick-cadence gate would still close, often,
+in exactly the world the automaton makes. It was not taken because it is
+not a clean win: conjuncts (1) and (2) are musical and move on their own
+clock, so a tick gate would have to compose with them rather than replace
+them, and a per-frame card that is honestly per-frame beats a three-clock
+gate nobody can reason about. If the price is ever measured and found
+real, this is the second revival path beside the pause dial, and the
+tombstone names both.
 
 ### The rest of U0's enumeration
 
@@ -821,7 +884,32 @@ calls it with real `argc`/`argv`, and N1 restores the
 `--seed/--cap/--msaa` loop behind it. (`--mood` was the fourth until
 ONE_WORLD-II U2 — a world is chosen by its seed alone now.)
 
-## THE PANEL (held — the campaign that gives the rebirth a caller)
+## THE PANEL (the plan's last movement — TWO HANDOFFS IN HAND)
+
+> **SCHEDULED.** THE_PANEL arrived as two handoffs and runs after
+> ONE_SURFACE-II closes green, probe included.
+>
+> **I — THE DIALS** finishes the parametric surface: the seed door (U1,
+> the P8 seam's first caller and the rebirth transcript witness finally
+> authored), the deliberate DesignConfig relayout (U2), enrollment
+> completion + the preset migration (U3, where the two parked
+> preset-wire breakers below finally move), the orphan verbs disposed
+> (U4), ORGAN.md rewritten native (U5), instruments + battery + probe
+> (U6).
+>
+> **II — THE SHELL** gives the surface native hands on the tree's own
+> one-road law: `--scene=<file>` plus a watched scene file as THE ROAD,
+> a stdin REPL as THE HAND, the web shell's fate executed, ORGAN.md's
+> shell sections written native. Its acceptance test is one sentence and
+> it goes in the banner: **a new dial is one line in
+> `organ_params.inc` and zero lines in the shell.**
+>
+> The graphical skin and the **Ableton CC map** are explicitly Jean-gated
+> skins, parked — see the parked-skins line at the end of this section.
+> What remains open after that campaign is exactly the musical horizon,
+> which is the reason the fork exists.
+
+
 
 A seed dial the player turns: one gen-cadence, C3-destructive control that
 re-draws the standing world under a new seed. It is the named future caller
