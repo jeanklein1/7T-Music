@@ -115,14 +115,6 @@ ORGAN_PARAM(ORB_BANK, OrbMoodConfig, flock_sep_weight, F32,  0.5f,   120.0f,   0
 ORGAN_PARAM(ORB_BANK, OrbMoodConfig, flock_align_weight, F32,  0.2f,   32.0f,    0.2f,    "Sky & Light · Flocking rule", "alignment weight")
 ORGAN_PARAM(ORB_BANK, OrbMoodConfig, flock_coh_weight, F32,  0.25f,  60.0f,    0.25f,   "Sky & Light · Flocking rule", "cohesion weight")
 ORGAN_PARAM(ORB_BANK, OrbMoodConfig, flock_max_speed, F32,  1.0f,   240.0f,   1.0f,    "Sky & Light · Flocking rule", "max speed")
-
-// ─── Sky & Light · Schemes — EDITS THE NEXT DRAW ────────────────
-// WORLD_DRAW_LIVE (contracts/mood_constants.hpp), rolled once as a room is
-// built. The weights are probabilities select_tier normalises.
-ORGAN_PARAM_GEN(WORLD, WorldDrawSurface, scheme_weights[0], F32, 0.0f, 1.0f, 0.005f, "Sky & Light · Schemes", "cathedral")
-ORGAN_PARAM_GEN(WORLD, WorldDrawSurface, scheme_weights[1], F32, 0.0f, 1.0f, 0.005f, "Sky & Light · Schemes", "quartet")
-ORGAN_PARAM_GEN(WORLD, WorldDrawSurface, scheme_weights[2], F32, 0.0f, 1.0f, 0.005f, "Sky & Light · Schemes", "gallery")
-ORGAN_PARAM_GEN(WORLD, WorldDrawSurface, scheme_weights[3], F32, 0.0f, 1.0f, 0.005f, "Sky & Light · Schemes", "sanctum")
 // ─── Atmosphere · Sky — EDITS THE LIVE WORLD'S SKY ──────────────────
 // ATMOS_LIVE (contracts/atmosphere_surface.hpp), the world's one sky as a
 // distribution: every row is a CENTRE, every "spread" a uniform ± around
@@ -240,18 +232,6 @@ ORGAN_PARAM(CONFIG, GPUDesignConfig, mosaic_shard_size,    F32, 0.0f, 1.2f,  0.0
 ORGAN_PARAM(CONFIG, GPUDesignConfig, mosaic_passage_scale, F32, 0.0f, 48.0f, 0.25f,  "Terrain · Mosaic", "passage scale")
 ORGAN_PARAM(CONFIG, GPUDesignConfig, mosaic_blend,         F32, 0.0f, 1.0f,  0.005f, "Terrain · Mosaic", "boundary blend")
 ORGAN_PARAM(CONFIG, GPUDesignConfig, mosaic_facet,         F32, 0.0f, 1.0f,  0.005f, "Terrain · Mosaic", "facet lean")
-
-// ─── Terrain · Indoor — EDITS THE NEXT SPAWN ────────────────────
-// INDOOR_LIVE (contracts/indoor_module.hpp), DESTRUCTIVE: nine of these
-// two fields' ten readers run at spawn, so nothing here is wired.
-ORGAN_PARAM_GEN(INDOOR, IndoorSurface, height_cap_fraction, F32, 0.0f, 1.0f, 0.005f, "Terrain · Indoor", "height cap fraction")
-ORGAN_PARAM_GEN(INDOOR, IndoorSurface, ribbon_scale,        F32, 0.0f, 0.6f, 0.005f, "Terrain · Indoor", "ribbon scale")
-// The three indoor structurals, METERED. Their author is the mood applier,
-// composing each from MoodProfile's STRUCTURAL group — world generation
-// reads that, so a dial would edit a world already built.
-ORGAN_PARAM_RO(CONFIG, GPUDesignConfig, terrain_amp_ceiling, F32, "Terrain · Indoor", "terrain amp ceiling (driven)")
-ORGAN_PARAM_RO(CONFIG, GPUDesignConfig, ceiling_height,      F32, "Terrain · Indoor", "ceiling height (driven)")
-ORGAN_PARAM_RO(CONFIG, GPUDesignConfig, indoor_height_cap,   F32, "Terrain · Indoor", "GoL lift cap (driven)")
 
 // ─── Pawn · Aura (the drivers' room + its witnesses) ─────────────────
 // The intent is the presence ramp's rest TARGET; key 3 and the mood policy

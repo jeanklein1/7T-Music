@@ -26,7 +26,6 @@
 #include "cartridges/the_board/contracts/orb_surface.hpp"     // ORB_CONSOLE_LIVE (block 5)
 #include "cartridges/the_board/contracts/control_panel.hpp"   // PANEL_LIVE (block 6)
 #include "cartridges/the_board/contracts/ribbon_surface.hpp"  // RIBBON_LIVE (block 7)
-#include "cartridges/the_board/contracts/indoor_module.hpp"   // INDOOR_LIVE (block 8, destructive)
 #include "cartridges/the_board/contracts/mood_constants.hpp"  // WORLD_DRAW_LIVE (block 10, destructive)
 #include "coupling/canvas_surface.hpp"                        // CANVAS_LIVE (block 9, t7::canvas)
 #include "cartridges/the_board/contracts/driver_surface.hpp"  // the drivers' room (block 3)
@@ -89,13 +88,20 @@ enum : uint8_t {
     ORGAN_BLOCK_ORBS       = 5,   // OrbConsole            — ORB_CONSOLE_LIVE
     ORGAN_BLOCK_PANEL      = 6,   // PanelSurface          — PANEL_LIVE
     ORGAN_BLOCK_RIBBON     = 7,   // RibbonSurface         — RIBBON_LIVE
-    ORGAN_BLOCK_INDOOR     = 8,   // IndoorSurface — INDOOR_LIVE; DESTRUCTIVE
+    // 8 — IndoorSurface / INDOOR_LIVE, retired ONE_WORLD-II U4. THE ID IS
+    //     A HOLE, NOT A GAP TO CLOSE: block ids are the console's wire
+    //     contract and every stored preset key is one, so re-packing
+    //     would silently re-point them. Same law DrawBit's holes at
+    //     bits 5 and 7 already carry.
     ORGAN_BLOCK_CANVAS     = 9,   // canvas::CanvasSurface — CANVAS_LIVE
     // THE TWO DESTRUCTIVE BANKS. Both are read while a world or a ribbon is
     // being DRAWN and never re-read, so both keep INDOOR_LIVE's
     // temperament: a plain block id, no boundary wiring, GEN on every row.
     // The stricter temperament governs.
-    ORGAN_BLOCK_WORLD        = 10,  // WorldDrawSurface   — WORLD_DRAW_LIVE
+    // 10 — WorldDrawSurface / WORLD_DRAW_LIVE, retired ONE_WORLD-II U4:
+    //      its four scheme weights fed the indoor light-scheme roll and
+    //      its only declared reader was derive_indoor_lights. A hole, as
+    //      8 is.
     ORGAN_BLOCK_RIBBON_SPAWN = 11,  // RibbonSpawnSurface — RIBBON_SPAWN_LIVE
                                     // (ATRIUM_2 — the arc and the sand, read as
                                     //  the entrance is drawn and not re-read)
@@ -318,9 +324,7 @@ inline void* block_base(uint8_t block) {
     case ORGAN_BLOCK_ORBS:       return &the_board::ORB_CONSOLE_LIVE;
     case ORGAN_BLOCK_PANEL:      return &the_board::PANEL_LIVE;
     case ORGAN_BLOCK_RIBBON:     return &the_board::RIBBON_LIVE;
-    case ORGAN_BLOCK_INDOOR:     return &the_board::INDOOR_LIVE;
     case ORGAN_BLOCK_CANVAS:     return &canvas::CANVAS_LIVE;
-    case ORGAN_BLOCK_WORLD:      return &the_board::WORLD_DRAW_LIVE;
     case ORGAN_BLOCK_RIBBON_SPAWN: return &the_board::RIBBON_SPAWN_LIVE;
     case ORGAN_BLOCK_ATMOS:      return &the_board::ATMOS_LIVE;
     case ORGAN_BLOCK_ORB_BANK:   return &the_board::ORB_LIVE;

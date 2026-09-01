@@ -889,17 +889,9 @@ inline constexpr uint32_t CUBE_INDOOR_RESCALE_PARAMS[] = {
 // half-height is body_radius × aspect_y (the render kernel scales Y
 // by r · aspect_y; the GPU floor clamp uses the same term). ASPECT_Y
 // is a ratio, so scaling BODY_RADIUS carries the half-height.
-inline void cube_apply_indoor_rescale(EntityInstance& inst, float ceiling_h) {
-    cap_to_ceiling(inst, ceiling_h, INDOOR_LIVE.height_cap_fraction,
-        /*current_h*/ inst.params[CubeIdx::ORBIT_HEIGHT]
-            + inst.params[CubeIdx::BODY_RADIUS] * inst.params[CubeIdx::ASPECT_Y]
-            + inst.params[CubeIdx::BOB_AMPLITUDE],
-        CUBE_INDOOR_RESCALE_PARAMS);
-}
 
 inline constexpr EntityFamilyAdapter CUBE_ADAPTER = {
     cube_run_gate,
-    cube_apply_indoor_rescale,            // CAP (INDOOR_TREATMENT): the floaters joined the module
     cube_compute_solid_half, cube_compute_colors,
     cube_write_active, cube_write_gpu, nullptr,
     cube_get_tier_profile,

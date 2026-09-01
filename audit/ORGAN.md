@@ -53,10 +53,6 @@ generator, so the book and the manifest cannot disagree. `driven` is an
 | Sky & Light · Flocking rule | alignment weight | `ORB_BANK.flock_align_weight` | ORB_BANK | F32 | 0.2 … 32 | 0.2 | live | none |  |
 | Sky & Light · Flocking rule | cohesion weight | `ORB_BANK.flock_coh_weight` | ORB_BANK | F32 | 0.25 … 60 | 0.25 | live | none |  |
 | Sky & Light · Flocking rule | max speed | `ORB_BANK.flock_max_speed` | ORB_BANK | F32 | 1 … 240 | 1 | live | none |  |
-| Sky & Light · Schemes | cathedral | `WORLD.scheme_weights[0]` | WORLD | F32 | 0 … 1 | 0.005 | gen | none |  |
-| Sky & Light · Schemes | quartet | `WORLD.scheme_weights[1]` | WORLD | F32 | 0 … 1 | 0.005 | gen | none |  |
-| Sky & Light · Schemes | gallery | `WORLD.scheme_weights[2]` | WORLD | F32 | 0 … 1 | 0.005 | gen | none |  |
-| Sky & Light · Schemes | sanctum | `WORLD.scheme_weights[3]` | WORLD | F32 | 0 … 1 | 0.005 | gen | none |  |
 | Atmosphere · Sky | sun colour | `ATMOS.sun_color` | ATMOS | VEC3 | 0 … 1 | 0.01 | live | none |  |
 | Atmosphere · Sky | sun colour spread (±bright) | `ATMOS.sun_color_spread` | ATMOS | F32 | 0 … 1 | 0.01 | live | none |  |
 | Atmosphere · Sky | intensity | `ATMOS.intensity` | ATMOS | F32 | 0 … 4 | 0.01 | live | none |  |
@@ -125,11 +121,6 @@ generator, so the book and the manifest cannot disagree. `driven` is an
 | Terrain · Mosaic | passage scale | `CONFIG.mosaic_passage_scale` | CONFIG | F32 | 0 … 48 | 0.25 | live | none |  |
 | Terrain · Mosaic | boundary blend | `CONFIG.mosaic_blend` | CONFIG | F32 | 0 … 1 | 0.005 | live | none |  |
 | Terrain · Mosaic | facet lean | `CONFIG.mosaic_facet` | CONFIG | F32 | 0 … 1 | 0.005 | live | none |  |
-| Terrain · Indoor | height cap fraction | `INDOOR.height_cap_fraction` | INDOOR | F32 | 0 … 1 | 0.005 | gen | none |  |
-| Terrain · Indoor | ribbon scale | `INDOOR.ribbon_scale` | INDOOR | F32 | 0 … 0.6 | 0.005 | gen | none |  |
-| Terrain · Indoor | terrain amp ceiling (driven) | `CONFIG.terrain_amp_ceiling` | CONFIG | F32 | — | — | driven | none | • |
-| Terrain · Indoor | ceiling height (driven) | `CONFIG.ceiling_height` | CONFIG | F32 | — | — | driven | none | • |
-| Terrain · Indoor | GoL lift cap (driven) | `CONFIG.indoor_height_cap` | CONFIG | F32 | — | — | driven | none | • |
 | Pawn · Aura | intent | `DRIVERS.aura.intent` | DRIVERS | BOOL | 0 … 1 | 1 | live | none |  |
 | Pawn · Aura | attack (1/s) | `DRIVERS.aura.attack` | DRIVERS | F32 | 0.05 … 8 | 0.05 | live | none |  |
 | Pawn · Aura | release (1/s) | `DRIVERS.aura.release` | DRIVERS | F32 | 0.05 … 8 | 0.05 | live | none |  |
@@ -342,14 +333,14 @@ generator, so the book and the manifest cannot disagree. `driven` is an
 
 | | |
 | --- | --- |
-| entries | **314** |
-| by section | Agents 102 · Ribbon 55 · Terrain 42 · Sky & Light 34 · Atmosphere 31 · Interaction 22 · Pawn 18 · Debug 4 · Camera 3 · Measure 3 |
-| by cadence | boundary 106 · driven 18 · gen 26 · live 164 |
-| by macro form | PARAM 168 · PARAM_DEF 102 · PARAM_GEN 26 · PARAM_RO 18 |
-| definition kinds | BEHAVIOR 70 · NONE 212 · TIER 32 |
-| witnesses (`ro`) | 18 |
-| blocks and sentinels used | AGENT_ROOM, ATMOS, CANVAS, CONFIG, DRIVERS, INDOOR, LIGHTING, ORBS, ORB_BANK, PANEL, PAWN, RIBBON, RIBBON_SPAWN, WORLD |
-| namespaces | canvas 15 · the_board 299 |
+| entries | **305** |
+| by section | Agents 102 · Ribbon 55 · Terrain 37 · Atmosphere 31 · Sky & Light 30 · Interaction 22 · Pawn 18 · Debug 4 · Camera 3 · Measure 3 |
+| by cadence | boundary 106 · driven 15 · gen 20 · live 164 |
+| by macro form | PARAM 168 · PARAM_DEF 102 · PARAM_GEN 20 · PARAM_RO 15 |
+| definition kinds | BEHAVIOR 70 · NONE 203 · TIER 32 |
+| witnesses (`ro`) | 15 |
+| blocks and sentinels used | AGENT_ROOM, ATMOS, CANVAS, CONFIG, DRIVERS, LIGHTING, ORBS, ORB_BANK, PANEL, PAWN, RIBBON, RIBBON_SPAWN |
+| namespaces | canvas 15 · the_board 290 |
 
 ### Doors
 
@@ -384,15 +375,15 @@ reader — the class of defect this witness exists to catch.
   AGENT_TIER_GAINS     definition=1 seed=4 static_assert=2 comment=6 
   CANVAS_TABLE         definition=1 seed=1 comment=1              
   DRIVER_TABLE         definition=1 seed=1 comment=1              
-  INDOOR_TABLE         definition=1 seed=1 static_assert=2 comment=1 
-  MOOD_TABLE           definition=1 seed=7 static_assert=31 comment=30 
+  INDOOR_TABLE         (no mention anywhere)                      
+  MOOD_TABLE           definition=1 seed=7 static_assert=24 comment=30 
   ORB_CONSOLE          definition=1 seed=1 comment=2              
   ORB_MOOD_TABLE       definition=1 static_assert=27 comment=8    
   PANEL_TABLE          definition=1 seed=1 static_assert=6 comment=2 
   PAWN_AURA_DEFAULT    definition=1 seed=1 static_assert=1 comment=3 
   RIBBON_SPAWN_TABLE   definition=1 seed=1 static_assert=2        
   RIBBON_TABLE         definition=1 seed=1 static_assert=3 comment=2 
-  WORLD_DRAW_TABLE     definition=1 seed=1 comment=2              
+  WORLD_DRAW_TABLE     (no mention anywhere)                      
 
 SURVIVING RUNTIME READERS ACROSS 13 GRADUATED PAIRS: 0
 
@@ -407,7 +398,7 @@ states a belief; only the reader proves it. The tail of its run,
 verbatim:
 
 ```
-      · derive_indoor_lights               src/cartridges/the_board/direction/mood.hpp
+      ! derive_indoor_lights               src/cartridges/the_board/direction/mood.hpp
 
   OUT OF SCOPE, with the reason:
       AGENT_ROOM   GPU-side: tier_gains and behaviors ship as whole arrays through two WriteBuffers and are read in world.wgsl
@@ -416,9 +407,9 @@ verbatim:
 
 THE ANSWER, ROW BY ROW
 ------------------------------------------------------------------------
-  proved    216   a declared reader names the field
+  proved    210   a declared reader names the field
   SUSPECT     0   no declared reader names it
-  witness    18   an _RO meter: the question is inverted (blind spot 5)
+  witness    15   an _RO meter: the question is inverted (blind spot 5)
   scope      80   GPU-side or whole-struct (blind spots 2, 3)
 
 NO SUSPECTS. Every enrolled dial's field is named in the body of

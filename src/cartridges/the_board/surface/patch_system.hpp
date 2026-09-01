@@ -104,7 +104,6 @@ inline void reset_surface(MachineCtx* c, wgpu::Queue& queue,
     }
 
     // Indoor shell
-    c->gpuState_.set_shell_index_count(0);
 
     // Lights need re-upload with potentially new config
     c->mood_state_.lights_dirty = true;

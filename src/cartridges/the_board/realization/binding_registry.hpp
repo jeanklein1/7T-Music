@@ -14,7 +14,7 @@
 // four, and ONE_WORLD-I U3 took the arch — the trio's last
 // occupant. Slots 180/181/182 are unallocated now, not reserved.
 //
-// The WGSL @binding literals in world.wgsl (59 declarations over 56 slots;
+// The WGSL @binding literals in world.wgsl (57 declarations over 54 slots;
 // aliases: fc_config, fc_patches, fc_vp)
 // are a MIRROR of this file, kept in lockstep by boot-time
 // validation and by binding_gen.py --check. The render = compute
@@ -39,10 +39,9 @@ namespace t7 {
             // GROUP 1 — FRAME (stratum 1).
             // ─────────────────────────────────────────────────────────────
             namespace g1 {
-                // FRAME — R2 v2: the per-frame ro faces, the light system, the shadow window, the two shared samplers.
+                // FRAME — R2 v2: the per-frame ro faces, the light system and the two shared samplers.
                 inline constexpr uint32_t signal                      = 0;
                 inline constexpr uint32_t frame_r                     = 1;  // FrameR — CHORD_3: lighting + vp + camera, one uniform block per frame; vp and camera arrive by encoder copy from the GPU-sovereign homes (g2:240 vp_data, g2:241 camera_state), never by readback
-                inline constexpr uint32_t shadow_slot                 = 2;  // u32 — the light a shadow pass serves, on a dynamic-offset uniform seat: four 256-byte records holding 0..3, written once at boot. Every group-1 render bind carries one offset, 0 outside the shadow atlas loop
                 inline constexpr uint32_t bilinear_sampler            = 5;
                 inline constexpr uint32_t nearest_sampler             = 6;
             } // namespace g1
@@ -137,7 +136,6 @@ namespace t7 {
                 // SCENE (200–219)
                 inline constexpr uint32_t shadow_map                  = 200;
                 inline constexpr uint32_t shadow_sampler              = 201;
-                inline constexpr uint32_t spot_shadow_map             = 202;
             } // namespace g3
 
             // ──────────────────────────────────────────────────────────────

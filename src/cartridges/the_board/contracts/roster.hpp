@@ -42,7 +42,8 @@
 //
 //   Only SEP pieces skip creation in v0; SH·* sites carry
 //   LATENT[gate-a-shared] with the retirement condition; NO-RES pieces own
-//   nothing to skip. This arc gates one SEP piece (indoor_shell).
+//   nothing to skip. Its one SEP piece was indoor_shell, and the
+//   classification is empty since ONE_WORLD-II U4.
 
 namespace t7 {
 namespace the_board {
@@ -145,10 +146,12 @@ static_assert(placement_order_is_permutation(),
 struct Roster {
     bool pyramid, sphere, ribbon, cube, gol;
     // FEATURES (5)
+    // FIVE FEATURES BECAME THREE (ONE_WORLD-II U4). spot_lights and
+    // indoor_shell went with the rooms — and this struct is initialised
+    // POSITIONALLY from the matrix's GRID, so both the brace list and the
+    // two GRID rows moved in the same commit as these two lines.
     bool pawn_aura;     // presence ramp + aura terrain compute
     bool orbs;          // sky dome (distinct from the sphere family)
-    bool spot_lights;   // indoor spot array + shadow atlas
-    bool indoor_shell;  // walls + ceiling mesh
     bool wanderers;     // mood-authored NPC population (agent slots 1+)
 
     constexpr bool family_enabled(uint32_t f) const {
@@ -164,8 +167,7 @@ struct Roster {
 
     constexpr bool all_enabled() const {
         return pyramid && sphere && ribbon && cube && gol &&
-               pawn_aura && orbs && spot_lights && indoor_shell &&
-               wanderers;
+               pawn_aura && orbs && wanderers;
     }
 
     // Mirror of all_enabled — the degenerate sentence (every tickable
@@ -174,8 +176,7 @@ struct Roster {
     // still equals the retired minimal.hpp.
     constexpr bool none_enabled() const {
         return !pyramid && !sphere && !ribbon && !cube && !gol &&
-               !pawn_aura && !orbs && !spot_lights && !indoor_shell &&
-               !wanderers;
+               !pawn_aura && !orbs && !wanderers;
     }
 };
 

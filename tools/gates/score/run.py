@@ -63,7 +63,7 @@ PHASE_DEFS = set(re.findall(r'void (phase_\w+)\s*\(', CART))
 KNOWN_FAMILIES = {
     'pyramid',
     'sphere', 'ribbon', 'cube', 'gol', 'pawn_aura', 'orbs',
-    'spot_lights', 'indoor_shell', 'wanderers',
+    'wanderers',
 }
 
 def gate_families(gate):
@@ -137,8 +137,6 @@ GREP_MANIFEST = {
                  ('organ_boundary.inc', 'organ re-speak', imm(r'ROSTER\.orbs', r'configure_orbs')),
                  ('cartridge.hpp', 'teardown',   imm(r'ROSTER\.orbs',  r'teardown_orbs'))],
     # DELEGATED pieces: the gate lives at the module door (cited), not the spine.
-    'spot_lights': [('direction/mood.hpp', 'apply door', rf'if constexpr \(ROSTER\.spot_lights\)')],
-    'indoor_shell':[('direction/mood.hpp', 'apply door', rf'if constexpr \(ROSTER\.indoor_shell\)')],
     # ONE_WORLD-II U1c: the verb shed the mood it was named for and is
     # `spawn_population` now. The pin moves in the subject's commit (L27
     # join) so this gate is runnable at every unit, never one behind.

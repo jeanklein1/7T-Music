@@ -1838,7 +1838,13 @@ def check(args):
         label = "%s:%d" % (fname, lo)
         verdicts.append((label, len(members), len(by_backing), conflicts))
         pscope_bad.extend("%s: %s" % (label, c_) for c_ in conflicts)
-    ok = not pscope_bad and len(render_passes) >= 3
+    # ONE_WORLD-II U4: the floor was 3 — the shadow pass, the main pass and
+    # the indoor SPOT ATLAS arm, which opened one render pass per atlas
+    # texture. The atlas left with the rooms, so the program encodes two
+    # render passes and the floor moves with its subject (L27 join). The
+    # witness's real work is the per-pass usage merge; the floor exists to
+    # catch a pass span the parser failed to see, not to assert a count.
+    ok = not pscope_bad and len(render_passes) >= 2
     print("  [%s] P-scope(R)  %d render pass spans composed from M7; per-pass "
           "usage merge (render arm of L23'):"
           % ("PASS" if ok else "FAIL", len(render_passes)))
@@ -1846,9 +1852,9 @@ def check(args):
         print("           %-26s %2d groups, %2d backings, %d conflict(s)%s"
               % (label, nm_, nb_, len(conflicts),
                  "" if not conflicts else " — " + " | ".join(conflicts)))
-    if len(render_passes) < 3:
-        print("           EXPECTED at least 3 render passes "
-              "(shadow/main/snapshot); found %d — the witness cannot "
+    if len(render_passes) < 2:
+        print("           EXPECTED at least 2 render passes "
+              "(shadow/main); found %d — the witness cannot "
               "be inert" % len(render_passes))
     if not ok:
         problems.append("P-scope render-pass usage conflict(s) or "

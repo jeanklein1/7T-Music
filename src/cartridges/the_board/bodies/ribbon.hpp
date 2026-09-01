@@ -721,27 +721,14 @@ inline bool select_ribbon_for_patch(RibbonState& rs, MachineCtx* c,
 
     fill_ribbon_selection_geometry(gate.seed, tier_idx, sel);
 
-    // THE MINIATURE (indoor_module): gate-spawned ribbons pre-scale
-    // by INDOOR_LIVE.ribbon_scale ("incredibly diminished"), then the cap
-    // law — belt and braces; the cap never bites at 0.15. The
-    // sampler's floors (MIN_CUBE_SIZE / MIN_ADDED_HEIGHT / 0.1 amps)
-    // still hold.
-    if (mood_def(c->mood_state_.active).shape.indoor) {
-        sel.cube_size    = std::max(MIN_CUBE_SIZE,    sel.cube_size    * INDOOR_LIVE.ribbon_scale);
-        sel.height       = std::max(MIN_ADDED_HEIGHT, sel.height       * INDOOR_LIVE.ribbon_scale);
-        sel.lateral_amp  = std::max(0.1f,             sel.lateral_amp  * INDOOR_LIVE.ribbon_scale);
-        sel.vertical_amp = std::max(0.1f,             sel.vertical_amp * INDOOR_LIVE.ribbon_scale);
-        // The cap law, ribbon-shaped: extent = clearance + vertical
-        // wave + half a cube; all four dimensions ride one ratio.
-        const float cap_h  = INDOOR_LIVE.height_cap_fraction
-                           * mood_def(c->mood_state_.active).shape.wall_height;
-        const float extent = sel.height + sel.vertical_amp + 0.5f * sel.cube_size;
-        if (extent > cap_h) {
-            const float s = cap_h / extent;
-            sel.cube_size   *= s; sel.height       *= s;
-            sel.lateral_amp *= s; sel.vertical_amp *= s;
-        }
-    }
+    // THE MINIATURE left with the rooms (ONE_WORLD-II U4). Indoors a
+    // gate-spawned ribbon pre-scaled by INDOOR_LIVE.ribbon_scale
+    // ("incredibly diminished") and then met a cap law that never bit at
+    // 0.15. Its two faults were held, not ruled — the miniature never sat
+    // inside the mood's clamps, and propagation_speed is authored in
+    // outdoor units/s, so shrinking the body raised the head's oscillation
+    // rate by 1/scale. Both leave with the treatment; the ribbon flies at
+    // its authored size, which is the only size there is now.
 
     {
         float patch_cx = (gx + 0.5f) * Dim::PATCH_EXTENT;
@@ -770,7 +757,6 @@ inline bool place_ribbon_from_selection(MachineCtx* c,
         // scaled lateral_amp + the scaled cube span (S-4's scale ran
         // at selection, before this clamp: a small ribbon needs only
         // a small room). Outdoors the clamp never fires.
-        /*containment_r*/ sel.lateral_amp + (float)sel.cube_count * sel.cube_size,
         PopFamily::RIBBON, sel.slot, sel.tier_idx);
     if (!pos.ok) return false;
 

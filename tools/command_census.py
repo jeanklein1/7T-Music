@@ -478,7 +478,11 @@ def finding_d_discard(w, rows):
     console_text = read_raw(INPUTS[-1])
     m = re.search(r"depthDesc\.usage = ([^;]+);", console_text)
     usage = _norm(m.group(1)) if m else "(not found)"
-    b_no = (syms == ["shadow_map", "spot_shadow_map"]
+    # ONE_WORLD-II U4: the spot atlas left with the indoor rooms, so the
+    # program's depth bindings are the sun's map alone. The pair moves in
+    # the subject's commit (L27 join) — this witness asserts the CURRENT
+    # arrangement literally, so it cannot be left one unit behind.
+    b_no = (syms == ["shadow_map"]
             and usage == "wgpu::TextureUsage::RenderAttachment")
     w.record("C-6", a_no and b_no,
              "(a) no depth LoadOp::Load anywhere (%d), no other pass names "

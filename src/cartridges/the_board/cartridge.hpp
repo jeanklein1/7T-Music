@@ -54,7 +54,6 @@
 #include "cartridges/the_board/primitives/seed_utils.hpp"           // hash/gaussian/tier-select helpers (pure-math leaf)
 #include "cartridges/the_board/contracts/ground_architecture.hpp"  // ground contributor/policy tables + compile-time DAG checks
 #include "cartridges/the_board/contracts/entity_types.hpp"         // THE CONTRACT HOME: pipeline contracts + boundary DTOs + queue unions + dispatch row/table decl
-#include "cartridges/the_board/contracts/indoor_module.hpp"        // THE INDOOR MODULE: mood's insert on the spawn chain — one policy table + three dials; consumers ride the cohort (grounded/floaters/ribbon/the machine)
 #include "cartridges/the_board/contracts/spawn_services.hpp"      // THE MACHINE'S DECL TIER: spawn/pipeline service decls + boundary DTOs + MIN_SEPARATION (bodies ride the merged machine headers at the cohort tail)
 #include "cartridges/the_board/contracts/mood_constants.hpp"       // MOOD_COUNT + the Mood IDs
 #include "cartridges/the_board/contracts/spine_state.hpp"          // TimeState + PlayerState + InputState + MoodState/MoodProfile/MOOD_TABLE (spine organ TYPES; instances stay at the root)
@@ -313,7 +312,6 @@ namespace t7 {
             InputDeps     input_deps_;
             MoodDeps      mood_deps_;
 
-            GPUSpotLightArray cpuSpotLights_{};  // count=0 disables (outdoor)
 
             // SEAM[spine:transitions] (K4, Jean, 2026-07-11): the transition
             //   machine and its working members were DECLARED SPINE-OWNED
@@ -476,7 +474,7 @@ namespace t7 {
                 , gol_deps_{ gpuState_, renderer_, device_, time_state_ }
                 , ribbon_deps_{ gpuState_, time_state_, tile_world_state_, player_, point_, inputState_, world_state_, mood_state_, visual_canvas_, ribbon_amp_lat_dst_, ribbon_amp_vert_dst_, ribbon_tint_stim_dst_, ribbon_tint_mix_dst_ }
                 , input_deps_{ inputState_, keys_, mouse_, touch_, player_, world_state_, ribbon_state_, gpuState_, device_, point_, mount_, camera_ }
-                , mood_deps_{ mood_state_, world_state_, gpuState_, renderer_, gol_state_, entities_state_, sunDirection_, sunColor_, clearColor_, cpuSpotLights_ } {
+                , mood_deps_{ mood_state_, world_state_, gpuState_, renderer_, gol_state_, sunDirection_, sunColor_, clearColor_ } {
                 // THE ROOT AUTHORS THE BOOT VALUES (the demo sentence lands
                 // here, not via in-struct defaults — no include-order cable).
                 // DRAW_0: the seed is DRAWN, not authored — boot_seed()
@@ -706,16 +704,14 @@ namespace t7 {
                     mark(ROSTER.ribbon, "ribbon");       mark(ROSTER.cube, "cube");
                     mark(ROSTER.gol, "gol");
                     mark(ROSTER.pawn_aura, "pawn_aura"); mark(ROSTER.orbs, "orbs");
-                    mark(ROSTER.spot_lights, "spot_lights");
-                    mark(ROSTER.indoor_shell, "indoor_shell");
                     mark(ROSTER.wanderers, "wanderers");
-                    // Buffer creation: only indoor_shell (SEP) skips in v0;
-                    // pipelines gate per piece (gate a').
-                    const char* skipped = ROSTER.indoor_shell
-                        ? "(none — every disabled piece is SH-shared, created-pristine)"
-                        : "indoor_shell (shell VB/IB)";
+                    // EVERY REMAINING PIECE IS SH-SHARED (ONE_WORLD-II U4).
+                    // indoor_shell was the roster's ONE SEPARABLE piece — the
+                    // only bit whose buffers were skipped rather than created
+                    // pristine — so the ternary that named it has no live
+                    // branch and the classification is empty.
                     std::cout << "[ROSTER] pieces disabled: " << off
-                        << " | buffer creations skipped: " << skipped
+                        << " | buffer creations skipped: (none — every disabled piece is SH-shared, created-pristine)" 
                         << " | pipelines skipped: " << Renderer::pipelines_skipped() << "\n";
                 }
 
@@ -2279,7 +2275,7 @@ namespace t7 {
             // R18 — SHADOW PASS. draw_shadow_all into the shadow map(s).
             void phase_shadow_pass(RenderCtx& c) {
                 auto& encoder = c.encoder;
-                render_shadow_pass(&machine_ctx_, encoder, cpuSpotLights_);
+                render_shadow_pass(&machine_ctx_, encoder);
             }
 
             // R19 — MAIN PASS. The rasterized scene into the backbuffer.

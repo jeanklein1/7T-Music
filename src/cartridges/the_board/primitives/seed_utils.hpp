@@ -105,22 +105,6 @@ inline uint32_t select_tier(uint32_t seed, uint32_t tier_prop,
 }
 
 
-// Precompute catenary parameter 'a' from (half_span, rise).
-// 50-iteration bisection. It was the arch's; the arch left at
-// ONE_WORLD-I U3 and the vault ceiling (mood.hpp) is the caller now.
-// Census home: pure math with four cross-module
-// consumers (spawn_engine, entity_pipeline, entities, mood) — the
-// pure-math leaf is the shared header.
-inline float solve_catenary_a(float half_span, float target_h) {
-    float a_lo = 0.1f, a_hi = std::max(half_span * 10.0f, 5.0f);
-    float a = half_span;
-    for (int iter = 0; iter < 50; iter++) {
-        a = 0.5f * (a_lo + a_hi);
-        float val = a * (std::cosh(half_span / a) - 1.0f);
-        if (val > target_h) a_lo = a; else a_hi = a;
-    }
-    return a;
-}
 
 } // namespace the_board
 } // namespace t7

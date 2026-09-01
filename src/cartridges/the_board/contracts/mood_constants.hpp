@@ -39,57 +39,13 @@ inline constexpr const char* MOOD_NAMES[MOOD_COUNT] = {
     "open_night",  "open_noon",  "atrium",
 };
 
-// ═══ THE WORLD-DRAW BANK, GRADUATED (ORGAN_4 P3d) ════════════════
-//
-// C3 DESTRUCTIVE. The one surviving fact is read while a WORLD IS BEING
-// DRAWN — the scheme roll as each indoor room derives its lights. Its
-// three companions (the portal roll, the destination law, the portal
-// palette) left with the doors at ONE_WORLD-I.
-// It is not re-read afterwards, which is exactly why the bank has NO
-// BOUNDARY WIRING: re-speaking a destructive author means tearing the
-// world down to apply a slider (D5, and the 3b D4 law behind it — a
-// wrong re-speak tears down a world). The edit lands at the author's own
-// next natural event, and the enrollment rows say so with the GEN chip.
-//
-// WHY IT LIVES HERE. `SCHEME_WEIGHTS` was `inline constexpr` in
-// direction/mood.hpp, which the ORGAN may not include. The bank keeps
-// its shape and its question — what does a fresh world roll? — on the
-// one axis a world still rolls.
-//
-// WORLD_DRAW_TABLE is the DESIGN, two jobs only: seeding the bank and
-// standing under its assert. WORLD_DRAW_LIVE is what the rollers read.
-
-inline constexpr uint32_t SCHEME_COUNT = 4;   // indoor light schemes; sizes
-                                              // LIGHT_SCHEMES and SCHEME_NAMES
-                                              // in direction/mood.hpp
-// ATRIUM_13 — SCHEME_ATRIUM IS GONE, and the count is four again. It was a
-// fifth row that said "four downlights, straight down, every sigma 0"; the
-// entrance points at QUARTET now (A13.2) and nothing pointed at row 4 any
-// more. An authored row with no author left is not annotated, it is deleted.
-//
-// THE ROW THE ENTRANCE POINTS AT NOW. A pinned index must name its row
-// (ATRIUM_5's rule, and the reason the palette pin carried a string witness):
-// the other three schemes are positional because nothing pins them, and this
-// one is not.
-inline constexpr uint32_t SCHEME_QUARTET = 1;  // four ceiling lamps at the quarter
-                                               // points, aim drawn — the indoor default
-
-struct WorldDrawSurface {
-    float scheme_weights[SCHEME_COUNT];        // Cathedral / Quartet / Gallery / Sanctum
-};
-
-inline constexpr WorldDrawSurface WORLD_DRAW_TABLE = {
-    { 0.42f, 0.43f, 0.10f, 0.05f },          // cathedral / quartet / gallery / sanctum (ATRIUM_13 — the
-                                             // atrium's weight-0 fifth went with its row)
-};
-
-inline WorldDrawSurface WORLD_DRAW_LIVE = WORLD_DRAW_TABLE;
-static_assert(sizeof(WorldDrawSurface) == SCHEME_COUNT * sizeof(float),
-    "WORLD_DRAW_LIVE is a whole-struct copy of the design row: a field "
-    "added to one is added to the other by construction");
-static_assert(SCHEME_COUNT == 4,
-    "WORLD_DRAW_TABLE's scheme row is POSITIONAL — a new scheme needs its "
-    "column here, in the same commit");
+// THE WORLD-DRAW BANK DIED WHOLE (ONE_WORLD-II U4). WorldDrawSurface
+// held four scheme weights — Cathedral / Quartet / Gallery / Sanctum —
+// that the seed walked to pick an indoor light scheme, and its ONLY
+// declared reader was derive_indoor_lights. Bank, design table, sizing
+// constant and its four organ rows left together: rows whose author is
+// gone are the Amendment D failure, and "the mood/scheme facts" of it
+// underpriced what was actually a whole bank with one reader.
 
 // PORTAL_1's ONE DERIVATION stood here — portal_color_for, which read a
 // door's colour off its DESTINATION so the fact was derived and never

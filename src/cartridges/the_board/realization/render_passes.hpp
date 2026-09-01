@@ -1,5 +1,5 @@
 #pragma once
-#include "cartridges/the_board/realization/state.hpp"   // wgpu, GPUSpotLight (the light-VP helper's parameter)
+#include "cartridges/the_board/realization/state.hpp"   // wgpu, GPUState
 #include "cartridges/the_board/contracts/wgpu_fwd.hpp"   // wgpu handle fwds (lockstep insurance)
 #include <algorithm>   // std::max, std::min   // (impl, merged)
 #include <cmath>       // std::sqrt, std::abs, std::acos, std::tan   // (impl, merged)
@@ -12,13 +12,10 @@
 // THE MACHINE FACE (the B ruling): the realization conductor stands on MachineCtx — its nine
 // organ reaches are all machine members, byte-identical through the
 // face. The three reaches OUTSIDE the face ride the call site (the B
-// law): render_shadow_pass takes the CPU spot-light array (const
 // read), render_main_pass takes the clear color (const read) + the
 // orbs pair (render_orbs — the one sibling door). The module owns no
 // state; the two light-matrix helpers are pure math. COHORT: merged
 // at the tail after orbs/ribbon/input (render_orbs def +
-// complete organs), BEFORE merged mood (mood's spot-light applier
-// calls compute_spot_light_vp).
 // ─────────────────────────────────────────────────────────────────
 
 namespace t7 {
@@ -38,8 +35,7 @@ void record_bundles(MachineCtx* c, OrbsState& orbs_state_, OrbsDeps& orbs_deps_)
 void dispatch_compute(MachineCtx* c, wgpu::CommandEncoder& encoder);
 void dispatch_frustum_cull(MachineCtx* c, wgpu::CommandEncoder& encoder, wgpu::Queue& queue);
 // Render passes (the extras outside the machine face ride the call site)
-void render_shadow_pass(MachineCtx* c, wgpu::CommandEncoder& encoder,
-    const GPUSpotLightArray& cpuSpotLights_);
+void render_shadow_pass(MachineCtx* c, wgpu::CommandEncoder& encoder);
 template <class Enc>
 void draw_shadow_all(MachineCtx* c, Enc& pass, bool cast_terrain);
 void render_main_pass(MachineCtx* c, wgpu::CommandEncoder& encoder,
@@ -47,7 +43,6 @@ void render_main_pass(MachineCtx* c, wgpu::CommandEncoder& encoder,
     wgpu::TextureView depth,
     const float (&clearColor_)[3], OrbsState& orbs_state_, OrbsDeps& orbs_deps_);
 // Light matrix helpers (pure math — no MachineCtx)
-void compute_spot_light_vp(const GPUSpotLight& light, float* view_proj_out);
 
 
 // ═══ MODULE IMPLEMENTATION ════════════════════════════════════════
@@ -57,7 +52,7 @@ void compute_spot_light_vp(const GPUSpotLight& light, float* view_proj_out);
 // c->entities_state_ /
 // c->world_state_ / c->gol_state_ / c->ribbon_state_ /
 // c->mood_state_) and the call-site extras
-// (cpuSpotLights_ / clearColor_ / the orbs pair).
+// (clearColor_ / the orbs pair).
 
 
 // ═══ PRE-RENDER DATA PREP ════════════════════════════════════════
@@ -85,9 +80,8 @@ void compute_spot_light_vp(const GPUSpotLight& light, float* view_proj_out);
 inline void stage_draw_ledger(MachineCtx* c, OrbsState& orbs_state_) {
     GPUState& g = c->gpuState_;
 
-    // The generated geometry (the shell): its index count is
+    // (The shell's row stood here until ONE_WORLD-II U4.)
     // (maxSlot + 1) * MAX_INDICES_PER_SLOT, zero when nothing is active.
-    g.stage_draw_indexed(GPUState::DR_SHELL,  g.shell_index_count(),  1u);
 
     // The ribbon: RIBBON_1's live vertex count, and its liveness. A ribbon
     // with no rendered slot stages zero — that IS the old guard.
@@ -243,91 +237,16 @@ inline void dispatch_frustum_cull(MachineCtx* c, wgpu::CommandEncoder& encoder, 
 
 // ═══ SHADOW PASS ═════════════════════════════════════════════════
 
-inline void render_shadow_pass(MachineCtx* c, wgpu::CommandEncoder& encoder,
-    const GPUSpotLightArray& cpuSpotLights_) {
-    if (c->mood_state_.spot_light_active && cpuSpotLights_.count > 0) {
-        // ─── Two-texture atlas shadow pass (indoor) ──────────
-        static constexpr uint32_t TILE_W = Dim::SHADOW_MAP_SIZE / 2;  // half width
-        static constexpr uint32_t TILE_H = Dim::SHADOW_MAP_SIZE;      // full height
-
-        // ATLAS_1revB U2" — ONE PASS PER TEXTURE, NOT ONE PER LIGHT.
-        //
-        // The tiling is unchanged: 1024 x 2048 halves, lights 0-1 on the
-        // sun map, 2-3 on the spot atlas, each light scissored to its own
-        // half. What changed is the PASS boundary. Before, every tile was
-        // its own render pass against a shared texture, so the right-hand
-        // tile had to open with LoadOp::Load purely to preserve what the
-        // left-hand tile had already stored — and both tiles stored the
-        // whole 2048² attachment. At four lights that was 96 MiB/frame of
-        // depth traffic, of which 32 MiB was preservation Loads and 32 MiB
-        // duplicate Stores.
-        //
-        // Now each texture is cleared once, drawn for every light it owns
-        // under per-light viewports, and stored once: 96 -> 32 MiB at four
-        // lights, 48 -> 16 at two. No LoadOp::Load survives in this
-        // function. The per-light index arrives as IMMEDIATE DATA since
-        // DOMESDAY_1 B6 (it rode a dynamic offset from ATLAS_1revB D3"
-        // until then) — either way a value that can change inside a
-        // render pass, which is what makes one pass able to serve
-        // several lights; a buffer write cannot be recorded inside a
-        // render pass, and that copy is exactly what forced the split
-        // before.
-        //
-        // A pass opens only if its texture owns at least one active light.
-        const uint32_t live = (cpuSpotLights_.count < MAX_SPOT_LIGHTS)
-                            ? cpuSpotLights_.count : MAX_SPOT_LIGHTS;
-
-        // texture 0 = sun map (lights 0-1), texture 1 = spot atlas (2-3).
-        for (uint32_t tex = 0; tex < 2; tex++) {
-            const uint32_t first = tex * 2;
-            if (first >= live) break;          // this texture owns no light
-
-            wgpu::RenderPassDepthStencilAttachment depthAttachment{};
-            depthAttachment.view = (tex == 0)
-                ? c->gpuState_.shadow_map_view()
-                : c->gpuState_.spot_shadow_map_view();
-            depthAttachment.depthLoadOp = wgpu::LoadOp::Clear;
-            depthAttachment.depthStoreOp = wgpu::StoreOp::Store;
-            depthAttachment.depthClearValue = 1.0f;
-
-            wgpu::RenderPassDescriptor desc{};
-            desc.label = "Shadow Atlas";
-            desc.colorAttachmentCount = 0;
-            desc.depthStencilAttachment = &depthAttachment;
-            desc.timestampWrites = c->gpuState_.meter_arm_render(meter_row::ShadowPass);
-
-            wgpu::RenderPassEncoder pass = encoder.BeginRenderPass(&desc);
-            // LOOM_2 pass head: WORLD + FRAME + the SHADOW pair, once per
-            // pass. FRAME is rebound per light inside the loop below, so
-            // the head's offset is the placeholder record 0.
-            pass.SetBindGroup(0, c->gpuState_.world_group());
-            pass.SetBindGroup(1, c->gpuState_.frame_r_group(), 1, &kFrameSlotZero);
-            pass.SetBindGroup(2, c->gpuState_.shadow_state_group());
-            pass.SetBindGroup(3, c->gpuState_.shadow_textures_group());
-
-            for (uint32_t li = first; li < first + 2 && li < live; li++) {
-                const uint32_t within = li % 2;   // 0 = left half, 1 = right
-
-                // The light index is the one thing that distinguishes
-                // this light's draws from the last's: one rebind of group
-                // 1 at this light's record is the whole per-light traffic.
-                const uint32_t slotOffset = GPUState::shadow_slot_offset(li);
-                pass.SetBindGroup(1, c->gpuState_.frame_r_group(), 1, &slotOffset);
-
-                const float vx = static_cast<float>(within * TILE_W);
-                pass.SetViewport(vx, 0.0f, static_cast<float>(TILE_W), static_cast<float>(TILE_H), 0.0f, 1.0f);
-                pass.SetScissorRect(within * TILE_W, 0, TILE_W, TILE_H);
-
-                // THE SPOT CASTER CUT (UMBRA_4) — terrain does not cast into
-                // a spot tile. This is the whole of the edit: one argument,
-                // one site, and the revert is this word.
-                draw_shadow_all(c, pass, /*cast_terrain=*/false);
-            }
-            pass.End();
-        }
-    }
-    else {
-        // ─── Standard shadow pass (outdoor) ──────────────────
+// ONE SHADOW PASS, ONE LIGHT (ONE_WORLD-II U4). A two-texture atlas arm
+// stood in front of this one, opened when the mood set spot_light_active:
+// lights 0-1 tiled onto the sun's own map and 2-3 onto a second texture,
+// one render pass per TEXTURE with per-light viewports and scissors, the
+// light index riding immediate data. It went with the rooms it lit. The
+// sun's map is untouched — it wore a second hat as the atlas's first
+// texture, and only the hat is gone.
+inline void render_shadow_pass(MachineCtx* c, wgpu::CommandEncoder& encoder) {
+    {
+        // ─── The shadow pass ────────────────────────────────
         wgpu::RenderPassDepthStencilAttachment depthAttachment{};
         depthAttachment.view = c->gpuState_.shadow_map_view();
         depthAttachment.depthLoadOp = wgpu::LoadOp::Clear;
@@ -355,7 +274,7 @@ inline void render_shadow_pass(MachineCtx* c, wgpu::CommandEncoder& encoder,
             pass.ExecuteBundles(1, &b);
         } else {
             pass.SetBindGroup(0, c->gpuState_.world_group());
-            pass.SetBindGroup(1, c->gpuState_.frame_r_group(), 1, &kFrameSlotZero);
+            pass.SetBindGroup(1, c->gpuState_.frame_r_group());
             pass.SetBindGroup(2, c->gpuState_.shadow_state_group());
             pass.SetBindGroup(3, c->gpuState_.shadow_textures_group());
             draw_shadow_all(c, pass, /*cast_terrain=*/true);
@@ -538,7 +457,7 @@ inline void record_bundles(MachineCtx* c, OrbsState& orbs_state_, OrbsDeps& orbs
         // encodes directly when it has no bundle.
         wgpu::RenderBundleEncoder e = c->renderer_.make_main_bundle_encoder();
         e.SetBindGroup(0, c->gpuState_.world_group());
-        e.SetBindGroup(1, c->gpuState_.frame_r_group(), 1, &kFrameSlotZero);
+        e.SetBindGroup(1, c->gpuState_.frame_r_group());
         e.SetBindGroup(3, c->gpuState_.scene_textures_group());
         encode_main_opaque(c, e, orbs_state_, orbs_deps_);
         wgpu::RenderBundleDescriptor bd{};
@@ -551,7 +470,7 @@ inline void record_bundles(MachineCtx* c, OrbsState& orbs_state_, OrbsDeps& orbs
         // a bundle can carry none of those.
         wgpu::RenderBundleEncoder e = c->renderer_.make_shadow_sun_bundle_encoder();
         e.SetBindGroup(0, c->gpuState_.world_group());
-        e.SetBindGroup(1, c->gpuState_.frame_r_group(), 1, &kFrameSlotZero);
+        e.SetBindGroup(1, c->gpuState_.frame_r_group());
         e.SetBindGroup(2, c->gpuState_.shadow_state_group());
         e.SetBindGroup(3, c->gpuState_.shadow_textures_group());
         draw_shadow_all(c, e, /*cast_terrain=*/true);
@@ -632,7 +551,7 @@ inline void render_main_pass(MachineCtx* c, wgpu::CommandEncoder& encoder,
         pass.ExecuteBundles(1, &mb);
     } else {
         pass.SetBindGroup(0, c->gpuState_.world_group());
-        pass.SetBindGroup(1, c->gpuState_.frame_r_group(), 1, &kFrameSlotZero);
+        pass.SetBindGroup(1, c->gpuState_.frame_r_group());
         pass.SetBindGroup(3, c->gpuState_.scene_textures_group());
         encode_main_opaque(c, pass, orbs_state_, orbs_deps_);
     }
@@ -648,72 +567,6 @@ inline void render_main_pass(MachineCtx* c, wgpu::CommandEncoder& encoder,
 
 // ═══ LIGHT MATRIX COMPUTATION ════════════════════════════════════
 
-inline void compute_spot_light_vp(const GPUSpotLight& light, float* view_proj_out) {
-    const float* pos = light.position;
-    float ld[3] = { light.direction[0], light.direction[1], light.direction[2] };
-    float dlen = std::sqrt(ld[0] * ld[0] + ld[1] * ld[1] + ld[2] * ld[2]);
-    ld[0] /= dlen; ld[1] /= dlen; ld[2] /= dlen;
-
-    // Choose an up vector not parallel to the light direction
-    float light_up[3];
-    if (std::abs(ld[1]) > 0.99f) {
-        light_up[0] = 0.0f; light_up[1] = 0.0f; light_up[2] = 1.0f;
-    }
-    else {
-        light_up[0] = 0.0f; light_up[1] = 1.0f; light_up[2] = 0.0f;
-    }
-
-    // View matrix (look-at from light position along direction)
-    float right[3] = {
-        light_up[1] * ld[2] - light_up[2] * ld[1],
-        light_up[2] * ld[0] - light_up[0] * ld[2],
-        light_up[0] * ld[1] - light_up[1] * ld[0]
-    };
-    float rlen = std::sqrt(right[0] * right[0] + right[1] * right[1] + right[2] * right[2]);
-    right[0] /= rlen; right[1] /= rlen; right[2] /= rlen;
-
-    float up[3] = {
-        ld[1] * right[2] - ld[2] * right[1],
-        ld[2] * right[0] - ld[0] * right[2],
-        ld[0] * right[1] - ld[1] * right[0]
-    };
-
-    float tx = -(right[0] * pos[0] + right[1] * pos[1] + right[2] * pos[2]);
-    float ty = -(up[0] * pos[0] + up[1] * pos[1] + up[2] * pos[2]);
-    float tz = (ld[0] * pos[0] + ld[1] * pos[1] + ld[2] * pos[2]);
-
-    float view[16] = {
-        right[0], up[0], -ld[0], 0.0f,
-        right[1], up[1], -ld[1], 0.0f,
-        right[2], up[2], -ld[2], 0.0f,
-        tx, ty, tz, 1.0f
-    };
-
-    const float outer_half = std::acos(std::max(light.outer_cone, -0.95f));
-    const float fov = std::min(2.0f * outer_half + 0.2f, 2.8f);
-    const float near_plane = 1.0f;
-    const float far_plane = light.range + 5.0f;
-    float f = 1.0f / std::tan(fov * 0.5f);
-    float nf = 1.0f / (near_plane - far_plane);
-
-    float proj[16] = {
-        f, 0.0f, 0.0f, 0.0f,
-        0.0f, f, 0.0f, 0.0f,
-        0.0f, 0.0f, far_plane * nf, -1.0f,
-        0.0f, 0.0f, far_plane * near_plane * nf, 0.0f
-    };
-
-    // proj * view (column-major)
-    for (int col = 0; col < 4; col++) {
-        for (int row = 0; row < 4; row++) {
-            float sum = 0.0f;
-            for (int k = 0; k < 4; k++) {
-                sum += proj[k * 4 + row] * view[col * 4 + k];
-            }
-            view_proj_out[col * 4 + row] = sum;
-        }
-    }
-}
 
 
 } // namespace the_board

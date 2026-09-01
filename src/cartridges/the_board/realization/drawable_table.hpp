@@ -112,13 +112,6 @@ inline void dt_ribbon(Renderer& r, GPUState& g, Enc& p, const DrawBind& b) {
     else          r.draw_ribbon       (p, g.draw_ledger_buffer(),
                                        GPUState::draw_record_offset(GPUState::DR_RIBBON));
 }
-template <class Enc>
-inline void dt_shell(Renderer& r, GPUState& g, Enc& p, const DrawBind& b) {
-    if (b.shadow) r.draw_shadow_shell(p, g.shell_vertex_buffer(), g.shell_index_buffer(),
-                                  g.draw_ledger_buffer(), GPUState::draw_record_offset(GPUState::DR_SHELL));
-    else          r.draw_shell       (p, g.shell_vertex_buffer(), g.shell_index_buffer(),
-                                  g.draw_ledger_buffer(), GPUState::draw_record_offset(GPUState::DR_SHELL));
-}
 
 // THE CANONICAL ORDER (== the shadow order). Membership is which passes a
 // drawable belongs to.
@@ -128,7 +121,6 @@ inline const Drawable<Enc> DRAWABLES[] = {
     { "sphere",   DRAW_SHADOW | DRAW_MAIN, dt_sphere<Enc>   },
     { "monolith", DRAW_SHADOW | DRAW_MAIN, dt_monolith      },
     { "ribbon",   DRAW_SHADOW | DRAW_MAIN, dt_ribbon<Enc>   },
-    { "shell",    DRAW_SHADOW | DRAW_MAIN, dt_shell<Enc>    },
 };
 
 // Iterate the table for one pass, in canonical order, filtered by membership.

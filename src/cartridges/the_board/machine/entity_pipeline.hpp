@@ -168,15 +168,9 @@ inline bool generic_select(MachineCtx* c,
     inst.slot       = gate.slot;
     inst.tier_idx   = tier;
 
-    // ── Indoor sizing (must run before compute_solid_half so the
-    //    solid extents are derived from the scaled params). THE
-    //    INDOOR MODULE dispatches on its policy table: NATURAL
-    //    skips; EXACT and CAP run the family's adapter hook. ──
-    if (mood_def(c->mood_state_.active).shape.indoor
-        && INDOOR_TREATMENT[traits.family_id].size != IndoorSize::NATURAL
-        && adapter.apply_indoor_rescale) {
-        adapter.apply_indoor_rescale(inst, mood_def(c->mood_state_.active).shape.wall_height);
-    }
+    // (Indoor sizing ran here — the INDOOR MODULE dispatching on its
+    //  policy table to shrink a family under a ceiling. It left with the
+    //  ceilings at ONE_WORLD-II U4, and so did the adapter hook it called.)
 
     // ── Per-family derived values ──
     adapter.compute_solid_half(inst, profile);
@@ -200,7 +194,7 @@ inline bool generic_place(MachineCtx* c,
         traits.position_jitter,
         traits.rotation_prop,
         traits.grounded,   // ruling 21: the ground-claim policy, from the family's own record
-        inst.solid_half, /*containment_r*/ inst.solid_half, traits.family_id, inst.slot, inst.tier_idx);
+        inst.solid_half, traits.family_id, inst.slot, inst.tier_idx);
     if (!pos.ok) return false;
 
     inst.host_gx  = pos.host_gx;
@@ -325,11 +319,6 @@ inline constexpr uint32_t PYRAMID_INDOOR_RESCALE_PARAMS[] = {
     // ASPECT, TRUNCATION are ratios — not scaled.
 };
 
-inline void pyramid_apply_indoor_rescale(EntityInstance& inst, float ceiling_h) {
-    cap_to_ceiling(inst, ceiling_h, INDOOR_LIVE.height_cap_fraction,
-        /*current_h*/ inst.params[PyrIdx::HEIGHT],
-        PYRAMID_INDOOR_RESCALE_PARAMS);
-}
 
 inline void pyramid_compute_solid_half(EntityInstance& inst, const TierProfile&) {
     float base_half = inst.params[PyrIdx::BASE_HALF];
@@ -406,7 +395,6 @@ inline void pyramid_post_commit(MachineCtx* c, const EntityInstance& inst, wgpu:
 
 inline constexpr EntityFamilyAdapter PYRAMID_ADAPTER = {
     pyramid_run_gate,
-    pyramid_apply_indoor_rescale,
     pyramid_compute_solid_half, pyramid_compute_colors,
     pyramid_write_active, pyramid_write_gpu, pyramid_post_commit,
     pyramid_get_tier_profile,

@@ -175,11 +175,8 @@ struct EntityInstance {
 struct EntityFamilyAdapter {
     SpawnGateOutput(*run_gate)(MachineCtx* c, int32_t gx, int32_t gz);
     // Q5 retired the per-family get_theme_tier_weights fn-ptr for one
-    // shared accessor; ONE_WORLD-II U3 retired that too. Tier weights are
-    // the adapter's own, unbiased —
-    // accessor (population_themes.hpp), keyed on the family the adapter's
-    // traits already carry. No per-family plug needed.
-    void (*apply_indoor_rescale)(EntityInstance& inst, float ceiling_h);
+    // shared accessor; ONE_WORLD-II U3 retired that too, and U4 took
+    // apply_indoor_rescale. Tier weights are the adapter's own, unbiased.
     void (*compute_solid_half)(EntityInstance& inst, const TierProfile& tier);
     void (*compute_colors)(EntityInstance& inst, const EntityFamilyTraits& traits, const TierProfile& tier);
     void (*write_active)(MachineCtx* c, const EntityInstance& inst);
@@ -187,6 +184,25 @@ struct EntityFamilyAdapter {
     void (*post_commit)(MachineCtx* c, const EntityInstance& inst, wgpu::Queue& queue);
     const TierProfile& (*get_tier_profile)(uint32_t tier_idx);
 };
+
+// THE POSITIONAL NET (Amendment A, ONE_WORLD-II U4). Every adapter is a
+// constexpr aggregate initialised WITHOUT designators, so removing a
+// member re-binds every element after it to the wrong slot — and these
+// are function pointers, several of which have interchangeable-looking
+// shapes. `apply_indoor_rescale` left this struct in U4 and the compiler
+// caught the shift only because its two neighbours happened to differ in
+// arity; a slot removed between two same-shaped pointers would compile
+// clean and dispatch the wrong function forever.
+//
+// So one distinctive slot is pinned by POSITION rather than by name: a
+// member added or removed above it moves the index and fails the build
+// here, at the contract, instead of at a draw.
+static_assert(offsetof(EntityFamilyAdapter, get_tier_profile)
+              == 6 * sizeof(void(*)()),
+    "EntityFamilyAdapter is initialised POSITIONALLY by every family and its "
+    "members are interchangeable-looking function pointers: get_tier_profile "
+    "is slot 6 and a member added or removed above it silently re-binds every "
+    "adapter. Re-check every brace list before moving this struct");
 
 // ═══ DISPATCH CONTRACT (queue entries + row type) ═════════════════
 

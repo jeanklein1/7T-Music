@@ -325,11 +325,8 @@ namespace t7 {
             // depthBiasClamp (renderer.hpp), a WORLD quantity tuned at the
             // old texel; see this unit's commit body.
             constexpr uint32_t SHADOW_MAP_SIZE = 2048;
-            constexpr uint32_t MAX_POINT_LIGHTS = 8;
 
             // Indoor shell (ceiling + walls for finite indoor scenes)
-            constexpr uint32_t SHELL_MAX_VERTICES = 2048;
-            constexpr uint32_t SHELL_MAX_INDICES = 8192;
 
             // MAX_ARCH_INSTANCES and the AMG_* mesh-gen capacities stood
             // here. The catenary arch was the last family with a GPU mesh-gen
@@ -569,8 +566,18 @@ namespace t7 {
             float world_bound_min[2];         // XZ min clamp (0,0 = infinite)
             float world_bound_max[2];         // XZ max clamp (0,0 = infinite)
             uint32_t placement_patch_count;   // active patches for entity Y-correction
-            float terrain_amp_ceiling;        // max per-wave amplitude (0 = unlimited, >0 = clamp for indoor)
-            float ceiling_height;             // indoor ceiling Y (0 = no ceiling, >0 = camera Y clamp)
+            // RETIRED TO NAMED PADS (ONE_WORLD-II U4), not deleted: the
+            // indoor amplitude clamp and the camera's ceiling. Twelve bytes
+            // of hole UPSTREAM of lod_point_x (336) and checker_resultant
+            // would move every offset behind them and part a mirror no
+            // instrument reconciles. The house idiom is two fields below
+            // (_pad_pier_retired) and one above 696 (_pad_arch_slack_retired);
+            // the three real witnesses — sizeof 704, offsetof(lod_point_x)
+            // 336, and the 16-byte alignment triple — are what the pads keep
+            // true, NOT the inline offset comments in this struct's tail,
+            // which are stale by 16 and are probated in this commit.
+            float _pad_terrain_amp_ceiling_retired;
+            float _pad_ceiling_height_retired;
             float terrain_time;               // t_beats for terrain evaluation (0 = frozen, >0 = animated)
 
             // ─── Polyphony-driven band motion ────────────────────────────
@@ -615,11 +622,10 @@ namespace t7 {
             // each new zone's alive_height so the MAXIMUM realised cell lift
             // equals this exactly (it divides by the height_factor clamp
             // bound to get there). Staged by
-            // apply_mood_lighting — INDOOR_HEIGHT_CAP_FRACTION ×
-            // ceiling_height indoors, 0 elsewhere. Repurposes the last
-            // pulse pad float — no struct-size delta (the sizeof witness
-            // 560 stands).
-            float indoor_height_cap;
+            // The GoL lift cap, authored by apply_mood_lighting. A PAD
+            // TWICE OVER (ONE_WORLD-II U4): it was the last pulse pad
+            // before the indoor module repurposed it, and it is one again.
+            float _pad_indoor_height_cap_retired;
             float pulse_data[32];             // 8 × {origin_x, origin_z, onset_seconds, amplitude}
             // ─── LOD-band point position ────────────────────────────────
             // (renamed lod_pawn → lod_point: the value has been THE POINT
@@ -647,8 +653,12 @@ namespace t7 {
             //   it; nothing draws beyond it. Live-tunable.
             // veil_icing: δ — the narrow fade band [ring−δ, ring] in
             //   shade_lit (cosmetic; joins materialize inside it).
-            // veil_strength: 1 outdoors, 0 in finite/indoor (walls define
-            //   the boundary there, not fog — staged per frame by U5).
+            // veil_strength: 1 in an open world, 0 in a finite one — the
+            //   CONTAINMENT WALL defines the boundary there, not fog
+            //   (staged per frame by U5). Its predicate was always
+            //   finite_mode and never indoor, so ONE_WORLD-II U4 changed
+            //   nothing but the sentence: the rooms are gone and the
+            //   invisible wall the b3 ruling named is what remains.
             // lod0_radius: the terrain full-mesh/half-mesh split (175) —
             //   read by the CPU band AND the GPU LOD0 gate (one yardstick).
             float veil_ring;
@@ -1545,65 +1555,31 @@ namespace t7 {
             float _pad3;
         };
 
-        struct alignas(16) GPUPointLight {
-            float position[3];
-            float range;
-            float color[3];
-            float intensity;
-        };
-
-        struct alignas(16) GPUPointLightArray {
-            uint32_t count;
-            uint32_t _pad0;
-            uint32_t _pad1;
-            uint32_t _pad2;
-            GPUPointLight lights[Dim::MAX_POINT_LIGHTS];
-        };
-
-        // Spot light for indoor scenes: ceiling-mounted cone with distance falloff.
-        // Each light carries its own shadow VP for atlas shadow mapping.
-        static constexpr uint32_t MAX_SPOT_LIGHTS = 4;
-
-        struct alignas(16) GPUSpotLight {
-            float position[3];
-            float _pad0;
-            float direction[3];
-            float _pad1;
-            float color[3];
-            float intensity;
-            float inner_cone;      // cos(inner angle)
-            float outer_cone;      // cos(outer angle)
-            float range;
-            float _pad2;
-            float view_proj[16];   // perspective shadow VP for this light
-        };
-        static_assert(sizeof(GPUSpotLight) == 128, "GPUSpotLight must be 128 bytes");
-
-        struct alignas(16) GPUSpotLightArray {
-            uint32_t count;
-            uint32_t _pad0;
-            uint32_t _pad1;
-            uint32_t _pad2;
-            GPUSpotLight lights[MAX_SPOT_LIGHTS];
-        };
-        static_assert(sizeof(GPUSpotLightArray) == 16 + MAX_SPOT_LIGHTS * 128,
-            "GPUSpotLightArray layout check");
-
         // WALLET_1revA — THE LIGHTING BLOCK. One uniform binding where the
-        // fragment stage used to spend three storage seats. The three
-        // members keep their own structs and their own static_asserts
-        // above; this only gives them one home on the GPU.
+        // fragment stage used to spend three storage seats.
+        //
+        // IT HELD THREE ARRAYS AND NOW HOLDS ONE (ONE_WORLD-II U4). The
+        // SPOT array was the indoor rooms' ceiling cones, each carrying its
+        // own shadow VP for the atlas — it dies with the rooms. The POINT
+        // array died longer ago and more quietly: `points.count = 0` was
+        // the ONLY write it ever took, every frame, so 272 bytes of the
+        // most-shared uniform in the program were a permanently empty
+        // passenger. "Lighting collapses to sun + ambient" is true of the
+        // struct, not only of the shader.
+        //
+        // ONE RELAYOUT, NOT TWO. Both arrays leave in this commit because
+        // sizeof(GPULighting) is member 0 of GPUFrameR: every change to it
+        // moves vp, camera and sphere_pos behind it, in both rooms and in
+        // three keyed copies. The program's most-shared lighting struct
+        // relayouts once per campaign.
+        //
         // TWIN: world.wgsl `struct Lighting` (L3 MIRROR — same members,
         // same order, both rooms in one commit; GROWTH LAW).
         struct alignas(16) GPULighting {
             GPUDirectionalLight sun;      // offset   0, 48 B
-            GPUPointLightArray  points;   // offset  48, 272 B
-            GPUSpotLightArray   spots;    // offset 320, 528 B
         };
-        static_assert(sizeof(GPULighting) == 848, "GPULighting must be 848 bytes");
+        static_assert(sizeof(GPULighting) == 48, "GPULighting must be 48 bytes");
         static_assert(offsetof(GPULighting, sun) == 0, "Lighting.sun at 0");
-        static_assert(offsetof(GPULighting, points) == 48, "Lighting.points at 48");
-        static_assert(offsetof(GPULighting, spots) == 320, "Lighting.spots at 320");
 
         // THE DRAW PLAN (ECONOMY_1 closing arm) — CPU face of the cull
         // kernel's classification input. TWIN: world.wgsl DrawPlanParams
@@ -1669,14 +1645,6 @@ namespace t7 {
             float normal[3];
         };
 
-
-        // Indoor shell vertex: position + normal + color (no entity index).
-        // Used for ceiling, walls, and floor of indoor scenes.
-        struct ShellVertex {
-            float pos[3];
-            float normal[3];
-            float color[3];
-        };
 
         // LATTICE_1 — what the bake reads, and nothing else. `extent` was
         // always Dim::PATCH_EXTENT (make_patch_params wrote the constant);
@@ -1859,17 +1827,22 @@ namespace t7 {
         // ONE INSTANCE backs the one bind group over frameRLayout_: main
         // (vp_data / camera_state). The photographer's second instance left
         // at PRUNE_1.
+        // ONE_WORLD-II U4 SHRANK IT BY 800 BYTES. `lighting` is member 0,
+        // so the spot array (528 B) and the always-empty point array
+        // (272 B) leaving moved every offset behind it. 1040 -> 240, in
+        // both rooms, in this commit — the asserts below and world.wgsl's
+        // FrameR banner are the same fact written twice (L3).
         struct alignas(16) GPUFrameR {
             GPULighting    lighting;         //    0
-            GPUVPMatrix    vp;               //  848
-            GPUCameraState camera;           //  976
-            float          sphere_pos[3];    // 1024 — BEQ_A third passenger
-            float          _pad_sphere;      // 1036
+            GPUVPMatrix    vp;               //   48
+            GPUCameraState camera;           //  176
+            float          sphere_pos[3];    //  224 — BEQ_A third passenger
+            float          _pad_sphere;      //  236
         };
-        static_assert(sizeof(GPUFrameR) == 1040);
-        static_assert(offsetof(GPUFrameR, vp)         == 848);
-        static_assert(offsetof(GPUFrameR, camera)     == 976);
-        static_assert(offsetof(GPUFrameR, sphere_pos) == 1024);
+        static_assert(sizeof(GPUFrameR) == 240);
+        static_assert(offsetof(GPUFrameR, vp)         == 48);
+        static_assert(offsetof(GPUFrameR, camera)     == 176);
+        static_assert(offsetof(GPUFrameR, sphere_pos) == 224);
 
         // ── SCENE CONSTANTS (CHORD_4) ─────────────────────────────────
         // The render room's mood-cadence block: the tier-gains window,
@@ -1896,15 +1869,12 @@ namespace t7 {
         static_assert(offsetof(GPUSceneConstants, figure_profiles) == 192);
         static_assert(offsetof(GPUSceneConstants, ribbon)          == 4224);
         static_assert(sizeof(GPUDirectionalLight) == 48, "GPUDirectionalLight must be 48 bytes");
-        static_assert(sizeof(GPUPointLight) == 32, "GPUPointLight must be 32 bytes");
-        static_assert(sizeof(GPUPointLightArray) == 272, "GPUPointLightArray must be 272 bytes");
         static_assert(sizeof(MeshVertex) == 24, "MeshVertex must be 24 bytes");
-        // C1 (cable management): pin the GPU-written vertex formats to the vertex-buffer
-        // arrayStride the render/shadow pipelines declare — the stride is ALSO the WGSL
-        // ShellVertexInput layout, so this is the C++<->WGSL contract that
-        // was previously unguarded. (ArchVertex, the shared arch/pyramid
-        // mesh-gen format, left with the arch at ONE_WORLD-I U3.)
-        static_assert(sizeof(ShellVertex) == 36, "ShellVertex must be 36 bytes (shell/shadow VBL arrayStride = 36; WGSL ShellVertexInput)");
+        // C1 (cable management) pinned the GPU-written vertex formats to the
+        // arrayStride their pipelines declare. Both of its subjects are gone
+        // now: ArchVertex left with the arch at ONE_WORLD-I U3, ShellVertex
+        // with the rooms at ONE_WORLD-II U4. MeshVertex above carries the law
+        // forward for the formats that remain.
         static_assert(sizeof(GPUPatchParams) == 16, "LATTICE_1: the twin is 16 bytes");
         static_assert(sizeof(GPUPatchInstance) == 16, "GPUPatchInstance must be 16 bytes");
         static_assert(sizeof(GPUPatchGrid) == 16 + Dim::MAX_ACTIVE_PATCHES * 4,
@@ -1966,14 +1936,27 @@ namespace t7 {
             // THE DRAW LEDGER'S VOCABULARY (BUNDLE_1) — declared at the head
             // of the class because the members below are of these types, and
             // public because the draw sites name records by hand
-            // (GPUState::DR_SHELL). The ledger's own prose lives with its
+            // (GPUState::DR_RIBBON). The ledger's own prose lives with its
             // methods, beside reset_frustum_indirect.
+            //
+            // DR_SHELL WAS FIRST, AND LEAVING SHIFTED EVERY VALUE BEHIND IT
+            // (ONE_WORLD-II U4). A record's number IS its offset into the
+            // ledger buffer, and the draw sites name records by hand, so a
+            // silent renumber writes one family's draw args over another's
+            // and compiles clean. The net below pins two survivors by value.
             enum DrawRecord : uint32_t {
-                DR_SHELL,
                 DR_RIBBON, DR_ORBS,
                 DR_SHADOW_TERRAIN,          // both bands at LOD1 density, ONE draw
                 DR_COUNT
             };
+            // THE RENUMBER NET (Amendment A). Two survivors pinned by value,
+            // head and tail: an inserted or removed record moves at least one
+            // of them and fails the BUILD here rather than at a draw site
+            // reading another family's arguments.
+            static_assert(DR_RIBBON == 0u && DR_SHADOW_TERRAIN == 2u && DR_COUNT == 3u,
+                "DrawRecord values are draw-ledger OFFSETS and the draw sites "
+                "name them by hand: re-check every GPUState::DR_* site before "
+                "moving this enum");
             // Stride 32 (not 20) so a record starts on a readable hex-dump
             // boundary; DrawIndexedIndirect takes any 4-aligned offset.
             static constexpr uint32_t DRAW_RECORD_STRIDE = 32;
@@ -2034,13 +2017,17 @@ namespace t7 {
             wgpu::Buffer vpBuffer_;
             // CHORD_3 — FRAME R, two instances of one 1024 B block where
             // three uniform buffers stood. Inside it, WALLET_1revA's
-            // lighting still holds the ground it won: one 848 B uniform
-            // member where three storage buffers used to be.
+            // lighting still holds the ground it won: one uniform member
+            // where three storage buffers used to be — 48 B of it now that
+            // the spot and point arrays have left (ONE_WORLD-II U4).
             wgpu::Buffer frameRMainBuffer_;
-            // The light a shadow pass serves, on a dynamic-offset uniform
-            // seat: MAX_SPOT_LIGHTS records holding 0..3, written once at
-            // boot. Every group-1 render bind carries one offset.
-            wgpu::Buffer shadowSlotBuffer_;
+            // THE PROGRAM'S ONE DYNAMIC-OFFSET SEAT LEFT HERE
+            // (ONE_WORLD-II U4). shadowSlotBuffer_ held four records — the
+            // light index a shadow pass served, the index BEING the offset —
+            // and its only reader was the spot branch of shadow_light_vp.
+            // Its removal re-signs every group-1 render bind in the program,
+            // because a dynamic-offset layout demands an offset argument at
+            // EVERY SetBindGroup of that group, not only the shadow pass's.
             // ORGAN — THE LIGHTING HOME. upload_lighting stores through it,
             // so it always carries what the GPU last received and the panel
             // edits it in place. A mood change re-authors it, which is
@@ -2127,8 +2114,6 @@ namespace t7 {
             wgpu::Buffer pyramidInstancesBuffer_;  // GPU-side pyramid array for heightfield baking (LIVE)
 
             // Indoor shell (ceiling + walls)
-            wgpu::Buffer shellVertexBuffer_, shellIndexBuffer_;
-            uint32_t shellIndexCount_ = 0;
 
             // ── LOOM_2 recut strata — layouts and groups (created in
             // binding_surface.gen.inc; declared here) ──
@@ -2215,8 +2200,6 @@ namespace t7 {
 
             wgpu::Texture shadowMapTexture_;
             wgpu::TextureView shadowMapView_;
-            wgpu::Texture spotShadowMapTexture_;
-            wgpu::TextureView spotShadowMapView_;
 
             wgpu::Sampler bilinearSampler_, nearestSampler_;
             wgpu::Sampler shadowSampler_;
@@ -2405,20 +2388,16 @@ namespace t7 {
                     offsetof(GPUFrameR, sphere_pos), 3 * sizeof(float));
             }
 
-            // ATLAS_1revB U3" — stage_spot_vps and spot_vp_staging() are
-            // retired. They filled a 256-byte duplicate of bytes
-            // upload_lighting had already sent to the lighting block from the
-            // same cpuSpotLights_ array: every spot light's view_proj is a
-            // member of GPUSpotLight, at offset 320 of GPULighting. The
-            // shadow VS reads it there now, through shadow_light_vp(), which
-            // is the same array sample_spot_shadow_pcf has always indexed in
-            // the fragment stage. One fact, one home.
+            // ATLAS_1revB U3" retired stage_spot_vps and spot_vp_staging()
+            // in favour of reading each spot's view_proj where it already
+            // lived, inside the lighting block. ONE_WORLD-II U4 retired the
+            // array they argued about, so the argument is closed by
+            // subtraction: there is one light, it is the sun, and its VP
+            // lives at light_vp below.
             wgpu::Buffer vp_buffer() const { return vpBuffer_; }
             static constexpr size_t light_vp_offset() { return offsetof(GPUVPMatrix, light_vp); }
             static constexpr size_t light_vp_size() { return 16 * sizeof(float); }
 
-            // The light index rides a dynamic offset on frame R: record i holds i.
-            static constexpr uint32_t shadow_slot_offset(uint32_t light) { return light * Dim::UNIFORM_DYNAMIC_STRIDE; }
 
             // THE BATCH'S PARAMS, one contiguous write (LATTICE_1). The bake
             // reads them as a storage ARRAY indexed by workgroup_id.z, so the
@@ -2761,24 +2740,6 @@ namespace t7 {
                     configDirty_ = true;
                 }
             }
-            void set_terrain_amp_ceiling(float ceiling) {
-                if (config_.terrain_amp_ceiling != ceiling) {
-                    config_.terrain_amp_ceiling = ceiling;
-                    configDirty_ = true;
-                }
-            }
-            void set_ceiling_height(float h) {
-                if (config_.ceiling_height != h) {
-                    config_.ceiling_height = h;
-                    configDirty_ = true;
-                }
-            }
-            void set_indoor_height_cap(float cap) {
-                if (config_.indoor_height_cap != cap) {
-                    config_.indoor_height_cap = cap;
-                    configDirty_ = true;
-                }
-            }
             void set_terrain_time(float t) {
                 if (config_.terrain_time != t) {
                     config_.terrain_time = t;
@@ -2890,7 +2851,6 @@ namespace t7 {
 
             // --- Shadow pass ---
             wgpu::TextureView shadow_map_view() const { return shadowMapView_; }
-            wgpu::TextureView spot_shadow_map_view() const { return spotShadowMapView_; }
 
             // --- Mesh buffers ---
             wgpu::Buffer patch_index_buffer() const { return patchIndexBuffer_; }
@@ -3049,18 +3009,7 @@ namespace t7 {
             }
 
             // Indoor shell accessors
-            wgpu::Buffer shell_vertex_buffer() const { return shellVertexBuffer_; }
-            wgpu::Buffer shell_index_buffer() const { return shellIndexBuffer_; }
-            uint32_t shell_index_count() const { return shellIndexCount_; }
-            void set_shell_index_count(uint32_t count) { shellIndexCount_ = count; }
 
-            void upload_shell_mesh(wgpu::Queue& queue,
-                const ShellVertex* verts, uint32_t vertCount,
-                const uint32_t* indices, uint32_t idxCount) {
-                writeArray(queue, shellVertexBuffer_, verts, std::min(vertCount, Dim::SHELL_MAX_VERTICES));
-                writeArray(queue, shellIndexBuffer_, indices, std::min(idxCount, Dim::SHELL_MAX_INDICES));
-                shellIndexCount_ = idxCount;
-            }
 
             static constexpr uint32_t ribbon_vertex_count() { return Dim::RIBBON_VERTEX_COUNT; }
             wgpu::Buffer ribbon_buffer() const { return ribbonBuffer_; }
@@ -3599,20 +3548,11 @@ namespace t7 {
                     // window is gone; the matrix reaches the render stages
                     // as frame_r.vp, copied from here on the frame encoder.
                     // The compute face (g2:240 vp_data) still binds as storage.
-                // LATENT[gate-a-shared] spot_lights (SH·mb): the staging buffer half of this note is spent — ATLAS_1revB U3" retired spotVPStagingBuffer_, so what remains dedicated is spotShadowMapTexture_ (the atlas) alone; the spot array rides the frame-R block's lighting member (CHORD_3), which is exclusive-in-Render-Entity + Photographer and carries the sun and point arrays too, and the atlas is bound in Shadow Texture. Retire = re-section those groups AND split the block.
-                // CHORD_3: two instances of the 1024 B render-frame block.
+                // CHORD_3: the render-frame block.
                 // WALLET_1revA's ruling rides inside it unchanged — UNIFORM,
                 // not storage, because the whole point of the lighting block
                 // is that it stops spending F-stage storage seats.
                 frameRMainBuffer_  = makeBuffer("Frame R (Main)", sizeof(GPUFrameR), UU);
-                shadowSlotBuffer_ = makeBuffer("Shadow Slot Ring",
-                    MAX_SPOT_LIGHTS * Dim::UNIFORM_DYNAMIC_STRIDE,
-                    wgpu::BufferUsage::Uniform | wgpu::BufferUsage::CopyDst);
-                // Record i holds i, written once and never again: the light
-                // index is the OFFSET, so the contents are a constant ladder.
-                for (uint32_t i = 0; i < MAX_SPOT_LIGHTS; i++)
-                    device_.GetQueue().WriteBuffer(shadowSlotBuffer_,
-                        i * Dim::UNIFORM_DYNAMIC_STRIDE, &i, sizeof(uint32_t));
                 // PORT_3b — routed through makeBuffer like every other
                 // buffer, so the budget sees them. Same label, size and
                 // usage; the descriptor was hand-rolled only because
@@ -3717,7 +3657,6 @@ namespace t7 {
                     agentStateBuffer_ && agentStateReadbackStaging_ &&
                     cameraBuffer_ && floatingEntityBuffer_ && ringTransformsBuffer_ && ribbonSpineBuffer_ && ribbonBodyBuffer_ && fieldForcesBuffer_ && fieldBusBuffer_ &&
                     vpBuffer_ && frameRMainBuffer_ &&
-                    shadowSlotBuffer_ &&
                     tileGridBuffer_ && patchInstancesBuffer_ &&
                     patchGridBuffer_ && patchParamsBuffer_ && drawLedgerBuffer_ &&
                     agentRoomBuffer_ && sceneConstantsBuffer_ &&
@@ -3962,7 +3901,7 @@ namespace t7 {
                     q.WriteBuffer(patchIndexBufferLOD1_, 0, idx.data(), ib_bytes_u16(patchIndexCountRingZoned_));
                 }
 
-                return createSphereMesh() && createMonolithMesh() && createPyramidMesh() && createShellMesh() && createGoLZoneBuffers();
+                return createSphereMesh() && createMonolithMesh() && createPyramidMesh() && createGoLZoneBuffers();
             }
 
             bool createSphereMesh() {
@@ -4089,29 +4028,6 @@ namespace t7 {
                 return true;
             }
 
-            bool createShellMesh() {
-                // ROSTER-GATE indoor_shell (a) — SEPARABLE: skip shell VB/IB
-                // creation when disabled (zero GPU allocation, Rider A). The
-                // shell is drawn only via draw_shell / draw_shadow_shell, both
-                // of which early-return on shell_index_count==0; the count
-                // stays 0 because apply_mood_indoor_shell is (b)-gated, so the
-                // null buffers are never bound. The one SEPARABLE piece in
-                // this arc; everything else is SH·* and
-                // stays created-pristine.
-                if constexpr (!ROSTER.indoor_shell) return true;
-                shellVertexBuffer_ = makeBuffer("Shell VB",
-                    Dim::SHELL_MAX_VERTICES * sizeof(ShellVertex),
-                    wgpu::BufferUsage::Vertex | wgpu::BufferUsage::CopyDst);
-                shellIndexBuffer_ = makeBuffer("Shell IB",
-                    Dim::SHELL_MAX_INDICES * sizeof(uint32_t),
-                    wgpu::BufferUsage::Index | wgpu::BufferUsage::CopyDst);
-                if (!shellVertexBuffer_ || !shellIndexBuffer_) return false;
-                shellIndexCount_ = 0;
-                std::cout << "[GPUState] Shell buffers: "
-                    << Dim::SHELL_MAX_VERTICES << " vert, "
-                    << Dim::SHELL_MAX_INDICES << " index capacity\n";
-                return true;
-            }
 
             bool createGoLZoneBuffers() {
                 // LATENT[gate-a-shared] gol (SH·mb): zone-mesh buffers + zoneLifeTexture_ + GoL Zone group + 5 gol pipelines droppable, but zoneConfigBuffer_/zoneLifeBuffer_ are exclusive-in-Compute-Entity + Entity-Placement. Retire = re-section both groups. (Residue recipe stays the Phase-I pristine form — gol is SH, not SEP.)
@@ -4305,22 +4221,6 @@ namespace t7 {
                     shadowMapView_ = shadowMapTexture_.CreateView();
                 }
 
-                // Spot shadow atlas, SECOND texture (Depth32Float): lights
-                // 2-3, one half-width full-height tile each. The tiling is
-                // 1x2 per texture across TWO textures — this one and the sun
-                // map — for 4 spot slots, NOT a 2x2 grid in one texture. (The
-                // 2x2 grid is the retired scheme sample_spot_shadow_pcf's
-                // banner names as "the old single-texture 2×2 grid".)
-                {
-                    wgpu::TextureDescriptor desc{};
-                    desc.size = { Dim::SHADOW_MAP_SIZE, Dim::SHADOW_MAP_SIZE, 1 };
-                    desc.format = kShadowDepthFormat;   // FORMAT_1 D1
-                    desc.usage = wgpu::TextureUsage::RenderAttachment | wgpu::TextureUsage::TextureBinding;
-                    spotShadowMapTexture_ = makeTexture("Spot Shadow Atlas", desc);
-                    if (!spotShadowMapTexture_) return false;
-                    spotShadowMapView_ = spotShadowMapTexture_.CreateView();
-                }
-
                 return true;
             }
 
@@ -4493,8 +4393,6 @@ namespace t7 {
                 config_.world_bound_min[1] = 0.0f;
                 config_.world_bound_max[0] = 0.0f;
                 config_.world_bound_max[1] = 0.0f;
-                config_.terrain_amp_ceiling = 0.0f;  // 0 = unlimited (outdoor default)
-                config_.ceiling_height = 0.0f;       // 0 = no ceiling (outdoor default)
                 config_.terrain_time = 0.0f;         // 0 = frozen terrain (default)
                 // Band motion: -1 = inactive sentinel (default for all moods at boot)
                 config_.band_blend_0 = -1.0f;

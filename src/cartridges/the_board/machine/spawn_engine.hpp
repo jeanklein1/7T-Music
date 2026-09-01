@@ -255,47 +255,6 @@ inline SpawnGateOutput gate_from_traits(MachineCtx* c, int32_t gx, int32_t gz,
 // shifts the candidate to the boundary of the legal box, then
 // the existing footprint-overlap check handles any pile-ups.
 //
-// MARGIN clamps footprint_r (today's law; a collapsed box falls
-// back to the room center — max footprint at radius=1 is 65,
-// capped entities are well under that). FULL clamps
-// containment_r — the family's WHOLE extent stays inside
-// (ribbon: scaled lateral_amp + the scaled cube span) — and a
-// collapsed box SKIPS the spawn with
-// one loud line: cramming is worse than absence. FREE never
-// clamps (gol may straddle).
-inline bool indoor_bounds_clamp(MachineCtx* c, uint32_t family,
-    float footprint_r, float containment_r, float& cx, float& cz)
-{
-    if (!(c->world_state_.finite_mode && mood_def(c->mood_state_.active).shape.indoor))
-        return true;
-    const IndoorBounds bounds = INDOOR_TREATMENT[family].bounds;
-    if (bounds == IndoorBounds::FREE) return true;
-
-    float bmin = -(float)c->world_state_.finite_radius * Dim::PATCH_EXTENT;
-    float bmax = ((float)c->world_state_.finite_radius + 1.0f) * Dim::PATCH_EXTENT;
-    float clearance = INDOOR_ENTITY_WALL_MARGIN
-        + (bounds == IndoorBounds::FULL ? containment_r : footprint_r);
-    float lo = bmin + clearance;
-    float hi = bmax - clearance;
-    if (lo > hi) {
-        if (bounds == IndoorBounds::FULL) {
-            std::cout << "[DIAG:INDOOR-SKIP] " << family_short_name(family)
-                      << " containment_r=" << containment_r
-                      << " exceeds the room — spawn skipped\n";
-            return false;
-        }
-        float center = (bmin + bmax) * 0.5f;
-        cx = center;
-        cz = center;
-        return true;
-    }
-    if (cx < lo) cx = lo;
-    else if (cx > hi) cx = hi;
-    if (cz < lo) cz = lo;
-    else if (cz > hi) cz = hi;
-    return true;
-}
-
 // ── Helper 2: NegotiatePosition ─────────────────────────────
 
 inline PositionResult negotiate_position(MachineCtx* c,
@@ -303,7 +262,7 @@ inline PositionResult negotiate_position(MachineCtx* c,
     uint32_t pos_x_prop, uint32_t pos_z_prop, float jitter,
     uint32_t rotation_seed_prop,
     bool grounded,
-    float footprint_r, float containment_r, uint32_t family, uint32_t slot, uint32_t tier)
+    float footprint_r, uint32_t family, uint32_t slot, uint32_t tier)
 {
     PositionResult r{};
     r.ok = false;
@@ -313,14 +272,12 @@ inline PositionResult negotiate_position(MachineCtx* c,
         pos_x_prop, pos_z_prop, jitter, r.cx, r.cz);
     r.rotation = cpu_hash_f(seed, rotation_seed_prop) * 6.283185f;
 
-    // The indoor bounds law rides INDOOR_TREATMENT (contracts/
-    // indoor_module.hpp): MARGIN keeps the standing wall-margin
-    // clamp; FULL (ribbon on this path) clamps the caller-supplied
-    // containment extent so the whole family stays inside; FREE
-    // skips (gol never crosses this negotiation — it places by
-    // patch cell). A collapsed FULL box skips the spawn.
-    if (!indoor_bounds_clamp(c, family, footprint_r, containment_r, r.cx, r.cz))
-        return r;
+    // (The indoor bounds law ran here — INDOOR_TREATMENT's per-family
+    //  MARGIN / FULL / FREE policy, clamping a spawn off the walls or
+    //  skipping it when the room was too small for the family's whole
+    //  extent. It left with the walls at ONE_WORLD-II U4. The FINITE
+    //  containment clamp is a different law and lives in the shader,
+    //  where it always did — finite_bounds_resolve.)
 
     // 2. Separation + footprint check — GROUND CLAIM, and only for bodies
     // that touch the ground. A non-grounded family (sphere, cube) is not

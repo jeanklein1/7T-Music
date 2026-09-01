@@ -154,13 +154,6 @@ uint32_t register_footprint(MachineCtx* c, float x, float z, float radius,
 // Release by owner identity (family, slot). No index is stored anywhere — the
 // registry is scanned. See the definition for why that is the design.
 void unregister_footprint_for(MachineCtx* c, uint32_t family, uint32_t slot);
-// The indoor bounds law (INDOOR_TREATMENT.bounds — contracts/
-// indoor_module.hpp): MARGIN clamps footprint_r inside the wall
-// margin; FULL clamps containment_r (the family's whole extent);
-// FREE skips. Returns false when a FULL legal box collapses — the
-// caller skips the spawn (the loud line prints in the law).
-bool indoor_bounds_clamp(MachineCtx* c, uint32_t family,
-    float footprint_r, float containment_r, float& cx, float& cz);
 // `grounded` (ruling 21) decides whether footprint_r means anything: a family
 // registers iff its own extent touches the ground plane. FALSE skips BOTH the
 // check and the registration — the floater is neither blocked by ground nor a
@@ -174,7 +167,7 @@ PositionResult negotiate_position(MachineCtx* c,
     uint32_t pos_x_prop, uint32_t pos_z_prop, float jitter,
     uint32_t rotation_seed_prop,
     bool grounded,
-    float footprint_r, float containment_r, uint32_t family, uint32_t slot,
+    float footprint_r, uint32_t family, uint32_t slot,
     uint32_t tier = 0);
 uint32_t update_entity_draw_visibility(MachineCtx* c, wgpu::Queue& queue);
 const char* family_short_name(uint32_t family);

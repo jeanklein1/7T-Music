@@ -120,8 +120,6 @@ struct MoodState {
     // frame 1 rather than quietly wearing the sunset's.
     float fog_rest_density  = 0.0f;
     float fog_rest_color[3] = { 0.0f, 0.0f, 0.0f };
-    float terrain_amp_ceiling = 0.0f;       // mirrors GPU config.terrain_amp_ceiling
-    bool  spot_light_active = false;
 
     // ── Sun orbit (musical coupling) ──
     float sun_orbit_phase = 0.0f;
@@ -151,35 +149,24 @@ struct MoodState {
 // one home (L46). The rungs this file's own types stand on are named at
 // each type.
 
-enum class CeilingType : uint32_t {
-    NONE = 0,   // outdoor — no shell geometry
-    FLAT = 1,   // flat slab ceiling
-    VAULT = 2,   // catenary vault ceiling
-};
 
 
-// ATRIUM_5 — THE TWO PINS' SENTINELS. A shape either lets the seed draw its
-// indoor light scheme and its wall palette, or it says which. The atrium
-// says which, because "the same room for everyone" is what an entrance is;
-// every other shape rolls, as it always did.
-inline constexpr uint32_t SCHEME_ROLL  = 0xFFFFFFFFu;
-inline constexpr uint32_t PALETTE_ROLL = 0xFFFFFFFFu;
 
 // THE SHAPE — what a world IS. Structural by the eligibility rule
 // (stated beside MOOD_LIVE below): no field here may take a definition
 // target, because world GENERATION reads it, and rewriting it without
 // regenerating the world would mean nothing at best and disagree at
 // worst.
+// SIX INDOOR COLUMNS LEFT AT ONE_WORLD-II U4 — indoor, ceiling_type,
+// wall_height, terrain_amp_ceiling, light_scheme and palette. THE ROWS
+// BELOW ARE POSITIONAL BRACE-INIT WITH NO DESIGNATORS, so every one was
+// re-columned in this same commit: removing a middle column shifts every
+// later value one slot left, and `finite` and `indoor` are both bool.
+// The column-drift asserts that watched them left with them.
 struct WorldShape {
-    bool        finite;              // true = walled world with finite radius
+    bool        finite;              // true = a walled world with a finite radius
     uint32_t    finite_radius_min;   // min patch radius (when finite)
     uint32_t    finite_radius_max;   // max patch radius (when finite)
-    bool        indoor;              // true = enclosed space with ceiling
-    CeilingType ceiling_type;        // NONE / FLAT / VAULT
-    float       wall_height;         // where the VERTICAL wall stops (world units).
-                                     // NOT the ceiling on VAULT — there the ceiling is
-                                     // the crown, 47-92 against this 25. See vault_crown.
-    float       terrain_amp_ceiling; // indoor terrain-amp cap (0 = uncapped, outdoor)
     bool        allow_gol_zones;     // GoL zone spawning + visualization
     bool        allow_pawn_aura;     // toroidal spring grid tinting + height boost
     bool        allow_frustum_cull;  // STATUS: LATENT[mood_cull_opt_out] — INERT.
@@ -189,16 +176,12 @@ struct WorldShape {
                                      // indoor terrain IS culled despite the two
                                      // `false` rows below. See renderer.hpp for
                                      // the full note and the cut (OPT_1 O0-f).
-    uint32_t    light_scheme;        // ATRIUM_5 — SCHEME_ROLL: the seed rolls (scheme_weights);
-                                     // else the scheme id, pinned. Structural: drawn at apply.
-    uint32_t    palette;             // ATRIUM_5 — PALETTE_ROLL: the seed rolls INDOOR_PALETTES;
-                                     // else the row index, pinned.
 };
-// The open field, by property: neither walled nor roofed. The triad's
-// way out asks this; no id is kept for it, because the two flags already
-// say it.
+// The open field, by property. It asked two flags — neither walled nor
+// roofed — and the roof left at ONE_WORLD-II U4, so `finite` is the whole
+// question now: an open world is one without a wall.
 inline constexpr bool shape_is_open(const WorldShape& s) {
-    return !s.finite && !s.indoor;
+    return !s.finite;
 }
 
 // A REGIME (ATMOS_2) — one of up to four weighted rows a world may be
@@ -260,11 +243,11 @@ struct MoodProfile {
 // ═══ THE SHAPES ══════════════════════════════════════════════════
 // One authored home per shape. Three moods wear SHAPE_OPEN, and that
 // they are one stage is stated by this constant, not by three copies.
-//                                              fin    r_min r_max indoor ceil                wall_h amp_c  zones aura  cull   roster               scheme         palette
-inline constexpr WorldShape SHAPE_OPEN       = { false, 2,    2,    false, CeilingType::NONE,  0.0f,  0.0f,  true, true, true,  SCHEME_ROLL,   PALETTE_ROLL };
-inline constexpr WorldShape SHAPE_ROOM_FLAT  = { true,  1,    4,    true,  CeilingType::FLAT,  20.0f, 0.5f,  true, true, false, SCHEME_ROLL,   PALETTE_ROLL };
-inline constexpr WorldShape SHAPE_ROOM_VAULT = { true,  1,    4,    true,  CeilingType::VAULT, 25.0f, 0.5f,  true, true, false, SCHEME_ROLL,   PALETTE_ROLL };
-inline constexpr WorldShape SHAPE_FINITE     = { true,  1,    4,    false, CeilingType::NONE,  0.0f,  0.0f,  true, true, true,  SCHEME_ROLL,   PALETTE_ROLL };
+//                                              fin    r_min r_max  zones aura  cull
+inline constexpr WorldShape SHAPE_OPEN       = { false, 2,    2,    true,  true, true  };
+inline constexpr WorldShape SHAPE_ROOM_FLAT  = { true,  1,    4,    true,  true, false };
+inline constexpr WorldShape SHAPE_ROOM_VAULT = { true,  1,    4,    true,  true, false };
+inline constexpr WorldShape SHAPE_FINITE     = { true,  1,    4,    true,  true, true  };
 // THE ATRIUM'S SHAPE (ATRIUM_1). Radius pinned (min == max, no roll): every
 // visitor's first room is the same room. No GoL — the floor is for the images
 // and the passers. Flat ceiling, the flat room's wall. The roster is the ARC
@@ -313,7 +296,7 @@ inline constexpr WorldShape SHAPE_FINITE     = { true,  1,    4,    false, Ceili
 // bounds are asymmetric by their own formula, [-r*PE, (r+1)*PE] = [-50, 100],
 // so the pawn at the origin has 50 wu of room behind it and 100 ahead on each
 // axis — the wall behind, the arc ahead, and the long side is +X +Z.
-inline constexpr WorldShape SHAPE_ATRIUM     = { true,  1,    1,    true,  CeilingType::FLAT,  20.0f, 0.01f, false, true, false, SCHEME_QUARTET, /* warm charcoal */ 7u };
+inline constexpr WorldShape SHAPE_ATRIUM     = { true,  1,    1,    false, true, false };
 
 // ═══ THE ATMOSPHERES ═════════════════════════════════════════════
 // The carried rows are the pre-ATMOS_1 MOOD_TABLE values exactly: one
@@ -476,18 +459,10 @@ static_assert(MOOD_OPEN_SUNSET  == 0 && MOOD_INDOOR_FLAT    == 1
 // of the three agree at the same rows, so none names what another does.
 static_assert(MOOD_TABLE[MOOD_OPEN_SUNSET].shape.finite         == false, "WorldShape column drift: finite (head)");
 static_assert(MOOD_TABLE[MOOD_FINITE_OUTDOOR].shape.finite      == true,  "WorldShape column drift: finite (head)");
-static_assert(MOOD_TABLE[MOOD_OPEN_SUNSET].shape.indoor         == false, "WorldShape column drift: indoor (middle)");
-static_assert(MOOD_TABLE[MOOD_INDOOR_VAULT].shape.indoor        == true,  "WorldShape column drift: indoor (middle)");
-static_assert(MOOD_TABLE[MOOD_INDOOR_FLAT].shape.wall_height    == 20.0f, "WorldShape column drift: wall_height");
-static_assert(MOOD_TABLE[MOOD_INDOOR_VAULT].shape.wall_height   == 25.0f, "WorldShape column drift: wall_height");
 static_assert(MOOD_TABLE[MOOD_OPEN_SUNSET].shape.allow_frustum_cull == true,  "WorldShape column drift: allow_frustum_cull (tail)");
 static_assert(MOOD_TABLE[MOOD_INDOOR_FLAT].shape.allow_frustum_cull == false, "WorldShape column drift: allow_frustum_cull (tail)");
 static_assert(MOOD_TABLE[MOOD_ATRIUM].shape.finite_radius_min == MOOD_TABLE[MOOD_ATRIUM].shape.finite_radius_max,
     "WorldShape: the atrium's radius is pinned (ATRIUM_1)");
-static_assert(MOOD_TABLE[MOOD_ATRIUM].shape.palette == 7u
-           && MOOD_TABLE[MOOD_INDOOR_FLAT].shape.palette == PALETTE_ROLL
-           && MOOD_TABLE[MOOD_INDOOR_FLAT].shape.light_scheme == SCHEME_ROLL,
-    "WorldShape column drift: light_scheme / palette (tail)");
 static_assert(MOOD_TABLE[MOOD_OPEN_SUNSET].atmos.sun_direction[0]            == 0.94f,   "Atmosphere column drift: sun_direction (head)");
 static_assert(MOOD_TABLE[MOOD_OPEN_SUNSET].atmos.regime[0].sun_color[0]      == 1.0f,    "Atmosphere column drift: regime[0].sun_color");
 static_assert(MOOD_TABLE[MOOD_OPEN_SUNSET].atmos.regime[0].intensity         == 0.90f,   "Atmosphere column drift: regime[0].intensity (middle)");
@@ -510,7 +485,7 @@ static_assert(shape_is_open(MOOD_TABLE[MOOD_OPEN_SUNSET].shape)
            && shape_is_open(MOOD_TABLE[MOOD_OPEN_NOON].shape)
            && !shape_is_open(MOOD_TABLE[MOOD_FINITE_OUTDOOR].shape)
            && !shape_is_open(MOOD_TABLE[MOOD_INDOOR_FLAT].shape),
-    "ATMOS_1: sunset, night and noon wear the open shape; the rooms and the finite field do not");
+    "ATMOS_1: sunset, night and noon wear the open shape; the walled rows do not");
 
 // THE CARRY WITNESS (ATMOS_1). A carried row draws its old point value
 // exactly only if every spread is 0 and regime 0 holds the whole weight;

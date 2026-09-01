@@ -623,10 +623,11 @@ fn derive_wave_node(node: vec2<i32>, node_seed: u32, band: TerrainBand) -> WaveN
     let is_radial = hash_property(node_seed, WAVE_PROP_TYPE) > 0.5;
     let freq = abs(sample_gaussian(node_seed, WAVE_PROP_FREQ, band.freq_mean, band.freq_sigma));
     var amp = abs(sample_gaussian(node_seed, WAVE_PROP_AMP, band.amp_mean, band.amp_sigma));
-    // Indoor amplitude ceiling: clamp large waves to keep terrain gentle
-    if (config.terrain_amp_ceiling > 0.0) {
-        amp = min(amp, config.terrain_amp_ceiling);
-    }
+    // An indoor amplitude ceiling clamped large waves here — dead under an
+    // outdoor-only world, and removed as a BRANCH (ONE_WORLD-II U4). The
+    // float order of every expression around it is untouched: this
+    // derivation runs under a bit-identity discipline and is re-run
+    // identically in two rooms.
     let damping = max(abs(sample_gaussian(node_seed, WAVE_PROP_DAMPING, band.damping_mean, band.damping_sigma)), band.damping_min);
     let phase_base = hash_property(node_seed, WAVE_PROP_PHASE) * 2.0 * PI;
 
@@ -1665,8 +1666,13 @@ struct DesignConfig {
     world_bound_min: vec2<f32>,   // XZ min clamp (0,0 = infinite)
     world_bound_max: vec2<f32>,   // XZ max clamp (0,0 = infinite)
     placement_patch_count: u32,   // active patches for entity Y-correction
-    terrain_amp_ceiling: f32,     // max per-wave amplitude (0 = unlimited, >0 = clamp for indoor)
-    ceiling_height: f32,          // indoor ceiling Y for camera clamp (0 = no ceiling)
+    _pad_terrain_amp_ceiling_retired: f32,   // ONE_WORLD-II U4 — the indoor
+    _pad_ceiling_height_retired: f32,        // amp clamp and the camera's
+                                             // ceiling. RETIRED TO PADS, not
+                                             // deleted: this block's offsets
+                                             // are pinned in both rooms and a
+                                             // 12-byte hole upstream would
+                                             // move every field behind them.
     terrain_time: f32,            // t_beats for terrain evaluation (0 = frozen)
     // ─── Polyphony-driven band motion ────────────────────────────
     // Per-band blend: -1 = inactive sentinel (the evaluators skip the band); [0,1] = activation.
@@ -1699,7 +1705,7 @@ struct DesignConfig {
     // struct size delta). Order matches GPUDesignConfig in state.hpp.
     possessed_slot: u32,
     veil_dither: f32,     // THE RIM taste knob: >0.5 → icing dither-dissolves (mirror of GPUDesignConfig)
-    indoor_height_cap: f32,  // indoor cap on the GoL cell lift, 0 = disabled. READER: zone_derive_params, once per zone birth (mirror of GPUDesignConfig — last pulse pad repurposed)
+    _pad_indoor_height_cap_retired: f32,  // ONE_WORLD-II U4 — the GoL lift cap. A pad twice over: it was the last pulse pad before the indoor module repurposed it, and it is one again.
     pulse_data: array<vec4<f32>, 8>,  // each: (origin_x, origin_z, onset_seconds, amplitude)
     // CPU-banded POINT position for LOD0/LOD1 partition (renamed
     // lod_pawn → lod_point: the value has been THE POINT).
@@ -4042,47 +4048,6 @@ struct DirectionalLight {
     _pad3: f32,
 }
 
-const MAX_POINT_LIGHTS: u32 = 8u;
-
-struct PointLight {
-    position: vec3<f32>,
-    range: f32,
-    color: vec3<f32>,
-    intensity: f32,
-}
-
-struct PointLightArray {
-    count: u32,
-    _pad0: u32,
-    _pad1: u32,
-    _pad2: u32,
-    lights: array<PointLight, 8>,  // MAX_POINT_LIGHTS
-}
-
-struct SpotLight {
-    position: vec3<f32>,
-    _pad0: f32,
-    direction: vec3<f32>,
-    _pad1: f32,
-    color: vec3<f32>,
-    intensity: f32,
-    inner_cone: f32,      // cos(inner angle)
-    outer_cone: f32,      // cos(outer angle)
-    range: f32,
-    _pad2: f32,
-    view_proj: mat4x4<f32>,
-}
-
-const MAX_SPOT_LIGHTS: u32 = 4u;
-
-struct SpotLightArray {
-    count: u32,
-    _pad0: u32,
-    _pad1: u32,
-    _pad2: u32,
-    lights: array<SpotLight, 4>,
-}
-
 // WALLET_1revA — the lighting block. THREE fragment-stage storage
 // bindings became ONE uniform: the trio cost three of the entity
 // family's eight F-stage storage seats and bought nothing that one
@@ -4090,14 +4055,18 @@ struct SpotLightArray {
 // one fact, one home; only their standalone bindings died.
 //
 // Uniform-legal by construction: every member is align 16, each
-// offset is a 16-multiple, and 848 B is far under the 65,536 B
-// uniform binding cap. TWIN: GPULighting in state.hpp (L3 MIRROR,
-// static_assert(sizeof(GPULighting) == 848)).
+// offset is a 16-multiple. TWIN: GPULighting in state.hpp (L3 MIRROR,
+// static_assert(sizeof(GPULighting) == 48)).
+//
+// IT HELD THREE ARRAYS AND NOW HOLDS ONE (ONE_WORLD-II U4). The SPOT
+// array — four ceiling cones, each carrying its own shadow VP — left
+// with the indoor rooms. The POINT array left with it and for a colder
+// reason: `points.count = 0` was the only write it ever took, so 272
+// bytes of the program's most-shared uniform were a permanently empty
+// passenger. Sun and ambient are the whole of the light, in both rooms.
 struct Lighting {
     sun    : DirectionalLight,   // offset   0
-    points : PointLightArray,    // offset  48
-    spots  : SpotLightArray,     // offset 320
-}                                // size 848, uniform-legal
+}                                // size 48, uniform-legal
 
 // --- Shadow constants
 
@@ -4315,259 +4284,20 @@ fn calc_directional_light(world_pos: vec3<f32>, normal: vec3<f32>, geo_normal: v
     // geo_normal argument is unchanged and still decides the normal offset
     // wherever the taps do run. Skipping the call cannot move a pixel because
     // the pixel was never reading the call's answer.
+    // The second conjunct was `frame_r.lighting.spots.count == 0u`: it
+    // SUPPRESSED the sun's 16-tap PCF whenever spot lights were live,
+    // because indoors the sun's map was the atlas's first texture and no
+    // longer held the sun. The spots are gone, so the count was always 0
+    // and the conjunct always true — removing it is behaviour-identical
+    // (ONE_WORLD-II U4).
     var shadow = 1.0;
-    if (ndotl > 0.0 && frame_r.lighting.spots.count == 0u) {
+    if (ndotl > 0.0) {
         shadow = sample_shadow_pcf(world_pos, geo_normal);
     }
 
     return frame_r.lighting.sun.color * frame_r.lighting.sun.intensity * ndotl * shadow;
 }
 
-// --- Point Lights (diffuse only, no shadows)
-
-fn calc_point_lights(world_pos: vec3<f32>, normal: vec3<f32>) -> vec3<f32> {
-    var total = vec3(0.0);
-    let count = min(frame_r.lighting.points.count, MAX_POINT_LIGHTS);
-
-    for (var i: u32 = 0u; i < count; i++) {
-        let light = frame_r.lighting.points.lights[i];
-        let light_vec = light.position - world_pos;
-        let dist = length(light_vec);
-        let light_dir = light_vec / max(dist, 0.001);
-
-        // Smooth distance attenuation
-        let attenuation = clamp(1.0 - dist / light.range, 0.0, 1.0);
-        let attenuation_sq = attenuation * attenuation;
-
-        // Diffuse
-        let ndotl = max(dot(normal, light_dir), 0.0);
-
-        total += light.color * light.intensity * attenuation_sq * ndotl;
-    }
-    return total;
-}
-
-// --- Spot Light Shadow Sampling (perspective, two-texture atlas)
-//
-// Two full-size depth textures, each split left/right into half-width tiles:
-//   shadow_map      (repurposed sun map) → lights 0, 1
-//   spot_shadow_map                      → lights 2, 3
-// Doubles per-tile resolution vs the old single-texture 2×2 grid,
-// with zero extra VRAM — the sun map is idle during indoor moods.
-//
-// Bias strategy: NO DEPTH BIAS HERE — but there IS a normal offset, added
-// by PENUMBRA_1 P5 and described at the end of this banner. (UMBRA_6.)
-// The hand-rolled pair that used to
-// live here — a base bias divided by clip.w to compensate for hyperbolic
-// 1/z depth, plus a per-pixel slope term from the radial light direction —
-// is deleted. The rasterizer's slope-scaled bias replaces both, and on the
-// perspective question it is strictly better: bias is applied to
-// window-space z, AFTER the divide and viewport transform, so the
-// hyperbolic 1/z distribution is handled exactly where the old /clip.w was
-// a hand-rolled approximation of the same thing.
-//
-// The old term's CEILING went missing for one campaign and came back:
-// slope_bias was capped by SPOT_SLOPE_BIAS_MAX, UMBRA_6 left
-// depthBiasClamp at 0.0 (which means NO clamp, not clamp-at-zero) so the
-// grazing term ran unbounded, and PENUMBRA_1 P2 restored a ceiling. The
-// live value lives in renderer.hpp beside the assignment — not quoted
-// here, because a cross-room quotation of a C++ field is a label waiting
-// to go stale. The spot path is still not independently SIZED: it
-// inherits slopeScale from the sun pipelines through a completely
-// different projection. Jean's, at the indoor gate.
-//
-// The spot pass reuses the SAME pipelines as the sun pass, so it inherits
-// that bias without a second home.
-//
-// THERE IS NOW A NORMAL OFFSET HERE (PENUMBRA_1 P5), and the old ruling
-// against one is superseded rather than merely overruled. That ruling said
-// an offset "breaks contact shadows (disconnects pawn shadow from feet by
-// lifting the comparison point above the occluder depth)" — true of a
-// DEPTH lift, which is what this path had at the time. A normal offset
-// moves the sample POSITION along the surface instead, so it walks out of
-// the occluder's texel without lifting the comparison off contact. That is
-// the whole distinction UMBRA_7 was built on, and it applies here too.
-//
-// What genuinely blocked it was that the frustum is perspective, so texel
-// world-size is not constant. Derived per fragment below, it is.
-
-// This kernel's own footprint. NOT PCF_RADIUS_TEXELS — that is the sun's,
-// and coupling two kernels through one dial is the pattern this campaign
-// family exists to break. Derivation: 4x4 at spacing 1 with the +0.5
-// centring term puts tap centres at +-0.5 and +-1.5, and each
-// textureSampleCompare carries a 2x2 bilinear footprint reaching +-1, so
-// the kernel reaches +-2.5 texels.
-const SPOT_PCF_RADIUS_TEXELS: f32 = 2.5;
-
-// `normal` is back (PENUMBRA_1 P5) and it is the GEOMETRIC one — see
-// calc_directional_light. UMBRA_6 dropped it with the slope term that was
-// its only reader; the spot path then ran with no offset, and with a
-// constant bias that was INERT rather than absent (depthBias = 2 on a
-// float format bought 6.0e-8 NDC) until P2 deleted it outright. That
-// window was the campaign's thinnest ice.
-fn sample_spot_shadow_pcf(world_pos: vec3<f32>, geo_normal: vec3<f32>, light_index: u32) -> f32 {
-    let light = frame_r.lighting.spots.lights[light_index];
-
-    // THE SPOT NORMAL OFFSET. The frustum is perspective, so texel world-size
-    // is not constant — which is why UMBRA ruled this path offset-free. Derive
-    // it per fragment instead, from data already in hand:
-    //
-    //   f — the projection's 1/tan(halfFOV). Recovered from the matrix rather
-    //       than mirrored from the CPU: view_proj's first ROW is f * right and
-    //       right is unit, so its length IS f. (P1-D: the FOV is per-light,
-    //       computed CPU-side from light.outer_cone, and never uploaded as a
-    //       scalar — there is no constant to quote, and inventing one would
-    //       open a new L3 mirror.)
-    //   distance — radial, not axial. Slightly over-estimates inside the cone,
-    //       which is the conservative direction for an offset.
-    //   tile texels — the X axis, 1024 of them (PORT_5a: SHADOW_MAP_SIZE/2).
-    //       P1-D found the projection
-    //       carries NO aspect term (proj[0] == proj[5] == f) while the tile is
-    //       1024 x 2048, so spot texels are non-square by exactly 2x. The
-    //       handoff's rule for that case is to take the LARGER texel
-    //       world-size, and X is the coarser axis. Over-offsets on one axis
-    //       rather than under-offsetting on the other. The aspect itself is a
-    //       HORIZON item; it is not fixed here.
-    // spot_f is a DIVISOR and it is unguarded here on purpose: it is
-    // guarded by an invariant kept in another room. A zeroed view_proj
-    // would make it 0, spot_texel_world +Inf, and offset_w NaN on every
-    // zero component of geo_normal — a flat floor's (0,1,0) being the
-    // commonest indoor receiver. That cannot be reached: apply_mood_lighting
-    // (direction/mood.hpp) runs compute_spot_light_vp for every
-    // i < cpuSpotLights_.count before uploading, and calc_spot_light below
-    // bounds its loop by the same count, so every light this function is
-    // ever called for has a computed matrix. fov is clamped to <= 2.8 rad,
-    // so f = 1/tan(fov/2) >= 0.17. If that loop bound and that fill ever
-    // stop agreeing, this is where it surfaces.
-    let spot_f     = length(vec3(light.view_proj[0][0],
-                                 light.view_proj[1][0],
-                                 light.view_proj[2][0]));
-    let light_dist = distance(world_pos, light.position);
-    let spot_texel_world = 2.0 * light_dist / (spot_f * SHADOW_MAP_SIZE * 0.5);
-
-    let spot_dir = normalize(light.position - world_pos);
-    let ndotl    = clamp(dot(geo_normal, spot_dir), 0.0, 1.0);
-    let offset_w = geo_normal * (spot_texel_world * SPOT_PCF_RADIUS_TEXELS
-                                 * (0.33 + 0.67 * (1.0 - ndotl)));
-
-    // Transform to light clip space (perspective)
-    let light_clip = light.view_proj * vec4(world_pos + offset_w, 1.0);
-    let light_ndc = light_clip.xyz / light_clip.w;
-
-    // NDC to UV (flip Y), then scale + offset into atlas tile.
-    // Each texture holds 2 tiles side by side (left/right halves).
-    // Tile = half width (0.5), full height (1.0).
-    let raw_uv = vec2(
-        light_ndc.x * 0.5 + 0.5,
-        -light_ndc.y * 0.5 + 0.5
-    );
-    let within = light_index % 2u;
-    let tile_offset = vec2(f32(within) * 0.5, 0.0);
-    let shadow_uv = raw_uv * vec2(0.5, 1.0) + tile_offset;
-
-    // No bias term — it moved to the rasterizer (UMBRA_6).
-    let current_depth = light_ndc.z;
-
-    let out_of_bounds = raw_uv.x < 0.0 || raw_uv.x > 1.0 ||
-                        raw_uv.y < 0.0 || raw_uv.y > 1.0 ||
-                        current_depth < 0.0 || current_depth > 1.0;
-
-    let clamped_uv = clamp(shadow_uv,
-        tile_offset + vec2(0.001, 0.001),
-        tile_offset + vec2(0.499, 0.999));
-    // THIS CLAMP IS LOAD-BEARING. It looks like residue of the bias UMBRA_6
-    // deleted — PENUMBRA_1 P6 was written to delete it on exactly that
-    // reading — and it is not. Two reasons, either one sufficient:
-    //
-    // 1. IT IS THE MANUAL CLAMP THE FORMAT REQUIRES. Both shadow textures
-    //    are Depth32Float, a FLOATING-POINT resource. HLSL's SampleCmp
-    //    reference: on a floating-point resource "the comparison value is
-    //    not automatically clamped between 0.0 and 1.0. Therefore, a manual
-    //    clamp of the comparison value may be necessary for common
-    //    shadowing techniques." Unorm depth formats do clamp; float ones do
-    //    not, and the difference is observable on D3D12 (gpuweb#4653).
-    //
-    // 2. IT IS THE ONLY NaN SCRUBBER ON THIS PATH, and out_of_bounds cannot
-    //    be one. Every ordered comparison against NaN is false, so a NaN
-    //    current_depth makes `< 0.0 || > 1.0` FALSE and the fragment passes
-    //    the guard. clamp(NaN, 0, 1) folds to saturate/min-max, and D3D's
-    //    rule is that a min/max with one NaN operand returns the other — so
-    //    NaN becomes 0.0, the nearest depth, and the fragment reads FULLY
-    //    LIT. Without the clamp a NaN reference fails all sixteen compares
-    //    (NaN < stored is false) and the fragment reads FULLY BLACK. The
-    //    clamp is what makes this path fail open instead of fail black.
-    //
-    // Note the taps below are NOT gated by out_of_bounds — they run on every
-    // fragment and only the RETURNED value is selected, so this argument
-    // reaches the sampler on 100% of fragments, not just survivors.
-    //
-    // Cost of keeping it: zero. On D3D12 clamp(x, 0, 1) folds into the _sat
-    // destination modifier of the instruction that produces x.
-    let clamped_depth = clamp(current_depth, 0.0, 1.0);
-
-    // 4x4 PCF kernel — branch on texture (lights 0-1 on sun map, 2-3 on spot map)
-    let texel_size = 1.0 / SHADOW_MAP_SIZE;
-    var shadow: f32 = 0.0;
-    if (light_index < 2u) {
-        for (var y: i32 = -2; y <= 1; y++) {
-            for (var x: i32 = -2; x <= 1; x++) {
-                let offset = vec2(f32(x) + 0.5, f32(y) + 0.5) * texel_size;
-                shadow += textureSampleCompare(
-                    shadow_map,
-                    shadow_sampler,
-                    clamped_uv + offset,
-                    clamped_depth
-                );
-            }
-        }
-    } else {
-        for (var y: i32 = -2; y <= 1; y++) {
-            for (var x: i32 = -2; x <= 1; x++) {
-                let offset = vec2(f32(x) + 0.5, f32(y) + 0.5) * texel_size;
-                shadow += textureSampleCompare(
-                    spot_shadow_map,
-                    shadow_sampler,
-                    clamped_uv + offset,
-                    clamped_depth
-                );
-            }
-        }
-    }
-    return select(shadow / 16.0, 0.0, out_of_bounds);
-}
-
-// --- Spot Lights (cone + distance + shadow atlas, indoor moods)
-
-fn calc_spot_light(world_pos: vec3<f32>, normal: vec3<f32>, geo_normal: vec3<f32>) -> vec3<f32> {
-    var total = vec3(0.0);
-    let count = min(frame_r.lighting.spots.count, MAX_SPOT_LIGHTS);
-
-    for (var i: u32 = 0u; i < count; i++) {
-        let light = frame_r.lighting.spots.lights[i];
-        if (light.intensity <= 0.0) { continue; }
-
-        let light_vec = light.position - world_pos;
-        let dist = length(light_vec);
-        let light_dir = light_vec / max(dist, 0.001);
-
-        // Distance attenuation
-        let attenuation = clamp(1.0 - dist / light.range, 0.0, 1.0);
-        let attenuation_sq = attenuation * attenuation;
-
-        // Cone falloff
-        let spot_cos = dot(-light_dir, light.direction);
-        let cone_falloff = smoothstep(light.outer_cone, light.inner_cone, spot_cos);
-
-        // Diffuse
-        let ndotl = max(dot(normal, light_dir), 0.0);
-
-        // Per-light shadow from atlas tile
-        let shadow = sample_spot_shadow_pcf(world_pos, geo_normal, i);
-
-        total += light.color * light.intensity * attenuation_sq * cone_falloff * ndotl * shadow;
-    }
-    return total;
-}
 
 // --- Unified Shading
 // THE RIM dither knob's noise — world-space stipple so the dissolve sticks
@@ -4594,6 +4324,7 @@ fn veil_t(world_pos: vec3<f32>) -> f32 {
 // geo_normal is the GEOMETRIC normal — see calc_directional_light. Callers
 // whose shading normal IS the geometry (every entity) pass it twice; the
 // terrain passes its pre-aura normal.
+
 fn shade_lit(world_pos: vec3<f32>, normal: vec3<f32>, geo_normal: vec3<f32>, base_color: vec3<f32>, veil_scale: f32) -> vec3<f32> {
     // Ambient (always present)
     let ambient = base_color * frame_r.lighting.sun.ambient;
@@ -4601,13 +4332,10 @@ fn shade_lit(world_pos: vec3<f32>, normal: vec3<f32>, geo_normal: vec3<f32>, bas
     // Directional light with shadows
     let sun = base_color * calc_directional_light(world_pos, normal, geo_normal);
 
-    // Point lights (diffuse only)
-    let points = base_color * calc_point_lights(world_pos, normal);
-
-    // Spot light (cone + distance, indoor moods)
-    let spot = base_color * calc_spot_light(world_pos, normal, geo_normal);
-
-    let lit = ambient + sun + points + spot;
+    // SUN + AMBIENT, AND THAT IS ALL (ONE_WORLD-II U4). Two terms stood
+    // here: the point array, permanently empty, and the spot cones with
+    // their atlas PCF. Both left with the rooms.
+    let lit = ambient + sun;
 
     // Fog — the EYE-anchored atmospheric term (a view effect; stays).
     let dist = distance(world_pos, frame_r.camera.pos);
@@ -5827,31 +5555,6 @@ fn shadow_monolith_vs(@builtin(instance_index) inst: u32, in: MeshVertexInput) -
 //     PRUNE_2 excised every range above arch's, so the atlas now runs
 //     0..15 (arch) and everything above is simply unallocated.
 
-// --- Indoor Shell (ceiling + walls)
-// Pre-baked world-space geometry, no per-instance transforms.
-struct ShellVertexInput {
-    @location(0) pos: vec3<f32>,
-    @location(1) normal: vec3<f32>,
-    @location(2) color: vec3<f32>,
-};
-
-@vertex
-fn shell_vs(in: ShellVertexInput) -> EntityVarying {
-    var out: EntityVarying;
-    out.clip_pos = frame_r.vp.m * vec4(in.pos, 1.0);
-    out.world_pos = in.pos;
-    out.normal = in.normal;
-    out.entity_color = in.color;
-    return out;
-}
-
-@vertex
-fn shadow_shell_vs(in: ShellVertexInput) -> ShadowVarying {
-    var out: ShadowVarying;
-    out.clip_pos = shadow_light_vp() * vec4(in.pos, 1.0);
-    return out;
-}
-
 // §6.5 THE RIBBON ENTITY (RIBBON_1; RIBBON_2 — the wall, the sweep, the body as a thing)
 // ONE ENTITY, ONE ROOM: head, spine, body and frame live here. The CPU
 // authors INTENT — spawn, tier, colors, wave amplitudes, the wanderer's
@@ -6874,7 +6577,7 @@ fn render_pawn_vel_xz() -> vec2<f32> {
 // from vp_data / camera_state each frame — the CPU never reads
 // them). One instance backs one bind group over this layout.
 // Mirrors GPUFrameR in state.hpp BYTE-FOR-BYTE
-// (1040 B). Offsets: lighting 0, vp 848, camera 976, sphere_pos 1024.
+// (240 B). Offsets: lighting 0, vp 48, camera 176, sphere_pos 224.
 //
 // THIRD PASSENGER (BEQ_A). sphere slot 0's position — the terrain
 // fragment stage's one frame-uniform read of render_floating,
@@ -6883,47 +6586,34 @@ fn render_pawn_vel_xz() -> vec2<f32> {
 // and camera: update_sphere writes it, the frame encoder copies 12
 // bytes from Floating Entity Array offset 0 into each instance, and
 // the CPU never reads it.
+// ONE_WORLD-II U4 SHRANK IT BY 800 BYTES: `lighting` is member 0, so
+// the spot and point arrays leaving moved vp, camera and sphere_pos
+// with them. TWIN: GPUFrameR in state.hpp — 240 B, offsets vp 48,
+// camera 176, sphere_pos 224 (L3 MIRROR, both rooms this commit).
 struct FrameR {
-    lighting: Lighting,
-    vp: VPMatrix,
-    camera: CameraState,
-    sphere_pos: vec3<f32>,
-    _pad_sphere: f32,
-}
+    lighting: Lighting,          // offset   0
+    vp: VPMatrix,                // offset  48
+    camera: CameraState,         // offset 176
+    sphere_pos: vec3<f32>,       // offset 224
+    _pad_sphere: f32,            // offset 236
+}                                // size 240
 @group(1) @binding(1) var<uniform> frame_r: FrameR;
 
-// ─── THE SHADOW TILE'S LIGHT INDEX ────────────────────────────────
-// One u32 on a DYNAMIC-OFFSET uniform seat: the buffer is four
-// 256-byte records holding 0..3, written once at boot, and the shadow
-// pass rebinds group 1 with this light's offset. Every other group-1
-// render bind carries offset 0.
-//
-// WHY AN INDEX AND NOT THE MATRIX. A matrix would need the SUN's on
-// the outdoor path, and the sun VP's only writer is update_camera_vp — on
-// the GPU, every frame; a CPU-pushed matrix would give it two owners
-// at two cadences. An index has no owners and no cadence, and its
-// failure mode is a validation error rather than a wrong pixel.
-@group(1) @binding(2) var<uniform> shadow_slot: u32;
-
-// D2' — the shadow VS's light matrix, from where it already lives.
-// Outdoors (no spots) the sun VP is frame_r.vp.light_vp, written by
-// update_camera_vp and read here exactly as the 13 shadow VSes read it
-// before. Indoors it is the per-light matrix that already rides the
-// lighting buffer, the same array sample_spot_shadow_pcf indexes in the
-// fragment stage. Nothing is duplicated and nothing new is written.
+// THE SHADOW VS'S LIGHT MATRIX. It forked (ONE_WORLD-II U4): outdoors
+// the sun's VP from frame_r.vp.light_vp, indoors the per-light matrix
+// off the lighting block, selected by a u32 on the program's ONE
+// dynamic-offset uniform seat. There is one light now, so there is no
+// fork, no index and no seat — and every group-1 render bind in the
+// program sheds its offset argument with it.
 fn shadow_light_vp() -> mat4x4<f32> {
-    if (frame_r.lighting.spots.count == 0u) {
-        return frame_r.vp.light_vp;
-    }
-    return frame_r.lighting.spots.lights[shadow_slot].view_proj;
+    return frame_r.vp.light_vp;
 }
 
 // --- Render textures (Group 1: bindings 22-23, 25-27)
 @group(1) @binding(5) var bilinear_sampler: sampler;
 @group(1) @binding(6) var nearest_sampler: sampler;
-@group(3) @binding(200) var shadow_map: texture_depth_2d;           // sun shadows (outdoor) / spot atlas lights 0-1 (indoor)
+@group(3) @binding(200) var shadow_map: texture_depth_2d;           // the sun's shadows (it wore a second hat as the atlas's first texture until ONE_WORLD-II U4)
 @group(3) @binding(201) var shadow_sampler: sampler_comparison;
-@group(3) @binding(202) var spot_shadow_map: texture_depth_2d;     // spot atlas lights 2-3 (indoor)
 
 // §7.0a PATCH GENERATION BINDINGS
 
@@ -7454,11 +7144,9 @@ fn zone_derive_params(@builtin(global_invocation_id) gid: vec3<u32>) {
     // MAXIMUM realised lift exactly the cap. A cell at the top of the mask
     // range reaches exactly INDOOR_HEIGHT_CAP_FRACTION × ceiling; cells below
     // reach less, which is the mask doing its job, not the cap lying.
-    // cap == 0 is the disable sentinel — outdoor stays byte-identical.
-    if (config.indoor_height_cap > 0.0) {
-        zc.alive_height = min(zc.alive_height,
-                              config.indoor_height_cap / GOL_HEIGHT_FACTOR_MAX);
-    }
+    // The cap's own sentinel was 0 = disabled, and outdoor was already
+    // byte-identical through it; ONE_WORLD-II U4 removed the branch with
+    // the rooms that set it.
 
     // Zone origin: snap corner to the cell grid with the TIER-DERIVED
     // extent, then center (the same snap formula; extent now varies).
@@ -8967,20 +8655,24 @@ fn world_box_clamp_xz(xz: vec2<f32>, margin: f32) -> vec2<f32> {
     return p;
 }
 
-// ─── Indoor bounds resolve — walls (via the box) + ceiling ───────
+// ─── Finite bounds resolve — THE INVISIBLE WALL ──────────────────
 // Readers: update_camera_vp, update_sphere, update_cube. The 2.0 is the
-// CAMERA'S OWN margin, now stated at the call site instead of inside
-// the law — which is what let the pawn pass its own.
-fn indoor_bounds_resolve(pos: vec3<f32>) -> vec3<f32> {
+// CAMERA'S OWN margin, stated at the call site instead of inside the law
+// — which is what let the pawn pass its own.
+//
+// IT WAS CALLED indoor_bounds_resolve AND IT NEVER WAS ONE
+// (ONE_WORLD-II U4). Its body is world_box_clamp_xz over
+// config.world_bound_min/max: the CONTAINMENT clamp, which the b3 ruling
+// already named "an invisible wall, not terrain extent —
+// MOOD_FINITE_OUTDOOR is finite with no walls". It survives the rooms
+// whole and wears its honest name at last. The ceiling clamp that made
+// the old name half-true went with the ceilings; what is left is the
+// world box at the camera's margin.
+fn finite_bounds_resolve(pos: vec3<f32>) -> vec3<f32> {
     var p = pos;
-    let cxz = world_box_clamp_xz(vec2(p.x, p.z), 2.0);  // don't let the body press into walls
+    let cxz = world_box_clamp_xz(vec2(p.x, p.z), 2.0);  // don't let the body press into the wall
     p.x = cxz.x;
     p.z = cxz.y;
-    // Ceiling clamp (works for any mood with a ceiling_height > 0)
-    if (config.ceiling_height > 0.0) {
-        let ceiling_margin = 3.0;
-        p.y = min(p.y, config.ceiling_height - ceiling_margin);
-    }
     return p;
 }
 
@@ -9198,9 +8890,9 @@ fn update_camera_vp() {
             camera.pos.y = max(camera.pos.y, ground_at_cam + min_clearance);
         }
 
-        // ─── Indoor boundary clamp: stay within walls and below ceiling ──
-        // (extracted to indoor_bounds_resolve — the one law, behavior-identical)
-        camera.pos = indoor_bounds_resolve(camera.pos);
+        // ─── The finite containment clamp: stay inside the wall ──
+        // (extracted to finite_bounds_resolve — the one law, behavior-identical)
+        camera.pos = finite_bounds_resolve(camera.pos);
 
         camera_state = camera;
     }
@@ -9287,7 +8979,7 @@ fn update_sphere() {
             // bounds through the one law (margins v1 are the camera's
             // own). An orbit that crosses a wall slides along it —
             // accepted percept v1. Identity outdoors.
-            fe.pos = indoor_bounds_resolve(fe.pos);
+            fe.pos = finite_bounds_resolve(fe.pos);
 
             floating_entities.entities[slot] = fe;
         }
@@ -9716,7 +9408,7 @@ fn update_cube(@builtin(global_invocation_id) gid: vec3<u32>) {
             // own). Drift that presses into a wall slides along it;
             // home + drift stay untouched, so the clamp re-resolves
             // each frame. Identity outdoors.
-            fe.pos = indoor_bounds_resolve(fe.pos);
+            fe.pos = finite_bounds_resolve(fe.pos);
 
             // ── PLASTICITY (CONTACT_2 C1b) ─────────────────────────
             // Displacement leaks from drift (temporary) into anchor
