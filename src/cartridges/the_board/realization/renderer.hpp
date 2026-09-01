@@ -864,7 +864,13 @@ namespace t7 {
                 if (!(ROSTER.cube)) n += 3;
                 if (!(ROSTER.ribbon)) n += 3;
                 // pyramid: 0 pipelines (mesh-gen + render + shadow all cut)
-                if (!(ROSTER.gol)) n += 7;
+                // gol: NOT A ROW ANY MORE (ONE_SURFACE-II U2). Its seven
+                // were the four zone kernels plus three the family had
+                // already lost; the three that survive as the automaton's
+                // are UNGATED, because the ground has no demo bit. A world
+                // without the automaton is a world with no ground
+                // vocabulary, which is not a configuration this program
+                // has — so there is nothing here to skip.
                 if (!(ROSTER.orbs)) n += 5;
                 if (!(ROSTER.pawn_aura)) n += 1;
                 if (!(ROSTER.wanderers)) n += 1;

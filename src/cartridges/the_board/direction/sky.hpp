@@ -35,7 +35,7 @@ struct WorldState;   // patch_system.hpp — the doors read seeds/bounds (refere
 // `class Renderer;` stood here for SkyDeps::renderer_, which carried one
 // write and left with it (ONE_SURFACE-I U0). The sky reaches realization
 // through GPUState alone now.
-struct GoLState;   struct EntitiesState; struct MachineCtx;
+struct EntitiesState; struct MachineCtx;
 struct OrbsState;   struct OrbsDeps;
 struct PawnState;
 
@@ -59,7 +59,6 @@ struct SkyDeps {
     SkyState&           sky_state_;
     const WorldState&    world_state_;
     GPUState&            gpuState_;
-    GoLState&            gol_state_;         // zones_allowed — the flag channel [sky -> gol]
     float (&sunDirection_)[3];
     float (&sunColor_)[3];
     float (&clearColor_)[3];
@@ -296,7 +295,10 @@ inline void stage_world_birth(SkyDeps* c, wgpu::Queue& queue,
     MachineCtx& machine_ctx,
     OrbsState& orbs_state, OrbsDeps& orbs_deps,
     PawnState& pawn_state) {
-    c->gol_state_.zones_allowed = true;
+    // `c->gol_state_.zones_allowed = true;` STOOD HERE — the [sky -> gol]
+    // flag channel, the world's gate on new Game-of-Life zones. There are
+    // no zones to allow: the automaton is born with the world, from the
+    // world's own seed, and no gate can refuse it (ONE_SURFACE-II U2).
     apply_aura_policy(pawn_state, true);        // the pawn door; byte-identical semantics
 
     stage_sky(c, queue);                        // sun + ambient — the whole of the light now

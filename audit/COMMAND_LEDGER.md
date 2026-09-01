@@ -5,16 +5,16 @@ Read-only: a census of the program's pass and submit surface.
 
 ## Provenance
 
-Last commit touching any scanned file: `859fe6674935b323163eae6e27d92f954279c835`
-(THE DEVICE GATE: --probe=N, the gate that runs)
+Last commit touching any scanned file: `1617cc0a195412cd057b5165377d24de99053879`
+(ONE_SURFACE-II U2: the GOL family falls, and it is a TAIL CUT)
 
 | file scanned | sha256 |
 |---|---|
 | `src/cartridges/the_board/realization/render_passes.hpp` | `sha256:d00857c2e8456fc08af94cc8e97d880f5dfb956e493c4cb90bb0e5e5d49bd9fa` |
-| `src/cartridges/the_board/realization/renderer.hpp` | `sha256:b65a6ad3d0c2c1fcdfaa2d2e4c0f4b87e7929943f5c8ad77791576208ece3607` |
-| `src/cartridges/the_board/cartridge.hpp` | `sha256:f3564403b51a345f29a7c40b16405da1b10c8ec9fc5f13e4c5954f50ac1034f0` |
+| `src/cartridges/the_board/realization/renderer.hpp` | `sha256:06607597f8dc50c80f2dd99c042ba8b1d12f3caaec25640cc9e65f6755fbe84a` |
+| `src/cartridges/the_board/cartridge.hpp` | `sha256:948e7b17e7223a6c38d2228031fe04a41c43c42be5d38bc2c621f8f85b149e35` |
 | `src/cartridges/the_board/surface/patch_system.hpp` | `sha256:85947f465f0b5692500a8d4717fe646cf22b6461416f8726e34bfc8442a7bfb2` |
-| `src/cartridges/the_board/bodies/gol_zones.hpp` | `sha256:3ac4bb61f5f92de32d7e78525d24f5c597095c80a0a5a0c906b732fcdd9199dc` |
+| `src/cartridges/the_board/surface/automaton.hpp` | `sha256:e98d2e703e4b4fd148d65502565de16e9ab36babd3a09ab5759677c4962aebe4` |
 | `src/cartridges/the_board/bodies/pawn.hpp` | `sha256:7915ec242a2a3094537882c50a2980c9494e4f1460a3a2f786232b67ec6ead12` |
 | `src/cartridges/the_board/bodies/orbs.hpp` | `sha256:475d3de82ddd4d979d55ad146039937cd3316a0148466ed5c1db5566bde9a8b1` |
 | `src/the_board.cpp` | `sha256:881c85d13a689571ae69cf1fed7ac8e69d35dffd3d20750772277838498579fa` |
@@ -36,21 +36,24 @@ in `console.hpp`.
 | 2 | Frustum Cull Patches | compute | `dispatch_frustum_cull` | `src/cartridges/the_board/realization/render_passes.hpp:230` | — | — | — |
 | 3 | Shadow Pass | render | `render_shadow_pass` | `src/cartridges/the_board/realization/render_passes.hpp:272` | (none: depth-only) | Clear/Store, readOnly (absent) → `c->gpuState_.shadow_map_view()` | (no stencil aspect) |
 | 4 | Rasterized Scene | render | `render_main_pass` | `src/cartridges/the_board/realization/render_passes.hpp:541` | Clear/Store or Discard → `backbuffer or msaaColor` resolve → `backbuffer` | Clear/Discard, readOnly (absent) → `depth` | (no stencil aspect) |
-| 5 | Entity Mesh Gen | compute | `phase_entity_mesh_gen` | `src/cartridges/the_board/cartridge.hpp:2017` | — | — | — |
+| 5 | Entity Mesh Gen | compute | `phase_entity_mesh_gen` | `src/cartridges/the_board/cartridge.hpp:1994` | — | — | — |
 | 6 | Patch Bake (fused) | compute | `generate_patch_batch` | `src/cartridges/the_board/surface/patch_system.hpp:154` | — | — | — |
-| 7 | Pawn Aura | compute | `dispatch_pawn_aura` | `src/cartridges/the_board/bodies/pawn.hpp:168` | — | — | — |
-| 8 | Orb Init | compute | `dispatch_orb_init` | `src/cartridges/the_board/bodies/orbs.hpp:741` | — | — | — |
-| 9 | Orb Recolor | compute | `dispatch_orb_recolor` | `src/cartridges/the_board/bodies/orbs.hpp:762` | — | — | — |
-| 10 | Orb Copy Prev | compute | `dispatch_orb_copy_prev` | `src/cartridges/the_board/bodies/orbs.hpp:777` | — | — | — |
-| 11 | Orb Dynamics | compute | `dispatch_orb_dynamics` | `src/cartridges/the_board/bodies/orbs.hpp:796` | — | — | — |
+| 7 | Automaton Seed | compute | `birth_automaton` | `src/cartridges/the_board/surface/automaton.hpp:172` | — | — | — |
+| 8 | Automaton Sync | compute | `dispatch_automaton_sync` | `src/cartridges/the_board/surface/automaton.hpp:213` | — | — | — |
+| 9 | Automaton Evolve | compute | `dispatch_automaton_evolve` | `src/cartridges/the_board/surface/automaton.hpp:225` | — | — | — |
+| 10 | Pawn Aura | compute | `dispatch_pawn_aura` | `src/cartridges/the_board/bodies/pawn.hpp:168` | — | — | — |
+| 11 | Orb Init | compute | `dispatch_orb_init` | `src/cartridges/the_board/bodies/orbs.hpp:741` | — | — | — |
+| 12 | Orb Recolor | compute | `dispatch_orb_recolor` | `src/cartridges/the_board/bodies/orbs.hpp:762` | — | — | — |
+| 13 | Orb Copy Prev | compute | `dispatch_orb_copy_prev` | `src/cartridges/the_board/bodies/orbs.hpp:777` | — | — | — |
+| 14 | Orb Dynamics | compute | `dispatch_orb_dynamics` | `src/cartridges/the_board/bodies/orbs.hpp:796` | — | — | — |
 
-11 passes: 2 render, 9 compute.
+14 passes: 2 render, 12 compute.
 
 ## §2 — submit sites
 
 | # | receiver | enclosing function | site |
 |---|---|---|---|
-| 1 | `queue.Submit` | `birth_the_automaton` | `src/cartridges/the_board/cartridge.hpp:2089` |
+| 1 | `queue.Submit` | `birth_the_automaton` | `src/cartridges/the_board/cartridge.hpp:2066` |
 | 2 | `queue.Submit` | `build_world` | `src/cartridges/the_board/surface/patch_system.hpp:564` |
 | 3 | `app->queue.Submit` | `frame` | `src/the_board.cpp:337` |
 
@@ -80,7 +83,7 @@ every landing.
 
 | # | label | enclosing function | site |
 |---|---|---|---|
-| 1 | `"birth_the_automaton"` | `birth_the_automaton` | `src/cartridges/the_board/cartridge.hpp:2086` |
+| 1 | `"birth_the_automaton"` | `birth_the_automaton` | `src/cartridges/the_board/cartridge.hpp:2063` |
 | 2 | `"build_world"` | `build_world` | `src/cartridges/the_board/surface/patch_system.hpp:558` |
 | 3 | `"frame"` | `frame` | `src/the_board.cpp:328` |
 
@@ -140,12 +143,12 @@ PRUNE_1. Unit B4 has no token left to edit.
 
 | witness | verdict | detail |
 |---|---|---|
-| `C-1` | **PASS** | every storeOp token attributed to exactly one pass row: 4 tokens over 11 rows |
-| `C-2` | **PASS** | every pass row names its encoding function (11 rows) |
+| `C-1` | **PASS** | every storeOp token attributed to exactly one pass row: 4 tokens over 14 rows |
+| `C-2` | **PASS** | every pass row names its encoding function (14 rows) |
 | `C-3` | **PASS** | the begin_frame reconfigure branch is captured verbatim |
 | `C-4` | **PASS** | renderer.hpp encodes no pass of its own (Begin*Pass sites: 0) |
 | `C-5` | **PASS** | exactly one main scene pass row (label 'Rasterized Scene'): found 1 |
 | `C-6` | **PASS** | (a) no depth LoadOp::Load anywhere (0), no other pass names the main depth view (none); (b) Table A depth bindings are shadow_map and the console depth usage is wgpu::TextureUsage::RenderAttachment |
-| `C-7` | **PASS** | label law: every encoder-creation site (3) and pass-begin site (11) carries a label |
+| `C-7` | **PASS** | label law: every encoder-creation site (3) and pass-begin site (14) carries a label |
 | `C-8a` | **PASS** | every render-bundle encoder states colorFormatCount, depthStencilFormat and sampleCount, and carries a label (2 site(s)) |
 | `C-8b` | **PASS** | every bundle's colour declaration is internally consistent (2 site(s); the pass-format equality is textual — a pass names views, whose formats this census cannot resolve) |

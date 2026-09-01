@@ -15,15 +15,15 @@ carry those facts, or leave them in place and patch around them.
 
 | field | value |
 |---|---|
-| source commit | `d49b988d46c53d40efa17d4315c7e172573fdc8a` |
-| | ONE_SURFACE: the ledgers' stamps settle after the probe |
+| source commit | `6639ecd012f9e120962fd9435f814a4d002f78aa` |
+| | ONE_SURFACE-II U1: the Game of Life stops being a thing in the world and becomes the world's ground |
 | `src/cartridges/the_board/realization/binding_registry.hpp` | `sha256:351eccaedd6902900df3b13a57c7a818ff10cf4280debbfb9034b0ffabcfcc73` |
 | `src/cartridges/the_board/realization/world.wgsl` | `sha256:240fd76fa9104ae47fc9f33b5a9cfdcfb409329ced649b7475581cb39534af79` |
 | `src/cartridges/the_board/realization/state.hpp` | `sha256:3dfc4cf35f8c3411c01a94827ed703480cf483ee7b52a04f4e15ad3b0965b622` |
 | `src/cartridges/the_board/realization/binding_surface.gen.inc` | `sha256:10e301844bd75099919b6e0aa5b0fde9d3e723f0c59b11072bc821a4ca97e682` |
-| `src/cartridges/the_board/realization/renderer.hpp` | `sha256:b65a6ad3d0c2c1fcdfaa2d2e4c0f4b87e7929943f5c8ad77791576208ece3607` |
+| `src/cartridges/the_board/realization/renderer.hpp` | `sha256:06607597f8dc50c80f2dd99c042ba8b1d12f3caaec25640cc9e65f6755fbe84a` |
 | `tools/binding_ledger.py` | `sha256:a3c75bab894774eb0302686e5efd52275b280e14abfcf4e8753b28d5b5086692` |
-| `audit/BINDING_LEDGER.md` | `sha256:d32c26193c8e2fc29b85f5c58f7d317cf9260db47c27f233fac5cdb0e22bed93` |
+| `audit/BINDING_LEDGER.md` | `sha256:ee7db19ca602b9ea500a4d0a206ac2f5078f63fb438f87e6ea4ad14da2f52849` |
 
 `tools/binding_ledger.py` is an input because its parsers are IMPORTED,
 not copied — one parse, two artifacts, no drift between instruments.
@@ -214,7 +214,7 @@ Boundary: every occurrence of a pipeline-layout token (`std::array<wgpu::BindGro
 | `P-cnt` | bindGroupLayoutCount from the array, never a literal | 0 | — |
 | `P-dat` | bindGroupLayouts pointer | 0 | — |
 | `P-new` | pipeline layout creation, named local | 0 | — |
-| `P-for` | pipeline layout via the shared wrapper, named at creation | 14 | `wgpu::PipelineLayout frameKComputeLayout = strataLayoutFor("frameKComputeLayout", frameCLayout_, frameKStateLayout_, frameKTexturesLayout_);` — renderer.hpp:1043 |
+| `P-for` | pipeline layout via the shared wrapper, named at creation | 14 | `wgpu::PipelineLayout frameKComputeLayout = strataLayoutFor("frameKComputeLayout", frameCLayout_, frameKStateLayout_, frameKTexturesLayout_);` — renderer.hpp:1049 |
 | `P-prm` | PipelineLayout as a builder parameter (makeComputePipeline; makeShadow's nullptr-sentinel default) | 2 | `wgpu::PipelineLayout layout,` — renderer.hpp:152 |
 
 Instances: 17 over 3 idioms. Ordering observed: array, descriptor, count, layouts-pointer, create, check — except 0 block(s) declare the descriptor before the array, and 0 create(s) carry no boot check (none). Count always precedes the data pointer. Shared lists are built before any pipeline; dedicated lists sit inline beside their pipelines.
@@ -332,7 +332,7 @@ declarations: 0 (the handoff expected 0).
 
 ### (b) `.binding =` with a non-registry right side
 
-Boundary: the comment-stripped text of all 83 `*.hpp` under `src/`
+Boundary: the comment-stripped text of all 82 `*.hpp` under `src/`
 (the handoff's sweep), extended to the 8 `.cpp`/`.h`/`.cc` files
 there so a seat assignment in a translation unit cannot hide on the
 wrong extension (0 hit(s) on the extension). state.hpp is read
@@ -845,8 +845,8 @@ wrapper, 18 wrapper calls) and are not recounted here.
 
 | site (line hint) | enclosing function | idx | group member(s) | dynamic offsets |
 |---|---|---|---|---|
-| `cartridge.hpp:2019` | `phase_entity_mesh_gen` | 0 | `worldGroup_` | — |
-| `cartridge.hpp:2020` | `phase_entity_mesh_gen` | 1 | `frameCGroup_` | — |
+| `cartridge.hpp:1996` | `phase_entity_mesh_gen` | 0 | `worldGroup_` | — |
+| `cartridge.hpp:1997` | `phase_entity_mesh_gen` | 1 | `frameCGroup_` | — |
 | `orbs.hpp:743` | `dispatch_orb_init` | 0 | `worldGroup_` | — |
 | `orbs.hpp:744` | `dispatch_orb_init` | 1 | `frameCGroup_` | — |
 | `orbs.hpp:764` | `dispatch_orb_recolor` | 0 | `worldGroup_` | — |

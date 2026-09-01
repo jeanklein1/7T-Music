@@ -84,10 +84,11 @@ inline constexpr uint32_t CENSUS_LISTING_MAX = 12;
 
 // ═══ BESPOKE-FAMILY SELECTION/PLACEMENT PAYLOADS ═════════════════
 //
-// Two bespoke families (GoL, Ribbon) don't fit the
-// generic pipeline's EntityInstance shape — their selection
-// records carry family-specific fields (lattice node, wave
-// parameters). The payload DTOs AND the tagged unions
+// ONE bespoke family (the Ribbon) does not fit the generic pipeline's
+// EntityInstance shape — its selection record carries family-specific
+// fields (wave parameters). It was TWO until ONE_SURFACE-II U2: GoL's
+// pair carried a lattice node and a zone corner, and both left with the
+// islands they addressed. The payload DTOs AND the tagged unions
 // that carry them (EntityQueueEntry / PlacementEntry) live together
 // in entity_types.hpp — the contract home; a DTO that exists to
 // cross a boundary belongs to the boundary's contract. See
@@ -144,8 +145,9 @@ struct SpawnEngineState {
 // DECLARATIONS live in contracts/spawn_services.hpp (the
 // machine's decl tier) with the boundary DTOs
 // (SpawnGatePreambleResult / PositionResult / SpawnPreamble), the
-// MIN_SEPARATION and GLOBAL_ENTITY_DENSITY (gol
-// reads it pre-tail). Definitions are all below.
+// MIN_SEPARATION and GLOBAL_ENTITY_DENSITY. (The parenthetical "gol
+// reads it pre-tail" left with the family at ONE_SURFACE-II U2 — it was
+// the one caller that read the density outside the generic tail.)
 
 // ── Helper 1: SpawnGatePreamble ──────────────────────────────
 
@@ -349,7 +351,8 @@ inline uint32_t register_footprint(MachineCtx* c, float x, float z, float radius
         }
     }
     // SATURATION WAS SILENT, and which family lost was decided by PopFamily
-    // order — the tail (cube, gol) simply stopped appearing, with no
+    // order — the tail (now cube, and gol behind it until U2) simply
+    // stopped appearing, with no
     // symptom anywhere. Capacity stays 128 (ruling 8: post-SPAWN_2 occupancy
     // peaked at 65% and settles near 45%), so if this ever prints, the leak it
     // names is the thing to fix, not the number.
@@ -381,7 +384,7 @@ inline void unregister_footprint_for(MachineCtx* c, uint32_t family, uint32_t sl
 // ═══ ENTITY CENSUS ═══════════════════════════════════════════════
 
 inline const char* family_short_name(uint32_t family) {
-    static const char* NAMES[] = { "pyr", "sph", "ribn", "cube", "gol" };
+    static const char* NAMES[] = { "pyr", "sph", "ribn", "cube" };
     // F-1's ELEVENTH positional table, and until PRUNE_2 the only one with
     // no compile-time tie to PopFamily::COUNT. The runtime bound below reads
     // COUNT, not this array, so the two could disagree in silence: trim

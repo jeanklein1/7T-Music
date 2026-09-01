@@ -62,7 +62,7 @@ PHASE_DEFS = set(re.findall(r'void (phase_\w+)\s*\(', CART))
 # The roster bits (gate families must resolve to one of these).
 KNOWN_FAMILIES = {
     'pyramid',
-    'sphere', 'ribbon', 'cube', 'gol', 'pawn_aura', 'orbs',
+    'sphere', 'ribbon', 'cube', 'pawn_aura', 'orbs',
     'wanderers',
 }
 
@@ -78,17 +78,6 @@ FRAME_ROWS = {
     'pawn_aura':   [('phase_motion_bodies', {'pawn_aura'}), ('phase_pawn_aura', {'pawn_aura'})],
     'wanderers':   [('phase_respawn_agents', {'wanderers'})],
     'ribbon':      [('phase_ribbon_tick', {'ribbon'})],
-    # ONE_SURFACE-II U1 — THE GOL FAMILY HAS NO SPINE ROW, and that is
-    # the switchover stated in the gate's own language. Its two rows were
-    # phase_gol_derive_flush (the hidden second submit) and
-    # phase_gol_zone_compute; both described machinery that ran EIGHT
-    # ZONES. The Game of Life is the GROUND now — phase_automaton_step,
-    # ungated and foundational — and the ground is not a roster family.
-    # The family's remaining residue (its enum slot, its table columns,
-    # its ROSTER bit, its census row) is U2's whole unit; an empty row
-    # list is what a family with no per-frame work looks like for one
-    # commit.
-    'gol':         [],
     'orbs':        [('phase_orb_sky', {'orbs'})],
 }
 # rows whose gate is a SHARED (multi-family) organ. PRUNE_1 emptied this
@@ -141,13 +130,6 @@ GREP_MANIFEST = {
     'cube':     [('cartridge.hpp', 'mirror',    imm(r'ROSTER\.cube',    r'reconcile_cube_mirror')),
                  ('cartridge.hpp', 'teardown',  imm(r'ROSTER\.cube',    r'clear_cubes')),
                  ('cartridge.hpp', 'mesh prep', imm(r'ROSTER\.cube',    r'[^;]*?\.prepare_mesh'))],
-    # The teardown join moved with its subject (ONE_SURFACE-II U1): the
-    # verb is teardown_automaton, it lives in surface/automaton.hpp, and
-    # it is UNGATED because the ground has no ROSTER bit to gate it on —
-    # P8's law is explicit that latency is not exemption. A gated-teardown
-    # row cannot describe an ungated verb, so the family keeps only the
-    # mesh-prep row it shares with every other piece.
-    'gol':      [('cartridge.hpp', 'mesh prep', imm(r'ROSTER\.gol',     r'[^;]*?\.prepare_mesh'))],
     'pawn_aura':[('cartridge.hpp', 'teardown',  imm(r'ROSTER\.pawn_aura', r'teardown_pawn_aura'))],
     'orbs':     [('direction/sky.hpp', 'boot config', blk(r'ROSTER\.orbs', 'configure_orbs')),
                  ('organ_boundary.inc', 'organ re-speak', imm(r'ROSTER\.orbs', r'configure_orbs')),

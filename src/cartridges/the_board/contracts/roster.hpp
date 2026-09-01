@@ -55,8 +55,10 @@ struct PopFamily {
     static constexpr uint32_t SPHERE = 1;    // orbital spheres
     static constexpr uint32_t RIBBON = 2;
     static constexpr uint32_t CUBE = 3;      // hover-bob monoliths (split from legacy FLOATING)
-    static constexpr uint32_t GOL = 4;       // Game of Life / Pulse automaton zones
-    static constexpr uint32_t COUNT = 5;
+    // GOL = 4 STOOD HERE, AND IT WAS THE LAST ROW (ONE_SURFACE-II U2).
+    // The Game of Life is the GROUND now (surface/automaton.hpp), not a
+    // family the world contains.
+    static constexpr uint32_t COUNT = 4;
 };
 
 // F-1: the family ORDER is load-bearing — FIVE
@@ -93,10 +95,18 @@ struct PopFamily {
 // reshuffles — so placement priority among the survivors is unchanged,
 // exactly as in a tail cut. U3 took ARCH at index 1, so SPHERE, RIBBON,
 // CUBE and GOL each dropped one.
+//
+// ONE_SURFACE-II U2 TOOK GOL, AND IT IS THE FIRST KIND AGAIN. GOL was
+// the LAST family — index 4 of COUNT 5 — so its removal is pure
+// truncation, exactly as GALLERY's was at PRUNE_1 U6. NO SURVIVING
+// FAMILY RENUMBERS. No positional column moves relative to another.
+// Placement priority among the survivors is untouched, because nothing
+// moved. Every table below simply loses its last column, and this note
+// is here so a reader does not spend the mid-table fear on a tail cut.
 static_assert(PopFamily::PYRAMID == 0
            && PopFamily::SPHERE  == 1 && PopFamily::RIBBON  == 2
-           && PopFamily::CUBE    == 3 && PopFamily::GOL     == 4
-           && PopFamily::COUNT   == 5,
+           && PopFamily::CUBE    == 3
+           && PopFamily::COUNT   == 4,
     "PopFamily ORDER is the spawn tables' row/column contract (F-1): "
     "re-column all eleven PopFamily-ordered tables + FAMILY_DISPATCH "
     "before renumbering any family");
@@ -119,7 +129,7 @@ static_assert(PopFamily::PYRAMID == 0
 // unchanged. Reordering is a deliberate, isolated edit.
 inline constexpr uint32_t PLACEMENT_ORDER[PopFamily::COUNT] = {
     PopFamily::PYRAMID, PopFamily::SPHERE,
-    PopFamily::RIBBON,  PopFamily::CUBE,   PopFamily::GOL,
+    PopFamily::RIBBON,  PopFamily::CUBE,
 };
 
 // F-6: PLACEMENT_ORDER must be a PERMUTATION of 0..COUNT-1 — every family
@@ -144,7 +154,7 @@ static_assert(placement_order_is_permutation(),
     "or omission silently removes a family from every spawn");
 
 struct Roster {
-    bool pyramid, sphere, ribbon, cube, gol;
+    bool pyramid, sphere, ribbon, cube;
     // FEATURES (5)
     // FIVE FEATURES BECAME THREE (ONE_WORLD-II U4). spot_lights and the
     // shell went with the rooms — and this struct is initialised
@@ -160,13 +170,12 @@ struct Roster {
             case PopFamily::SPHERE:  return sphere;
             case PopFamily::RIBBON:  return ribbon;
             case PopFamily::CUBE:    return cube;
-            case PopFamily::GOL:     return gol;
             default: return true;
         }
     }
 
     constexpr bool all_enabled() const {
-        return pyramid && sphere && ribbon && cube && gol &&
+        return pyramid && sphere && ribbon && cube &&
                pawn_aura && orbs && wanderers;
     }
 
@@ -175,7 +184,7 @@ struct Roster {
     // (demos/matrix.hpp), the compile-time proof that demo=minimal
     // still equals the retired minimal.hpp.
     constexpr bool none_enabled() const {
-        return !pyramid && !sphere && !ribbon && !cube && !gol &&
+        return !pyramid && !sphere && !ribbon && !cube &&
                !pawn_aura && !orbs && !wanderers;
     }
 };

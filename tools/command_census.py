@@ -53,7 +53,10 @@ INPUTS = [
     os.path.join(BOARD, "realization", "renderer.hpp"),
     os.path.join(BOARD, "cartridge.hpp"),
     os.path.join(BOARD, "surface", "patch_system.hpp"),
-    os.path.join(BOARD, "bodies", "gol_zones.hpp"),
+    # bodies/gol_zones.hpp held the zones' four compute passes and their
+    # hidden second submit. The passes are surface/automaton.hpp's now
+    # (ONE_SURFACE-II U1) and the file is gone (U2).
+    os.path.join(BOARD, "surface", "automaton.hpp"),
     os.path.join(BOARD, "bodies", "pawn.hpp"),
     os.path.join(BOARD, "bodies", "orbs.hpp"),
     os.path.join(REPO, "src", "the_board.cpp"),

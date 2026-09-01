@@ -99,13 +99,22 @@ struct SpawnPreamble {
 //   Their diagonals were 20 (sph) and 15 (cube); ruling 22 retired them with
 //   the footprint. If floaters ever claim ground again, the values are in git
 //   and this note is what tells you they were deliberate.
+// THE GOL ROW AND COLUMN LEFT AT ONE_SURFACE-II U2, and they carried the
+// table's only two live off-diagonal values: `placing GoL near Pyr = 10`
+// (a zone kept 10 wu off a pyramid's footprint) and `placing GoL near
+// GoL = 60` (zones did not overlap each other). Both were about ISLANDS
+// CLAIMING GROUND. The automaton claims none — it is the ground — so
+// there is nothing to separate it from and nothing it can crowd.
+//
+// What is left is three self-separations and a table of zeros, which is
+// an honest picture of a world whose only ground-claiming families are
+// the pyramid and the ribbon.
 inline constexpr float MIN_SEPARATION[PopFamily::COUNT][PopFamily::COUNT] = {
-    //                near:  Pyr    Sph    Ribn   Cube   GoL
-    /* placing Pyramid  */ { 65.0f,  0.0f,  0.0f,  0.0f,  0.0f },
-    /* placing Sphere   */ {  0.0f,  0.0f,  0.0f,  0.0f,  0.0f },   // ruling 22: self-sep retired with the footprint (was 20)
-    /* placing Ribbon   */ {  0.0f,  0.0f, 40.0f,  0.0f,  0.0f },
-    /* placing Cube     */ {  0.0f,  0.0f,  0.0f,  0.0f,  0.0f },   // ruling 22: self-sep retired with the footprint (was 15)
-    /* placing GoL      */ { 10.0f,  0.0f,  0.0f,  0.0f, 60.0f },
+    //                near:  Pyr    Sph    Ribn   Cube
+    /* placing Pyramid  */ { 65.0f,  0.0f,  0.0f,  0.0f },
+    /* placing Sphere   */ {  0.0f,  0.0f,  0.0f,  0.0f },   // ruling 22: self-sep retired with the footprint (was 20)
+    /* placing Ribbon   */ {  0.0f,  0.0f, 40.0f,  0.0f },
+    /* placing Cube     */ {  0.0f,  0.0f,  0.0f,  0.0f },   // ruling 22: self-sep retired with the footprint (was 15)
 };
 
 // ═══ SPAWN SERVICES — DECLARATIONS (spawn_engine) ═════════════════

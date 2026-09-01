@@ -45,7 +45,7 @@ struct SkyState;
 struct PatchSystemState;      struct SpawnEngineState;
 struct EntitiesState;         struct SphereState;
 struct CubeBehaviorsState;    struct RibbonState;
-struct GoLState;
+
 struct TimeState;             struct PlayerState;
 struct PointState;
 class GPUState;               class Renderer;
@@ -62,7 +62,6 @@ struct MachineCtx {
     SphereState&             sphere_state_;
     CubeBehaviorsState&      cube_behaviors_state_;
     RibbonState&             ribbon_state_;
-    GoLState&                gol_state_;
     // clock + witness (read-only by census)
     const TimeState&         time_state_;
     const PlayerState&       player_;
@@ -215,35 +214,15 @@ static_assert(offsetof(EntityFamilyAdapter, get_tier_profile)
 // aggregates of built-ins, by design: the contract home carries no
 // owner vocabulary.
 
-// ── GoL (zone lattice; Conway/Pulse) ──────────────────────────────
-struct GoLSelection {
-    uint32_t seed;
-    int32_t  trigger_gx, trigger_gz;
-    uint32_t slot;
-    int32_t  zone_nx, zone_nz;     // lattice node
-    float    corner_x, corner_z;   // zone corner (cell-grid-snapped)
-    uint32_t algorithm;            // AlgorithmType::CONWAY or PULSE
-    uint32_t tier_idx;             // compound: Conway 0..GOL_TIER_COUNT-1,
-                                   // Pulse GOL_TIER_COUNT.. (gol_tier_cells decodes)
-    float    tick_period;
-    float    initial_density;
-    bool     height_enabled;
-    float    footprint_r;
-};
-
-struct GoLPlacement {
-    uint32_t slot;
-    int32_t  trigger_gx, trigger_gz;
-    int32_t  host_gx, host_gz;
-    uint32_t tier_idx;
-    float    cx, cz;               // zone center
-    int32_t  zone_nx, zone_nz;
-    float    corner_x, corner_z;
-    uint32_t algorithm;
-    float    tick_period;
-    float    initial_density;
-    bool     height_enabled;
-};
+// ── GoLSelection / GoLPlacement STOOD HERE (ONE_SURFACE-II U2) ────
+// Two boundary DTOs, thirteen and twelve fields, and every field named
+// a property of ONE ISLAND: which lattice node it grew from, which
+// patch triggered it, which of eight slots it took, where its
+// cell-snapped corner sat, which of fourteen tiers it rolled, and the
+// footprint radius it claimed against other families' ground. The
+// automaton has no node, no slot, no corner and no footprint — it is
+// the ground — so nothing crosses this boundary for it, and the
+// ONE_SURFACE-II handoff's "bespoke family" pair is down to one.
 
 // ── Ribbon ─────────────────────────────────────────────────────────
 struct RibbonSelection {
@@ -294,8 +273,7 @@ struct EntityQueueEntry {
     int32_t  gx, gz;    // trigger patch (for commit bookkeeping)
     union {
         RibbonSelection ribbon;
-        GoLSelection    gol;
-        EntityInstance   generic;    // used by all 4 generic-pipeline families
+        EntityInstance   generic;    // used by all 3 generic-pipeline families
     };
     EntityQueueEntry() : family(0), gx(0), gz(0) { std::memset(&generic, 0, sizeof(generic)); }
 };
@@ -307,8 +285,7 @@ struct PlacementEntry {
     int32_t  gx, gz;
     union {
         RibbonPlacement ribbon;
-        GoLPlacement    gol;
-        EntityInstance   generic;    // used by all 4 generic-pipeline families
+        EntityInstance   generic;    // used by all 3 generic-pipeline families
     };
     PlacementEntry() : family(0), gx(0), gz(0) { std::memset(&generic, 0, sizeof(generic)); }
 };

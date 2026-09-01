@@ -74,7 +74,6 @@
 #include "cartridges/the_board/bodies/pawn.hpp"                 // PawnState + PawnDeps + impl — MERGED single file; after renderer for Renderer/GPUState complete
 #include "cartridges/the_board/bodies/orbs.hpp"                 // OrbsState + OrbsDeps + impl — MERGED; after renderer for Renderer
 #include "cartridges/the_board/surface/automaton.hpp"            // AutomatonState + AutomatonDeps (S5) + impl — the ground's own
-#include "cartridges/the_board/bodies/gol_zones.hpp"            // GoLState + GolDeps (S5 device) + impl — MERGED; after renderer/machine/tile
 #include "coupling/visual_canvas.hpp"
 #include "cartridges/the_board/bodies/ribbon.hpp"               // RibbonState + RibbonDeps + impl — MERGED; after visual_canvas for the coupling face; after agents/cubes/spheres for the FIELD_2 mirror deps
 #include "cartridges/the_board/direction/input.hpp"             // KeyState/MouseState + InputDeps + impl — MERGED; after ribbon for RibbonState (the sky fixture); InputState graduated to spine_state
@@ -202,15 +201,10 @@ namespace t7 {
 
             //   automaton_state_ — AutomatonState: the drawn world and
             //     its tick cursor. GoLState stood here with eight zone
-            //     slots, two counters, a spawn gate and a derive queue.
+            //     slots, two counters, a spawn gate and a derive queue;
+            //     U1 took the machinery and U2 the family, so the whole
+            //     organ is these four words now.
             AutomatonState automaton_state_;
-
-            //   gol_state_ — the FAMILY's residue, and it is U2's to take.
-            //     Down to the slot flags the census reads and the
-            //     zones_allowed channel sky.hpp writes; MachineCtx and
-            //     SkyDeps still bind it because the GOL family still has a
-            //     roster slot until U2 re-columns the positional tables.
-            GoLState gol_state_;
 
             //   agent_state_ — AgentState: the 32-slot CPU mirror +
             //     respawn counters + diagnostic overrides.
@@ -410,12 +404,9 @@ namespace t7 {
             bool     slotSampleValid_ = false;
             bool meter_gpu_ = false;   // device carries timestamp-query (set at initialize)
 
-            // ROSTER-RESIDUE gol (2e) instrumentation: count of frames the GoL
-            // zone-compute block ran (the sole writer of the zone GPU buffers),
-            // and the residue-report cadence timer. Read only by the residue
-            // check when ROSTER.gol is disabled (proves the buffers pristine).
-            uint64_t rosterGolZoneRuns_ = 0;
-            float    rosterGolResidueDump_ = 0.0f;
+            // ROSTER-RESIDUE gol's two members (rosterGolZoneRuns_ and its
+            // cadence timer) left with the check that read them — see the
+            // tombstone at phase_census_dumps.
 
             // ═══ FAMILY DISPATCH TABLE ═══════════════════════════════════
             //
@@ -473,7 +464,7 @@ namespace t7 {
                 : machine_ctx_{ world_state_, tile_world_state_,
                                 sky_state_, patch_system_state_, spawn_engine_state_,
                                 entities_state_, sphere_state_, cube_behaviors_state_,
-                                ribbon_state_, gol_state_,
+                                ribbon_state_,
                                 time_state_, player_, point_, gpuState_, renderer_ }
                 , tile_world_deps_{ world_state_, gpuState_ }
                 , sphere_deps_{ time_state_ }
@@ -484,7 +475,7 @@ namespace t7 {
                 , automaton_deps_{ gpuState_, renderer_, time_state_ }
                 , ribbon_deps_{ gpuState_, time_state_, tile_world_state_, player_, point_, inputState_, world_state_, sky_state_, visual_canvas_, ribbon_amp_lat_dst_, ribbon_amp_vert_dst_, ribbon_tint_stim_dst_, ribbon_tint_mix_dst_ }
                 , input_deps_{ inputState_, keys_, mouse_, touch_, player_, world_state_, ribbon_state_, gpuState_, device_, point_, mount_, camera_ }
-                , sky_deps_{ sky_state_, world_state_, gpuState_, gol_state_, sunDirection_, sunColor_, clearColor_ } {
+                , sky_deps_{ sky_state_, world_state_, gpuState_, sunDirection_, sunColor_, clearColor_ } {
                 // THE ROOT AUTHORS THE BOOT VALUES (the demo sentence lands
                 // here, not via in-struct defaults — no include-order cable).
                 // DRAW_0: the seed is DRAWN, not authored — boot_seed()
@@ -711,7 +702,6 @@ namespace t7 {
                     mark(ROSTER.pyramid, "pyramid");
                     mark(ROSTER.sphere, "sphere");
                     mark(ROSTER.ribbon, "ribbon");       mark(ROSTER.cube, "cube");
-                    mark(ROSTER.gol, "gol");
                     mark(ROSTER.pawn_aura, "pawn_aura"); mark(ROSTER.orbs, "orbs");
                     mark(ROSTER.wanderers, "wanderers");
                     // EVERY REMAINING PIECE IS SH-SHARED (ONE_WORLD-II U4).
@@ -1678,26 +1668,17 @@ namespace t7 {
             // proof (G3, constexpr-gated intra-movement) + entity census.
             // Autonomous stdout (P6: every switch has a witness).
             void phase_census_dumps(RenderCtx&) {
-                // ROSTER-RESIDUE gol (2e) — residue recipe. When gol is
-                // disabled it is never selected (b), so zone_count stays 0 and
-                // the sole writer of the zone GPU buffers (the compute block
-                // above, guarded by zone_count>0) never runs. Prove it across
-                // frames: report pristine, and fail LOUD if either invariant
-                // is ever violated. Used at gate G3. Zero effect when enabled.
-                if constexpr (!ROSTER.gol) {
-                    if (time_state_.seconds - rosterGolResidueDump_ >= AGENT_CENSUS_INTERVAL) {
-                        if (gol_state_.zone_count != 0 || rosterGolZoneRuns_ != 0) {
-                            std::cerr << "[ROSTER residue] VIOLATION: gol disabled but zone_count="
-                                << gol_state_.zone_count << " runs=" << rosterGolZoneRuns_ << "\n";
-                        }
-                        else {
-                            std::cout << "[ROSTER residue] gol disabled: zone buffers pristine"
-                                << " (zone_count=0, zone-compute runs this session=0)\n";
-                        }
-                        rosterGolResidueDump_ = time_state_.seconds;
-                    }
-                }
-
+                // ROSTER-RESIDUE gol (2e) STOOD HERE AND WAS ALREADY A LIE
+                // BEFORE THIS UNIT (ONE_SURFACE-II U2). It proved, across
+                // frames, that a disabled gol left its GPU buffers pristine:
+                // zone_count 0 and zone-compute runs 0. Its evidence was
+                // rosterGolZoneRuns_, incremented in phase_gol_derive_flush —
+                // and U1 retired that phase with the derive seam, so the
+                // counter has had no writer since. A witness whose evidence
+                // cannot move reports PRISTINE unconditionally, which is the
+                // exact failure mode P6 exists to prevent. It leaves with the
+                // family whose residue it watched, not quietly with the
+                // phase, because saying so is the point.
                 // THE DIAL (core/instruments.hpp). Everything below this line
                 // is the PERIODIC instrument — the recurring dump and the
                 // meter table that rides its cadence — and a print is a
@@ -2005,10 +1986,6 @@ namespace t7 {
                 if constexpr (ROSTER.cube) {      // ROSTER-GATE cube (b)
                     dirty[PopFamily::CUBE] = FAMILY_DISPATCH[PopFamily::CUBE].prepare_mesh(&machine_ctx_, queue);
                     anyDirty = anyDirty || dirty[PopFamily::CUBE];
-                }
-                if constexpr (ROSTER.gol) {       // ROSTER-GATE gol (b)
-                    dirty[PopFamily::GOL] = FAMILY_DISPATCH[PopFamily::GOL].prepare_mesh(&machine_ctx_, queue);
-                    anyDirty = anyDirty || dirty[PopFamily::GOL];
                 }
                 if (anyDirty) {
                     wgpu::ComputePassDescriptor cpd{};
@@ -3029,7 +3006,6 @@ namespace t7 {
         inline uint32_t active_count_sphere (const MachineCtx* c) { return census_scan_active(c->sphere_state_.activeSpheres_); }
         inline uint32_t active_count_ribbon (const MachineCtx* c) { return census_scan_active(c->ribbon_state_.active); }
         inline uint32_t active_count_cube   (const MachineCtx* c) { return census_scan_active(c->cube_behaviors_state_.activeCubes_); }
-        inline uint32_t active_count_gol    (const MachineCtx* c) { return census_scan_active(c->gol_state_.zones); }
 
         // The slot_census row — the SAME six arrays, named once more so the
         // capacity travels with the population. Any divergence between these
@@ -3039,12 +3015,10 @@ namespace t7 {
         inline SlotCensus slot_census_sphere (const MachineCtx* c) { return census_scan_slots(c->sphere_state_.activeSpheres_); }
         inline SlotCensus slot_census_ribbon (const MachineCtx* c) { return census_scan_slots(c->ribbon_state_.active); }
         inline SlotCensus slot_census_cube   (const MachineCtx* c) { return census_scan_slots(c->cube_behaviors_state_.activeCubes_); }
-        inline SlotCensus slot_census_gol    (const MachineCtx* c) { return census_scan_slots(c->gol_state_.zones); }
 
         // ─── The table ─────────────────────────────────────────────────────
         // AXES: one row per family, POSITIONAL in PopFamily order (PYRAMID=0,
-        //   SPHERE, RIBBON, CUBE,
-        //   GOL=5) — the enum values are pinned at roster.hpp (F-1)
+        //   SPHERE, RIBBON, CUBE=3) — the enum values are pinned at roster.hpp (F-1)
         //   and every row's trailing name string is boot-checked against
         //   family_short_name by validate_spine (F-2), so a row swap fails
         //   LOUD. Row columns (FamilyDispatch, entity_types.hpp):
@@ -3079,13 +3053,11 @@ namespace t7 {
               slot_census_cube,
               CUBE_TRAITS.grounded,      // false — hovers and drifts, claims no ground
               "cube" },  // no CPU mesh gen — GPU compute handles update_cube
-            { dispatch_select_gol, dispatch_place_gol, dispatch_commit_gol,
-              dispatch_prepare_mesh_none, dispatch_mesh_gen_none,
-              active_count_gol,
-              slot_census_gol,
-              true,   // registers directly, gol_zones.hpp (no TRAITS object)
-              "gol" },   // mesh hook → none-fork: GoL has no mesh — the zone IS
-                         // the ground (UNIFIED_GROUND_1); the lift rides the card's .a
+            // THE GOL ROW LEFT AT ONE_SURFACE-II U2, and it was the LAST
+            // row — a tail cut, so no surviving row moved. Its own trailing
+            // comment had already written this unit's argument a campaign
+            // early: "the zone IS the ground". U1 made that literally true,
+            // and a family whose members are the ground is not a family.
         };
     } // namespace the_board
 } // namespace t7

@@ -14,12 +14,12 @@ merge rows the API charges separately.
 | field | value |
 |---|---|
 | demo column censused | `full` |
-| source commit | `25a4fa735135fa632c1de6bc3058261abc746540` |
-| | ONE_SURFACE: the held rulings, made |
+| source commit | `6639ecd012f9e120962fd9435f814a4d002f78aa` |
+| | ONE_SURFACE-II U1: the Game of Life stops being a thing in the world and becomes the world's ground |
 | `src/cartridges/the_board/realization/state.hpp` | `sha256:3dfc4cf35f8c3411c01a94827ed703480cf483ee7b52a04f4e15ad3b0965b622` |
 | `src/cartridges/the_board/realization/binding_surface.gen.inc` | `sha256:10e301844bd75099919b6e0aa5b0fde9d3e723f0c59b11072bc821a4ca97e682` |
 | `src/cartridges/the_board/realization/binding_registry.hpp` | `sha256:351eccaedd6902900df3b13a57c7a818ff10cf4280debbfb9034b0ffabcfcc73` |
-| `src/cartridges/the_board/realization/renderer.hpp` | `sha256:b65a6ad3d0c2c1fcdfaa2d2e4c0f4b87e7929943f5c8ad77791576208ece3607` |
+| `src/cartridges/the_board/realization/renderer.hpp` | `sha256:06607597f8dc50c80f2dd99c042ba8b1d12f3caaec25640cc9e65f6755fbe84a` |
 | `src/cartridges/the_board/realization/world.wgsl` | `sha256:240fd76fa9104ae47fc9f33b5a9cfdcfb409329ced649b7475581cb39534af79` |
 
 
@@ -31,7 +31,7 @@ only — `draw_orbs` is called from `bodies/orbs.hpp`, not from
 |---|---|
 | `src/cartridges/the_board/bodies/orbs.hpp` | `475d3de82ddd4d979d55ad146039937cd3316a0148466ed5c1db5566bde9a8b1` |
 | `src/cartridges/the_board/bodies/pawn.hpp` | `7915ec242a2a3094537882c50a2980c9494e4f1460a3a2f786232b67ec6ead12` |
-| `src/cartridges/the_board/cartridge.hpp` | `f3564403b51a345f29a7c40b16405da1b10c8ec9fc5f13e4c5954f50ac1034f0` |
+| `src/cartridges/the_board/cartridge.hpp` | `948e7b17e7223a6c38d2228031fe04a41c43c42be5d38bc2c621f8f85b149e35` |
 | `src/cartridges/the_board/realization/render_passes.hpp` | `d00857c2e8456fc08af94cc8e97d880f5dfb956e493c4cb90bb0e5e5d49bd9fa` |
 | `src/cartridges/the_board/surface/automaton.hpp` | `e98d2e703e4b4fd148d65502565de16e9ab36babd3a09ab5759677c4962aebe4` |
 | `src/cartridges/the_board/surface/patch_system.hpp` | `85947f465f0b5692500a8d4717fe646cf22b6461416f8726e34bfc8442a7bfb2` |
@@ -874,8 +874,8 @@ one column that can.
 |---|---|---|---|---|---|
 | `(file banner)` | file | `src/cartridges/the_board/realization/binding_registry.hpp` | 1 | `law-ref`, `witness` | banner |
 | `patch_instances` | registry constant | `src/cartridges/the_board/realization/binding_registry.hpp` | 80 | `law-ref` | A:proximity |
-| `shadowPatchTerrainPipeline_` | pipeline | `src/cartridges/the_board/realization/renderer.hpp` | 1817 | `measured` | A:proximity |
-| `shadowPawnPipeline_` | pipeline | `src/cartridges/the_board/realization/renderer.hpp` | 1820 | `measured` | A:proximity |
+| `shadowPatchTerrainPipeline_` | pipeline | `src/cartridges/the_board/realization/renderer.hpp` | 1823 | `measured` | A:proximity |
+| `shadowPawnPipeline_` | pipeline | `src/cartridges/the_board/realization/renderer.hpp` | 1826 | `measured` | A:proximity |
 | `(file banner)` | file | `src/cartridges/the_board/realization/state.hpp` | 1 | `law-ref` | banner |
 | `Frame R Layout` | layout | `src/cartridges/the_board/realization/state.hpp` | 4477 | `law-ref` | A:proximity, B:named |
 | `Agents State Layout entries[7]` | layout entry | `src/cartridges/the_board/realization/state.hpp` | 4567 | `law-ref` | A:proximity |

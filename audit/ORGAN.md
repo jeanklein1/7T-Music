@@ -376,7 +376,7 @@ reader — the class of defect this witness exists to catch.
   AGENT_BEHAVIORS      definition=1 seed=10 comment=7             
   AGENTS_TABLE         definition=1 seed=1 comment=1              
   AGENT_TIER_GAINS     definition=1 seed=4 static_assert=2 comment=6 
-  ATMOS_TABLE          definition=1 seed=1 static_assert=8 comment=8 
+  ATMOS_TABLE          definition=1 seed=1 static_assert=8 comment=7 
   CANVAS_TABLE         definition=1 seed=1 comment=1              
   CUBE_TABLE           definition=1 seed=1 static_assert=3 comment=1 
   DRIVER_TABLE         definition=1 seed=1 comment=1              
