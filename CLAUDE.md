@@ -38,6 +38,9 @@ docs/reference/DAWN_REFERENCE.md. `the-board-vs` is the same program on
 the Visual Studio multi-config lane, where `--config Debug` is the
 diagnostic build; `-meter` arms the frame meter and `the-board-minimal`
 selects the minimal demo column, both on the Ninja lane at Release.
+`the-board --scene=<file>` applies a scene through the organ and watches
+it (any text editor is a control surface), and a stdin REPL answers
+`help` — `list / get / set / doors / door / export / import / probe`.
 `the-board --probe=N` is THE DEVICE GATE: it boots, runs N frames and
 exits on the device's own verdict (`PROBE GREEN`, exit 0 / the first
 error verbatim, exit nonzero). No constructive GPU work ships unprobed.
@@ -69,12 +72,17 @@ error verbatim, exit nonzero). No constructive GPU work ships unprobed.
 Run from the repo root. Jean runs glaw1, the build and the probe; the rest
 run anywhere python3 and clang++ do.
 
-**EVERY GATE BELOW BUT ONE READS TEXT.** They parse WGSL, type-check C++,
+**EVERY GATE BELOW BUT TWO READS TEXT.** They parse WGSL, type-check C++,
 diff idioms and prove the schema against the tree — and a number that is
 legal C++, legal WGSL and wrong ACROSS the two passes all of them. That is
 not hypothetical: ONE_SURFACE-I U5 shrank a buffer in one room and left the
 other at its old size, the full battery was green, and every frame of the
 first native boot failed validation. THE PROBE IS THE ROW THAT RUNS.
+
+**AND THE SHELL GATE IS THE SECOND ROW THAT RUNS, on the half a device is
+not needed for.** It compiles, links and EXECUTES the scene road and the
+REPL — parse, schema, unknown-key refusal, whole-id matching, the export →
+import round trip. It stops exactly where `bind_home` does, and says so.
 
 **TWO SLICES OF THAT CLASS ARE NOW TEXT AFTER ALL.** binding_gen's S-8
 compares a WGSL declaration's fixed array EXTENT to its C++ seat's
@@ -90,6 +98,7 @@ because a real defect walked past the whole battery first.
 | --- | --- | --- | --- |
 | G-LAW 1 | `sh tools/gates/glaw1/run.sh` | the real cartridge TU compiles against the pinned emdawnwebgpu surface | GREEN |
 | the probe | `the-board --probe=120` (Jean's; needs the built binary and a display) | the DEVICE validates N real frames — zero uncaptured errors, no device loss, and the budget actually spent | PROBE GREEN |
+| shell gate | `python3 tools/gates/shell_gate/run.py` | **THE ONE ROW THAT EXECUTES.** It compiles, LINKS and RUNS the shell deviceless: five scenes down the road (parse, schema, unknown-key refusal, whole-id matching), a scripted session through the hand, and the export→import round trip. It cannot reach the APPLY path — `block_base` returns null until `bind_home`, and binding one needs a `GPUState` that pulls Dawn at link time — so it proves the shell REFUSES correctly and the probe proves it APPLIES | PASS |
 | G-LAW 2 | `python3 tools/gates/glaw2/run.py` | no dangling name, no structural break in `world.wgsl` | GREEN |
 | TU gate | `python3 tools/gates/console_gate/run.py` | two tiers, each named in its own verdict line: CARTRIDGE — `cartridge.hpp` against the pinned emdawnwebgpu surface; CONSOLE — `console.hpp` and `the_board.cpp` against `third_party/dawn_native_headers`. Native TUs, zero diagnostics | PASS |
 | score census | `python3 tools/gates/score/run.py` | roster ↔ frame-spine bijection | GREEN |

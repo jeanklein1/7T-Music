@@ -5,8 +5,8 @@ Read-only: a census of the program's pass and submit surface.
 
 ## Provenance
 
-Last commit touching any scanned file: `6e5333942146b2b9b947033b1224d7ae7906408c`
-(THE_PANEL II U2: THE HAND — a stdin REPL whose vocabulary is the manifest                  (and U3 discharged: the shell gate RETARGETS))
+Last commit touching any scanned file: `5c5043f9db60e35a74f9cad61b18f07d59b43589`
+(THE_PANEL II U4: SWEEP — ORGAN.md's shell sections written native)
 
 | file scanned | sha256 |
 |---|---|
