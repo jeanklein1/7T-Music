@@ -224,36 +224,30 @@ namespace t7 {
                                                                          // from 6.5; the chain asserts
                                                                          // below hold, but EXIST is now
                                                                          // only 8 wu further out)
-            constexpr float GRAIN_BAND_DEFAULT  = 42.0f;                 // δ (~25-50, tunable)
+            // `GRAIN_BAND_DEFAULT` (δ, 42) stood here — the boot rest of
+            // the fade band the GRAIN read. It left at THE_PANEL I U5 with
+            // the mosaic; `veil_t` was its field's one reader and the
+            // mosaic branch was veil_t's one caller.
             constexpr float EXIST_RADIUS        = 7.0f * PATCH_EXTENT;   // 350
             static_assert(PATCH_PREGEN_RADIUS * PATCH_EXTENT >= EXIST_RADIUS,
                 "VEIL CHAIN: PREGEN >= EXIST (nothing exists off resident ground)");
             static_assert(EXIST_RADIUS > DRAW_RING_DEFAULT,
                 "VEIL CHAIN: EXIST > RING (existence outlives the draw set)");
-            // TWO CHAIN LINKS LEFT WITH LOD0 (ONE_SURFACE-I U5):
-            //   DRAW_RING_DEFAULT > LOD0_RADIUS_DEFAULT
-            //   DRAW_RING_DEFAULT - GRAIN_BAND_DEFAULT > LOD0_RADIUS_DEFAULT
-            // Both bound the split point inside the ring's band. There is no
-            // split. What survives is EXIST > RING, which is the live one:
-            // bodies exist to 350 and DRAW to the ring.
+            // TWO CHAIN LINKS LEFT WITH LOD0 (ONE_SURFACE-I U5): both
+            // bound the split point inside the ring's band, and there is
+            // no split. One of them also named GRAIN_BAND_DEFAULT, which
+            // left at THE_PANEL I U5. What survives is EXIST > RING, which
+            // is the live one: bodies exist to 350 and DRAW to the ring.
+            // THE CHAIN IS ONE LINK NOW, and that is the honest count.
 
-            // ── THE MOSAIC (MOSAIC_0/1/2) — trencadís rests ──
-            // SHARD: wu per cell (~10× under the terrain cell 3.125; a
-            //   per-entity batch jitters it ±30%). PASSAGE: the coarse
-            //   palette lattice — slightly larger than a body. BLEND:
-            //   boundary-zone width as a fraction of PASSAGE, one dial
-            //   for both halves of the zone. FACET: plate-lean strength.
-            // All live-tunable via config; these are the rests.
-            constexpr float MOSAIC_SHARD_SIZE_DEFAULT = 0.30f;
-            constexpr float MOSAIC_PASSAGE_DEFAULT    = 12.0f;
-            // MOSAIC_2: the radius/icing pair is DELETED. Grain is now
-            // 1 − veil_t — the veil's own icing smoothstep — so a body
-            // materializes at the ring already ceramic and gains its
-            // grain across exactly the band where it materializes. One
-            // fact, one home; the veil chain assert above is the only
-            // chain there was ever reason to have.
-            constexpr float MOSAIC_BLEND_DEFAULT      = 0.18f;
-            constexpr float MOSAIC_FACET_DEFAULT      = 0.25f;
+            // ── THE MOSAIC'S FOUR RESTS STOOD HERE ──
+            // SHARD_SIZE, PASSAGE, BLEND and FACET, under a banner that
+            // read "All live-tunable via config; these are the rests".
+            // They were tunable and they were rests and nothing read
+            // them: the branch that would have was guarded on a varying
+            // no vertex entry ever wrote. Retired at THE_PANEL I U5 on
+            // Jean's standing default, with the dials they seeded and the
+            // two hundred lines of apparatus those dials fed.
             constexpr uint32_t PATCH_MESH_N = 64;      // mesh subdivisions per patch (LOD-0)
             // THE BAKE IS THE READER'S SHADOW (LATTICE_1). The heightfield is
             // baked at the lattice patch_terrain_vs decodes: texel i IS lattice
@@ -720,7 +714,17 @@ namespace t7 {
             // pads that could go went at THE_PANEL I U2; the sizeof
             // witness carries the whole arithmetic.
             float draw_ring;
-            float grain_band;
+            // `grain_band` stood here — the fade band [ring − δ, ring] the
+            // GRAIN read. Its one reader was `veil_t`, whose one caller was
+            // the mosaic branch, so it retired with both at THE_PANEL I U5.
+            // A NAMED PAD, not a reclaim, and the arithmetic is the same one
+            // U2 wrote down: these three pads are 12 bytes between
+            // pulse_data and palette_center, and palette_center is
+            // array<vec4<f32>,4> in the WGSL room. Twelve is not sixteen, so
+            // none of the three can go. If a fourth field in this stretch
+            // ever dies, all four come out together — that is the whole
+            // collection and it is the only one this stretch will ever offer.
+            float _pad_grain_band_retired;
             float _pad_veil_strength_retired;
             float _pad_lod0_radius_retired;
 
@@ -779,11 +783,17 @@ namespace t7 {
             // unmoved and the witness below must not change. The pads
             // are structure, not reservation: the WGSL mirror has no
             // invisible padding, so a hole must be declared here.
-            float mosaic_enable;
-            float mosaic_shard_size;
-            float mosaic_passage_scale;
-            float mosaic_blend;
-            float mosaic_facet;
+            // THE FIVE MOSAIC DIALS STOOD HERE and left with the
+            // apparatus they fed (THE_PANEL I U5): enable, shard_size,
+            // passage_scale, blend, facet. Every reader was inside the
+            // unreachable branch, so five dials moved five numbers that
+            // moved nothing — L45's failure mode, not merely dead weight.
+            //
+            // RECLAIMED, NOT PADDED, and here the arithmetic allows it:
+            // twenty bytes leave from BELOW checker_resultant, which is
+            // the last 16-aligned member in the struct, so nothing after
+            // them has a boundary to lose. 688 − 20 = 668, and one fresh
+            // declared pad carries the struct back to 672.
             // TUNE_1 A3 — the possessed figure's eye height, in world units.
             // CPU-derived (FPV_EYE_RATIO x that figure's own height) because
             // the compute stage cannot see scene_constants.figure_profiles:
@@ -930,6 +940,10 @@ namespace t7 {
             uint32_t shadow_pcf_taps;
             float _pad720_1;
             float _pad720_2;
+            // THE_PANEL I U5 — the mosaic's twenty bytes left from below
+            // checker_resultant; one fresh pad carries 668 back to the
+            // 16-byte boundary at 672.
+            float _pad672_0;
         };
 
         struct alignas(16) GPUTileGridEntry {
@@ -1818,8 +1832,8 @@ namespace t7 {
         // RIBBON_2's 688 while the message ran on through KITE_1,
         // PANORAMA_1 and ONE_WORLD-I. One home now, and it is the message
         // a failing build prints.
-        static_assert(sizeof(GPUDesignConfig) == 688,
-            "GPUDesignConfig is 688 bytes, and this witness is the L3 "
+        static_assert(sizeof(GPUDesignConfig) == 672,
+            "GPUDesignConfig is 672 bytes, and this witness is the L3 "
             "handshake with world.wgsl's DesignConfig — the two rooms grow "
             "and shrink in one commit or not at all.\n"
             "\n"
@@ -4552,26 +4566,18 @@ namespace t7 {
                 // lod0 175); strength staged per frame by U5 (0 in a finite
                 // world). Boot open-on.
                 config_.draw_ring   = Dim::DRAW_RING_DEFAULT;
-                config_.grain_band  = Dim::GRAIN_BAND_DEFAULT;
+                config_._pad_grain_band_retired = 0.0f;
                 config_._pad_veil_strength_retired = 0.0f;
                 config_._pad_lod0_radius_retired = 0.0f;
                 // config_._pad_veil_dither_retired stood here — a boot pin
                 // zeroing a hole. The hole is gone at THE_PANEL I U2 and the
                 // line with it; the two above survive because their eight
                 // bytes are what keep palette_center on its 16-byte boundary.
-                // THE MOSAIC (MOSAIC_0/1) — trencadís dials, pinned at rest.
-                // THE MOSAIC IS ON (MOSAIC_2). The probe's reason for a
-                // runtime gate is discharged — the walk compiles on the
-                // supported floor. (The compiler that first proved it was
-                // FXC, retired at PIVOT_0; docs/FXC_LAWS_RECORD.md
-                // §PROBATE.) The dial stays as the panel's switch and
-                // METER_1's A/B, and it rests open. No key binds it: a key
-                // is diagnostics, this is the design.
-                config_.mosaic_enable        = 1.0f;
-                config_.mosaic_shard_size    = Dim::MOSAIC_SHARD_SIZE_DEFAULT;
-                config_.mosaic_passage_scale = Dim::MOSAIC_PASSAGE_DEFAULT;
-                config_.mosaic_blend         = Dim::MOSAIC_BLEND_DEFAULT;
-                config_.mosaic_facet         = Dim::MOSAIC_FACET_DEFAULT;
+                // Five mosaic boot pins stood here under a banner that
+                // read "THE MOSAIC IS ON". It was on, and it drew nothing:
+                // its guard tested a varying no vertex entry ever wrote.
+                // Retired at THE_PANEL I U5 on Jean's standing default.
+                config_._pad672_0 = 0.0f;
                 config_.fog_density = 0.003f;
                 config_.fog_color[0] = 0.85f;
                 config_.fog_color[1] = 0.78f;

@@ -596,65 +596,68 @@ console change (an offscreen colour target replacing the swapchain, chosen
 at one seam rather than at two boot paths), and it belongs to whoever wants
 the probe in CI. Nothing in the current campaign needs it.
 
-## THE MOSAIC IS UNREACHABLE (Jean's ruling; DEFAULT SET at ONE_SURFACE's close)
+## THE MOSAIC IS UNREACHABLE — THE DEFAULT FIRED (closed at THE_PANEL I U5)
 
-> **THE WINDOW IS NOW DATED (AFTER_AUTOMATON §2).** The default no longer
-> fires at "ONE_SURFACE's close" — a moment that has passed — but at a
-> named unit: **MOSAIC_2 RETIRES IN THE_PANEL-I U5** unless Jean says
-> *keep the grain* before that unit runs. U5 is the sweep that rewrites
-> `docs/ORGAN.md` to native truth, which is the right sitting for an
-> excision that takes a law's worked example with it. **Silence executes
-> the default**; that is what makes it a default rather than a question.
->
-> **THE RULING, WITH ITS DEFAULT.** This is Jean's to make by eye, and it
-> waits for a walk of a world that can draw. **If U5 arrives unspoken:
-> IT RETIRES.** Excision theology — the tree
-> holds living matter only (L30), and unreachable code with a law resting
-> on it is worse than either the code or the law alone. On retirement L12
-> takes the struck-note treatment L10 and L44 already carry: the law stays
-> readable with its subject named as gone, because the REASONING in L12
-> (distance takes the grain, never the material) is a good rule about
-> anything with a far term, and outlives the one mechanism that
-> illustrated it.
->
-> **Revival stays one line away** and that is the reason a default is safe
-> here: writing `out.mosaic_seed = <something>` in each entity VS is the
-> whole of it, and the branch it feeds is intact in history. A default
-> that costs one line to undo is a default; a default that costs a
-> campaign is a decision in disguise.
+**IT ARRIVED UNSPOKEN, AND SILENCE EXECUTED THE DEFAULT.** Jean's ruling at
+ONE_SURFACE's close set it; AFTER_AUTOMATON §2 dated it to this unit —
+"MOSAIC_2 RETIRES IN THE_PANEL-I U5 unless Jean says *keep the grain*
+before that unit runs". No such word arrived. The apparatus retired.
 
-**MOSAIC_2's whole apparatus is dead code, and L12 — a LAW — rests on
-it.** Found by the campaign's own recon reading the tree after the units
-landed, then verified by hand.
+**WHY IT WAS UNREACHABLE.** `entity_fs` guarded the mosaic on
+`if (in.mosaic_seed != 0u && config.mosaic_enable > 0.5)`, and **no vertex
+entry in `world.wgsl` ever wrote `mosaic_seed`.** WGSL zero-inits `var out:
+EntityVarying;`, so the seed was 0 at every fragment and the branch never
+ran. On the CPU side `EntityInstance::mosaic_seed` was declared and never
+read or written anywhere in `src/` or `tools/`. Dead on both sides, and it
+PREDATED ONE_SURFACE — whatever used to write the seed left before either
+campaign.
 
-`entity_fs` guards the mosaic on `if (in.mosaic_seed != 0u &&
-config.mosaic_enable > 0.5)`. `mosaic_seed` is a `@location(4)
-@interpolate(flat) u32` on `EntityVarying` — and **no vertex entry in
-world.wgsl ever writes it.** Every `@vertex` returning `EntityVarying`
-(`pawn_vs`, `sphere_vs`, `monolith_vs`, both of `ribbon_vs`'s returns)
-writes `clip_pos`, `world_pos`, `normal` and `entity_color` and nothing
-else; WGSL zero-inits `var out: EntityVarying;`, so the seed is 0 at
-every fragment and the branch never runs. The whole occurrence set of
-`mosaic_seed` in the shader is its declaration, the test, and the two
-uses inside the branch. On the CPU side `EntityInstance::mosaic_seed`
-(contracts/entity_types.hpp) is declared and **never read or written
-anywhere in src/ or tools/** — dead on both sides. `paint_y` is
-unwritten the same way.
+**WHAT LEFT.** In `world.wgsl`: 211 lines — `MOSAIC_MEDIANS`,
+`mosaic_cell_seed`, `MosaicShard`, `mosaic_shard`, `MosaicPassage`,
+`mosaic_pcell`, `mosaic_passage_at`, `mosaic_far`, `MosaicSample`,
+`mosaic_sample`, property run 900–921 — plus `veil_t`, `EntityVarying`'s
+`paint_y` and `mosaic_seed`, the `entity_fs` branch, and six `config`
+fields. In C++: `EntityInstance::mosaic_seed`, five `Dim::` rests,
+`GRAIN_BAND_DEFAULT`, six boot pins, six organ rows and six struct fields.
+`docs/LAWS.md` L11 and L12 take struck-notes; both laws are kept WHOLE,
+because the reasoning in each outlives the one mechanism that illustrated
+it.
 
-Unreachable with it: `mosaic_sample`, `mosaic_far`, `mosaic_shard`, the
-GRAIN, `config.mosaic_facet`, `config.mosaic_shard_size` and
-`config.mosaic_blend`'s far half.
+**GPUDesignConfig 688 → 672**, and the arithmetic split two ways, which is
+the interesting half:
+* The **five mosaic dials** were reclaimed — 20 bytes from BELOW
+  `checker_resultant`, the struct's last 16-aligned member, so nothing
+  after them had a boundary to lose. One fresh pad carried 668 back to 672.
+* **`grain_band` could NOT be** and is a named pad. It sits upstream of
+  `palette_center`, which is `array<vec4<f32>,4>`; the stretch between
+  `pulse_data` and it now holds THREE retired pads, 12 bytes, and twelve is
+  not sixteen. If a fourth field in that stretch ever dies, all four come
+  out together. That is the whole collection that stretch will ever offer.
 
-**Why this is not a sweep's to take.** L12 (DISTANCE TAKES THE GRAIN,
-NEVER THE MATERIAL) is a numbered law whose entire worked example is this
-mechanism, and L11's PAINT ANCHOR names `paint_pos`. Deleting it retires
-a law's subject and a visual intention that has a stamped history
-(MOSAIC_0/1/2). Reviving it is one line in each entity VS. Which of those
-two happens is a ruling, and Jean's.
+**AND THE NEAR-MISS IS THE UNIT'S REAL FINDING.** The first cut of this
+work deleted `grain_band` from the WGSL struct and left a pad in the C++
+one. **Both structs stay 688 bytes under that edit** — WGSL rounds its
+size up to the struct's 16-byte alignment and `alignas(16)` does the same —
+while every offset from `veil_ring` to `palette_center` sits four bytes
+apart between the rooms. The `sizeof` witness cannot see it. Neither can
+`0b-4`. **U2 documented that exact blind spot by injecting against it ONE
+UNIT EARLIER**, which is the only reason it was caught here by reading
+rather than by Dawn. Both rooms declare the pad now.
 
-**It also predates ONE_SURFACE.** Nothing in this campaign or
-ONE_WORLD's touched `mosaic_seed`; whatever used to write it left before
-either. The finding is reported here rather than acted on.
+**AND `0b-4` FIRED FOR REAL, one unit after it was written.** U2 enrolled
+DesignConfig in the marker convention at 688; this unit shrank it and the
+ledger said, by name: *"DesignConfig (world.wgsl:1649): prose says 688,
+calculator says 672"*. The marker reads 672 now, derived from `world.wgsl`
+by the layout calculator, beside a `static_assert` that reads 672, derived
+from `state.hpp` by the compiler. Two instruments, two files, one number.
+
+**REVIVAL IS ONE LINE PER ENTITY VS** — `out.mosaic_seed = <something>` —
+and everything is intact in history at this commit's parent. That is what
+made a default safe.
+
+**PROBE-PENDING.** Two hundred lines of shader left and every offset in the
+config struct moved. The static battery is green in both rooms; only the
+device can say the world still draws.
 
 ### A CORRECTION TO ONE_SURFACE-I U4's COMMIT MESSAGE
 

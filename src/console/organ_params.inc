@@ -215,8 +215,13 @@ ORGAN_PARAM_RO(CONFIG, GPUDesignConfig, fog_color,    VEC3, "Atmosphere · Fog",
 // NAMING IS JEAN'S GATE — overruling this costs one line in each room
 // plus one alias row, and the retired-id ledger that makes such a change
 // cheap landed with it (presets/index.json).
+// `grain_band`'s row stood here. The field retired at U5 with the GRAIN
+// it fed: its one reader was `veil_t`, whose one caller was the mosaic
+// branch. So `Atmosphere · Ring & grain` is one row now — and the
+// SECTION KEEPS THE NAME, because "Ring & grain" is what the pair of
+// facts WAS and the group's history is worth one word of prose. Ask the
+// next campaign for a better name than a section of one.
 ORGAN_PARAM(CONFIG, GPUDesignConfig, draw_ring,   F32, 265.0f, 349.0f, 0.5f,  "Atmosphere · Ring & grain", "draw ring (the authority)")
-ORGAN_PARAM(CONFIG, GPUDesignConfig, grain_band,  F32, 0.0f,   60.0f,  0.25f, "Atmosphere · Ring & grain", "grain band")
 // `lod0_radius` stood here — the terrain full/half-mesh split. Every patch
 // draws full mesh since ONE_SURFACE-I U5, so the dial named a boundary with
 // nothing on either side of it.
@@ -405,14 +410,16 @@ ORGAN_PARAM_GEN(AUTOMATON, AutomatonBank, height_factor_hi,    F32, 0.0f, 3.0f, 
 // absence, correctly: it IS absent from the panel, and the reason is
 // that the panel is not where it lives.
 
-// ─── Terrain · Mosaic ──────────────────────────────────────────
-// GPUDesignConfig. Rests are Dim::MOSAIC_*; state.hpp's own note says
-// "All live-tunable via config; these are the rests."
-ORGAN_PARAM(CONFIG, GPUDesignConfig, mosaic_enable,        F32, 0.0f, 1.0f,  1.0f,   "Terrain · Mosaic", "enable")
-ORGAN_PARAM(CONFIG, GPUDesignConfig, mosaic_shard_size,    F32, 0.0f, 1.2f,  0.005f, "Terrain · Mosaic", "shard size")
-ORGAN_PARAM(CONFIG, GPUDesignConfig, mosaic_passage_scale, F32, 0.0f, 48.0f, 0.25f,  "Terrain · Mosaic", "passage scale")
-ORGAN_PARAM(CONFIG, GPUDesignConfig, mosaic_blend,         F32, 0.0f, 1.0f,  0.005f, "Terrain · Mosaic", "boundary blend")
-ORGAN_PARAM(CONFIG, GPUDesignConfig, mosaic_facet,         F32, 0.0f, 1.0f,  0.005f, "Terrain · Mosaic", "facet lean")
+// ─── Terrain · Mosaic — THE SECTION RETIRES (THE_PANEL I U5) ────────
+// Five dials stood here: enable, shard size, passage scale, boundary
+// blend, facet lean, over rests the file called "All live-tunable via
+// config". Every reader was inside a branch `entity_fs` guarded on a
+// varying no vertex entry ever wrote, so all five moved numbers that
+// moved nothing. That is not dead weight, it is L45's failure mode —
+// the dial writes, the write lands, the world does not move, and the
+// instrument reads as broken. They left with the apparatus on Jean's
+// standing default (docs/OPEN.md, "THE MOSAIC IS UNREACHABLE"); revival
+// is one line per entity VS and the mechanism is intact in history.
 
 // ─── Pawn · Aura (the drivers' room + its witnesses) ─────────────────
 // The intent is the presence ramp's rest TARGET; key 3 and the aura policy

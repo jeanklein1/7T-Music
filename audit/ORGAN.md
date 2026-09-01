@@ -72,7 +72,6 @@ generator, so the book and the manifest cannot disagree. `driven` is an
 | Atmosphere · Fog | density (driven) | `CONFIG.fog_density` | CONFIG | F32 | — | — | driven | none | • |
 | Atmosphere · Fog | colour (driven) | `CONFIG.fog_color` | CONFIG | VEC3 | — | — | driven | none | • |
 | Atmosphere · Ring & grain | draw ring (the authority) | `CONFIG.draw_ring` | CONFIG | F32 | 265 … 349 | 0.5 | live | none |  |
-| Atmosphere · Ring & grain | grain band | `CONFIG.grain_band` | CONFIG | F32 | 0 … 60 | 0.25 | live | none |  |
 | Atmosphere · Checker | rest colour | `DRIVERS.checker.rest_resultant` | DRIVERS | VEC3 | 0 … 1 | 0.01 | live | none |  |
 | Atmosphere · Checker | rest amount | `DRIVERS.checker.rest_amount` | DRIVERS | F32 | 0 … 1 | 0.005 | live | none |  |
 | Atmosphere · Checker | rest variance | `DRIVERS.checker.rest_variance` | DRIVERS | F32 | 0 … 8 | 0.04 | live | none |  |
@@ -138,11 +137,6 @@ generator, so the book and the manifest cannot disagree. `driven` is an
 | Terrain · Automaton grain | per-cell height factor, sigma (authored) | `AUTOMATON.height_factor_sigma` | AUTOMATON | F32 | 0 … 0.5 | 0.01 | gen | none |  |
 | Terrain · Automaton grain | per-cell height factor, clamp low (authored) | `AUTOMATON.height_factor_lo` | AUTOMATON | F32 | 0 … 3 | 0.01 | gen | none |  |
 | Terrain · Automaton grain | per-cell height factor, clamp high (authored) | `AUTOMATON.height_factor_hi` | AUTOMATON | F32 | 0 … 3 | 0.01 | gen | none |  |
-| Terrain · Mosaic | enable | `CONFIG.mosaic_enable` | CONFIG | F32 | 0 … 1 | 1 | live | none |  |
-| Terrain · Mosaic | shard size | `CONFIG.mosaic_shard_size` | CONFIG | F32 | 0 … 1.2 | 0.005 | live | none |  |
-| Terrain · Mosaic | passage scale | `CONFIG.mosaic_passage_scale` | CONFIG | F32 | 0 … 48 | 0.25 | live | none |  |
-| Terrain · Mosaic | boundary blend | `CONFIG.mosaic_blend` | CONFIG | F32 | 0 … 1 | 0.005 | live | none |  |
-| Terrain · Mosaic | facet lean | `CONFIG.mosaic_facet` | CONFIG | F32 | 0 … 1 | 0.005 | live | none |  |
 | Pawn · Aura | intent | `DRIVERS.aura.intent` | DRIVERS | BOOL | 0 … 1 | 1 | live | none |  |
 | Pawn · Aura | attack (1/s) | `DRIVERS.aura.attack` | DRIVERS | F32 | 0.05 … 8 | 0.05 | live | none |  |
 | Pawn · Aura | release (1/s) | `DRIVERS.aura.release` | DRIVERS | F32 | 0.05 … 8 | 0.05 | live | none |  |
@@ -360,14 +354,14 @@ generator, so the book and the manifest cannot disagree. `driven` is an
 
 | | |
 | --- | --- |
-| entries | **332** |
-| by section | Agents 102 · Terrain 59 · Ribbon 55 · Sky & Light 30 · Atmosphere 28 · Interaction 22 · Pawn 18 · Population 5 · Debug 4 · World 3 · Camera 3 · Measure 3 |
-| by cadence | boundary 106 · driven 14 · gen 50 · live 162 |
-| by macro form | PARAM 166 · PARAM_DEF 102 · PARAM_GEN 50 · PARAM_RO 14 |
-| definition kinds | BEHAVIOR 70 · NONE 230 · TIER 32 |
+| entries | **326** |
+| by section | Agents 102 · Ribbon 55 · Terrain 54 · Sky & Light 30 · Atmosphere 27 · Interaction 22 · Pawn 18 · Population 5 · Debug 4 · World 3 · Camera 3 · Measure 3 |
+| by cadence | boundary 106 · driven 14 · gen 50 · live 156 |
+| by macro form | PARAM 160 · PARAM_DEF 102 · PARAM_GEN 50 · PARAM_RO 14 |
+| definition kinds | BEHAVIOR 70 · NONE 224 · TIER 32 |
 | witnesses (`ro`) | 14 |
 | blocks and sentinels used | AGENTS, AGENT_ROOM, ATMOS, AUTOMATON, CANVAS, CONFIG, DRIVERS, LIGHTING, ORBS, ORB_BANK, PANEL, PAWN, RIBBON, RIBBON_SPAWN, WORLD |
-| namespaces | canvas 15 · the_board 317 |
+| namespaces | canvas 15 · the_board 311 |
 
 ### Doors
 
@@ -441,7 +435,7 @@ THE ANSWER, ROW BY ROW
   proved    240   a declared reader names the field
   SUSPECT     0   no declared reader names it
   witness    14   an _RO meter: the question is inverted (blind spot 5)
-  scope      78   GPU-side or whole-struct (blind spots 2, 3)
+  scope      72   GPU-side or whole-struct (blind spots 2, 3)
 
 NO SUSPECTS. Every enrolled dial's field is named in the body of
 a function this tool can read.

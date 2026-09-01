@@ -166,7 +166,11 @@ struct EntityInstance {
     float    ground_y_offset = 0.0f;  // added to terrain Y (e.g. solid_height for pier entities)
     float    burial = 0.0f;
     float    colors[MAX_COLOR_CHANNELS]{};
-    uint32_t mosaic_seed = 0;   // MOSAIC_1: 0 = plain; 1..65535 rides the index channel
+    // `mosaic_seed` stood here (MOSAIC_1: "0 = plain; 1..65535 rides the
+    // index channel"). It was DECLARED and never read or written anywhere
+    // in src/ or tools/ — the CPU half of a mechanism whose GPU half was
+    // guarded on a varying no vertex entry ever wrote. Both halves left at
+    // THE_PANEL I U5 on Jean's standing default.
 };
 
 // ── Per-family adapter ───────────────────────────────────────────

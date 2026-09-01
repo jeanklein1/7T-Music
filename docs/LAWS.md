@@ -319,6 +319,15 @@ inscription — wants the same frame.
 
 Two coordinates, two jobs; neither borrows the other's.
 
+**STRUCK-NOTE (THE_PANEL I U5).** `paint_pos` and `paint_y` are gone. They were
+the mosaic's pigment coordinates and the mosaic had no other user, so they left
+with it when the apparatus retired on Jean's standing default — `paint_y` was
+an `EntityVarying` location that, like `mosaic_seed` beside it, NO vertex entry
+ever wrote. The law's own last paragraph is what keeps it whole: "nothing about
+it is the mosaic's; any body-owned field — wear, weathering, inscription —
+wants the same frame." The first such field to arrive re-founds the two
+coordinates in one line, and meets this law already written.
+
 ## L12 — DISTANCE TAKES THE GRAIN, NEVER THE MATERIAL
 
 **A body's identity must not be a function of range.**
@@ -352,6 +361,31 @@ The test for any distance-driven simplification: **name what the far form IS.**
 If the answer is "the same material with a term at zero," the simplification is
 lawful. If the answer names a different material, it is not a simplification —
 it is a second body wearing the first one's geometry.
+
+**STRUCK-NOTE (THE_PANEL I U5).** The worked example is gone. MOSAIC_0/1/2 —
+the passages, the shards, the grain and its band — retired on Jean's standing
+default, because the whole apparatus was UNREACHABLE: `entity_fs` guarded it on
+a varying no vertex entry in `world.wgsl` ever wrote, so the branch had never
+run and the CPU's `EntityInstance::mosaic_seed` was never read or written
+either. **The LAW is untouched and still governs**, and it is kept in full
+rather than trimmed to a sentence, for the reason L44's struck-note gives:
+the REASONING here — a body's identity must not be a function of range; the
+structure that produces only the faded detail should not be evaluated once it
+has faded; two bands measuring "how far" from two anchors can disagree and one
+band cannot — is a good rule about anything with a far term, and it outlives
+the one mechanism that illustrated it. The next thing in this tree with a
+distance-driven simplification meets this law with no example and the same
+force.
+
+**L11's PAINT ANCHOR went with it**, and that is worth saying HERE because L11
+is where a reader will look for it: `paint_pos` and `paint_y` were the mosaic's
+pigment coordinates and nothing else ever used them. Same treatment, same
+reason.
+
+**Revival is one line per entity VS** — `out.mosaic_seed = <something>` — and
+the apparatus is intact in history. That is what made a default safe: a default
+that costs one line to undo is a default; a default that costs a campaign is a
+decision in disguise.
 
 ## L13 — A BOUNDARY IS A ZONE, NOT A LINE
 
