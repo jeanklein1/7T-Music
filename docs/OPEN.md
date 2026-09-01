@@ -158,7 +158,8 @@ unchanged and still FLAGGED.
 | S2 | galleries, paintings, hang | **CLOSED (PRUNE_1).** Each flag answered: the veil lift now fires on the elapsed-since-`world_live` condition alone; `compute_entity_placement` lost only its painting loop and Y-corrects the KEEP flora exactly as before; `painting_slots` left `shadowStateLayout_` and the seats behind it re-indexed through `binding_schema.py`, the tool's job, verified by `binding_gen.py --check`. |
 | S3 | portals | **IN FLIGHT (ONE_WORLD-I).** Both flags are answered at U1: the `!ROSTER.transitions \|\| ROSTER.portal` edge left with the `transitions` bit it gated, and `TransitionPhase` left together with its only ignition — the machine, the request door, the six keys, the console's mood door and the `portal_trigger` wire (C++ **and** WGSL) went in one commit. U2 then took the doors themselves: the force-spawn channel, the arch's portal identity (`is_portal` / `is_back_portal` / `destination`), `PortalDestination`, `portal_color_for` and the whole destination law (`portal_density`, `mood_weights`, the palette, `pick_portal_mood` / `pick_open_mood`), the `portal` roster bit and the census's portal column. `GPUPortalArray` and the WGSL portal room outlive it — the PASSER route still reads them — and empty at U4. **U3 then took the ARCH family whole**: `PopFamily` 6 → 5 with all eleven positional tables re-columned, the four arch pipelines, the GPU mesh-gen scratch (WGSL §9 and the converged MESHGEN trio 180/181/182, now unallocated), the entity ground atlas and its `compute_entity_placement` writer with both spine rows, `GPUAgentRoomConstants`'s `occupier_amg` window (2864 → 1584 B), and the field/ribbon occupier loops that read it. |
 | S3 | portals (cont.) | **CLOSED (ONE_WORLD-I U4).** The rooms emptied: `GPUPortalArray` / `GPUPortalEntry` and the WGSL `PortalArray` / `PortalEntry` are gone, and with them the PASSER round — the array's last reader, a behaviour whose whole purpose was walking between doors. `GPUAgentRoomConstants` went 1584 → 512 B. `WorldDrawSurface` did NOT empty: `scheme_weights` survives, so the room S2 predicted would empty under S2+S3 stands on the indoor light scheme alone. |
-| S4 | agent pipelines | FLAGGED — `agent_state[possessed_slot]` **is** the point; camera, veil, terrain aura, LOD streaming, the ribbon's sky rule and the shadow box all read it |
+| S4 | agent pipelines | FLAGGED — `agent_state[possessed_slot]` **is** the point; camera, the ring, terrain aura, the ribbon's sky rule and the shadow box all read it. (It read "LOD streaming" until ONE_SURFACE-I: there is no LOD and no streaming, and the finding is unchanged by that — the point is still what every one of them reads.) |
+| S5 | the streaming conductor | **CLOSED (ONE_SURFACE-I).** Not a prune's subject and never on the S-strip: it was the machine that made an endless plane possible, and ONE_WORLD-II's pin is what made it answerable. `stream_patches` and its budgets, the recenter, the eviction lane, the veil's strength and the LOD split all left across U2–U5; `build_world` is what remains. |
 
 `WorldDrawSurface` was to empty under S2+S3 together, under a `sizeof`
 static_assert. S2 has landed and it did not empty: the fields the
@@ -333,6 +334,54 @@ target on record — `seed= int= amb= sun el= az= fog=`, no `mood=`, no
 - `docs/FXC_LAWS_RECORD.md` cites `GPUSpotLightArray`'s `static_assert` in
   `state.hpp` as a live example; the assert left at U4. It is a stamped
   record, so the sweep reports it rather than editing it.
+
+### ONE_SURFACE-I — THE STILLNESS (landed)
+
+The finite world is built ONCE, at birth, and never streams again. Seven
+commits. **After this, the ground is still**; ONE_SURFACE-II makes it
+alive.
+
+| unit | what left, and what rose |
+|---|---|
+| U0 housekeeping | The two names ONE_WORLD-II flagged and could not take: `OrbMoodConfig` → `OrbConfig` (wire-safe — a row id is `#BLOCK "." #FIELD`, so no struct name reaches a preset key), and LATENT[frustum_cull_opt_out] taken whole with `SkyDeps::renderer_` and the fwd it existed for. |
+| U1 | **`build_world`.** The whole (2R+1)² grid allocated, spawned, baked, banded and uploaded at birth, at both doors. It stages the seed and bounds and drains the config ITSELF — `phase_stage_upload` has not run when a boot builder bakes. One batch per submit (LATTICE_1); the params buffer holds 225 records against 81 at the widest radius, so the loop runs exactly once. |
+| U2 | **The conductor falls.** `stream_patches`, `request_recenter`, the two windows, the six budgets, the alloc scan, `active_radius`, the `[STREAM]` line, `set_render_radius` and the [ ] keys. R3 becomes `surface_visibility` — banding and the entity cull are functions of a moving POINT, and only the window stopped moving. It also found a bug U1 had shipped: `upload_tile_grid_now` sized its window on the STREAMING radius, correct only because the conductor capped that radius around its own call. |
+| U3 | **The eviction lane**, under its guard — traced verb by verb first: no teardown path reads `entity_refs`; every one sweeps by owner. `evict_patch`, `evict_patch_entities`, `free_layer`, the registry, `FamilyDispatch::evict_slot` and the five family evictors. A new positional net on `FamilyDispatch`, proven to bite. The ribbon's two-tip reference protocol came with it; its REJECT gate stayed. |
+| U4 | **The veil's strength**, and the fold table that overturned the unit's premise. The icing, the RIM knob and `veil_scale` die. The RING does NOT: four gates read it ungated by strength, and at radius 4 the box diagonal is 636 wu against a ring of 342, so it still culls inside the wall. The grain does not fold to a constant either — it is a smoothstep over [300, 342], constant only at radius 1. |
+| U5 | **The LOD fold.** One band, one density; `lod0_radius`, the plan's `lod0_count`, FC_SEG_C, the third args slot, the TERRAIN_C bit and two chain asserts. `lod_point` → `cull_point` (wire-safe: not enrolled). The A/B split SURVIVES and is not LOD — it is zone overlap. The LOD1 index buffer survives its band: the SHADOW pass draws at LOD1 density by ECONOMY_1 E2. |
+| U6 | **The sweep**, and what it swept was mostly older than this campaign: `ground_entries_dirty`, `placement_dirty` and `entities_culled` (zero readers, naming two functions that exist only in comments), `update_entity_draw_visibility` (a stub returning 0 since ONE_WORLD-I U3), `mesh_gen_settled` and `MESH_GEN_SETTLE_S` (no callers), `world_young` (whose only reader they were), `mark_patches_for_regen` and `PatchPhase::NEEDS_REGEN` (structurally unreachable), `PATCH_GRID_RADIUS`/`SIDE`. Both SEAM banners rewritten. |
+| U7 | Instruments, the audit room, the L33 witness, the full battery. |
+
+**THE ONE DISCLOSED BEHAVIOUR DELTA, and it is one seed in four.**
+`derive_finite_radius` draws R ∈ {1,2,3,4}. The conductor's fullRegen arm
+spawned everything inside the PRIORITY window — `PATCH_GRID_RADIUS` = 3,
+a 7×7 — so for R ≤ 3 birth was ALREADY a one-shot build and no budget
+ever fired. Only R = 4 leaves a 32-patch outer ring, which the conductor
+served over later frames ordered from the RIBBON_4 look-ahead point.
+`build_world` takes all 81 in one nearest-first pass from the point, and
+the two orders differ: (4,0) is 200 wu out and (3,3) is 212, so one pass
+serves a patch outside the old priority window before one inside it.
+Entity SELECTION is seed-driven and unchanged; what can differ is which
+of two entities wins ground both want, since footprints register at PLACE
+in candidate order.
+
+**Flagged, not taken:**
+- `veil_ring` and `veil_icing` carry the veil's name for the draw
+  authority and the grain's band. A CONFIG field's name IS its organ row
+  id, and a row id is a stored preset's key — this rename breaks the
+  wire, unlike `cull_point`'s, which was checked and does not.
+- `FINITE_RADIUS_MIN/MAX` are still `constexpr`, not dials.
+  ONE_WORLD-II §1.7 said the pin would enroll them; §1.4 here presumes
+  they are dials whose gen-cadence edits reach the world through rebirth.
+  Enrolling them is an ORGAN_3 graduation — a constructive change neither
+  handoff scoped — and the only thing that could exercise one is THE
+  PANEL, which is also the only thing that can call `rebirth_world`.
+- `world_box_clamp_xz`'s `has_bounds` guard reads like a finiteness test
+  the pin makes constant. **It is not.** It is also the uninitialised-
+  config guard: `GPUState::initializeState` zeroes the bounds and uploads
+  them unconditionally, so a boot frame really does carry (0,0), and
+  removing the guard turns `clamp(p.x, 0+m, 0-m)` — low above high, which
+  WGSL leaves undefined — into a body test. Left alone deliberately.
 
 ## NATIVE PRESET INGESTION (open, born at WEB_SUNSET)
 

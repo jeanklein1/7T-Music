@@ -1625,8 +1625,11 @@ namespace t7 {
             void phase_surface_visibility(RenderCtx& c) {
                 auto& queue = c.queue;
                 band_patches(&machine_ctx_, queue);
-                machine_ctx_.world_state_.entities_culled =
-                    update_entity_draw_visibility(&machine_ctx_, queue);
+                // `update_entity_draw_visibility` stood beside it, filling
+                // `entities_culled`. It has returned a constant 0 since the
+                // ARCH loop left at ONE_WORLD-I U3 — the only family whose
+                // mesh could be zeroed at range — and nothing read the
+                // field. Both left at ONE_SURFACE-I U6.
             }
 
             // R4 — RESPAWN AGENTS (S3, algo; RC-1: after stream). Refills slots

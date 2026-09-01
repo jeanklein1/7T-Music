@@ -119,53 +119,13 @@ struct EntitiesState {
 // reach was FamilyDispatch::evict_slot, which left at ONE_SURFACE-I U3
 // with the patch-death sweep that was its only caller.
 void teardown_entities(MachineCtx* c, wgpu::Queue& queue);
-
-// ═══ IMPL:
-// bodies deref EntitiesState(own) + World/Sky/GPU via MachineCtx; no
-// Cartridge. COHORT: after contracts/spawn_services.hpp (generic_* +
-// preamble DECLS — the machine bodies ride the cohort tail) +
-// patch_system.hpp (WorldState, find_patch) + sky.hpp.
-
-// ═══ MESH-GEN PREPARERS ═══════════════════════════════════════════
-
-// THE SETTLE (PANORAMA_1). A family regenerates at most once per
-// MESH_GEN_SETTLE_FRAMES outside a world's birth. A crossing raises
-// `pending` on several consecutive frames; without this each raise was a
-// whole-family rebake (4–8 ms on the floor device), so a burst of spawns
-// bought a burst of firings. What arrives late arrives at the ring's edge,
-// materializing through the icing, where a ~130 ms delay is invisible; what
-// leaves late leaves beyond the ring, where it is already veiled — eviction
-// is radius-driven and fires outside the render window by construction.
-//
-// THE BIRTH BURST BYPASSES IT, and `world_young` is the whole signal: it
-// boots true, `reset_surface` re-raises it on every rebirth BEFORE
-// teardown_entities runs in the same block, and `request_recenter` raises it
-// on a radius change. So a boot, a portal and a re-centre all regenerate at
-// once — behind the veil or behind the fade — and the settle governs only
-// the steady world, which is the only place it was ever paying for anything.
-//
-// STAMPED AT FIRST SIGHT, NOT AT THE RAISE. The preparers run every frame, so
-// the first frame that observes a raise is the raise's own frame or the next;
-// against a settle of eight that is exact enough, and it puts the stamp in ONE
-// place instead of at twenty raise sites, where a new raiser could forget it.
-//
-// PACED IN SECONDS, BECAUSE THE CLAIM WAS ALWAYS A TIME CLAIM (WRAP_0 U6).
-// PANORAMA_1 wrote this as eight FRAMES and argued it in milliseconds — "a
-// ~130 ms delay is invisible" — which are the same number only at 60 Hz. At
-// `?pace=2` a frame is 33 ms and the window silently became ~266 ms. The
-// constant now reads as what the argument always was, and no pace can double
-// it.
-inline constexpr float MESH_GEN_SETTLE_S = 0.133f;
-
-inline bool mesh_gen_settled(bool& pending, float& since, const TimeState& ts,
-                             const WorldState& ws) {
-    if (!pending) return false;
-    if (since < 0.0f) since = ts.seconds;
-    if (!ws.world_young && ts.seconds - since < MESH_GEN_SETTLE_S) return false;
-    pending = false;
-    since = -1.0f;
-    return true;
-}
+// `MESH_GEN_SETTLE_S` and `mesh_gen_settled` stood here — a debounce that
+// held a family's mesh-gen off for 0.133 s after the last change, BYPASSED
+// while `world_young` so a birth could regenerate in one burst. It had no
+// callers: the last family with a GPU mesh to generate was the catenary
+// arch, which left at ONE_WORLD-I U3. It was also `world_young`'s only
+// reader, which is why that field could leave in the same sweep
+// (ONE_SURFACE-I U6).
 
 
 

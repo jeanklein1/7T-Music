@@ -23,10 +23,11 @@
 // face below (inputState / keys_ / mouse_ / player_ / world_state_ /
 // ribbon_state / gpuState_ / device_), the command fan's TARGET
 // organs (on_key_down's parameters — pawn / orbs / agents / cubes),
-// the owner command doors (pawn.hpp / orbs.hpp / agents.hpp /
-// cube_behaviors.hpp / patch_system.hpp's request_recenter), and the
-// patch radii (Dim::PATCH_GRID_RADIUS /
-// Dim::PATCH_PREGEN_RADIUS — patch_system.hpp vocabulary).
+// and the owner command doors (pawn.hpp / orbs.hpp / agents.hpp /
+// cube_behaviors.hpp). It also reached patch_system.hpp's
+// `request_recenter` and the two patch radii it clamped between; the
+// radius command left at ONE_SURFACE-I U2 — a radius change is a rebirth
+// now, and the rebirth's caller is THE PANEL's to build.
 // ─────────────────────────────────────────────────────────────────
 
 // The deps face holds the queue-fetch handle (the S5 pattern, gol);

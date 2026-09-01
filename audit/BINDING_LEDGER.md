@@ -14,9 +14,9 @@ merge rows the API charges separately.
 | field | value |
 |---|---|
 | demo column censused | `full` |
-| source commit | `68d3622fc84d65522cffe79991583ae93e292ae6` |
-| | ONE_SURFACE-I U4: the veil's strength falls; the ring and the grain were never its |
-| `src/cartridges/the_board/realization/state.hpp` | `sha256:7da8e3e0b4cc7ec316baa6bcf5fe98a525f4e0d71a06652581712e42c15eb562` |
+| source commit | `7b7f2e659a8aed2246adc62a9bf6b07695dd73c4` |
+| | ONE_SURFACE-I U5: the LOD fold, and the third draw with it |
+| `src/cartridges/the_board/realization/state.hpp` | `sha256:b9affa26fac9d9abaf3e72de669b90ff7ffd0150883492ddb5fec5804594d0d5` |
 | `src/cartridges/the_board/realization/binding_surface.gen.inc` | `sha256:0b98dfab809edd83752dedf7803f758fcf4ce502009763642a37cbf03b2a8446` |
 | `src/cartridges/the_board/realization/binding_registry.hpp` | `sha256:968d2d0dcbaa4ffe35f30b8349de93b4912cb3da09a16c56965408c90fc3ad9c` |
 | `src/cartridges/the_board/realization/renderer.hpp` | `sha256:6d20d67bd53745eb70e14d05f324b4d12b45df9a2bb087cd62547777467bac1d` |
@@ -32,9 +32,9 @@ only — `draw_orbs` is called from `bodies/orbs.hpp`, not from
 | `src/cartridges/the_board/bodies/gol_zones.hpp` | `40df3f6531d37752bede4eba9f6173ea24907f3e3537b9c53c7f59158cc99f7b` |
 | `src/cartridges/the_board/bodies/orbs.hpp` | `475d3de82ddd4d979d55ad146039937cd3316a0148466ed5c1db5566bde9a8b1` |
 | `src/cartridges/the_board/bodies/pawn.hpp` | `7915ec242a2a3094537882c50a2980c9494e4f1460a3a2f786232b67ec6ead12` |
-| `src/cartridges/the_board/cartridge.hpp` | `74d14c499b75bab8133b5245ffc558b5b925d6e405a62d388ca512a3316654eb` |
+| `src/cartridges/the_board/cartridge.hpp` | `2007423d45cc697561ffa4148b3f2ee61381c09a60b06cdd0203033649fd0c99` |
 | `src/cartridges/the_board/realization/render_passes.hpp` | `5b6285b2d3a4b377829d01821f8a16141173707ef5f65766b39b2b392296b85c` |
-| `src/cartridges/the_board/surface/patch_system.hpp` | `ca8e0e08d08ad6215224994a0143859db372f7b3be7c05f9f809f5795e4a7015` |
+| `src/cartridges/the_board/surface/patch_system.hpp` | `7f4f335b182cc1c2ebc0ad3ecfd56062502b415b0383ccbfce0cf7d9d2ab8a0a` |
 
 The source commit is the last commit touching any of the four primary
 inputs — not `HEAD`, which moves when this file is committed. The content
@@ -897,14 +897,14 @@ one column that can.
 | `shadowPatchTerrainPipeline_` | pipeline | `src/cartridges/the_board/realization/renderer.hpp` | 1838 | `measured` | A:proximity |
 | `shadowPawnPipeline_` | pipeline | `src/cartridges/the_board/realization/renderer.hpp` | 1841 | `measured` | A:proximity |
 | `(file banner)` | file | `src/cartridges/the_board/realization/state.hpp` | 1 | `law-ref` | banner |
-| `Frame R Layout` | layout | `src/cartridges/the_board/realization/state.hpp` | 4374 | `law-ref` | A:proximity, B:named |
-| `Agents State Layout entries[7]` | layout entry | `src/cartridges/the_board/realization/state.hpp` | 4464 | `law-ref` | A:proximity |
-| `Cull State Layout entries[4]` | layout entry | `src/cartridges/the_board/realization/state.hpp` | 4576 | `witness` | A:proximity |
-| `Frame K State Layout entries[5]` | layout entry | `src/cartridges/the_board/realization/state.hpp` | 4623 | `law-ref` | A:proximity |
-| `Orbs A State Layout entries[0]` | layout entry | `src/cartridges/the_board/realization/state.hpp` | 4674 | `law-ref` | A:proximity |
-| `Orbs A State Layout` | layout | `src/cartridges/the_board/realization/state.hpp` | 4687 | `law-ref` | A:proximity, B:named |
-| `Scene State Layout entries[5]` | layout entry | `src/cartridges/the_board/realization/state.hpp` | 4908 | `budget`, `per-stage`, `slot-cap` | A:proximity |
-| `Shadow State Layout entries[4]` | layout entry | `src/cartridges/the_board/realization/state.hpp` | 5003 | `budget`, `per-stage`, `slot-cap` | A:proximity |
+| `Frame R Layout` | layout | `src/cartridges/the_board/realization/state.hpp` | 4379 | `law-ref` | A:proximity, B:named |
+| `Agents State Layout entries[7]` | layout entry | `src/cartridges/the_board/realization/state.hpp` | 4469 | `law-ref` | A:proximity |
+| `Cull State Layout entries[4]` | layout entry | `src/cartridges/the_board/realization/state.hpp` | 4581 | `witness` | A:proximity |
+| `Frame K State Layout entries[5]` | layout entry | `src/cartridges/the_board/realization/state.hpp` | 4628 | `law-ref` | A:proximity |
+| `Orbs A State Layout entries[0]` | layout entry | `src/cartridges/the_board/realization/state.hpp` | 4679 | `law-ref` | A:proximity |
+| `Orbs A State Layout` | layout | `src/cartridges/the_board/realization/state.hpp` | 4692 | `law-ref` | A:proximity, B:named |
+| `Scene State Layout entries[5]` | layout entry | `src/cartridges/the_board/realization/state.hpp` | 4913 | `budget`, `per-stage`, `slot-cap` | A:proximity |
+| `Shadow State Layout entries[4]` | layout entry | `src/cartridges/the_board/realization/state.hpp` | 5008 | `budget`, `per-stage`, `slot-cap` | A:proximity |
 | `(file banner)` | file | `src/cartridges/the_board/realization/world.wgsl` | 1 | `FXC`, `budget`, `compile-time`, `law-ref`, `per-stage`, `witness` | banner |
 | `cell_address` | wgsl function | `src/cartridges/the_board/realization/world.wgsl` | 271 | `law-ref` | A:proximity, B:named |
 | `hash_property` | wgsl function | `src/cartridges/the_board/realization/world.wgsl` | 418 | `law-ref` | A:proximity, B:named |

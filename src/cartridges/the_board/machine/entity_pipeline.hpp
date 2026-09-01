@@ -60,7 +60,7 @@ namespace the_board {
 // the machine face for c->sky_state_ / c->world_state_ /
 // c->entities_state_ and the GPU wire (c->gpuState_); routes through
 // the spawn services (run_spawn_preamble / negotiate_position /
-// mark_patches_for_regen) as free calls.
+// the retired mark_patches_for_regen) as free calls.
 
 
 // ═══ GENERIC HELPERS ═════════════════════════════════════════════
@@ -218,7 +218,6 @@ inline void generic_commit(MachineCtx* c,
     if (adapter.post_commit)
         adapter.post_commit(c, inst, queue);
 
-    c->world_state_.ground_entries_dirty = true;
 }
 
 
@@ -376,10 +375,13 @@ inline void pyramid_post_commit(MachineCtx* c, const EntityInstance& inst, wgpu:
     float abs_cr = std::abs(cr), abs_sr = std::abs(sr);
     float ext_x = (half_x + blend) * abs_cr + (half_z + blend) * abs_sr;
     float ext_z = (half_x + blend) * abs_sr + (half_z + blend) * abs_cr;
-    mark_patches_for_regen(c, 
-        inst.cx - ext_x, inst.cz - ext_z,
-        inst.cx + ext_x, inst.cz + ext_z,
-        inst.host_gx, inst.host_gz);
+    // `mark_patches_for_regen(...)` was called here with the pyramid's
+    // rotated world extent, so any GENERATED patch it reached would bake
+    // again over the new contribution. In a world built once nothing is
+    // GENERATED when the pyramids commit, and nothing commits after
+    // (ONE_SURFACE-I U6). The extent above is still the pyramid's own and
+    // still computed; what left is the lane it fed.
+    (void)ext_x; (void)ext_z;
 }
 
 inline constexpr EntityFamilyAdapter PYRAMID_ADAPTER = {

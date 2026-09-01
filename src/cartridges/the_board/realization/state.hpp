@@ -98,8 +98,13 @@ namespace t7 {
             // cell-exactness assert below all read THIS name.
             // L3 MIRROR: world.wgsl PATCH_CELL_SIZE. Change both rooms together.
             constexpr float    PATCH_CELL_SIZE = PATCH_EXTENT / (float)PATCH_CELL_N;  // 3.125
-            constexpr uint32_t PATCH_GRID_RADIUS = 3;       // inner priority radius (7×7)
-            constexpr uint32_t PATCH_GRID_SIDE = 2 * PATCH_GRID_RADIUS + 1;       // 7
+            // `PATCH_GRID_RADIUS` (3) and `PATCH_GRID_SIDE` (7) stood here —
+            // the PRIORITY window, the inner square the conductor's fullRegen
+            // arm spawned and baked before leaving the rest to per-frame
+            // budgets. There are no budgets and no rest: build_world takes
+            // the whole grid in one nearest-first pass (ONE_SURFACE-I U6).
+            // The last reader was set_render_radius's clamp, which left at
+            // U2 with the window it clamped.
             constexpr uint32_t PATCH_PREGEN_RADIUS = 7;                                // deep pre-gen buffer (15×15, 350 world units; OPT_1b — fits default maxTextureArrayLayers, veil chain holds exactly: 7·50 = EXIST_RADIUS)
             constexpr uint32_t PATCH_PREGEN_SIDE = 2 * PATCH_PREGEN_RADIUS + 1;     // 15
             constexpr uint32_t MAX_ACTIVE_PATCHES = PATCH_PREGEN_SIDE * PATCH_PREGEN_SIDE; // 225

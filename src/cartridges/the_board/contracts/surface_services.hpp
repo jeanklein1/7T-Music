@@ -11,17 +11,24 @@
 // The BODIES ride surface/patch_system.hpp, merged at the cohort tail
 // — the same-TU late-definition law, named at spawn_services.
 //
-// The active-patch machine: the streamed patch registry and its
-// lifecycle (allocate → spawn → generate → evict), the frame budgets,
-// the layer allocator, the visibility cylinder, and the per-frame
-// streaming conductor (stream_patches).
+// The active-patch machine: the patch registry and its lifecycle
+// (allocate → spawn → generate), the layer allocator, and the one-shot
+// builder (build_world). It was a STREAMED registry with a fourth
+// lifecycle stage — evict — and a per-frame conductor pacing all four
+// under budgets; a finite world is built once (ONE_SURFACE-I).
 //
-// SEAM[spine:active-patch-system] the ActivePatch struct, the
-//   patches_ registry, find_patch / evict_patch / evict_patch_entities,
-//   plus the entity_refs registry on each
-//   ActivePatch. Cross-module readers: machine/spawn_engine.hpp (commit
-//   functions call host->record_entity), bodies/ribbon.hpp (two-tip late
-//   registration), and the family dispatch eviction rows.
+// SEAM[spine:active-patch-system] the ActivePatch struct, the patches_
+//   registry, and find_patch. Cross-module readers: the occupier commits
+//   (a body commits iff find_patch resolves its host — machine/
+//   entity_pipeline.hpp, bodies/gol_zones.hpp, bodies/ribbon.hpp).
+//
+//   IT NAMED THINGS THAT WERE NOT THERE, and the sweep says so rather
+//   than quietly fixing it: `evict_patch` / `evict_patch_entities` and
+//   the entity_refs registry left at ONE_SURFACE-I U3, the family
+//   dispatch eviction rows with them, and the ribbon's two-tip late
+//   registration at the same unit. It also credited machine/
+//   spawn_engine.hpp with `host->record_entity` calls that file has
+//   never contained — the callers were always the three named above.
 //
 // Depends on cohort include order: state.hpp (Dim:: + the GPU patch
 // DTOs) precedes this header — the one SANCTIONED cohort cable (array
@@ -89,7 +96,13 @@ struct WorldState {
     // observation: nothing the player does sets it again, which is what stops
     // a world that has merely fallen behind from being handed a rebirth's
     // burst. Boot is a transition from nothing (L10), so it boots true.
-    bool world_young = true;
+    // `world_young` stood here (RIBBON_6). Youth was an AGE — set when a
+    // world began, cleared once when its window was three-quarters built —
+    // and it existed so a world being born could be handed a burst the
+    // steady state did not get. There are no budgets to select between and
+    // no partial world to be young: `build_world` returns a world already
+    // whole. Its last reader was `mesh_gen_settled`, which had no callers
+    // of its own (ONE_SURFACE-I U6).
 
     // ── Patch counts (this frame) ──
     uint32_t active_patch_count = 0;
@@ -99,12 +112,19 @@ struct WorldState {
     // ONE_SURFACE-I U4 and the LOD split at U5, so both counts named a
     // partition of one set: `render_patch_count` is the whole of it.
     // `all_patch_count` had no reader anywhere in the tree even before that.
-    uint32_t entities_culled    = 0;    // entities hidden by the EXIST-ring overdraw cull this frame
+    // `entities_culled` stood here. Its writer was
+    // `update_entity_draw_visibility`, which has returned a constant 0
+    // since the ARCH loop — the only family whose mesh could be zeroed at
+    // range — left at ONE_WORLD-I U3. Zero readers (ONE_SURFACE-I U6).
 
     // ── Dirty flags (deferred GPU uploads) ──
-    bool ground_entries_dirty   = true;   // defer upload_ground_entries (true at boot)
+    // `ground_entries_dirty` and `placement_dirty` stood here, deferring
+    // `upload_ground_entries` and `dispatch_placement_correction`. Both
+    // flags had ZERO readers tree-wide and both functions they name exist
+    // nowhere but in comments; the conductor was the last thing still
+    // maintaining them (ONE_SURFACE-I U6).
     bool patch_instances_dirty  = true;   // defer LOD sort + upload_patch_instances
-    bool placement_dirty        = true;   // defer dispatch_placement_correction
+
     // THE CONTINUOUS-ALLOCATION SCAN STOOD HERE (ONE_SURFACE-I U2), with
     // its raiser flag `alloc_scan_pending` and the two cursors that made
     // its raiser set provably complete — `last_alloc_scan_gx/gz`, the scan
@@ -140,7 +160,13 @@ enum class PatchPhase : uint8_t {
                     //   was already placed at ALLOCATED->SPAWNED, before
                     //   this heightfield existed; Y-correction is additive
                     //   and lands later (compute_entity_placement).
-    NEEDS_REGEN,    // heightfield stale (new pyramid in range)
+    // NEEDS_REGEN stood here — "heightfield stale (new pyramid in range)".
+    // `mark_patches_for_regen` was its sole writer and only ever marked
+    // patches already GENERATED; its sole caller is `pyramid_post_commit`.
+    // At a birth every patch is ALLOCATED or SPAWNED when the pyramids
+    // commit, so nothing is GENERATED yet — the lane existed for pyramids
+    // committed AFTER some patches had baked, which is the streamed steady
+    // state alone. Nothing is allocated after birth now (ONE_SURFACE-I U6).
 };
 
 struct ActivePatch {
@@ -215,15 +241,14 @@ struct PatchSystemState {
 // intent organ.
 struct TileWorldState;  // tile_world.hpp — the tile cache organ (fwd: the lifecycle owner mutates it through the owner doors; the machine face's view is const)
 struct TileWorldDeps;   // tile_world.hpp — the tile doors' face (fwd: reference param)
-struct SkyDeps;        // sky.hpp — reset_surface's face (fwd: reference param)
+// `struct SkyDeps;` stood here for reset_surface's face. reset_surface has
+// not taken it since the conductor's signature left at ONE_SURFACE-I U2.
 
-// THE S2/S3 BOUNDARY FACE: the patch registry is read across the
-// boundary by the occupier commits (host->record_entity via
-// find_patch) — the interface trio's registry member.
+// THE S2/S3 BOUNDARY FACE: the patch registry is read across the boundary
+// by the occupier commits — a body commits iff `find_patch` resolves its
+// host. It was also read by the patch-death registry, which left at
+// ONE_SURFACE-I U3 with the two evictors declared beside this line.
 ActivePatch* find_patch(MachineCtx* c, int32_t gx, int32_t gz);
-
-void evict_patch(MachineCtx* c, uint32_t pi, wgpu::Queue& queue);
-void evict_patch_entities(MachineCtx* c, ActivePatch& patch, wgpu::Queue& queue);
 
 // Root-called owner verb. CALLERS: boot (init_renderer) AND the transition
 // machine (root); OWNER: patch_system. One door, both paths — boot is a
@@ -237,17 +262,19 @@ void init_patch_system(MachineCtx* c, TileWorldState& tile_world_state);
 // Caller: the radius command (direction/input). DEPS-FORM: the
 // driver world holds no MachineCtx — the door takes its
 // one organ explicitly (the deps-form precedent, clear_spheres).
-void request_recenter(WorldState& ws);
-void mark_patches_for_regen(MachineCtx* c, float min_wx, float min_wz,
-    float max_wx, float max_wz,
-    int32_t home_gx, int32_t home_gz);
+// `request_recenter(WorldState&)` stood here and left at ONE_SURFACE-I U2
+// with the conductor it re-armed; `mark_patches_for_regen(MachineCtx*,
+// float min_wx, float min_wz, float max_wx, float max_wz, int32_t home_gx,
+// int32_t home_gz)` beside it, at U6 — see PatchPhase above for why the
+// pyramid re-bake lane is unreachable in a world built once.
 // LATTICE_1 — one pass, two dispatches, the whole batch.
 void generate_patch_batch(MachineCtx* c, wgpu::CommandEncoder& encoder, wgpu::Queue& queue,
     const GPUPatchParams* params, uint32_t count);
 GPUPatchParams make_patch_params(MachineCtx* c, int32_t gx, int32_t gz, uint32_t layer);
 uint32_t alloc_layer(MachineCtx* c);
-void free_layer(MachineCtx* c, uint32_t layer);
-bool in_render_window(MachineCtx* c, int32_t gx, int32_t gz, int32_t cx, int32_t cz);
+// `free_layer` (the pool's return half) left at ONE_SURFACE-I U3 with the
+// eviction that was its only caller; `in_render_window` at U2, with the
+// window that moved.
 float patch_distance_sq(float px, float pz, float origin_x, float origin_z, float half);
 template<typename Pred>
 uint32_t collect_sorted_patches(MachineCtx* c, PatchCandidate* out,

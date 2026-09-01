@@ -12,16 +12,17 @@
 // ─── patch_system.hpp (S2 · MERGED: the active-patch machine) ──────
 // The decl tier lives in contracts/surface_services.hpp; this file is the
 // machine's bodies whole — the registry lifecycle (allocate → spawn →
-// generate → evict), the frame budgets, world teardown, the layer
-// allocator, and the streaming conductor. Stands on THE MACHINE FACE
-// (the root organs are machine members), the S3 dispatch seam
-// (select/place/commit — contracts/spawn_services.hpp), and the GPU
-// wire (c->gpuState_ / c->renderer_). The reaches OUTSIDE the face
-// ride the call site (the B law): the WRITABLE tile-cache + theme
-// organs (the face's views are const — the lifecycle owner mutates
-// them through the owner doors), the tile doors' deps, the sky's deps
-// (the back-portal door), and the driver's intent organ (the movement
-// budget read). COHORT: the tail's last — after the machine natives
+// generate), world teardown, the layer allocator, and the ONE-SHOT
+// BUILDER. It carried a fourth lifecycle stage (evict), the per-frame
+// budgets that paced all four, and the streaming conductor that spent
+// them; a finite world is built once, so all three left at ONE_SURFACE-I
+// U2 and U3. Stands on THE MACHINE FACE (the root organs are machine
+// members), the S3 dispatch seam (select/place/commit —
+// contracts/spawn_services.hpp), and the GPU wire (c->gpuState_ /
+// c->renderer_). The reaches OUTSIDE the face ride the call site (the B
+// law): the WRITABLE tile-cache organ (the face's view is const — the
+// lifecycle owner mutates it through the owner doors) and the tile
+// doors' deps. COHORT: the tail's last — after the machine natives
 // (spawn service defs) and sky (reset_surface's def).
 // ─────────────────────────────────────────────────────────────────
 
@@ -77,7 +78,6 @@ inline void reset_surface(MachineCtx* c, wgpu::Queue& queue,
     init_patch_system(c, tile_world_state);
     c->world_state_.last_center_x = INT32_MAX;  // force full regen on next frame
     c->world_state_.last_center_z = INT32_MAX;
-    c->world_state_.world_young = true;         // RIBBON_6: a rebirth is a world beginning
 
     // Terrain tokens — through the owner's door
     reset_terrain_memory(tile_world_state);
@@ -96,26 +96,15 @@ inline void reset_surface(MachineCtx* c, wgpu::Queue& queue,
     // New world decides its own upload frequency policy
     c->gpuState_.set_config_dynamic(false);
 }
-
-// The regen fan-out over the registry (pyramids bake into the
-// heightfield; their post-commit is the caller).
-inline void mark_patches_for_regen(MachineCtx* c, float min_wx, float min_wz,
-    float max_wx, float max_wz,
-    int32_t home_gx, int32_t home_gz) {
-    int32_t pg_x0 = (int32_t)std::floor(min_wx / Dim::PATCH_EXTENT);
-    int32_t pg_x1 = (int32_t)std::floor(max_wx / Dim::PATCH_EXTENT);
-    int32_t pg_z0 = (int32_t)std::floor(min_wz / Dim::PATCH_EXTENT);
-    int32_t pg_z1 = (int32_t)std::floor(max_wz / Dim::PATCH_EXTENT);
-
-    for (uint32_t p = 0; p < c->world_state_.active_patch_count; p++) {
-        if (c->patch_system_state_.patches_[p].phase != PatchPhase::GENERATED) continue;
-        if (c->patch_system_state_.patches_[p].grid_x == home_gx && c->patch_system_state_.patches_[p].grid_z == home_gz) continue;
-        if (c->patch_system_state_.patches_[p].grid_x >= pg_x0 && c->patch_system_state_.patches_[p].grid_x <= pg_x1 &&
-            c->patch_system_state_.patches_[p].grid_z >= pg_z0 && c->patch_system_state_.patches_[p].grid_z <= pg_z1) {
-            c->patch_system_state_.patches_[p].phase = PatchPhase::NEEDS_REGEN;
-        }
-    }
-}
+// `mark_patches_for_regen` stood here — the pyramid re-bake lane. It
+// marked GENERATED patches NEEDS_REGEN when a pyramid committed inside
+// them, so the heightfield would bake again over the new contribution.
+// It is structurally unreachable in a world built once: its sole caller
+// is `pyramid_post_commit`, and at a birth every patch is ALLOCATED or
+// SPAWNED when the pyramids commit — nothing is GENERATED yet, so the
+// scan matched nothing even before this campaign. The lane existed for
+// pyramids committed AFTER some patches had baked, which only a streamed
+// steady state produces (ONE_SURFACE-I U6).
 
 // ── Patch subsystem setup ──────────────────────────────────────────
 
@@ -128,9 +117,7 @@ inline void init_patch_system(MachineCtx* c, TileWorldState& tile_world_state) {
     c->world_state_.render_patch_count = 0;
     c->gpuState_.stage_placement_patch_count(0);
     reset_tile_cache(tile_world_state);  // owner door
-    c->world_state_.ground_entries_dirty = true;
     c->world_state_.patch_instances_dirty = true;
-    c->world_state_.placement_dirty = true;
 }
 
 // ── Patch generation ───────────────────────────────────────────────
@@ -363,8 +350,7 @@ inline void band_patches(MachineCtx* c, wgpu::Queue& queue) {
     float point_wz = c->point_.z;
 
     for (uint32_t i = 0; i < c->world_state_.active_patch_count; i++) {
-        if (c->patch_system_state_.patches_[i].phase != PatchPhase::GENERATED &&
-            c->patch_system_state_.patches_[i].phase != PatchPhase::NEEDS_REGEN) continue;
+        if (c->patch_system_state_.patches_[i].phase != PatchPhase::GENERATED) continue;
 
         float ox = (c->patch_system_state_.patches_[i].grid_x + 0.5f) * Dim::PATCH_EXTENT;
         float oz = (c->patch_system_state_.patches_[i].grid_z + 0.5f) * Dim::PATCH_EXTENT;
@@ -413,8 +399,7 @@ inline void build_patch_grid(MachineCtx* c, wgpu::Queue& queue) {
     int32_t min_gz = INT32_MAX;
     for (uint32_t i = 0; i < c->world_state_.active_patch_count; i++) {
         if (!c->patch_system_state_.patches_[i].valid) continue;
-        if (c->patch_system_state_.patches_[i].phase != PatchPhase::GENERATED &&
-            c->patch_system_state_.patches_[i].phase != PatchPhase::NEEDS_REGEN) continue;
+        if (c->patch_system_state_.patches_[i].phase != PatchPhase::GENERATED) continue;
         min_gx = std::min(min_gx, c->patch_system_state_.patches_[i].grid_x);
         min_gz = std::min(min_gz, c->patch_system_state_.patches_[i].grid_z);
     }
@@ -424,8 +409,7 @@ inline void build_patch_grid(MachineCtx* c, wgpu::Queue& queue) {
 
     for (uint32_t i = 0; i < c->world_state_.active_patch_count; i++) {
         if (!c->patch_system_state_.patches_[i].valid) continue;
-        if (c->patch_system_state_.patches_[i].phase != PatchPhase::GENERATED &&
-            c->patch_system_state_.patches_[i].phase != PatchPhase::NEEDS_REGEN) continue;
+        if (c->patch_system_state_.patches_[i].phase != PatchPhase::GENERATED) continue;
         int32_t lx = c->patch_system_state_.patches_[i].grid_x - grid.origin_x;
         int32_t lz = c->patch_system_state_.patches_[i].grid_z - grid.origin_z;
         if (lx < 0 || lz < 0 ||
@@ -479,6 +463,15 @@ inline void build_patch_grid(MachineCtx* c, wgpu::Queue& queue) {
 // unchanged; what can differ is which of two entities wins ground both
 // want, since footprints register at PLACE in candidate order. Disclosed
 // for the walk, not claimed as identity.
+// SEAM[patch:spawn-trigger] — RE-FOUNDED HERE (ONE_SURFACE-I U6). The
+// S3-trigger calls are the declared seam face: select_entities_for_patch /
+// place_entity_queue / commit_entity_queue, through spawn_selected_patches
+// at step 4 below. The seam fired from the conductor's own cadence and now
+// fires ONCE, at a world's birth — the surface machine waking the occupier
+// machine, at the one moment there is a surface to wake it about. Its old
+// banner also named `update_entity_draw_visibility` "at the frame tail";
+// that function returned a constant 0 from ONE_WORLD-I U3 onward and left
+// at U6.
 inline void build_world(MachineCtx* c, wgpu::Device& device, wgpu::Queue& queue,
     TileWorldState& tile_world_state, TileWorldDeps& tile_world_deps) {
     // ── 1. The world's identity, on the GPU, before anything reads it ──
@@ -579,16 +572,15 @@ inline void build_world(MachineCtx* c, wgpu::Device& device, wgpu::Queue& queue,
     // ── 6. The conductor's tail, once ─────────────────────────────────
     band_patches(c, queue);
     build_patch_grid(c, queue);
-    c->world_state_.ground_entries_dirty = true;
-    c->world_state_.placement_dirty      = true;
     c->world_state_.patch_instances_dirty = false;
 
-    // ── 7. The world is no longer young ───────────────────────────────
-    // RIBBON_6's meaning survives its counter: youth is an AGE, set when a
-    // world begins and cleared once. A world that is built whole is born
-    // already grown, so the clearer is this line rather than a per-frame
-    // three-quarters test.
-    c->world_state_.world_young = false;
+    // ── 7. RIBBON_6's AGE, and the field that carried it ──────────────
+    // `world_young` was set at a world's beginning and cleared once, when
+    // its window was three-quarters built, so a world being born could be
+    // handed a burst the steady state did not get. A world built whole is
+    // born already grown — there is no partial state to be young IN, and no
+    // budget to select. The field left at ONE_SURFACE-I U6; the LAW it
+    // stated is this function.
 
     // THE BIRTH CENSUS (OVERTURE_0), kept at its own moment: the first
     // count of a world that exists.
