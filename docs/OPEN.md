@@ -373,15 +373,26 @@ were raised as findings during the campaign and held for a decision. The
 decisions are below, so nothing on this list is still waiting on an
 opinion; two are parked with a named destination and one is closed.
 
-- **`veil_ring` / `veil_icing` — PARKED TO THE PANEL.** They carry the
-  veil's name for what are now the draw authority and the grain's band. A
-  CONFIG field's name IS its organ row id (`ORGAN_PARAM_NS`, one row id
-  per `#BLOCK "." #FIELD`), and a row id is a stored preset's key — so
-  this rename breaks the wire, unlike `cull_point`'s, which was checked
-  and does not. **The names are wrong and the rename is right**; what it
-  needs is a migration moment, and the panel's enrollment IS that moment.
-  Renaming before there is anything to migrate spends the breakage and
-  buys nothing.
+- **`veil_ring` / `veil_icing` — TAKEN AT THE_PANEL I U3.** They carried
+  the veil's name for what are now the draw authority and the grain's
+  band. A CONFIG field's name IS its organ row id (`ORGAN_PARAM_NS`, one
+  row id per `#BLOCK "." #FIELD`), and a row id is a stored preset's key,
+  so the parking waited for a migration moment. This was it.
+  They are **`draw_ring`** and **`grain_band`** now, in both rooms, with
+  `VEIL_RING_DEFAULT`/`VEIL_ICING_DEFAULT` and `GPUState::veil_ring()`
+  renamed with them — a half-rename that left the constants saying `VEIL`
+  would be the drift the parking was avoiding. The group moved from
+  `Atmosphere · Veil` to `Atmosphere · Ring & grain`.
+  **The names are TRANSCRIBED, not invented**: both rooms already called
+  these two "THE DRAW AUTHORITY" and "the grain's band" in the prose
+  beside them. **NAMING IS JEAN'S GATE** — overruling costs one line per
+  room plus one alias row, and the ledger that makes such a change cheap
+  landed with it.
+  **AND THE BREAKAGE THE PARKING FEARED WAS NOT THERE.** `baseline.json`
+  — the tree's only stored preset — contains ZERO `veil_*` keys, because
+  the web panel's export walk excluded the boot-pinned GPUDesignConfig
+  rows and these two are among them. The premise was right in principle
+  and the instance was empty. What the census DID find is below.
 - **`FINITE_RADIUS_MIN/MAX` — PARKED TO THE PANEL, and WEATHER's promise
   is amended to say so.** ONE_WORLD-II §1.7 said the pin would enroll
   them; it did not, and ONE_SURFACE §1.4 then presumed they were dials
@@ -870,6 +881,44 @@ the performance instrument's obvious next organ. The consumer to build:
 a boot flag (`--preset=<name>`) walking the same organ_set road
 `?preset=` walked, and later the control surface's own load. If that
 consumer is refused, this folder goes to the attic with a tombstone.
+
+### THE MIGRATION RECORD LANDED FIRST (THE_PANEL I U3c)
+
+`index.json` is **schema 2** and carries the refusal contract and a
+`retired_ids` ledger. It is DATA, not code: it records what an importer
+must refuse and what to say when it does, so PANEL-II's importer is
+written against a census rather than a guess.
+
+**49 of `baseline.json`'s 232 keys name families that no longer exist** —
+and the file is left stamped **schema 1** deliberately. Re-stamping it 2
+would make the version a lie and hide 49 refusals the importer should
+print. The other 183 keys are live and correct.
+
+| retired family | keys | left at |
+|---|---|---|
+| `MoodProfile.*` (with a `<target>/` mood prefix) | 9 | ONE_WORLD-II U2 |
+| `OrbMoodConfig.*` (same prefix) | 19 | ONE_WORLD-II U1b/U6b |
+| `WORLD.*` — the world-DRAW block 10 | 10 | ONE_WORLD-II U4 |
+| `RIBBON_SPAWN.<array>` — array members the manifest has no row shape for | 9 | the web-era export walk |
+| `INDOOR.*` — block 8 | 2 | ONE_WORLD-II U4 |
+
+**THE HAZARD, NAMED LOUDLY BECAUSE IT IS NEW.** Block *ids* are never
+re-packed — 8 and 10 are permanent holes for exactly this reason. Block
+*NAMES* turn out to be reusable, and one has just been reused:
+`WORLD.*` in that file means the dead world-draw block, while
+`WORLD.next_seed` / `WORLD.radius_min` / `WORLD.radius_max` are block 15
+and very much alive. No individual key collides — the field names are
+disjoint — but a family-level alias or a PREFIX match would, and would
+write the seed dial from a dead portal colour. **Match ids WHOLE.** This
+is the first time a block name has been reused, and the ledger says so at
+the row.
+
+**The `RIBBON_SPAWN` row is a finding of its own**: those keys were
+written by the web panel's export walk, which walked the STRUCT rather
+than the manifest, so it emitted keys no `organ_set` call could ever have
+accepted. The manifest is the whitelist; an export that does not walk it
+writes a file the program cannot read back. PANEL-II's export must walk
+the manifest — the re-import test in its close is the proof.
 
 ## THE BUDGET AFTER THE AUDIENCE (open, born at WEB_SUNSET)
 

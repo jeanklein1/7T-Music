@@ -2316,7 +2316,7 @@ namespace t7 {
             // (ONE_SURFACE-I U5). It was `lod0_radius` — 175 — because the
             // curtains it switched lived in the LOD0 band, and the band and
             // the flag read one value so they could not disagree. There is
-            // no band; the surviving authority is `veil_ring`, 342. A WIDER
+            // no band; the surviving authority is `draw_ring`, 342. A WIDER
             // disc can only find MORE zones in scope, so it can only choose
             // the zoned tail MORE often — and the zoned tail is the
             // conservative arm, the one that seals seams. A widening cannot

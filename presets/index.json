@@ -1,5 +1,46 @@
-[
- { "name": "baseline",
+{
+ "schema": 2,
+ "note": "THE SCENE INDEX. Version 2 is the id vocabulary as of THE_PANEL I U3. An importer reads `schema` FIRST and refuses a file it does not know, by number, before it applies one key: a scene that half-applies is worse than a scene that does not load, because the world it leaves behind is one nobody authored.",
+ "the_refusal_contract": "A key that names no live manifest row is REFUSED OUT LOUD, BY NAME, and the file is refused with it — never skipped, never aliased. The standing precedent is organ_set's own: a definition target above 0 prints the reason and names the row, because a stale preset naming a mood that no longer exists is a lie the program must not tell quietly. `retired_ids` below is what a refusal quotes: it turns 'unknown key' into 'this key named X, which left at Y'.",
+ "retired_ids": {
+  "INDOOR.*": {
+   "count": 2,
+   "left_at": "ONE_WORLD-II U4",
+   "what": "IndoorSurface / INDOOR_LIVE, block 8 — retired with the rooms. Block id 8 is a HOLE and is never re-packed.",
+   "successor": null
+  },
+  "MoodProfile.*": {
+   "count": 9,
+   "left_at": "ONE_WORLD-II U2",
+   "what": "the mood definition family. Keys carry a `<target>/` prefix naming a mood id.",
+   "successor": "ATMOS.* — one bank for the one world, addressed as an instance, with no target"
+  },
+  "OrbMoodConfig.*": {
+   "count": 19,
+   "left_at": "ONE_WORLD-II U1b/U6b",
+   "what": "the per-mood orb family, same `<target>/` prefix.",
+   "successor": "ORB_BANK.* — the sky's one row"
+  },
+  "RIBBON_SPAWN.<array>": {
+   "count": 9,
+   "left_at": "the web-era export walk",
+   "what": "color_weights, smooth_palette, tinted_range and tinted_base. The BLOCK is live; these keys are ARRAY members, and the manifest has no row shape for an array — the web panel's export walked the STRUCT, not the manifest, so it wrote keys no organ_set call could ever accept.",
+   "successor": null
+  },
+  "WORLD.*": {
+   "count": 10,
+   "left_at": "ONE_WORLD-II U4",
+   "what": "WorldDrawSurface / WORLD_DRAW_LIVE, block 10 (scheme_weights, portal_colors, portal_color_back, portal_density) — retired with the rooms and the portals.",
+   "successor": null,
+   "HAZARD": "THE NAME `WORLD` IS LIVE AGAIN AND MEANS SOMETHING ELSE. THE_PANEL I U1 founded block 15, WorldSurface / WORLD_LIVE, whose ids are WORLD.next_seed, WORLD.radius_min and WORLD.radius_max. No individual key collides — the field names are disjoint — but a family-level alias or a prefix match WOULD, and would write the seed dial from a dead portal colour. Match ids WHOLE, never by prefix. (Block IDS are never re-packed for exactly this reason; block NAMES, it turns out, can be reused, and this is the first time one has been.)"
+  }
+ },
+ "scenes": [
+  {
+   "name": "baseline",
    "file": "baseline.json",
-   "note": "The authored design tables, captured from the C++ by the panel's own export walk: 126 definitions and 105 bank instances. The 57 boot-pinned GPUDesignConfig rows are NOT here — initializeState writes them at device init and no offline capture can run it. Export from the panel for a complete scene." }
-]
+   "schema": 1,
+   "note": "The authored design tables, captured from the C++ by the web panel's own export walk: 232 keys. IT IS A VERSION 1 ARTIFACT AND IT IS LEFT THAT WAY DELIBERATELY (THE_PANEL I U3): 49 of its keys name families that no longer exist, so re-stamping it 2 would make the version a lie and hide 49 refusals the importer should print. The other 183 are live and correct. Re-export from the panel for a version 2 scene — which is also the only way to get a complete one, since the boot-pinned GPUDesignConfig rows are written by initializeState at device init and no offline capture can run it."
+  }
+ ]
+}

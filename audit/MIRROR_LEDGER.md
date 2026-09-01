@@ -18,12 +18,12 @@ carry those facts, or leave them in place and patch around them.
 | source commit | `d174157eb89d03f70e1f63507163550021115c30` |
 | | THE_PANEL I U3a: THE RADIUS PAIR GRADUATES — a dial over a capacity |
 | `src/cartridges/the_board/realization/binding_registry.hpp` | `sha256:351eccaedd6902900df3b13a57c7a818ff10cf4280debbfb9034b0ffabcfcc73` |
-| `src/cartridges/the_board/realization/world.wgsl` | `sha256:67006fc775f022db9d11e2825f018a55f3cc489fff0bd35508e63d5202644d20` |
-| `src/cartridges/the_board/realization/state.hpp` | `sha256:8c178e1f4226a0010105cff9a3ead1083853483f2663b56437da17c2246e590b` |
+| `src/cartridges/the_board/realization/world.wgsl` | `sha256:a552a0806b91f0558e2ad3e14e721a9cdc4fe3dda4b9c5dc32ec992be88b77c7` |
+| `src/cartridges/the_board/realization/state.hpp` | `sha256:0f70af61a4b6ba9c4b5d08a0dbef8d969d24f97334155f237aaeef196e91d0c2` |
 | `src/cartridges/the_board/realization/binding_surface.gen.inc` | `sha256:10e301844bd75099919b6e0aa5b0fde9d3e723f0c59b11072bc821a4ca97e682` |
 | `src/cartridges/the_board/realization/renderer.hpp` | `sha256:06607597f8dc50c80f2dd99c042ba8b1d12f3caaec25640cc9e65f6755fbe84a` |
 | `tools/binding_ledger.py` | `sha256:a3c75bab894774eb0302686e5efd52275b280e14abfcf4e8753b28d5b5086692` |
-| `audit/BINDING_LEDGER.md` | `sha256:cb461ea2cb6a187963c3c2926935ecaef0aeaaeb124a4ceaca67113b5ae065dc` |
+| `audit/BINDING_LEDGER.md` | `sha256:413b4c6830cb96cd276062d03a442c8937e105c05677e1b9421964f8689a99f6` |
 
 `tools/binding_ledger.py` is an input because its parsers are IMPORTED,
 not copied — one parse, two artifacts, no drift between instruments.

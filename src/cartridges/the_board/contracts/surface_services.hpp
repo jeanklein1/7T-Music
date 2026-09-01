@@ -254,11 +254,11 @@ struct ActivePatch {
 
 // ── Visibility — THE VEIL CHAIN (RING = draw authority) ────────────
 //
-// The chain is declared ONCE in Dim (state.hpp: VEIL_RING_DEFAULT
-// 325 / VEIL_ICING_DEFAULT 40 / LOD0_RADIUS_DEFAULT 175 / EXIST_RADIUS
-// 350, chain static_asserts). The LIVE values ride config (veil_ring/
-// veil_icing/lod0_radius, tunable): the CPU band reads gpuState_.
-// veil_ring()/lod0_radius(), the entity cull reads veil_ring(), the GPU
+// The chain is declared ONCE in Dim (state.hpp: DRAW_RING_DEFAULT
+// 325 / GRAIN_BAND_DEFAULT 40 / LOD0_RADIUS_DEFAULT 175 / EXIST_RADIUS
+// 350, chain static_asserts). The LIVE values ride config (draw_ring/
+// grain_band/lod0_radius, tunable): the CPU band reads gpuState_.
+// draw_ring()/lod0_radius(), the entity cull reads draw_ring(), the GPU
 // LOD0 gate reads fc_config.lod0_radius, every VS draw gate + the
 // fragment icing read config — one yardstick, by construction,
 // everywhere. Grid-based allocation/eviction unchanged.

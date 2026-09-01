@@ -35,7 +35,7 @@ namespace the_board {
 // ─── Entity Distance Culling — THE RING (re-ruled) ─────────────────
 //
 // THE RING is the draw authority (chain, state.hpp Dim; live value =
-// config veil_ring): an entity is IN the draw set iff any part of it
+// config draw_ring): an entity is IN the draw set iff any part of it
 // reaches inside the ring — center-distance MINUS its horizontal extent
 // ≤ ring (the "center±extent" metric; replaces the retired per-size
 // inset). Hysteresis sits OUTSIDE the ring, in the fully-iced zone:
@@ -311,7 +311,7 @@ inline PositionResult negotiate_position(MachineCtx* c,
 inline uint32_t update_entity_draw_visibility(MachineCtx* c, wgpu::Queue& queue) {
     uint32_t culled = 0;
 
-    const float ring = c->gpuState_.veil_ring();   // live chain value — the draw authority
+    const float ring = c->gpuState_.draw_ring();   // live chain value — the draw authority
 
     // THE ARCH LOOP stood here — the only family whose mesh could be
     // zeroed at range, because it was the only family with a GPU mesh to

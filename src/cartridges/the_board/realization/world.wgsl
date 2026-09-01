@@ -1744,14 +1744,14 @@ struct DesignConfig {
     point_fly_speed: f32,
     // THE VEIL (re-ruled: RING = draw authority, fog = icing). Mirrors
     // GPUDesignConfig (state.hpp):
-    //   veil_ring — THE DRAW AUTHORITY (342), and the one strand of the
+    //   draw_ring — THE DRAW AUTHORITY (342), and the one strand of the
     //     veil chain that was never the veil's: four gates read it and
     //     none is gated by strength. It still CULLS in a walled world —
     //     at radius 4 the box diagonal is 636 wu against a ring of 342.
     //     Formerly described as the band's outer
     //     gate, the entity cull, and every VS draw gate read it;
     //     nothing draws beyond it.
-    //   veil_icing — δ: the narrow fade band [ring−δ, ring] in
+    //   grain_band — δ: the narrow fade band [ring−δ, ring] in
     //     shade_lit (cosmetic; joins materialize inside it).
     //   _pad_veil_strength_retired — it was 1 in an open world and 0 in a
     //     finite one, and the pin made it a constant 0, so every reader was
@@ -1760,8 +1760,8 @@ struct DesignConfig {
     //   _pad_lod0_radius_retired — it was the terrain full/half-mesh
     //     split (175), read by
     //     the frustum-cull LOD0 gate + the CPU band (one yardstick).
-    veil_ring: f32,
-    veil_icing: f32,
+    draw_ring: f32,
+    grain_band: f32,
     _pad_veil_strength_retired: f32,
     _pad_lod0_radius_retired: f32,
     // ── The palette mirror (FORK-tier graduation) — C++ twin in
@@ -2334,7 +2334,7 @@ const PAWN_FORCEFIELD_SPEED_SCALE: f32 = 1.0;        // How quickly radius shrin
 //   possess reach ...... POSSESSION_RADIUS          20 wu (agents.hpp)
 //   agent eviction ..... AGENT_EVICTION_RADIUS      350 wu
 //   floater eviction ... FLOATER_EVICTION_RADIUS    800 wu
-//   veil ring / LOD0 ... config.veil_ring / lod0    325 / 175 wu
+//   veil ring / LOD0 ... config.draw_ring / lod0    325 / 175 wu
 //   sphere body ........ fe.body_radius (per-inst)  ~1.2-1.5 wu
 //
 // THE INFLUENCE RADII  (name . value . reference . derivation):
@@ -4270,7 +4270,7 @@ fn calc_directional_light(world_pos: vec3<f32>, normal: vec3<f32>, geo_normal: v
 // point-anchored, a body could be dithering out at the ring while its
 // grain insisted it was near.
 fn veil_t(world_pos: vec3<f32>) -> f32 {
-    return smoothstep(config.veil_ring - config.veil_icing, config.veil_ring,
+    return smoothstep(config.draw_ring - config.grain_band, config.draw_ring,
                       distance(world_pos.xz, render_point_pos().xz));
 }
 
@@ -4679,7 +4679,7 @@ fn patch_terrain_fs(in: PatchTerrainVarying) -> @location(0) vec4<f32> {
     // point (cull_point) — concentric with the zone/instance kills, so
     // every hard draw-set edge is ONE circle (no scallops, no silhouettes).
     // Optional dither-dissolve inside the icing band handled in shade_lit.
-    if (distance(in.world_pos.xz, vec2(config.cull_point_x, config.cull_point_z)) > config.veil_ring) {
+    if (distance(in.world_pos.xz, vec2(config.cull_point_x, config.cull_point_z)) > config.draw_ring) {
         discard;
     }
 
@@ -5180,7 +5180,7 @@ fn pawn_vs(@builtin(vertex_index) vid: u32,
     // to a degenerate point at the agent's pos (local geometry * active_f = 0).
     let agent_in_ring = distance(vec2(agent.pos_x, agent.pos_z),
                                  vec2(config.cull_point_x, config.cull_point_z))
-                        - 5.0 <= config.veil_ring;   // 5 wu: agent body half-extent
+                        - 5.0 <= config.draw_ring;   // 5 wu: agent body half-extent
     let active_f = f32(agent.is_active) * f32(agent_in_ring);
 
     // -- Figure selection (0 = regular pawn: hardcoded profile + legacy color) --
@@ -5303,7 +5303,7 @@ fn sphere_vs(@builtin(instance_index) inst: u32, in: MeshVertexInput) -> EntityV
     // THE RING (draw authority): floaters exist to 400 (the flagged spawn-
     // headroom fork) but DRAW only inside the ring — center − extent ≤ ring.
     let in_ring = distance(fe.pos.xz, vec2(config.cull_point_x, config.cull_point_z))
-                  - fe.body_radius <= config.veil_ring;
+                  - fe.body_radius <= config.draw_ring;
     let r = select(0.0, fe.body_radius, fe.geometry_type == 0u && fe.is_active != 0u && in_ring);
     let world_pos = in.pos * r + fe.pos;
 
@@ -5345,7 +5345,7 @@ fn entity_fs(in: EntityVarying) -> @location(0) vec4<f32> {
 //
 // IT IS STILL EXEMPT FROM SOMETHING, and that survives on its own: the
 // ribbon has no VS ring gate. pawn_vs, sphere_vs and cube_vs each collapse
-// their geometry outside config.veil_ring; the ribbon does not, which is
+// their geometry outside config.draw_ring; the ribbon does not, which is
 // the same ruling reaching it through a different mechanism.
 @fragment
 fn ribbon_fs(in: EntityVarying) -> @location(0) vec4<f32> {
@@ -5360,7 +5360,7 @@ fn monolith_vs(@builtin(instance_index) inst: u32, in: MeshVertexInput) -> Entit
     // inside the ring — center − extent ≤ ring (extent 2r covers the
     // aspect-stretched axes conservatively; overshoot is fully iced).
     let in_ring = distance(fe.pos.xz, vec2(config.cull_point_x, config.cull_point_z))
-                  - fe.body_radius * 2.0 <= config.veil_ring;
+                  - fe.body_radius * 2.0 <= config.draw_ring;
     let r = select(0.0, fe.body_radius, fe.geometry_type == 1u && fe.is_active != 0u && in_ring);
 
     // Apply orientation quaternion (monoliths spin)

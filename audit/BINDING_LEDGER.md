@@ -16,11 +16,11 @@ merge rows the API charges separately.
 | demo column censused | `full` |
 | source commit | `51649be11efbbcad053bbe77504de6f78d258c34` |
 | | THE_PANEL I U2: THE DELIBERATE RELAYOUT — 704 -> 688, both rooms (PROBE-PENDING) |
-| `src/cartridges/the_board/realization/state.hpp` | `sha256:8c178e1f4226a0010105cff9a3ead1083853483f2663b56437da17c2246e590b` |
+| `src/cartridges/the_board/realization/state.hpp` | `sha256:0f70af61a4b6ba9c4b5d08a0dbef8d969d24f97334155f237aaeef196e91d0c2` |
 | `src/cartridges/the_board/realization/binding_surface.gen.inc` | `sha256:10e301844bd75099919b6e0aa5b0fde9d3e723f0c59b11072bc821a4ca97e682` |
 | `src/cartridges/the_board/realization/binding_registry.hpp` | `sha256:351eccaedd6902900df3b13a57c7a818ff10cf4280debbfb9034b0ffabcfcc73` |
 | `src/cartridges/the_board/realization/renderer.hpp` | `sha256:06607597f8dc50c80f2dd99c042ba8b1d12f3caaec25640cc9e65f6755fbe84a` |
-| `src/cartridges/the_board/realization/world.wgsl` | `sha256:67006fc775f022db9d11e2825f018a55f3cc489fff0bd35508e63d5202644d20` |
+| `src/cartridges/the_board/realization/world.wgsl` | `sha256:a552a0806b91f0558e2ad3e14e721a9cdc4fe3dda4b9c5dc32ec992be88b77c7` |
 
 
 BUDGET_0f's call-shape census reads further files, for INVOCATION SITES
@@ -31,10 +31,10 @@ only — `draw_orbs` is called from `bodies/orbs.hpp`, not from
 |---|---|
 | `src/cartridges/the_board/bodies/orbs.hpp` | `475d3de82ddd4d979d55ad146039937cd3316a0148466ed5c1db5566bde9a8b1` |
 | `src/cartridges/the_board/bodies/pawn.hpp` | `7915ec242a2a3094537882c50a2980c9494e4f1460a3a2f786232b67ec6ead12` |
-| `src/cartridges/the_board/cartridge.hpp` | `cd60c6bf59bc206c1a7c62fa55042f8cd6d1f910c6ac6a11c7aea86ddde0186a` |
+| `src/cartridges/the_board/cartridge.hpp` | `7bda6aad6c14e1d416696e65798efaa467ceed0c16e6279a3c1c392e2baf91ad` |
 | `src/cartridges/the_board/realization/render_passes.hpp` | `d00857c2e8456fc08af94cc8e97d880f5dfb956e493c4cb90bb0e5e5d49bd9fa` |
 | `src/cartridges/the_board/surface/automaton.hpp` | `e98d2e703e4b4fd148d65502565de16e9ab36babd3a09ab5759677c4962aebe4` |
-| `src/cartridges/the_board/surface/patch_system.hpp` | `85947f465f0b5692500a8d4717fe646cf22b6461416f8726e34bfc8442a7bfb2` |
+| `src/cartridges/the_board/surface/patch_system.hpp` | `5d21d4b65ec63627aca68f045c32302322a2b70cb89bd209b9e438a0552b5c87` |
 
 The source commit is the last commit touching any of the four primary
 inputs — not `HEAD`, which moves when this file is committed. The content

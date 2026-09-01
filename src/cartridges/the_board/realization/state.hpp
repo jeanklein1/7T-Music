@@ -215,24 +215,24 @@ namespace t7 {
             //     OPT_1b — PREGEN·EXTENT == EXIST, the assert below is now
             //     tight, not slack): existence eviction (agents unified at
             //     350 — V1; floaters 400, the flagged spawn-headroom fork).
-            // LIVE values ride config (veil_ring/veil_icing,
+            // LIVE values ride config (draw_ring/grain_band,
             // tunable — "ring at 6.5 feels right vs 5.5, config-tune live").
             // `LOD0_RADIUS_DEFAULT` (3.5 * PATCH_EXTENT = 175) stood here —
             // the full/half-mesh split's default. Every patch draws full
             // mesh since ONE_SURFACE-I U5.
-            constexpr float VEIL_RING_DEFAULT   = 6.84f * PATCH_EXTENT;  // 342 — THE RING (desk-tuned
+            constexpr float DRAW_RING_DEFAULT   = 6.84f * PATCH_EXTENT;  // 342 — THE RING (desk-tuned
                                                                          // from 6.5; the chain asserts
                                                                          // below hold, but EXIST is now
                                                                          // only 8 wu further out)
-            constexpr float VEIL_ICING_DEFAULT  = 42.0f;                 // δ (~25-50, tunable)
+            constexpr float GRAIN_BAND_DEFAULT  = 42.0f;                 // δ (~25-50, tunable)
             constexpr float EXIST_RADIUS        = 7.0f * PATCH_EXTENT;   // 350
             static_assert(PATCH_PREGEN_RADIUS * PATCH_EXTENT >= EXIST_RADIUS,
                 "VEIL CHAIN: PREGEN >= EXIST (nothing exists off resident ground)");
-            static_assert(EXIST_RADIUS > VEIL_RING_DEFAULT,
+            static_assert(EXIST_RADIUS > DRAW_RING_DEFAULT,
                 "VEIL CHAIN: EXIST > RING (existence outlives the draw set)");
             // TWO CHAIN LINKS LEFT WITH LOD0 (ONE_SURFACE-I U5):
-            //   VEIL_RING_DEFAULT > LOD0_RADIUS_DEFAULT
-            //   VEIL_RING_DEFAULT - VEIL_ICING_DEFAULT > LOD0_RADIUS_DEFAULT
+            //   DRAW_RING_DEFAULT > LOD0_RADIUS_DEFAULT
+            //   DRAW_RING_DEFAULT - GRAIN_BAND_DEFAULT > LOD0_RADIUS_DEFAULT
             // Both bound the split point inside the ring's band. There is no
             // split. What survives is EXIST > RING, which is the live one:
             // bodies exist to 350 and DRAW to the ring.
@@ -690,14 +690,14 @@ namespace t7 {
             // arm never discards — and NOT ONE of the four ring gates is
             // gated by strength at all.
             //
-            // veil_ring: THE DRAW AUTHORITY, and it always was. Four live
+            // draw_ring: THE DRAW AUTHORITY, and it always was. Four live
             //   gates read it — patch_terrain_fs' rim discard, pawn_vs,
             //   sphere_vs, cube_vs — and none of them asks about strength.
             //   IT STILL CULLS IN A WALLED WORLD: at radius 4 the box
             //   diagonal is 636 wu against a ring of 342, so a body inside
             //   the wall can stand outside the ring. Deleting it would make
             //   distant bodies appear, which is the opposite of untouched.
-            // veil_icing: δ, and the grain's band now. Its only surviving
+            // grain_band: δ, and the grain's band now. Its only surviving
             //   reader is veil_t's smoothstep, whose only surviving caller
             //   is entity_fs' `grain = 1 - veil_t`. MOSAIC_2 bound the two
             //   together so a body would materialize at the ring already
@@ -719,8 +719,8 @@ namespace t7 {
             // the WGSL room. Take them and it lands at 8 mod 16. The four
             // pads that could go went at THE_PANEL I U2; the sizeof
             // witness carries the whole arithmetic.
-            float veil_ring;
-            float veil_icing;
+            float draw_ring;
+            float grain_band;
             float _pad_veil_strength_retired;
             float _pad_lod0_radius_retired;
 
@@ -3022,7 +3022,7 @@ namespace t7 {
             // `set_veil_strength` and `set_veil_dither` stood here. The
             // first wrote a value the pin made constant; the second wrote a
             // knob whose two arms had been identical since (ONE_SURFACE-I U4).
-            float veil_ring()   const { return config_.veil_ring; }
+            float draw_ring()   const { return config_.draw_ring; }
             const GPUDesignConfig& config() const { return config_; }
 
             uint32_t get_fpv_mode() const { return config_.fpv_mode; }
@@ -4561,8 +4561,8 @@ namespace t7 {
                 // THE VEIL — chain defaults (Dim: ring 325 / icing 40 /
                 // lod0 175); strength staged per frame by U5 (0 in a finite
                 // world). Boot open-on.
-                config_.veil_ring   = Dim::VEIL_RING_DEFAULT;
-                config_.veil_icing  = Dim::VEIL_ICING_DEFAULT;
+                config_.draw_ring   = Dim::DRAW_RING_DEFAULT;
+                config_.grain_band  = Dim::GRAIN_BAND_DEFAULT;
                 config_._pad_veil_strength_retired = 0.0f;
                 config_._pad_lod0_radius_retired = 0.0f;
                 // config_._pad_veil_dither_retired stood here — a boot pin

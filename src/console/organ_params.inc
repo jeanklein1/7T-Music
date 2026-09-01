@@ -191,23 +191,32 @@ ORGAN_PARAM(DRIVERS, DriverSurface, fog.gain,         F32,  0.0f, 1.0f,  0.01f, 
 ORGAN_PARAM_RO(CONFIG, GPUDesignConfig, fog_density,  F32,  "Atmosphere · Fog", "density (driven)")
 ORGAN_PARAM_RO(CONFIG, GPUDesignConfig, fog_color,    VEC3, "Atmosphere · Fog", "colour (driven)")
 
-// ─── Atmosphere · Veil ───────────────────────────────────────────────
+// ─── Atmosphere · Ring & grain (was `Veil`) ──────────────────────────
 // TWO ROWS LEFT THIS SECTION AT ONE_SURFACE-I U4, and neither could move a
 // pixel when it did. `veil_dither` chose between the icing's tint and
 // dither arms, and the pin had held `veil` at zero — where both arms
 // return the same colour. `veil_strength` was the RO meter of that zero.
 //
 // THE CHAIN STILL BOUNDS WHAT IS LEFT, and the ranges still carry it:
-// EXIST(350) > ring > lod0, and ring − icing > lod0. Widen one and
-// re-prove the chain. What the fold table changed is what the two survivors
-// MEAN: `veil_ring` is the DRAW AUTHORITY, read by four gates that never
-// asked about strength and still culling inside a walled world; `veil_icing`
-// is the GRAIN's band, its one surviving reader being veil_t's smoothstep
-// under entity_fs' `grain = 1 - veil_t` (L12). The names are the veil's and
-// the facts are not; renaming a CONFIG field renames its row id, which is a
-// stored preset's key, so the rename is flagged for Jean and not taken.
-ORGAN_PARAM(CONFIG, GPUDesignConfig, veil_ring,   F32, 265.0f, 349.0f, 0.5f,  "Atmosphere · Veil", "ring (draw authority)")
-ORGAN_PARAM(CONFIG, GPUDesignConfig, veil_icing,  F32, 0.0f,   60.0f,  0.25f, "Atmosphere · Veil", "grain band")
+// EXIST(350) > ring > lod0, and ring − band > lod0. Widen one and re-prove
+// the chain. What the fold table changed is what the two survivors MEAN:
+// the ring is the DRAW AUTHORITY, read by four gates that never asked
+// about strength and still culling inside a walled world; the band is the
+// GRAIN's, its one surviving reader being veil_t's smoothstep under
+// entity_fs' `grain = 1 - veil_t` (L12).
+//
+// AND THE NAMES CAUGHT UP AT THE_PANEL I U3. They were `veil_ring` and
+// `veil_icing` — the veil's name for facts that are not the veil's — and
+// ONE_SURFACE's close ruled the rename right and parked it, because a
+// CONFIG field's name IS its organ row id and a row id is a stored
+// preset's key. This is the migration moment that parking named. The new
+// names are TRANSCRIBED, not invented: both rooms already called them
+// "THE DRAW AUTHORITY" and "the grain's band" in the prose beside them.
+// NAMING IS JEAN'S GATE — overruling this costs one line in each room
+// plus one alias row, and the retired-id ledger that makes such a change
+// cheap landed with it (presets/index.json).
+ORGAN_PARAM(CONFIG, GPUDesignConfig, draw_ring,   F32, 265.0f, 349.0f, 0.5f,  "Atmosphere · Ring & grain", "draw ring (the authority)")
+ORGAN_PARAM(CONFIG, GPUDesignConfig, grain_band,  F32, 0.0f,   60.0f,  0.25f, "Atmosphere · Ring & grain", "grain band")
 // `lod0_radius` stood here — the terrain full/half-mesh split. Every patch
 // draws full mesh since ONE_SURFACE-I U5, so the dial named a boundary with
 // nothing on either side of it.

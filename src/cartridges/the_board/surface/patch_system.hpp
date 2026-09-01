@@ -325,7 +325,7 @@ inline void generate_selected_patches(MachineCtx* c, const PatchCandidate* candi
 // the SAME point the CPU banded on (the anti-flicker contract).
 //   offer-face: GPUPatchInstance[] + render_patch_count + cull_point.
 //   requires:   patches_ registry, the point readback, patch_distance_sq,
-//               the LIVE veil chain (config veil_ring/lod0_radius),
+//               the LIVE veil chain (config draw_ring/lod0_radius),
 //               finite_mode; the upload doors.
 // Bit-safe: pack order = wire layout, not a draw. Separate from
 // build_patch_grid (different consumer/offer-face); they only coincided

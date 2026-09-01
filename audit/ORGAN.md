@@ -71,8 +71,8 @@ generator, so the book and the manifest cannot disagree. `driven` is an
 | Atmosphere · Fog | drive gain | `DRIVERS.fog.gain` | DRIVERS | F32 | 0 … 1 | 0.01 | live | none |  |
 | Atmosphere · Fog | density (driven) | `CONFIG.fog_density` | CONFIG | F32 | — | — | driven | none | • |
 | Atmosphere · Fog | colour (driven) | `CONFIG.fog_color` | CONFIG | VEC3 | — | — | driven | none | • |
-| Atmosphere · Veil | ring (draw authority) | `CONFIG.veil_ring` | CONFIG | F32 | 265 … 349 | 0.5 | live | none |  |
-| Atmosphere · Veil | grain band | `CONFIG.veil_icing` | CONFIG | F32 | 0 … 60 | 0.25 | live | none |  |
+| Atmosphere · Ring & grain | draw ring (the authority) | `CONFIG.draw_ring` | CONFIG | F32 | 265 … 349 | 0.5 | live | none |  |
+| Atmosphere · Ring & grain | grain band | `CONFIG.grain_band` | CONFIG | F32 | 0 … 60 | 0.25 | live | none |  |
 | Atmosphere · Checker | rest colour | `DRIVERS.checker.rest_resultant` | DRIVERS | VEC3 | 0 … 1 | 0.01 | live | none |  |
 | Atmosphere · Checker | rest amount | `DRIVERS.checker.rest_amount` | DRIVERS | F32 | 0 … 1 | 0.005 | live | none |  |
 | Atmosphere · Checker | rest variance | `DRIVERS.checker.rest_variance` | DRIVERS | F32 | 0 … 8 | 0.04 | live | none |  |
