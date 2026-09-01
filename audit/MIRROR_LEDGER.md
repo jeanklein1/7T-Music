@@ -15,8 +15,8 @@ carry those facts, or leave them in place and patch around them.
 
 | field | value |
 |---|---|
-| source commit | `70ad302139fd6380ba7a6d1ac3e8b83ebbef2600` |
-| | ONE_SURFACE-II U2: the GOL family falls, and it is a TAIL CUT |
+| source commit | `5fe8ea5f332896c2af2928d11dc531dfa8737784` |
+| | ONE_SURFACE-II: the ledgers' stamps settle after U1 and U2 |
 | `src/cartridges/the_board/realization/binding_registry.hpp` | `sha256:351eccaedd6902900df3b13a57c7a818ff10cf4280debbfb9034b0ffabcfcc73` |
 | `src/cartridges/the_board/realization/world.wgsl` | `sha256:240fd76fa9104ae47fc9f33b5a9cfdcfb409329ced649b7475581cb39534af79` |
 | `src/cartridges/the_board/realization/state.hpp` | `sha256:3dfc4cf35f8c3411c01a94827ed703480cf483ee7b52a04f4e15ad3b0965b622` |
