@@ -75,6 +75,26 @@
 // through the T7_WORLD_SEED pin and `--seed=`.
 ORGAN_PARAM_GEN(WORLD, WorldSurface, next_seed, U32, 0.0f, 4294967040.0f, 1.0f, "World · Seed", "next world's seed")
 
+// ─── World · Radius ──────────────────────────────────────────────────
+// WORLD_LIVE's other two rows, GEN and C3 destructive like the seed:
+// `derive_finite_radius` reads them at become_world and nowhere else, so
+// an edit lands on the next world the door draws.
+//
+// THE RANGE, NOT THE RADIUS. The radius is DRAWN — cpu_hash(seed, 77u)
+// inside [min, max] — so a world still differs from a world, and setting
+// min == max pins one size without a second mechanism.
+//
+// THE CEILING IS SPELLED BY NAME, AND IT IS A CAPACITY. FINITE_RADIUS_MAX
+// is bound by three static_asserts (contracts/surface_services.hpp) to
+// frustum-cull segments A and B, to the layer pool, and — through
+// Dim::AUTO_GRID_MAX — to the automaton's life buffer. A world wider than
+// the pin indexes past the end of that buffer on its last row, every
+// frame. Printing 4 here would hide the law; naming the constant means
+// raising the pin moves this dial with it, and the ONE place either can
+// be raised is still the build.
+ORGAN_PARAM_GEN(WORLD, WorldSurface, radius_min, U32, the_board::FINITE_RADIUS_MIN, the_board::FINITE_RADIUS_MAX, 1.0f, "World · Radius", "radius range, low")
+ORGAN_PARAM_GEN(WORLD, WorldSurface, radius_max, U32, the_board::FINITE_RADIUS_MIN, the_board::FINITE_RADIUS_MAX, 1.0f, "World · Radius", "radius range, high")
+
 // ─── THE SUN ─────────────────────────────────────────────────────────
 // GPULighting::sun is the fragment shader's window, and stage_sky DRAWS
 // it — from ATMOS_LIVE, under the world's seed — at every world's birth and

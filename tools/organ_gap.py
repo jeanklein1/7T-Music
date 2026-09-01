@@ -82,10 +82,24 @@ HOMES = {
     "CubeBank":              "src/cartridges/the_board/bodies/cube_behaviors.hpp",
     # the destructive banks
     "RibbonSpawnSurface":    "src/cartridges/the_board/contracts/ribbon_surface.hpp",
-    # THE_PANEL I U1 — one field, and it is the seed door's dial. The bank
-    # has NO PAIR below on purpose: a world's seed was never authored, so
-    # there is no design constant it graduated from and nothing for the
-    # reader witness to prove. "(not a graduation)" is the true answer.
+    # THE_PANEL I U1/U3 — the seed door's dial and the radius range. The
+    # bank has NO PAIR below, and by U3 that needs the fuller reason:
+    #
+    #   · next_seed graduated from nothing. A world's seed is DRAWN at
+    #     boot (DRAW_0), never authored, so there is no design constant
+    #     behind it and nothing for the reader witness to prove.
+    #   · radius_min/max DID graduate — from FINITE_RADIUS_MIN/MAX — but
+    #     those constants are not only the design. Three static_asserts
+    #     bind FINITE_RADIUS_MAX to frustum-cull segments A and B, to the
+    #     layer pool and to the automaton's life buffer, and
+    #     derive_finite_radius clamps the live value against it because
+    #     the number becomes a buffer index. So the design symbol KEEPS a
+    #     runtime reader on purpose, which is precisely what a PAIR entry
+    #     asserts must not happen. Enrolling the pair here would fail the
+    #     gate over a fence that is doing its job.
+    #
+    # "(not a graduation)" is the honest answer for both halves, for two
+    # different reasons. A successor should not "fix" it.
     "WorldSurface":          "src/cartridges/the_board/contracts/world_surface.hpp",
 }
 # MoodProfile, IndoorSurface and WorldDrawSurface stood here with their

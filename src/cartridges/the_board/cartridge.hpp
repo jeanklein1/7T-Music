@@ -515,6 +515,13 @@ namespace t7 {
                 // turning the dial and the same world is torn down and
                 // built again, which is the honest first half of the walk.
                 WORLD_LIVE.next_seed = world_state_.active_seed;
+                // AND THE RADIUS RANGE, from the pin that is still the
+                // design and still the asserted capacity (THE_PANEL I U3).
+                // become_world below draws this world's radius from these
+                // two, so the seat must precede it — which is the same
+                // reason the seed's seat does.
+                WORLD_LIVE.radius_min = FINITE_RADIUS_MIN;
+                WORLD_LIVE.radius_max = FINITE_RADIUS_MAX;
 
                 // BOOT IS A BIRTH FROM NOTHING — IN FACT (ATRIUM_0).
                 // The SEED is settled above and is now the whole of what a

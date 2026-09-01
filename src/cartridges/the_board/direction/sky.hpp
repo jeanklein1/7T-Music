@@ -4,6 +4,7 @@
 #include "cartridges/the_board/contracts/agent_tiers.hpp"      // TIER_LIVE — the doorway witness reads a walker's contact_radius (ATRIUM_7)
 #include "cartridges/the_board/contracts/spine_state.hpp"      // SkyState — the world's drawn sky, the instance this file authors
 #include "cartridges/the_board/contracts/atmosphere_surface.hpp"   // ATMOS_LIVE — the atmosphere panel; draw_atmosphere's bank (ONE_WORLD-II U1)
+#include "cartridges/the_board/contracts/world_surface.hpp"        // WORLD_LIVE — the radius range derive_finite_radius draws within (THE_PANEL I U3)
 #include "cartridges/the_board/contracts/wgpu_fwd.hpp"   // wgpu handle fwds (lockstep insurance)
 #include <algorithm>   // std::max, std::min, std::clamp   // (impl, merged)
 #include <cmath>       // std::sqrt, std::sin, std::cos, std::cosh, std::floor, std::abs   // (impl, merged)
@@ -351,9 +352,31 @@ inline void upload_lights(SkyDeps* c, wgpu::Queue& queue) {
 // drew. The min >= max guard stays: a pinned range is still a legal
 // range, and it is how a future dial pins one.
 inline uint32_t derive_finite_radius(uint32_t seed) {
-    if (FINITE_RADIUS_MIN >= FINITE_RADIUS_MAX) return FINITE_RADIUS_MIN;
-    constexpr uint32_t range = FINITE_RADIUS_MAX - FINITE_RADIUS_MIN + 1;
-    return FINITE_RADIUS_MIN + cpu_hash(seed, 77u) % range;
+    // THE RANGE IS THE BANK'S NOW (THE_PANEL I U3). It read
+    // FINITE_RADIUS_MIN/MAX directly until this unit; the pair are the
+    // DESIGN and the CAPACITY still, and WORLD_LIVE is what a hand
+    // turns. The salt stays 77u and the arithmetic is unchanged, so a
+    // given seed under the boot range draws exactly the radius it
+    // always drew.
+    //
+    // THE CLAMP IS NOT BELT-AND-BRACES. FINITE_RADIUS_MAX sizes the
+    // automaton's life buffer, frustum-cull segments A and B, and the
+    // layer pool — three static_asserts in contracts/surface_services.hpp
+    // say so. The enrollment line's ceiling is that same constant and
+    // organ_set holds a consumer to it, but the READER is where a
+    // capacity invariant belongs: it is the last line before the number
+    // becomes a buffer index, and it is the one place a future second
+    // writer cannot go around.
+    const uint32_t hi = WORLD_LIVE.radius_max > FINITE_RADIUS_MAX
+                      ? FINITE_RADIUS_MAX : WORLD_LIVE.radius_max;
+    const uint32_t lo = WORLD_LIVE.radius_min < FINITE_RADIUS_MIN
+                      ? FINITE_RADIUS_MIN
+                      : (WORLD_LIVE.radius_min > hi ? hi : WORLD_LIVE.radius_min);
+    // A pinned range is still a legal range, and it is how a hand asks
+    // for one size without a second mechanism.
+    if (lo >= hi) return lo;
+    const uint32_t range = hi - lo + 1u;
+    return lo + cpu_hash(seed, 77u) % range;
 }
 
 } // namespace the_board

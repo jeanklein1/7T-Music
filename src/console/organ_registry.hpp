@@ -30,7 +30,7 @@
 #include "cartridges/the_board/contracts/driver_surface.hpp"  // the drivers' room (block 3)
 #include "cartridges/the_board/contracts/atmosphere_surface.hpp" // ATMOS_LIVE (block 12)
 #include "cartridges/the_board/contracts/agent_surface.hpp"      // AGENTS_LIVE (block 14)
-#include "cartridges/the_board/contracts/world_surface.hpp"      // WORLD_LIVE (block 15)
+#include "cartridges/the_board/contracts/world_surface.hpp"      // WORLD_LIVE (block 15) + FINITE_RADIUS_MIN/MAX, the radius dial's named ceiling
 
 #include <cstddef>
 #include <cstdint>

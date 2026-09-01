@@ -12,7 +12,7 @@ Last commit touching any scanned file: `9aa6f1978fc3756b3c6e4d38589878eac60670a2
 |---|---|
 | `src/cartridges/the_board/realization/render_passes.hpp` | `sha256:d00857c2e8456fc08af94cc8e97d880f5dfb956e493c4cb90bb0e5e5d49bd9fa` |
 | `src/cartridges/the_board/realization/renderer.hpp` | `sha256:06607597f8dc50c80f2dd99c042ba8b1d12f3caaec25640cc9e65f6755fbe84a` |
-| `src/cartridges/the_board/cartridge.hpp` | `sha256:9172bd653f7b7c0d4c0635c2e4d1a37e9b1162ee1defe69f2a37056a8ef19885` |
+| `src/cartridges/the_board/cartridge.hpp` | `sha256:cd60c6bf59bc206c1a7c62fa55042f8cd6d1f910c6ac6a11c7aea86ddde0186a` |
 | `src/cartridges/the_board/surface/patch_system.hpp` | `sha256:85947f465f0b5692500a8d4717fe646cf22b6461416f8726e34bfc8442a7bfb2` |
 | `src/cartridges/the_board/surface/automaton.hpp` | `sha256:e98d2e703e4b4fd148d65502565de16e9ab36babd3a09ab5759677c4962aebe4` |
 | `src/cartridges/the_board/bodies/pawn.hpp` | `sha256:7915ec242a2a3094537882c50a2980c9494e4f1460a3a2f786232b67ec6ead12` |
@@ -36,7 +36,7 @@ in `console.hpp`.
 | 2 | Frustum Cull Patches | compute | `dispatch_frustum_cull` | `src/cartridges/the_board/realization/render_passes.hpp:230` | — | — | — |
 | 3 | Shadow Pass | render | `render_shadow_pass` | `src/cartridges/the_board/realization/render_passes.hpp:272` | (none: depth-only) | Clear/Store, readOnly (absent) → `c->gpuState_.shadow_map_view()` | (no stencil aspect) |
 | 4 | Rasterized Scene | render | `render_main_pass` | `src/cartridges/the_board/realization/render_passes.hpp:541` | Clear/Store or Discard → `backbuffer or msaaColor` resolve → `backbuffer` | Clear/Discard, readOnly (absent) → `depth` | (no stencil aspect) |
-| 5 | Entity Mesh Gen | compute | `phase_entity_mesh_gen` | `src/cartridges/the_board/cartridge.hpp:2042` | — | — | — |
+| 5 | Entity Mesh Gen | compute | `phase_entity_mesh_gen` | `src/cartridges/the_board/cartridge.hpp:2049` | — | — | — |
 | 6 | Patch Bake (fused) | compute | `generate_patch_batch` | `src/cartridges/the_board/surface/patch_system.hpp:154` | — | — | — |
 | 7 | Automaton Seed | compute | `birth_automaton` | `src/cartridges/the_board/surface/automaton.hpp:172` | — | — | — |
 | 8 | Automaton Sync | compute | `dispatch_automaton_sync` | `src/cartridges/the_board/surface/automaton.hpp:213` | — | — | — |
@@ -53,7 +53,7 @@ in `console.hpp`.
 
 | # | receiver | enclosing function | site |
 |---|---|---|---|
-| 1 | `queue.Submit` | `birth_the_automaton` | `src/cartridges/the_board/cartridge.hpp:2118` |
+| 1 | `queue.Submit` | `birth_the_automaton` | `src/cartridges/the_board/cartridge.hpp:2125` |
 | 2 | `queue.Submit` | `build_world` | `src/cartridges/the_board/surface/patch_system.hpp:564` |
 | 3 | `app->queue.Submit` | `frame` | `src/the_board.cpp:337` |
 
@@ -83,7 +83,7 @@ every landing.
 
 | # | label | enclosing function | site |
 |---|---|---|---|
-| 1 | `"birth_the_automaton"` | `birth_the_automaton` | `src/cartridges/the_board/cartridge.hpp:2115` |
+| 1 | `"birth_the_automaton"` | `birth_the_automaton` | `src/cartridges/the_board/cartridge.hpp:2122` |
 | 2 | `"build_world"` | `build_world` | `src/cartridges/the_board/surface/patch_system.hpp:558` |
 | 3 | `"frame"` | `frame` | `src/the_board.cpp:328` |
 

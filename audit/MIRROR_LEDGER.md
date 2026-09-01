@@ -15,15 +15,15 @@ carry those facts, or leave them in place and patch around them.
 
 | field | value |
 |---|---|
-| source commit | `9aa6f1978fc3756b3c6e4d38589878eac60670a2` |
-| | THE_PANEL I U1: THE SEED DOOR — the P8 seam's cue comes true (PROBE-PENDING) |
+| source commit | `51649be11efbbcad053bbe77504de6f78d258c34` |
+| | THE_PANEL I U2: THE DELIBERATE RELAYOUT — 704 -> 688, both rooms (PROBE-PENDING) |
 | `src/cartridges/the_board/realization/binding_registry.hpp` | `sha256:351eccaedd6902900df3b13a57c7a818ff10cf4280debbfb9034b0ffabcfcc73` |
 | `src/cartridges/the_board/realization/world.wgsl` | `sha256:67006fc775f022db9d11e2825f018a55f3cc489fff0bd35508e63d5202644d20` |
 | `src/cartridges/the_board/realization/state.hpp` | `sha256:8c178e1f4226a0010105cff9a3ead1083853483f2663b56437da17c2246e590b` |
 | `src/cartridges/the_board/realization/binding_surface.gen.inc` | `sha256:10e301844bd75099919b6e0aa5b0fde9d3e723f0c59b11072bc821a4ca97e682` |
 | `src/cartridges/the_board/realization/renderer.hpp` | `sha256:06607597f8dc50c80f2dd99c042ba8b1d12f3caaec25640cc9e65f6755fbe84a` |
 | `tools/binding_ledger.py` | `sha256:a3c75bab894774eb0302686e5efd52275b280e14abfcf4e8753b28d5b5086692` |
-| `audit/BINDING_LEDGER.md` | `sha256:c573a36929300be5685e9aaf9405d8d40e858a54d30b43121764ad1fb4c414ee` |
+| `audit/BINDING_LEDGER.md` | `sha256:cb461ea2cb6a187963c3c2926935ecaef0aeaaeb124a4ceaca67113b5ae065dc` |
 
 `tools/binding_ledger.py` is an input because its parsers are IMPORTED,
 not copied — one parse, two artifacts, no drift between instruments.
@@ -845,8 +845,8 @@ wrapper, 18 wrapper calls) and are not recounted here.
 
 | site (line hint) | enclosing function | idx | group member(s) | dynamic offsets |
 |---|---|---|---|---|
-| `cartridge.hpp:2044` | `phase_entity_mesh_gen` | 0 | `worldGroup_` | — |
-| `cartridge.hpp:2045` | `phase_entity_mesh_gen` | 1 | `frameCGroup_` | — |
+| `cartridge.hpp:2051` | `phase_entity_mesh_gen` | 0 | `worldGroup_` | — |
+| `cartridge.hpp:2052` | `phase_entity_mesh_gen` | 1 | `frameCGroup_` | — |
 | `orbs.hpp:743` | `dispatch_orb_init` | 0 | `worldGroup_` | — |
 | `orbs.hpp:744` | `dispatch_orb_init` | 1 | `frameCGroup_` | — |
 | `orbs.hpp:764` | `dispatch_orb_recolor` | 0 | `worldGroup_` | — |

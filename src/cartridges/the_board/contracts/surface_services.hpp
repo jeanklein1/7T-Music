@@ -2,6 +2,7 @@
 #include <cstdint>
 #include <cstdio>    // the loud drop (record_entity overflow)
 #include "cartridges/the_board/contracts/wgpu_fwd.hpp"   // wgpu handle fwds (lockstep insurance)
+#include "cartridges/the_board/contracts/world_surface.hpp"   // FINITE_RADIUS_MIN/MAX — the pin's dials, and WORLD_LIVE which carries them live (THE_PANEL I U3)
 
 // ─── surface_services.hpp (CONTRACT: the surface's decl tier) ─────
 //
@@ -58,13 +59,14 @@ namespace the_board {
 // subject, not this one's. A pin is a value, not an excision.
 inline constexpr bool WORLD_FINITE = true;
 
-// THE PIN'S DIALS (ONE_WORLD-II U2). The radius range every world draws
-// from — WorldShape's finite_radius_min/max, rehomed whole. The atrium's
-// pinned radius (min == max, no roll) died with the atrium; these are
-// SHAPE_FINITE's, the row the campaign keeps. New enrollment when the
-// panel wants them, which is U6's and not this unit's.
-inline constexpr uint32_t FINITE_RADIUS_MIN = 1;
-inline constexpr uint32_t FINITE_RADIUS_MAX = 4;
+// THE PIN'S DIALS MOVED TO THE WORLD'S OWN HEADER (THE_PANEL I U3).
+// FINITE_RADIUS_MIN / FINITE_RADIUS_MAX are declared in
+// contracts/world_surface.hpp now, beside the live bank they seat and the
+// two dials they bound — one home for what a world is chosen by. They are
+// still constexpr, still the DESIGN, and still the CAPACITY the three
+// asserts below bind; this file reads them through that include (added at
+// the top) and states the capacity law, which is the half that needs
+// Dim:: and FC_SEG_* and could never have moved.
 
 // THE WIDEST WORLD THE PIN ALLOWS MUST FIT WHAT DRAWS IT (ONE_SURFACE-I
 // U5a). Every patch is one band since U5, so the frustum cull classifies

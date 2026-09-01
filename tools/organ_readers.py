@@ -157,6 +157,10 @@ READERS = {
     # the body parser looks for — so nothing here is being suppressed.
     "WORLD": ("WORLD_LIVE", "WorldSurface", [
         ("src/cartridges/the_board/organ_boundary.inc", "organ_flush"),
+        # THE RADIUS RANGE'S READER (THE_PANEL I U3) — the draw, at
+        # become_world. Blind spot 1's shape from the other side: the
+        # function names WORLD_LIVE itself, so the census finds it.
+        ("src/cartridges/the_board/direction/sky.hpp", "derive_finite_radius"),
     ]),
     # ── the definition kinds: a definition's reader is its APPLIER ────
     # MOOD (MOOD_LIVE / MoodProfile) was the third, and the last of the

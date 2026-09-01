@@ -394,10 +394,29 @@ opinion; two are parked with a named destination and one is closed.
   states a belief nothing proves (L45), so the graduation rides the
   campaign that gives it a caller. The pin works meanwhile; nothing in
   the world is waiting on it.
-  **THE BLOCKER IS GONE (THE_PANEL I U1).** `rebirth_world` has a caller,
-  so a gen-cadence radius dial is exercisable for the first time. The
-  enrollment is U3's, and it is now an ordinary ORGAN_3 graduation with
-  nothing left waiting on it.
+  **LANDED AT THE_PANEL I U3, and it is NOT quite an ordinary ORGAN_3
+  graduation.** U1 gave `rebirth_world` a caller, which made a
+  gen-cadence radius dial exercisable for the first time; U3 enrolled the
+  pair as `WORLD.radius_min` / `WORLD.radius_max` (block 15, GEN, C3
+  destructive) and pointed `derive_finite_radius` at the bank. The draw
+  and its salt are unchanged, so a given seed under the boot range draws
+  exactly the radius it always drew.
+  **What is not ordinary: the design constant KEEPS a runtime reader, on
+  purpose.** `FINITE_RADIUS_MAX` is also a CAPACITY — three static_asserts
+  bind it to frustum-cull segments A and B, to the layer pool and, through
+  `Dim::AUTO_GRID_MAX`, to the automaton's life buffer, which is
+  `(2*MAX+1)*PATCH_CELL_N` cells square. A world wider than the pin does
+  not look wrong; it indexes past that buffer's end on its last row, every
+  frame. So the constants stay compile-time and the dial is fenced three
+  times — the enrollment line names the constant as its ceiling, `organ_set`
+  clamps a consumer to it, and `derive_finite_radius` clamps again at the
+  last line before the number becomes an index. `organ_gap`'s PAIRS map is
+  deliberately NOT given this pair: a PAIR asserts the design symbol has no
+  surviving runtime reader, and here one is doing its job. The reason is
+  written at the tool so a successor does not "fix" it.
+  The pair moved home with the enrollment: they are declared in
+  `contracts/world_surface.hpp` now, beside the bank they seat, and
+  `surface_services.hpp` keeps the capacity asserts that need `Dim::`.
 - **`world_box_clamp_xz`'s `has_bounds` — KEEP, and closed.** It reads
   like a finiteness test the pin makes constant. **It is not.** It is the
   uninitialised-config guard wearing a finiteness costume:
