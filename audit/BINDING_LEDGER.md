@@ -16,7 +16,7 @@ merge rows the API charges separately.
 | demo column censused | `full` |
 | source commit | `8b9762cdf1b7b77017f1029945ab712ab25ec667` |
 | | THE_PANEL I U5a: THE MOSAIC RETIRES — the default fired unspoken (PROBE-PENDING) |
-| `src/cartridges/the_board/realization/state.hpp` | `sha256:35c107a3ecd28a450c1b32251c29021794184399c9241983d61b901a09521e92` |
+| `src/cartridges/the_board/realization/state.hpp` | `sha256:5bed076b63f2186def02c0d55c6acf853616dcc598c801e8c637111210b282f2` |
 | `src/cartridges/the_board/realization/binding_surface.gen.inc` | `sha256:10e301844bd75099919b6e0aa5b0fde9d3e723f0c59b11072bc821a4ca97e682` |
 | `src/cartridges/the_board/realization/binding_registry.hpp` | `sha256:351eccaedd6902900df3b13a57c7a818ff10cf4280debbfb9034b0ffabcfcc73` |
 | `src/cartridges/the_board/realization/renderer.hpp` | `sha256:06607597f8dc50c80f2dd99c042ba8b1d12f3caaec25640cc9e65f6755fbe84a` |
@@ -877,14 +877,14 @@ one column that can.
 | `shadowPatchTerrainPipeline_` | pipeline | `src/cartridges/the_board/realization/renderer.hpp` | 1823 | `measured` | A:proximity |
 | `shadowPawnPipeline_` | pipeline | `src/cartridges/the_board/realization/renderer.hpp` | 1826 | `measured` | A:proximity |
 | `(file banner)` | file | `src/cartridges/the_board/realization/state.hpp` | 1 | `law-ref` | banner |
-| `Frame R Layout` | layout | `src/cartridges/the_board/realization/state.hpp` | 4545 | `law-ref` | A:proximity, B:named |
-| `Agents State Layout entries[7]` | layout entry | `src/cartridges/the_board/realization/state.hpp` | 4635 | `law-ref` | A:proximity |
-| `Cull State Layout entries[4]` | layout entry | `src/cartridges/the_board/realization/state.hpp` | 4747 | `witness` | A:proximity |
-| `Frame K State Layout entries[5]` | layout entry | `src/cartridges/the_board/realization/state.hpp` | 4794 | `law-ref` | A:proximity |
-| `Orbs A State Layout entries[0]` | layout entry | `src/cartridges/the_board/realization/state.hpp` | 4845 | `law-ref` | A:proximity |
-| `Orbs A State Layout` | layout | `src/cartridges/the_board/realization/state.hpp` | 4858 | `law-ref` | A:proximity, B:named |
-| `Scene State Layout entries[5]` | layout entry | `src/cartridges/the_board/realization/state.hpp` | 5086 | `budget`, `per-stage`, `slot-cap` | A:proximity |
-| `Shadow State Layout entries[4]` | layout entry | `src/cartridges/the_board/realization/state.hpp` | 5182 | `budget`, `per-stage`, `slot-cap` | A:proximity |
+| `Frame R Layout` | layout | `src/cartridges/the_board/realization/state.hpp` | 4568 | `law-ref` | A:proximity, B:named |
+| `Agents State Layout entries[7]` | layout entry | `src/cartridges/the_board/realization/state.hpp` | 4658 | `law-ref` | A:proximity |
+| `Cull State Layout entries[4]` | layout entry | `src/cartridges/the_board/realization/state.hpp` | 4770 | `witness` | A:proximity |
+| `Frame K State Layout entries[5]` | layout entry | `src/cartridges/the_board/realization/state.hpp` | 4817 | `law-ref` | A:proximity |
+| `Orbs A State Layout entries[0]` | layout entry | `src/cartridges/the_board/realization/state.hpp` | 4868 | `law-ref` | A:proximity |
+| `Orbs A State Layout` | layout | `src/cartridges/the_board/realization/state.hpp` | 4881 | `law-ref` | A:proximity, B:named |
+| `Scene State Layout entries[5]` | layout entry | `src/cartridges/the_board/realization/state.hpp` | 5109 | `budget`, `per-stage`, `slot-cap` | A:proximity |
+| `Shadow State Layout entries[4]` | layout entry | `src/cartridges/the_board/realization/state.hpp` | 5205 | `budget`, `per-stage`, `slot-cap` | A:proximity |
 | `(file banner)` | file | `src/cartridges/the_board/realization/world.wgsl` | 1 | `FXC`, `budget`, `compile-time`, `law-ref`, `per-stage`, `witness` | banner |
 | `cell_address` | wgsl function | `src/cartridges/the_board/realization/world.wgsl` | 274 | `law-ref` | A:proximity, B:named |
 | `scene_constants` | wgsl binding | `src/cartridges/the_board/realization/world.wgsl` | 1029 | `law-ref`, `witness` | A:proximity, B:named |

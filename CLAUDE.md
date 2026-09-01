@@ -63,6 +63,7 @@ error verbatim, exit nonzero). No constructive GPU work ships unprobed.
 | `audit/COMMAND_LEDGER.md` | `tools/command_census.py` | `python3 tools/command_census.py` |
 | `audit/MIRROR_LEDGER.md` | `tools/mirror_census.py` | `python3 tools/mirror_census.py` |
 | `audit/MANIFEST.md` + `binding_surface.gen.inc`, `binding_registry.hpp`, `limits_floor.gen.inc`, `features_wallet.gen.inc` | `tools/binding_gen.py` (authority: `tools/binding_schema.py`) | `python3 tools/binding_gen.py --write` |
+| `mirror_offsets.gen.inc` (realization/) | `tools/mirror_offsets.py` | `python3 tools/mirror_offsets.py` |
 
 ## The gates
 Run from the repo root. Jean runs glaw1, the build and the probe; the rest
@@ -75,11 +76,15 @@ not hypothetical: ONE_SURFACE-I U5 shrank a buffer in one room and left the
 other at its old size, the full battery was green, and every frame of the
 first native boot failed validation. THE PROBE IS THE ROW THAT RUNS.
 
-**ONE SLICE OF THAT CLASS IS NOW TEXT AFTER ALL** — binding_gen's S-8,
-which compares a WGSL declaration's fixed array EXTENT to its C++ seat's
-element COUNT and would have caught that exact bug by name. It closes
-fixed extents and nothing wider: a wrong size behind a runtime-sized
-`array<T>` is still the device's to find.
+**TWO SLICES OF THAT CLASS ARE NOW TEXT AFTER ALL.** binding_gen's S-8
+compares a WGSL declaration's fixed array EXTENT to its C++ seat's
+element COUNT and would have caught that exact bug by name; it closes
+fixed extents and nothing wider, so a wrong size behind a runtime-sized
+`array<T>` is still the device's to find. And `tools/mirror_offsets.py`
+(THE_PANEL I U6) closes the second: it derives every mirrored member's
+offset from `world.wgsl` and makes the C++ compiler assert it, so the two
+rooms prove each other instead of each proving itself. Both were built
+because a real defect walked past the whole battery first.
 
 | gate | the invocation | what it asserts | verdict |
 | --- | --- | --- | --- |
@@ -93,9 +98,11 @@ fixed extents and nothing wider: a wrong size behind a runtime-sized
 | organ gap | `python3 tools/organ_gap.py --gate` | no graduated pair kept a surviving runtime reader | PASS |
 | organ ledger | `python3 tools/organ_ledger.py --check` | every enrolled dial's field is named by a declared reader | PASS |
 | mirror census | `python3 tools/mirror_census.py` | the C++↔WGSL mirror and the binding idioms hold | GREEN |
+| mirror offsets | `python3 tools/mirror_offsets.py --check` | **the per-field witness**: every member of every struct world.wgsl registers with a `BYTE-FOR-BYTE (N B` marker is asserted at the offset THE WGSL ROOM puts it at, and the C++ compiler checks it. 128 members, 7 structs. It closes the one hole `sizeof` and `0b-4` share — a pad removed from ONE room, upstream of a 16-aligned member, where both sizes stay equal and every offset between sits apart | PASS |
 
-**Every row green, and the room rebuilds.** Delete the five files in `audit/`,
-run the five tools above, and the tree is byte-identical again (L33's standing
+**Every row green, and the room rebuilds.** Delete the five files in `audit/`
+and `mirror_offsets.gen.inc`, run the six tools above, and the tree is
+byte-identical again (L33's standing
 witness, run at this commit). A red row here is news: read the gate before the
 tree, and check `docs/OPEN.md` for anything already ruled.
 

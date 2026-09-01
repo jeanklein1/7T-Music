@@ -1262,13 +1262,30 @@ Three WGSL-only injections, run against the new marker:
 | drop a TRAILING pad | blind, and correctly so | WGSL rounds the struct up to its 16-byte alignment and `alignas(16)` does the same, so both rooms absorb it identically and no divergence exists |
 | drop a MID-STRUCT pad before a 16-aligned member | **blind, and this one is a real break** | WGSL re-pads implicitly to put `palette_center` back on 16, so the SIZE is unchanged while every offset from `veil_ring` to `palette_center` differs between the rooms |
 
-**The third row is the open finding.** A size witness cannot see an
-offset-only divergence, in either room — legal C++, legal WGSL, and
-wrong ACROSS the two, which is L48's own class and the class
-ONE_SURFACE-I U5 was bitten by. What would close it is a PER-FIELD
-OFFSET witness across the mirrored structs, the same move S-8 made for
-fixed array extents. That is a new instrument, not a relayout, so it is
-recorded here rather than improvised into U2.
+**The third row was the open finding, and U6 CLOSED IT.**
+`tools/mirror_offsets.py` derives every member's offset from `world.wgsl`
+by the WGSL layout rules and emits one `static_assert(offsetof(...) == N)`
+per member into `mirror_offsets.gen.inc`, which `state.hpp` includes after
+the mirrored structs are declared. **128 member offsets across the seven
+marker-registered structs**, checked by the C++ compiler — so the two rooms
+prove each other rather than each proving itself against a number a person
+typed. The marker is the enrollment, exactly as it is for `0b-4`: a struct
+joins by stating its size in its own banner, which L3 already asks for.
+
+**Proven to bite, on the exact injection that defined the hole.** Delete
+`_pad_grain_band_retired` from the WGSL room only: `0b-4` PASSES,
+`static_assert(sizeof(GPUDesignConfig) == 672)` compiles clean, and the
+per-field witness fails the build on the two members between the cut and
+`palette_center`. **U5 hit that case for real one unit after U2 wrote it
+down**, and it was caught by reading. It is caught by building now.
+
+**What it does NOT assert, said here rather than discovered later:** a
+member the C++ room does not declare under the same name is SKIPPED and
+the skip is printed with its reason (this is how the C++ room's explicit
+alignment pads are handled — the WGSL room gets them implicitly and
+declares nothing); it proves OFFSETS, not TYPES, so a same-size wrong type
+is still the reader's job; and a nested struct is walked at the top level
+only, its own members asserted when it carries its own marker.
 
 **5. THE PRESET PATH** stands with NO READER: `presets/index.json` and
 `presets/baseline.json`, kept against L30's letter by the Phase W ruling

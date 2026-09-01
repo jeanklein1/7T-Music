@@ -2105,6 +2105,29 @@ namespace t7 {
         // has said so since); the constant outlived it with no reader, and
         // the glaw2 record ritual at U8 is what found it.
 
+        // ═══ THE MIRROR'S PER-FIELD WITNESS (THE_PANEL I U6) ═══════════
+        //
+        // The line above says "no witness here fires when they do", and
+        // that was true of every offset in every mirrored struct until
+        // this include. `tools/mirror_offsets.py` computes each member's
+        // offset from world.wgsl BY THE WGSL LAYOUT RULES and emits one
+        // static_assert per member; the C++ compiler is what checks them.
+        // So the two rooms prove each other, rather than each proving
+        // itself against a number a person typed.
+        //
+        // IT CLOSES THE HOLE U2 FOUND BY INJECTION AND U5 THEN HIT FOR
+        // REAL: a pad removed from ONE room, upstream of a 16-aligned
+        // member. Both rooms' SIZES stay identical, because each pads
+        // implicitly back to the boundary, while every offset in between
+        // sits four bytes apart. Neither the sizeof asserts above nor the
+        // binding ledger's 0b-4 can see that. 128 member offsets across
+        // seven marker-registered structs can.
+        //
+        // THE FILE IS GENERATED AND NEVER HAND-EDITED (L28). It lands
+        // HERE, after every mirrored struct is declared, because offsetof
+        // needs a complete type.
+        #include "cartridges/the_board/realization/mirror_offsets.gen.inc"
+
         class GPUState {
           public:
             // THE DRAW LEDGER'S VOCABULARY (BUNDLE_1) — declared at the head
