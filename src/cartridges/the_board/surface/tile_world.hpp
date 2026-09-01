@@ -155,7 +155,6 @@ struct GridKeyHash {
 struct WorldState;
 struct TileWorldDeps {
     const WorldState& world_state_;
-    const MoodState&  mood_state_;
     GPUState&         gpuState_;
 };
 
@@ -290,6 +289,9 @@ inline void upload_tile_grid_now(TileWorldState& tw, TileWorldDeps* c, wgpu::Que
     c->gpuState_.upload_tile_grid(queue, grid);
 }
 
+// The pool archetype's weight — the outdoor rest (ONE_WORLD-II U1c).
+inline constexpr float POOL_ARCHETYPE_REST = 0.05f;
+
 inline TileState generate_tile_state(TileWorldState& tw, TileWorldDeps* c, int32_t gx, int32_t gz) {
     // Count neighbor archetypes
     uint32_t neighbor_counts[ARCHETYPE_COUNT] = {};
@@ -312,13 +314,15 @@ inline TileState generate_tile_state(TileWorldState& tw, TileWorldDeps* c, int32
         weights[a] = ARCHETYPES[a].base_weight;
     }
 
+    // THE POOL'S REST (ONE_WORLD-II U1c). A mood branch stood here — 1.5
+    // indoors against 0.05 out, a thirtyfold swing, and this file's ONLY
+    // mood read. The world is outdoor and the campaign pins it, so the
+    // indoor arm dies with indoor and the outdoor value is simply the
+    // truth: named rather than left as a literal in a folded branch,
+    // because it is a dial the panel will want and does not have yet
+    // (new enrollment, and that is U6's).
     static constexpr uint32_t POOL_IDX = 3;
-    if (mood_def(c->mood_state_.active).shape.indoor) {
-        weights[POOL_IDX] = 1.5f;   // ~30% of indoor tiles become pools
-    }
-    else {
-        weights[POOL_IDX] = 0.05f;  // ~1.5% of outdoor tiles
-    }
+    weights[POOL_IDX] = POOL_ARCHETYPE_REST;   // ~1.5% of tiles
 
     // ── Terrain token priors: multiply active tokens into weights ──
     for (uint32_t t = 0; t < MAX_TERRAIN_TOKENS; t++) {

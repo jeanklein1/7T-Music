@@ -5,6 +5,7 @@
 #include "cartridges/the_board/bodies/pawn_figures.hpp"        // PAWN_FIGURES, FIGURE_SHARES, family spans (H1) — this TU names them directly
 #include "cartridges/the_board/contracts/mood_constants.hpp"   // MOOD_COUNT + the Mood IDs
 #include "cartridges/the_board/contracts/agent_tiers.hpp"      // Tier vocabulary graduated to contracts/agent_tiers.hpp (ORGAN_2b) — the bank TIER_LIVE is the world's definition; the translator below reads it.
+#include "cartridges/the_board/contracts/agent_surface.hpp"   // AGENTS_LIVE — the agents' bank (ONE_WORLD-II U1c)
 #include "cartridges/the_board/contracts/wgpu_fwd.hpp"   // wgpu handle fwds (lockstep insurance)
 #include "cartridges/the_board/contracts/control_panel.hpp"   // ORGAN_4 P3b — PANEL_LIVE.possession.radius: the reach, graduated out of this file's console
 
@@ -245,30 +246,30 @@ inline constexpr AgentPopulationDef AGENT_POPULATIONS[MOOD_COUNT] = {
 static_assert(sizeof(AGENT_POPULATIONS) / sizeof(AGENT_POPULATIONS[0]) == MOOD_COUNT,
               "AGENT_POPULATIONS must declare one row per mood");
 
-// OIL_1 U6 (ledger: R4, C4): the per-mood weight sums, summed at COMPILE
-// TIME in the SAME ascending order as the runtime loops they replace —
-// identical float values by construction. One home, beside the table
-// they summarize; the per-frame respawn reads these instead of
-// re-summing a constexpr row every frame.
-// TWO DERIVATIONS, ONE VALUE: spawn_population_for_mood still sums its
-// own denominators inline (boot/transition cadence — outside the ledger
-// row this unit answers, so it was left alone). They must agree; both
-// feed the same normalization in populate_agent_slot_. If either the
-// table or one summation is ever edited, edit the other.
-inline constexpr std::array<float, MOOD_COUNT> AGENT_BEH_SUMS = [] {
-    std::array<float, MOOD_COUNT> s{};
-    for (uint32_t m = 0; m < MOOD_COUNT; m++)
-        for (uint32_t b = 0; b < AGENT_BEHAVIOR_COUNT; b++)
-            s[m] += AGENT_POPULATIONS[m].behavior_weights[b];
-    return s;
-}();
-inline constexpr std::array<float, MOOD_COUNT> AGENT_TIER_SUMS = [] {
-    std::array<float, MOOD_COUNT> s{};
-    for (uint32_t m = 0; m < MOOD_COUNT; m++)
-        for (uint32_t t = 0; t < AGENT_TIER_COUNT; t++)
-            s[m] += AGENT_POPULATIONS[m].tier_weights[t];
-    return s;
-}();
+// THE BANK'S SEEDING WITNESS (Amendment A), standing where both symbols
+// are in scope. AGENTS_TABLE (contracts/agent_surface.hpp) is the sunset
+// row transcribed; this proves the transcription field by field while the
+// authored table still stands, and leaves with it at U2.
+static_assert(AGENTS_TABLE.count                == AGENT_POPULATIONS[MOOD_OPEN_SUNSET].count
+           && AGENTS_TABLE.spawn_inner_radius   == AGENT_POPULATIONS[MOOD_OPEN_SUNSET].spawn_inner_radius
+           && AGENTS_TABLE.spawn_radius         == AGENT_POPULATIONS[MOOD_OPEN_SUNSET].spawn_radius
+           && AGENTS_TABLE.spawn_center_forward == AGENT_POPULATIONS[MOOD_OPEN_SUNSET].spawn_center_forward
+           && AGENTS_TABLE.home_seeding_radius  == AGENT_POPULATIONS[MOOD_OPEN_SUNSET].home_seeding_radius,
+    "AGENTS_TABLE's count and annulus are the sunset row's, transcribed (ONE_WORLD-II U1c)");
+static_assert(AGENTS_TABLE.behavior_weights == AGENT_POPULATIONS[MOOD_OPEN_SUNSET].behavior_weights,
+    "AGENTS_TABLE's behavior weights are the sunset row's, transcribed — "
+    "std::array compares whole, so no lane can drift unwatched");
+static_assert(AGENTS_TABLE.tier_weights == AGENT_POPULATIONS[MOOD_OPEN_SUNSET].tier_weights,
+    "AGENTS_TABLE's tier weights are the sunset row's, transcribed");
+
+// THE SEED TRAP, PINNED. The finite row is unpopulated, and a later hand
+// matching the seed row to the pinned world's SHAPE would empty the world
+// in silence — both spawn guards test count and both sums. The bank is
+// seeded from sunset and this says so where the rows live.
+static_assert(AGENT_POPULATIONS[MOOD_FINITE_OUTDOOR].count == 0
+           && AGENTS_TABLE.count > 0,
+    "the finite row is /* unpopulated */ and the bank is NOT seeded from it: "
+    "the pinned SHAPE and the worn WEATHER are separate facts (ONE_WORLD-II)");
 
 // Row order must match the mood ids in MOOD_TABLE (mood.hpp).
 // Unfolded rather than a constexpr loop — the restyle is a named
@@ -283,6 +284,13 @@ static_assert(AGENT_POPULATIONS[MOOD_ATRIUM         ].mood_id == MOOD_ATRIUM,   
 
 // ═══ AGENT MODULE STATE ══════════════════════════════════════════
 
+// THE AGENT SPAWN SALT. `0xA6E00000u + mood_id` in both spawners until
+// ONE_WORLD-II U1c; the boot mood was 0, so this constant is the value
+// every world has actually drawn with and placement is unchanged. One
+// home, because two copies of a hash salt is how a respawn stops landing
+// where a spawn put things.
+inline constexpr uint32_t AGENT_SPAWN_SALT = 0xA6E00000u;
+
 struct AgentState {
     GPUAgentState slots[Dim::MAX_AGENTS]            = {};
     uint32_t      respawn_counters[Dim::MAX_AGENTS] = {};
@@ -292,13 +300,11 @@ struct AgentState {
 
 // Lifecycle
 void upload_agent_registries_to_gpu(AgentsDeps* c, wgpu::Queue& queue);
-void spawn_population_for_mood(AgentState& as, AgentsDeps* c,
-                               uint32_t mood_id,
+void spawn_population(AgentState& as, AgentsDeps* c,
                                uint32_t seed,
                                float center_x, float center_z,
                                wgpu::Queue& queue);
 void respawn_evicted_agents(AgentState& as, AgentsDeps* c,
-                            uint32_t mood_id,
                             uint32_t world_seed,
                             wgpu::Queue& queue);
 // Player commands
@@ -392,7 +398,7 @@ inline void upload_agent_registries_to_gpu(AgentsDeps* c, wgpu::Queue& queue) {
 
 inline void populate_agent_slot_(const AgentState& as,
                           GPUAgentState& out,
-                          const AgentPopulationDef& pop,
+                          const AgentPopulationBank& pop,
                           uint32_t agent_seed,
                           float beh_sum, float tier_sum,
                           float center_x, float center_z) {
@@ -479,13 +485,11 @@ inline void populate_agent_slot_(const AgentState& as,
 
 // ═══ SPAWN ════════════════════════════════════════════════════════
 
-inline void spawn_population_for_mood(AgentState& as, AgentsDeps* c,
-                               uint32_t mood_id,
+inline void spawn_population(AgentState& as, AgentsDeps* c,
                                uint32_t seed,
                                float center_x, float center_z,
                                wgpu::Queue& queue) {
-    if (mood_id >= MOOD_COUNT) return;
-    const auto& pop = AGENT_POPULATIONS[mood_id];
+    const auto& pop = AGENTS_LIVE;
 
     // Zero every non-player slot before refilling. The player's body
     // (slot PLAYER_SLOT) is preserved across a rebirth.
@@ -505,7 +509,13 @@ inline void spawn_population_for_mood(AgentState& as, AgentsDeps* c,
             // Slot 0 is reserved for PLAYER_SLOT; non-player slots
             // pack densely from slot 1 upward.
             uint32_t slot = i + 1u;
-            uint32_t agent_seed = cpu_hash(cpu_hash(seed, 0xA6E00000u + mood_id), i + 1u);
+            // THE SALT IS FROZEN, NOT DROPPED (ONE_WORLD-II U1c). It read
+            // `0xA6E00000u + mood_id`, so the mood was arithmetic in the
+            // seed and not merely a table index: removing the term outright
+            // would move every agent's tier, behaviour, position and home.
+            // The boot mood was 0, so the frozen salt IS the salt this
+            // world has always drawn with, and placement is bit-for-bit.
+            uint32_t agent_seed = cpu_hash(cpu_hash(seed, AGENT_SPAWN_SALT), i + 1u);
 
             populate_agent_slot_(as, as.slots[slot], pop, agent_seed,
                                  beh_sum, tier_sum,
@@ -515,7 +525,7 @@ inline void spawn_population_for_mood(AgentState& as, AgentsDeps* c,
     }
 
     c->gpuState_.upload_agent_state_all(queue, as.slots);
-    std::cout << "[Agents] Spawned " << spawned << " for mood " << mood_id
+    std::cout << "[Agents] Spawned " << spawned
               << " around (" << center_x << "," << center_z << ")\n";
 }
 
@@ -526,18 +536,20 @@ inline void spawn_population_for_mood(AgentState& as, AgentsDeps* c,
 // (respawn_counters lives in the CPU MIRROR section of agents.hpp.)
 
 inline void respawn_evicted_agents(AgentState& as, AgentsDeps* c,
-                            uint32_t mood_id,
                             uint32_t world_seed,
                             wgpu::Queue& queue) {
-    if (mood_id >= MOOD_COUNT) return;
-    const auto& pop = AGENT_POPULATIONS[mood_id];
+    const auto& pop = AGENTS_LIVE;
     if (pop.count == 0) return;
 
-    // OIL_1 U6: the sums are compile-time table facts (AGENT_BEH_SUMS /
-    // AGENT_TIER_SUMS beside AGENT_POPULATIONS) — same order, identical
-    // values; the per-frame re-sum of a constexpr row retired.
-    const float beh_sum = AGENT_BEH_SUMS[mood_id];
-    const float tier_sum = AGENT_TIER_SUMS[mood_id];
+    // THE SUMS ARE THE BANK'S NOW (ONE_WORLD-II U1c). OIL_1 U6 replaced a
+    // per-frame re-sum with constexpr AGENT_BEH_SUMS / AGENT_TIER_SUMS over
+    // the authored table — right while the table was the only truth, wrong
+    // against a writable bank: a constexpr sum over the DESIGN goes stale
+    // the moment a weight dial moves, and the normalisation below would
+    // divide by a total its own weights no longer add to. Fourteen adds,
+    // in a body that already walks both arrays.
+    const float beh_sum = agents_behavior_sum();
+    const float tier_sum = agents_tier_sum();
     if (beh_sum <= 0.0f || tier_sum <= 0.0f) return;
 
     const uint32_t possessed = c->player_.possessed_slot;
@@ -561,7 +573,7 @@ inline void respawn_evicted_agents(AgentState& as, AgentsDeps* c,
 
         as.respawn_counters[slot]++;
         uint32_t agent_seed = cpu_hash(
-            cpu_hash(world_seed, 0xA6E00000u + mood_id),
+            cpu_hash(world_seed, AGENT_SPAWN_SALT),   // the same frozen salt (ONE_WORLD-II U1c)
             slot * 0x10001u + as.respawn_counters[slot] * 0x100u);
 
         populate_agent_slot_(as, as.slots[slot], pop, agent_seed,

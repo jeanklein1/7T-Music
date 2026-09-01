@@ -471,12 +471,12 @@ namespace t7 {
                                 entities_state_, sphere_state_, cube_behaviors_state_,
                                 ribbon_state_, gol_state_,
                                 time_state_, player_, point_, gpuState_, renderer_ }
-                , tile_world_deps_{ world_state_, mood_state_, gpuState_ }
+                , tile_world_deps_{ world_state_, gpuState_ }
                 , sphere_deps_{ time_state_ }
                 , pawn_deps_{ player_, time_state_, gpuState_, renderer_ }
                 , orbs_deps_{ gpuState_, renderer_, player_, time_state_, world_state_ }
                 , agents_deps_{ gpuState_, player_, point_, world_state_, time_state_ }
-                , cube_deps_{ gpuState_, time_state_, player_, point_, mood_state_ }
+                , cube_deps_{ gpuState_, time_state_, player_, point_ }
                 , gol_deps_{ gpuState_, renderer_, device_, time_state_ }
                 , ribbon_deps_{ gpuState_, time_state_, tile_world_state_, player_, point_, inputState_, world_state_, mood_state_, visual_canvas_, ribbon_amp_lat_dst_, ribbon_amp_vert_dst_, ribbon_tint_stim_dst_, ribbon_tint_mix_dst_ }
                 , input_deps_{ inputState_, keys_, mouse_, touch_, player_, world_state_, ribbon_state_, gpuState_, device_, point_, mount_, camera_ }
@@ -668,7 +668,7 @@ namespace t7 {
                     // ROSTER-GATE wanderers (c) — boot population (agent slots
                     // 1+). Slot 0 (the pawn, seeded just above) is untouched.
                     if constexpr (ROSTER.wanderers)
-                        spawn_population_for_mood(agent_state_, &agents_deps_, mood_state_.active, world_state_.active_seed,
+                        spawn_population(agent_state_, &agents_deps_, world_state_.active_seed,
                             Idle::PAWN_POS_X, Idle::PAWN_POS_Z, q);
                     dump_agent_census(agent_state_, &agents_deps_, "boot");
                     dump_entity_census(&machine_ctx_, "boot");
@@ -1381,7 +1381,7 @@ namespace t7 {
                     pawn_state_);
                 // ROSTER-GATE wanderers (c) — rebirth population (slots 1+); slot 0 preserved above.
                 if constexpr (ROSTER.wanderers)
-                    spawn_population_for_mood(agent_state_, &agents_deps_, mood_state_.active, world_state_.active_seed,
+                    spawn_population(agent_state_, &agents_deps_, world_state_.active_seed,
                         Idle::PAWN_POS_X, Idle::PAWN_POS_Z, queue);
                 dump_agent_census(agent_state_, &agents_deps_, "rebirth");
                 // Fires AFTER reset_surface and every teardown verb above,
@@ -1620,7 +1620,7 @@ namespace t7 {
             // HARVEST — no data edge. ROSTER-GATE wanderers — call site.
             void phase_respawn_agents(RenderCtx& c) {
                 auto& queue = c.queue;
-                respawn_evicted_agents(agent_state_, &agents_deps_, mood_state_.active, world_state_.active_seed, queue);
+                respawn_evicted_agents(agent_state_, &agents_deps_, world_state_.active_seed, queue);
             }
 
             // R6 — CENSUS DUMPS (wall-clock interval, diagnostic). GoL residue

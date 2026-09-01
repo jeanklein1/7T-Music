@@ -139,7 +139,10 @@ GREP_MANIFEST = {
     # DELEGATED pieces: the gate lives at the module door (cited), not the spine.
     'spot_lights': [('direction/mood.hpp', 'apply door', rf'if constexpr \(ROSTER\.spot_lights\)')],
     'indoor_shell':[('direction/mood.hpp', 'apply door', rf'if constexpr \(ROSTER\.indoor_shell\)')],
-    'wanderers':   [('cartridge.hpp', 'boot population', imm(r'ROSTER\.wanderers', r'spawn_population_for_mood'))],
+    # ONE_WORLD-II U1c: the verb shed the mood it was named for and is
+    # `spawn_population` now. The pin moves in the subject's commit (L27
+    # join) so this gate is runnable at every unit, never one behind.
+    'wanderers':   [('cartridge.hpp', 'boot population', imm(r'ROSTER\.wanderers', r'spawn_population'))],
 }
 
 def strip_comments_strings(s):

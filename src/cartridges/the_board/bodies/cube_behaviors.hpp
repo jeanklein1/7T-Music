@@ -35,7 +35,6 @@ struct CubeDeps {
     const TimeState& time_state_;
     const PlayerState& player_;
     const PointState&  point_;   // the point's house (position mirror — the corral ring's center)
-    const MoodState& mood_state_;
 };
 
 // ═══ BEHAVIOR IDS ════════════════════════════════════════════════
@@ -197,45 +196,45 @@ static_assert(sizeof(CUBE_TIER_GAINS) / sizeof(CUBE_TIER_GAINS[0]) == CUBE_TIER_
 // Indoor cube spawning is shaped by indoor_bounds_clamp
 // (machine/spawn_engine.hpp), not by this multiplier.
 
-struct CubePopulationDef {
-    uint32_t mood_id;
+// THE SUNSET ROW'S THREE VALUES, named so the bank's witness has a source
+// to be proved against after CUBE_POPULATIONS itself left with the moods.
+// They are the authored numbers, not a copy of the copy.
+inline constexpr float CUBE_POPULATIONS_SUNSET_STAT = 1.0f;
+inline constexpr float CUBE_POPULATIONS_SUNSET_CURL = 0.0f;
+inline constexpr float CUBE_POPULATIONS_SUNSET_WAVE = 0.0f;
+
+// ─── THE CUBE BANK (ONE_WORLD-II U1c) ────────────────────────────
+// CUBE_POPULATIONS was seven rows, one per mood, indexed at every cube
+// spawn by the live mood. It is one row now — and it always was one row in
+// every way that mattered: ALL SEVEN carried { 1.0f, 0.0f, 0.0f }
+// identically, so the mood axis here was fiction and the seeding is
+// behaviour-identical for that reason and not merely by the sunset ruling.
+//
+// The bank owns cube behaviour as the agents own agents, so it stands at
+// the cube's own home rather than folding into the population panel.
+// Enrollment is NEW (these rows never existed) and stays U6 by ruling; the
+// bank therefore has no transport to move with it today.
+//
+// A CONSEQUENCE, NAMED: `curl` and `wave` carry zero spawn weight and did
+// under every mood, so no cube has ever spawned into either. The only
+// reachable path to them is cycle_cube_behavior_override, itself a console
+// orphan parked with the panel. Reported, not acted on — a taste question,
+// and Jean's.
+struct CubeBank {
     std::array<float, CUBE_BEHAVIOR_COUNT> behavior_weights;
 };
 
-inline constexpr CubePopulationDef CUBE_POPULATIONS[MOOD_COUNT] = {
-    /* MOOD_OPEN_SUNSET */
-    { MOOD_OPEN_SUNSET,
-      //                    stat curl  wave
-      /*behavior_weights=*/ { 1.0f, 0.0f, 0.0f } },
-    /* MOOD_INDOOR_FLAT */
-    { MOOD_INDOOR_FLAT,
-      /*behavior_weights=*/ { 1.0f, 0.0f, 0.0f } },
-    /* MOOD_INDOOR_VAULT */
-    { MOOD_INDOOR_VAULT,
-      /*behavior_weights=*/ { 1.0f, 0.0f, 0.0f } },
-    /* MOOD_FINITE_OUTDOOR */
-    { MOOD_FINITE_OUTDOOR,
-      /*behavior_weights=*/ { 1.0f, 0.0f, 0.0f } },
-    /* MOOD_OPEN_NIGHT (ATMOS_1) */
-    { MOOD_OPEN_NIGHT,
-      /*behavior_weights=*/ { 1.0f, 0.0f, 0.0f } },
-    /* MOOD_OPEN_NOON (ATMOS_1) */
-    { MOOD_OPEN_NOON,
-      /*behavior_weights=*/ { 1.0f, 0.0f, 0.0f } },
-    /* MOOD_ATRIUM (ATRIUM_1) */
-    { MOOD_ATRIUM,
-      /*behavior_weights=*/ { 1.0f, 0.0f, 0.0f } },
+// TRANSCRIBED AND PINNED (the canonized pattern), from the sunset row.
+inline constexpr CubeBank CUBE_TABLE = {
+    //                    stat  curl  wave
+    /*behavior_weights=*/ { 1.0f, 0.0f, 0.0f }
 };
+static_assert(CUBE_TABLE.behavior_weights[0] == CUBE_POPULATIONS_SUNSET_STAT
+           && CUBE_TABLE.behavior_weights[1] == CUBE_POPULATIONS_SUNSET_CURL
+           && CUBE_TABLE.behavior_weights[2] == CUBE_POPULATIONS_SUNSET_WAVE,
+    "CUBE_TABLE is the sunset row, transcribed (ONE_WORLD-II U1c)");
 
-static_assert(sizeof(CUBE_POPULATIONS) / sizeof(CUBE_POPULATIONS[0]) == MOOD_COUNT,
-              "CUBE_POPULATIONS must declare one row per mood");
-static_assert(CUBE_POPULATIONS[0].mood_id == MOOD_OPEN_SUNSET,    "row 0 must be MOOD_OPEN_SUNSET");
-static_assert(CUBE_POPULATIONS[1].mood_id == MOOD_INDOOR_FLAT,    "row 1 must be MOOD_INDOOR_FLAT");
-static_assert(CUBE_POPULATIONS[2].mood_id == MOOD_INDOOR_VAULT,   "row 2 must be MOOD_INDOOR_VAULT");
-static_assert(CUBE_POPULATIONS[3].mood_id == MOOD_FINITE_OUTDOOR, "row 3 must be MOOD_FINITE_OUTDOOR");
-static_assert(CUBE_POPULATIONS[4].mood_id == MOOD_OPEN_NIGHT,     "row 4 must be MOOD_OPEN_NIGHT");
-static_assert(CUBE_POPULATIONS[5].mood_id == MOOD_OPEN_NOON,      "row 5 must be MOOD_OPEN_NOON");
-static_assert(CUBE_POPULATIONS[6].mood_id == MOOD_ATRIUM,         "row 6 must be MOOD_ATRIUM");
+inline CubeBank CUBE_LIVE = CUBE_TABLE;
 
 // ═══ DIAGNOSTIC STATE (owned by the tools) ═══════════════════════
 
@@ -297,7 +296,7 @@ struct CubeBehaviorsState {
 
 // Spawn-side (stateless — consumed by entity_pipeline.hpp's cube_write_gpu)
 void apply_cube_tier_gains(float& spring_stiffness, float& drag, uint32_t tier_idx);
-uint32_t pick_cube_behavior_for_spawn(uint32_t mood_id, uint32_t seed);
+uint32_t pick_cube_behavior_for_spawn(uint32_t seed);
 // Teardown owner-clear
 void clear_cubes(CubeBehaviorsState& cbs, GPUState& gpu, wgpu::Queue& queue);  // DEPS-FORM PRECEDENT: explicit GPUState& param, born-converted
 // The evictor — MachineCtx-shaped
@@ -341,9 +340,8 @@ inline void apply_cube_tier_gains(float& spring_stiffness, float& drag, uint32_t
 }
 
 //
-inline uint32_t pick_cube_behavior_for_spawn(uint32_t mood_id, uint32_t seed) {
-    if (mood_id >= MOOD_COUNT) return CUBE_BEHAVIOR_STATIONARY;
-    const auto& pop = CUBE_POPULATIONS[mood_id];
+inline uint32_t pick_cube_behavior_for_spawn(uint32_t seed) {
+    const auto& pop = CUBE_LIVE;
 
     float total = 0.0f;
     for (uint32_t i = 0; i < CUBE_BEHAVIOR_COUNT; i++) total += pop.behavior_weights[i];
@@ -797,7 +795,7 @@ inline void cube_write_gpu(MachineCtx* c, const EntityInstance& inst, wgpu::Queu
                         ? CUBE_TIER_GAINS[inst.tier_idx].plasticity : 0.0f;
     fe.drift[0] = 0.0f; fe.drift[1] = 0.0f; fe.drift[2] = 0.0f;
     fe.drift_vel[0] = 0.0f; fe.drift_vel[1] = 0.0f; fe.drift_vel[2] = 0.0f;
-    fe.behavior_id    = pick_cube_behavior_for_spawn(c->mood_state_.active, inst.seed);
+    fe.behavior_id    = pick_cube_behavior_for_spawn(inst.seed);
     fe.behavior_phase = cpu_hash(inst.seed, 0xF10A7E70u);
     // BIRTH INTO THE LIVE MODE (RIDER[cube:spawn-mode-desync]).
     // Per-cube mode truth lives on the GPU; kite_mode is one CPU flag

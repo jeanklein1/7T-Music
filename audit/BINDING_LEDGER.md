@@ -32,7 +32,7 @@ only — `draw_orbs` is called from `bodies/orbs.hpp`, not from
 | `src/cartridges/the_board/bodies/gol_zones.hpp` | `a1ad031e3cd45f75881f180e843b4c3da4114a8816da759ad1d82b677868afc4` |
 | `src/cartridges/the_board/bodies/orbs.hpp` | `a3bde8f506af81f67844572f51e88f2f0cb9336b9cfbddbc946883faef8d4a0c` |
 | `src/cartridges/the_board/bodies/pawn.hpp` | `bac566779a35e46048585b51426d4bfe7b971093ea5e38e9b0219150774b3fbf` |
-| `src/cartridges/the_board/cartridge.hpp` | `f50fe3345947360389bf65337b86297eb4842d11993586274b78f2e020a0c947` |
+| `src/cartridges/the_board/cartridge.hpp` | `9b8e654b2ad5256e9a93bd345904ea6c7d51bbb0e4cfd0ee59299aa9098b5e16` |
 | `src/cartridges/the_board/contracts/spine_state.hpp` | `db05b71f5bbd02c4a737b623a240a0d5944aecdec86326581ac60a5de2e09267` |
 | `src/cartridges/the_board/direction/mood.hpp` | `241200f7a9b9927f8c2346ba039ec905823d970baa2a059a080f401c2a26ed74` |
 | `src/cartridges/the_board/realization/render_passes.hpp` | `951833669b61e2c60b334d216e34df63d0d4fcb9225db1fb4bcd68e5f33d7135` |
