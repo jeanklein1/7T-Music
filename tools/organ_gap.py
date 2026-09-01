@@ -63,6 +63,13 @@ HOMES = {
     "GPUAgentRoomConstants": "src/cartridges/the_board/realization/state.hpp",
     "DriverSurface":         "src/cartridges/the_board/contracts/driver_surface.hpp",
     "AtmosphereBank":        "src/cartridges/the_board/contracts/atmosphere_surface.hpp",
+    # THE MAP COULD NOT SEE THE GROUND (THE_PANEL I U0). AutomatonBank was
+    # born at ONE_SURFACE-II U1, after this table was last written, and a
+    # home absent from the table is a gap that reads as zero — blind spot
+    # 2's exact failure, which is why that blind spot prints the table it
+    # trusted. Not one of its fields is enrolled, so the row it adds is
+    # the largest single absence the tool reports.
+    "AutomatonBank":         "src/cartridges/the_board/contracts/automaton_surface.hpp",
     "AgentPopulationBank":   "src/cartridges/the_board/contracts/agent_surface.hpp",
     "AgentTierBank":         "src/cartridges/the_board/contracts/agent_tiers.hpp",
     "AgentBehaviorBank":     "src/cartridges/the_board/contracts/agent_tiers.hpp",
@@ -90,6 +97,7 @@ HOMES = {
 PAIRS = {
     "DriverSurface":     ("DRIVER_TABLE",      "DRIVER_LIVE"),
     "AtmosphereBank":    ("ATMOS_TABLE",       "ATMOS_LIVE"),
+    "AutomatonBank":     ("AUTO_TABLE",        "AUTO_LIVE"),
     "AgentPopulationBank": ("AGENTS_TABLE",    "AGENTS_LIVE"),
     "CubeBank":          ("CUBE_TABLE",        "CUBE_LIVE"),
     "AgentTierBank":     ("AGENT_TIER_GAINS",  "TIER_LIVE"),

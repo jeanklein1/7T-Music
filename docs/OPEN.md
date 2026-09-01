@@ -965,6 +965,134 @@ ONE_WORLD-II U2 — a world is chosen by its seed alone now.)
 
 ## THE PANEL (the plan's last movement — TWO HANDOFFS IN HAND)
 
+### U0 · RECON — DONE. **U1+ HELD ON JEAN'S PROBE.**
+
+The handoff's own precondition is "RUN AFTER ONE_SURFACE-II CLOSES GREEN
+(probe included)", and U0's first line is "verify the automaton's close
+(probe green at its tip)". **CC cannot verify that**, for the reason
+THE DEVICE GATE states: no built Dawn, no display. So the recon is done
+and recorded — it needs no probe — and every constructive unit waits.
+Same shape as ONE_SURFACE-II's own hold, which the rider resolved by
+Jean running the thing.
+
+**THE CENSUS, item by item as §1 asks:**
+
+**1. The web shell is ALREADY GONE.** `web/` does not exist — it left
+whole at WEB_SUNSET, not just its build. So the "room full of lies"
+U0 was told to look for (an `organ_panel.js` whose cwrap list names dead
+exports like `organ_mood` and `organ_regime`) IS NOT THERE, and
+**Handoff II's §1.4 — "The web shell dies (if standing)" — is discharged
+before it begins.** II's U3 has no subject. What it should do instead is
+the half that survives: the shell-gate witness §1.4 mentions, if any
+gate still names the file. (None does; `web/` appears nowhere in
+`tools/`.)
+
+**2. THE ABI AS IT IS — fourteen exports, all `extern "C"`, all
+KEEPALIVE'd** (`src/console/organ_registry.hpp`):
+
+    organ_manifest        organ_doors           organ_set
+    organ_get             organ_def_get         organ_param_count
+    organ_rejected_count  organ_last_reject     organ_flush_count
+    organ_build_stamp     organ_door            organ_host
+    organ_go_host         organ_orb_rule
+
+No dead export among them: `organ_mood` and `organ_regime` retired with
+their facts (ONE_WORLD-II). `bind_home(&gpuState_)` is called once at
+cartridge init, and it is the gate that makes `organ_set` a dial rather
+than a memory editor. **THE MANIFEST IS THE WHITELIST** — `organ_set`
+refuses any (block, offset) the manifest does not carry, by name, into
+`organ_last_reject`.
+
+**THREE DOORS**, `kOrganDoors[]`, one row per id with a static_assert
+holding the count: `Re-speak definitions`, `Cycle orb rule`,
+`Cycle orb gesture`. Presses coalesce through a bitmask by construction.
+
+**Handoff II's acceptance test is therefore already TRUE of the ABI and
+only untrue of the SHELL**: `organ_manifest` emits the whole vocabulary
+and a name-blind reader needs no per-dial code. The road and the hand
+are what is missing, not the surface.
+
+**3. THE ENROLLMENT GAP — 311 enrolled rows and 53 named absences, of
+which 15 were invisible until this recon fixed the map.**
+
+Rows by block: AGENT_ROOM 102, CONFIG 88, RIBBON_SPAWN 20, ORB_BANK 19,
+canvas 15, ATMOS 15, DRIVERS 14, PAWN 9, PANEL 9, AGENTS 5, ORBS 4,
+LIGHTING 4, RIBBON 3.
+
+`tools/organ_gap.py` reports **53 absent across the enrolled homes**:
+
+| home | named / total | the absences |
+|---|---|---|
+| **`AutomatonBank`** | **0/15** | **15 — the whole ground.** algorithm, rule_mask, field_fn, color_mode, boundary_mode, density(+spread), tick_period(+spread), transition_fraction(+spread), alive_height(+spread), spring_variance, phase_randomness, tempo_randomness, height_factor mean/sigma/lo/hi, target, mode_threshold |
+| `RibbonSurface` | 3/19 | **16** — yaw_rate, max_speed, r_min, climb_rate, floor_margin, alt_smooth_dist, alt_stiff, mount_setback, sky_yaw_tau, lookahead, clear_head, clear_body, roam_radius, wander_soft, wander_yaw_max, wander_arrive |
+| `GPUDesignConfig` | 79/91 | 12 — and most are NOT dials: world_seed, world_bound_min/max, cull_point_x/z, placement_patch_count, possessed_slot, point_host, pulse_count, pulse_data are STATE the program authors, not knobs a hand turns |
+| `OrbConfig` | 18/24 | 6 — base_hue, hue_variance, motion_rule, hue_converge_target, tierset_id, flock_gesture_default |
+| `AgentPopulationBank` | 5/7 | 2 — behavior_weights, tier_weights (arrays) |
+| `PawnAuraProfile` | 8/9 | 1 — effect_mask (STATUS: INTENT, mirrored and never read) |
+| `CubeBank` | 0/1 | 1 — behavior_weights |
+
+**THE RIBBON IS THE HEADLINE**: sixteen absent of nineteen, and every
+one of them moves MOVEMENT — yaw rate, climb rate, roam radius, wander.
+"Every single knob involved in the parametric generation of geometry,
+coloring and movement" is Jean's sentence, and this is the largest
+single block of movement knobs the panel does not name.
+
+**THE BIGGEST GAP WAS INVISIBLE TO THE TOOL, AND THIS RECON FIXED THAT
+BEFORE REPORTING IT.** `AutomatonBank` was not in `organ_gap.py`'s file
+table at all — it was born at ONE_SURFACE-II U1, after that table was
+last written, and **a home absent from the table is a gap that reads as
+ZERO.** That is blind spot 2's exact failure mode, which is why the tool
+prints the table it trusted; printing it is what made this findable.
+The row is added (the tool is a MAP, not a gate — its own header says
+so), and the total moved 38 -> 53.
+
+Not one of the bank's fields is enrolled: the rule mask, the density,
+the tick period (which is the Ableton cue's own dial), the transition
+fraction, the alive height, the colour mode and target, the three
+per-cell scatters, the height-factor draw. **The ground's whole
+vocabulary.** Enrolling it is U3's largest single item.
+
+**Candidates are FACTS for Jean's gate, not automatic enrollments** —
+"every single knob" is his sentence to apply, and several of the 38 are
+correctly absent (state, not knobs; INTENT mirrors; arrays the manifest
+has no row shape for).
+
+**4. THE DESIGNCONFIG PAD MAP — 704 bytes, at least nine retired pads**:
+`_pad_pier_retired`, `_pad_terrain_amp_ceiling_retired`,
+`_pad_ceiling_height_retired`, `_pad_veil_dither_retired`,
+`_pad_indoor_height_cap_retired`, `_pad_veil_strength_retired`,
+`_pad_lod0_radius_retired`, `_pad_arch_slack_retired`, `_pad720_1/2`.
+The witnesses U2 must re-pin: `sizeof == 704`, the three 16-alignment
+offsetofs (sun_direction, fog_color, checker_resultant), and the
+`cull_point_x == 336` pin that a partial WriteBuffer addresses
+positionally. **That last one is the trap**: a relayout that moves
+`cull_point_x` and does not move its assert writes the wrong four bytes
+every frame the point moves.
+
+**5. THE PRESET PATH** stands with NO READER: `presets/index.json` and
+`presets/baseline.json`, kept against L30's letter by the Phase W ruling
+[F2]. That is Handoff II's `--scene=` road, and its own OPEN.md section
+(NATIVE PRESET INGESTION) already names the walk.
+
+**6. THE ORPHAN VERBS**, unchanged since ONE_WORLD-II parked them:
+`cycle_cube_behavior_override`, `reveal_zoetrope`,
+`toggle_cube_kite_mode`, `unrecord_entity`, and ~40 accessor leads —
+each reachable from no key and no door. U4's pre-resolved default
+(an honest lever graduates to a DOOR; a verb whose subject died, dies)
+survives this recon intact: the cube cycles and the zoetrope reveal both
+press machinery the program still has.
+
+**7. `rebirth_world`'s P8 SEAM is UNCHANGED and still uncalled** —
+`SEAM[spine:P8]`, explicit latent infrastructure. U1's seed door is its
+first caller, and the chain's membership moved at ONE_SURFACE-II U1
+(`teardown_gol` -> `teardown_automaton`) with one INVERSION recorded
+there: `upload_automaton_config` has two callers now, so it is LIVE and
+a sweep must not read it as latent.
+
+**Baseline battery at this recon**: every row green at the pushed tip,
+L33 rebuilds byte-identically, S-6 clean, and S-8 among the witnesses.
+
+
 > **SCHEDULED.** THE_PANEL arrived as two handoffs and runs after
 > ONE_SURFACE-II closes green, probe included.
 >
