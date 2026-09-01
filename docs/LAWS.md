@@ -1160,3 +1160,48 @@ what.
 
 *Paid for by:* ORGAN_6. `rejected 19` printed for two campaigns and carried no
 information; `organ_last_reject` is the cure.
+
+## THE PERSISTENCE LADDER (relocated ONE_WORLD-II U0, 2026-09-01)
+
+Every parameter stands on one rung, and the rung says who takes it back and
+when. Not a numbered rule: a MODEL the numbered rules lean on, and the frame
+the organ's cadences, the drivers' rest and the world's rebirth are all cut
+against.
+
+```
+1 the instrument's registration — the LIVE banks; held through all
+2 the player's preferences — seeded once, then the player's; held
+3 the environment's instance — authored by apply_mood at entry;
+  re-spoken at the boundary when rung 1 is edited
+4 the world's draw — (seed, tables) → terrain, spawns, THIS SKY;
+  reborn at teardown, the same seed the same world
+5 the drivers' output — rest (3) + gain (1) · deviation, per frame
+6 the live simulation — advances per frame; a discrete command
+  changes the LAW, not the state; reborn only at teardown
+A transition holds 1-2, re-speaks 3, reborns 4 and 6; 5 continues over
+the new rest. "Held regardless" is rungs 1 and 2; "a custom
+environment" is a rung-1 row plus its rung-4 draw.
+```
+
+**Why it moved, and why verbatim.** Its only live home was a comment block
+inside `contracts/spine_state.hpp`'s `MOOD SYSTEM (vocabulary)` region —
+lexically between `struct MoodState` and `enum class CeilingType`, both of
+which ONE_WORLD-II deletes. The ladder would have left the tree as a side
+effect of an excision that has nothing to do with it. It qualifies here by
+this file's own admission test: delete the moods and the ladder is still
+true, and the next author still walks into the same trap.
+
+It moved **before** the amendment that ONE_WORLD-II owes it, and unedited —
+so the relocation is provably lossless and the amendment is a separate,
+visible act. Rung 3's author changes when the banks arrive (U2 amends this
+block in the same commit that takes `apply_mood`); rung 3 itself does not
+collapse, because rung 5 reads it every frame and neither a constexpr bank
+nor a teardown-scoped draw can be a per-frame rest.
+
+**The citation it carried was already dangling.** The block cited
+`docs/ORGAN.md, "The persistence ladder"` — a section deleted at `f294a9fe`
+(ORGAN_7 P5) and never graduated with that commit's four laws. Two sibling
+citations in `src/` are dangling the same way and are U7's to probate:
+`docs/ORGAN.md, "The drivers' room"` (`contracts/driver_surface.hpp`) and
+`docs/ORGAN.md, "Instance and definition"` (`spine_state.hpp`, at the
+eligibility rule).

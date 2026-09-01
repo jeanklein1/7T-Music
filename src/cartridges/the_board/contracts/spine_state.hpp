@@ -148,21 +148,12 @@ struct MoodState {
 // sky, so the back portal's promise holds. The panel writes the
 // distribution, and the draw moves WITH the dial rather than re-rolling.
 //
-// THE PERSISTENCE LADDER — every parameter stands on one rung, and the
-// rung says who takes it back and when (docs/ORGAN.md, "The persistence
-// ladder"):
-//   1 the instrument's registration — the LIVE banks; held through all
-//   2 the player's preferences — seeded once, then the player's; held
-//   3 the environment's instance — authored by apply_mood at entry;
-//     re-spoken at the boundary when rung 1 is edited
-//   4 the world's draw — (seed, tables) → terrain, spawns, THIS SKY;
-//     reborn at teardown, the same seed the same world
-//   5 the drivers' output — rest (3) + gain (1) · deviation, per frame
-//   6 the live simulation — advances per frame; a discrete command
-//     changes the LAW, not the state; reborn only at teardown
-// A transition holds 1-2, re-speaks 3, reborns 4 and 6; 5 continues over
-// the new rest. "Held regardless" is rungs 1 and 2; "a custom
-// environment" is a rung-1 row plus its rung-4 draw.
+// THE PERSISTENCE LADDER lives at docs/LAWS.md, "THE PERSISTENCE LADDER"
+// — six rungs, and the rung says who takes a parameter back and when.
+// It stood HERE, inside the mood vocabulary, until ONE_WORLD-II U0 moved
+// it out of a region that campaign deletes. Not restated here: one rule,
+// one home (L46). The rungs this file's own types stand on are named at
+// each type.
 
 enum class CeilingType : uint32_t {
     NONE = 0,   // outdoor — no shell geometry
