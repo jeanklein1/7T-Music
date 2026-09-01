@@ -14,8 +14,8 @@ merge rows the API charges separately.
 | field | value |
 |---|---|
 | demo column censused | `full` |
-| source commit | `2250854b809b117d8632227a6d404ecba46346b1` |
-| | ONE_WORLD-II U8a: the instruments — the record ritual finds one more |
+| source commit | `f7d66dd80bdad9124c37979b25c3c6b04ccd0597` |
+| | ONE_SURFACE-I U0 housekeeping: two names ONE_WORLD-II flagged and could not take |
 | `src/cartridges/the_board/realization/state.hpp` | `sha256:c24bf0e1afb801438c83d5aa99eb466d433eabc0f84c44669ee0d965e2884d6a` |
 | `src/cartridges/the_board/realization/binding_surface.gen.inc` | `sha256:0b98dfab809edd83752dedf7803f758fcf4ce502009763642a37cbf03b2a8446` |
 | `src/cartridges/the_board/realization/binding_registry.hpp` | `sha256:968d2d0dcbaa4ffe35f30b8349de93b4912cb3da09a16c56965408c90fc3ad9c` |
@@ -32,9 +32,9 @@ only — `draw_orbs` is called from `bodies/orbs.hpp`, not from
 | `src/cartridges/the_board/bodies/gol_zones.hpp` | `2f0e9bc85379b214b3a8a319634f5d65615e753a6b2f63764e162061b105f1e2` |
 | `src/cartridges/the_board/bodies/orbs.hpp` | `475d3de82ddd4d979d55ad146039937cd3316a0148466ed5c1db5566bde9a8b1` |
 | `src/cartridges/the_board/bodies/pawn.hpp` | `7915ec242a2a3094537882c50a2980c9494e4f1460a3a2f786232b67ec6ead12` |
-| `src/cartridges/the_board/cartridge.hpp` | `e2748ad7f6acb7a5822eccef917495fe799996004da2be66eba991f8a7637d87` |
+| `src/cartridges/the_board/cartridge.hpp` | `e26548507fff4e3c3e9d373bbd86f4eb949577020b783d4d74f6d73e8a53fa72` |
 | `src/cartridges/the_board/realization/render_passes.hpp` | `7fa36d18358a8e524e1b1b48a6b55cd4c41a7688a490244370640336155ae267` |
-| `src/cartridges/the_board/surface/patch_system.hpp` | `67953eee56a84e57b68779a077be6770683235b26d25520414ef4ffe4cead70e` |
+| `src/cartridges/the_board/surface/patch_system.hpp` | `3ed3fa032b6d17822de906ee3c885fcbd23d0bb75377491227af59bea916cda8` |
 
 The source commit is the last commit touching any of the four primary
 inputs — not `HEAD`, which moves when this file is committed. The content

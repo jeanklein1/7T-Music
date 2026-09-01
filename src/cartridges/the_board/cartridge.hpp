@@ -654,6 +654,19 @@ namespace t7 {
                     dump_entity_census(&machine_ctx_, "boot");
                 }
 
+                // ═══ MOVEMENT: BOOT — S2 THE WORLD IS BUILT ═════════════════
+                // ONE_SURFACE-I U1. The grid is allocated, spawned, baked,
+                // banded and uploaded here, once, before the first frame —
+                // the same door rebirth_world walks. It stands AFTER the
+                // "boot" entity census on purpose: that census reads zero by
+                // construction and says so, and a world built ahead of it
+                // would have made it a lie. The "born" census the builder
+                // prints is the first count of a world that exists.
+                {
+                    wgpu::Queue q = device_.GetQueue();
+                    build_world(&machine_ctx_, device_, q, tile_world_state_, tile_world_deps_);
+                }
+
                 auto t3 = std::chrono::high_resolution_clock::now();
 
                 std::cout << "[Cartridge] Renderer init:    "
@@ -1379,6 +1392,15 @@ namespace t7 {
                 // staged the sky.
                 if constexpr (ROSTER.ribbon)
                     release_finite_ribbons(ribbon_state_, &ribbon_deps_, queue);
+
+                // ── THE WORLD IS BUILT (ONE_SURFACE-I U1) ────────────────
+                // The same door boot walks, and the last thing a rebirth
+                // does before it announces itself. It stands AFTER the
+                // "rebirth" entity census for the reason that census gives:
+                // both columns must read 0 there, which is a teardown-
+                // completeness assertion — a world rebuilt ahead of it would
+                // be asserting nothing.
+                build_world(&machine_ctx_, device_, queue, tile_world_state_, tile_world_deps_);
 
                 uint32_t side = world_state_.finite_mode ? 2 * world_state_.finite_radius + 1 : 0;
                 std::cout << "[World] Rebirth complete, seed=" << world_state_.active_seed

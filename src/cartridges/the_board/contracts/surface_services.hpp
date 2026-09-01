@@ -303,6 +303,12 @@ void generate_selected_patches(MachineCtx* c, const PatchCandidate* candidates, 
     TileWorldState& tile_world_state, TileWorldDeps& tile_world_deps);
 
 // THE CONDUCTOR: the per-frame streaming step.
+// THE ONE-SHOT BUILDER (ONE_SURFACE-I U1). Takes the device because it
+// owns its own encoders: one batch per submit is LATTICE_1's law, and a
+// builder that borrowed the frame's encoder could not honour it.
+void build_world(MachineCtx* c, wgpu::Device& device, wgpu::Queue& queue,
+    TileWorldState& tile_world_state, TileWorldDeps& tile_world_deps);
+
 void stream_patches(MachineCtx* c, wgpu::CommandEncoder& encoder, wgpu::Queue& queue,
     TileWorldState& tile_world_state,
     TileWorldDeps& tile_world_deps, SkyDeps& sky_deps);

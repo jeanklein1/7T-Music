@@ -517,6 +517,145 @@ inline std::unordered_set<GridKey, GridKeyHash> build_active_patch_set(MachineCt
     return set;
 }
 
+// ══ build_world — THE ONE-SHOT BUILDER (ONE_SURFACE-I U1) ═══════════
+//
+// A FINITE WORLD IS BUILT ONCE. The conductor below streams a window
+// across an endless plane: it recenters, evicts what falls out, allocates
+// what falls in, and paces the spend so no frame pays for more than a few
+// patches. Every one of those verbs answers a question a finite world does
+// not ask — the window never moves, nothing ever falls out, and the whole
+// grid is known the moment the radius is drawn. So the grid is allocated,
+// spawned, baked, banded and uploaded HERE, at the world's birth, and the
+// frames that follow find it already standing.
+//
+// THE THREE GPU FACTS COME FIRST, AND THIS IS NOT OPTIONAL. The bake reads
+// the world seed through `config.world_seed` (make_patch_params' own note),
+// and `set_world_seed` / `set_world_bounds` only STAGE — the write is
+// phase_stage_upload's, a per-frame UPDATE row that has not run when a boot
+// builder bakes. So the builder stages the pair and drains the config
+// itself, before its first dispatch. phase_stage_world keeps doing the same
+// per frame, dirty-gated and idempotent; this is not a second author, it is
+// the same author reached at a moment the spine has not yet arrived at.
+//
+// ONE BATCH PER SUBMIT (LATTICE_1), AND THE ARITHMETIC SAYS ONE SUBMIT.
+// generate_patch_batch writes the whole batch to patch_params at record 0
+// and the queue orders every WriteBuffer ahead of the entire command
+// buffer — so two batches on one encoder land the second's params on the
+// first's records before either dispatch runs. The loop below therefore
+// closes an encoder per batch. patchParamsBuffer_ holds MAX_ACTIVE_PATCHES
+// (225) records and the widest world the pin allows is radius 4 — 9x9 = 81
+// patches — so the loop runs EXACTLY ONCE at every radius in
+// [FINITE_RADIUS_MIN, FINITE_RADIUS_MAX]. It is written as a loop anyway,
+// because a bound that is enforced by structure cannot rot the way a bound
+// that is merely true today can.
+//
+// NEAREST FIRST, ONE PASS, AND THE ONE DISCLOSED DELTA. The conductor
+// spawned the priority window (PATCH_GRID_RADIUS, 7x7) inside its
+// fullRegen arm and left the rest to later frames' distance-driven block.
+// The builder spawns all of it in one nearest-first pass, which is the
+// tree's own stated priority law with no budget left to serve. The two
+// orders are NOT the same sequence: (4,0) is 200 wu from the origin and
+// (3,3) is 212, so a one-pass sort serves a patch OUTSIDE the old priority
+// window before one inside it. Entity SELECTION is seed-driven and
+// unchanged; what can differ is which of two entities wins ground both
+// want, since footprints register at PLACE in candidate order. Disclosed
+// for the walk, not claimed as identity.
+inline void build_world(MachineCtx* c, wgpu::Device& device, wgpu::Queue& queue,
+    TileWorldState& tile_world_state, TileWorldDeps& tile_world_deps) {
+    // ── 1. The world's identity, on the GPU, before anything reads it ──
+    c->gpuState_.set_world_seed(c->world_state_.active_seed);
+    {
+        const float bmin = -(float)c->world_state_.finite_radius * Dim::PATCH_EXTENT;
+        const float bmax = ((float)c->world_state_.finite_radius + 1.0f) * Dim::PATCH_EXTENT;
+        c->gpuState_.set_world_bounds(bmin, bmin, bmax, bmax);
+    }
+    c->gpuState_.upload_config(queue);
+
+    const int32_t r  = (int32_t)c->world_state_.finite_radius;
+    const int32_t cx = 0;   // the finite grid is centred on the origin, always
+    const int32_t cz = 0;
+    c->world_state_.last_center_x = cx;
+    c->world_state_.last_center_z = cz;
+
+    // ── 2. Tiles, over the grid plus one pad ring (the conductor's TILE_PAD) ──
+    static constexpr int32_t TILE_PAD = 1;
+    for (int32_t gz = cz - (r + TILE_PAD); gz <= cz + (r + TILE_PAD); gz++)
+        for (int32_t gx = cx - (r + TILE_PAD); gx <= cx + (r + TILE_PAD); gx++)
+            ensure_tile(tile_world_state, &tile_world_deps, gx, gz);
+
+    // ── 3. Allocate every cell of the grid ────────────────────────────
+    // The pool is MAX_ACTIVE_PATCHES deep and this asks for (2r+1)^2 <= 81,
+    // so alloc_layer cannot refuse; the guards stay because a refusal that
+    // cannot happen is still a refusal that must not be silent.
+    for (int32_t gz = cz - r; gz <= cz + r; gz++) {
+        for (int32_t gx = cx - r; gx <= cx + r; gx++) {
+            if (c->world_state_.active_patch_count >= Dim::MAX_ACTIVE_PATCHES) break;
+            const uint32_t layer = alloc_layer(c);
+            if (layer == UINT32_MAX) break;   // the pool refused; it says so itself
+            ActivePatch& p = c->patch_system_state_.patches_[c->world_state_.active_patch_count];
+            p = ActivePatch{};
+            p.grid_x = gx;
+            p.grid_z = gz;
+            p.layer  = layer;
+            p.valid  = true;
+            c->world_state_.active_patch_count++;
+        }
+    }
+
+    // ── 4. Spawn — every patch, nearest first from the point ──────────
+    {
+        PatchCandidate cands[Dim::MAX_ACTIVE_PATCHES];
+        const uint32_t n = collect_sorted_patches(c, cands, c->point_.x, c->point_.z,
+            [](const ActivePatch& p) { return p.phase == PatchPhase::ALLOCATED; }, true);
+        spawn_selected_patches(c, cands, n, queue);
+    }
+
+    // ── 5. Bake — one batch per submit ────────────────────────────────
+    {
+        PatchCandidate cands[Dim::MAX_ACTIVE_PATCHES];
+        const uint32_t n = collect_sorted_patches(c, cands, c->point_.x, c->point_.z,
+            [](const ActivePatch& p) { return p.phase == PatchPhase::SPAWNED; }, true);
+        bool tileGridDirty = true;   // the grid is new; generate_selected_patches drains it first
+        for (uint32_t base = 0; base < n; base += Dim::MAX_ACTIVE_PATCHES) {
+            const uint32_t take = std::min(n - base, Dim::MAX_ACTIVE_PATCHES);
+            wgpu::CommandEncoderDescriptor encDesc{};
+            encDesc.label = "build_world";
+            wgpu::CommandEncoder encoder = device.CreateCommandEncoder(&encDesc);
+            generate_selected_patches(c, cands + base, take, encoder, queue,
+                tileGridDirty, tile_world_state, tile_world_deps);
+            wgpu::CommandBufferDescriptor cmdDesc{};
+            cmdDesc.label = "build_world";
+            wgpu::CommandBuffer commands = encoder.Finish(&cmdDesc);
+            queue.Submit(1, &commands);
+        }
+        // The tile grid rides generate_selected_patches' own drain when there
+        // is a batch; a world with no patches to bake still owes the upload.
+        if (tileGridDirty)
+            upload_tile_grid_now(tile_world_state, &tile_world_deps, queue, cx, cz);
+    }
+
+    // ── 6. The conductor's tail, once ─────────────────────────────────
+    band_patches(c, queue);
+    build_patch_grid(c, queue);
+    c->world_state_.ground_entries_dirty = true;
+    c->world_state_.placement_dirty      = true;
+    c->world_state_.patch_instances_dirty = false;
+
+    // ── 7. The world is no longer young ───────────────────────────────
+    // RIBBON_6's meaning survives its counter: youth is an AGE, set when a
+    // world begins and cleared once. A world that is built whole is born
+    // already grown, so the clearer is this line rather than a per-frame
+    // three-quarters test.
+    c->world_state_.world_young = false;
+
+    // THE BIRTH CENSUS (OVERTURE_0), kept at its own moment: the first
+    // count of a world that exists.
+    dump_entity_census(c, "born");
+
+    std::cout << "[Ground] Built " << c->world_state_.active_patch_count
+              << " patches (" << (2 * r + 1) << "x" << (2 * r + 1) << ")\n";
+}
+
 // --- Patch streaming: determine active 7×7 grid, generate new patches ---
 // THE CONDUCTOR: the per-frame step — recenter,
 // eviction, allocation, spawn + generation budgets, visibility
