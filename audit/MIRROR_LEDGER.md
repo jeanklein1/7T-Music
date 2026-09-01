@@ -15,15 +15,15 @@ carry those facts, or leave them in place and patch around them.
 
 | field | value |
 |---|---|
-| source commit | `59688501c983b885be2f1db1d7bc3d22df8cf48e` |
-| | ONE_SURFACE-II U4: the extent witness, built and proven to bite |
+| source commit | `e58b4bd4e921f384f2269a68cf97cf206d7ee873` |
+| | ONE_SURFACE-II U3 addendum: ROW 9 pointed at the wrong function, and my sweep made it worse |
 | `src/cartridges/the_board/realization/binding_registry.hpp` | `sha256:351eccaedd6902900df3b13a57c7a818ff10cf4280debbfb9034b0ffabcfcc73` |
 | `src/cartridges/the_board/realization/world.wgsl` | `sha256:44893f9e910f6bcfb9b8e170037c4dc2fba13cd638efb8fb96d9584adf01f2ab` |
 | `src/cartridges/the_board/realization/state.hpp` | `sha256:3dfc4cf35f8c3411c01a94827ed703480cf483ee7b52a04f4e15ad3b0965b622` |
 | `src/cartridges/the_board/realization/binding_surface.gen.inc` | `sha256:10e301844bd75099919b6e0aa5b0fde9d3e723f0c59b11072bc821a4ca97e682` |
 | `src/cartridges/the_board/realization/renderer.hpp` | `sha256:06607597f8dc50c80f2dd99c042ba8b1d12f3caaec25640cc9e65f6755fbe84a` |
 | `tools/binding_ledger.py` | `sha256:a3c75bab894774eb0302686e5efd52275b280e14abfcf4e8753b28d5b5086692` |
-| `audit/BINDING_LEDGER.md` | `sha256:70b37fad1f3c5722fac464f4f2c0e6e7f4aa4e134aca6b1492d78233a9a8e06f` |
+| `audit/BINDING_LEDGER.md` | `sha256:64c4826efa941f811fdaf2c9d8c94590a15c7524e5a971e213c68bc57d108d28` |
 
 `tools/binding_ledger.py` is an input because its parsers are IMPORTED,
 not copied — one parse, two artifacts, no drift between instruments.
