@@ -15,8 +15,8 @@ carry those facts, or leave them in place and patch around them.
 
 | field | value |
 |---|---|
-| source commit | `6ac58115fb35465b78f81ce018bb1c9fd0ccb72d` |
-| | ONE_WORLD-II U2: the moods fall — by enumeration, not by span |
+| source commit | `b9552c1617aa561a5d2b10d1a964b94b50a51cb5` |
+| | ONE_WORLD-II U5: the world is pinned FINITE |
 | `src/cartridges/the_board/realization/binding_registry.hpp` | `sha256:bd8c83ad2f09175a33a534682e7a888d147e357e256343e765a0e284ba11690f` |
 | `src/cartridges/the_board/realization/world.wgsl` | `sha256:347c4b677f238ac968c2daa26f18362640e2703c53695016a2391fe024aae467` |
 | `src/cartridges/the_board/realization/state.hpp` | `sha256:2663b0b7b0601ee2e1325776af186dd80b1a87e8c7d4cc7d23f4e01040ec9737` |

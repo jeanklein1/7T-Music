@@ -29,6 +29,7 @@
 #include "coupling/canvas_surface.hpp"                        // CANVAS_LIVE (block 9, t7::canvas)
 #include "cartridges/the_board/contracts/driver_surface.hpp"  // the drivers' room (block 3)
 #include "cartridges/the_board/contracts/atmosphere_surface.hpp" // ATMOS_LIVE (block 12)
+#include "cartridges/the_board/contracts/agent_surface.hpp"      // AGENTS_LIVE (block 15)
 
 #include <cstddef>
 #include <cstdint>
@@ -120,7 +121,18 @@ enum : uint8_t {
     // touched mask (four of the twenty-five facts are baked at init and
     // re-seed; the rest ride the uniform upload).
     ORGAN_BLOCK_ORB_BANK     = 13,  // OrbMoodConfig      — ORB_LIVE
-    ORGAN_BLOCK_COUNT        = 14,
+    // A BANK THE CAMPAIGN BUILT (ONE_WORLD-II U6b). It had no rows before
+    // — NEW enrollment, which is why it waited for this unit while the
+    // re-homes rode their subjects' commits (Amendment D moves transport
+    // that EXISTS; it does not invent it early).
+    //
+    // CUBE_LIVE IS NOT HERE, AND THE REASON IS THE COMPOSITION LAW. Every
+    // enrolled bank sits at the CONTRACTS tier, because this file may not
+    // include a body (L38). CubeBank lives in bodies/cube_behaviors.hpp,
+    // so enrolling it needs a contracts seat founded for it first — the
+    // same move agent_surface.hpp was at U1c. Flagged, not forced.
+    ORGAN_BLOCK_AGENTS       = 14,  // AgentPopulationBank — AGENTS_LIVE
+    ORGAN_BLOCK_COUNT        = 15,
 };
 
 // A definition-only entry has no instance anywhere: block_base answers
@@ -324,6 +336,7 @@ inline void* block_base(uint8_t block) {
     case ORGAN_BLOCK_RIBBON_SPAWN: return &the_board::RIBBON_SPAWN_LIVE;
     case ORGAN_BLOCK_ATMOS:      return &the_board::ATMOS_LIVE;
     case ORGAN_BLOCK_ORB_BANK:   return &the_board::ORB_LIVE;
+    case ORGAN_BLOCK_AGENTS:     return &the_board::AGENTS_LIVE;
     default:                     return nullptr;
     }
 }
@@ -406,7 +419,7 @@ inline const OrganParam* find_entry(int block, int offset, int type) {
 // Declared here because read_lane reaches for it: a definition-only entry
 // has no instance, so reading its value IS reading its definition. The
 // body stays beside the rest of the definition path, below.
-inline float read_definition(const OrganParam& e, uint32_t mood, int lane);
+inline float read_definition(const OrganParam& e, int lane);
 
 inline float read_lane(const OrganParam& e, int lane) {
     void* base = block_base(e.block);
@@ -430,8 +443,6 @@ inline float read_lane(const OrganParam& e, int lane) {
 // boundary
 // for the flush's own reason — a drag is many events, the mood is applied
 // once — and the cartridge takes the flag, owning the deps and the queue.
-inline bool     g_def_dirty = false;
-inline uint32_t g_def_dirty_mood = 0;
 inline bool     g_tier_def_dirty = false;   // the world bank changed
 // THE SKY CHANGED (ONE_WORLD-II U1). One bool, not a per-field mask: the
 // boundary's answer to any atmosphere write is the same whole re-draw, so
@@ -509,9 +520,11 @@ static_assert(offsetof(the_board::OrbConsole, dome_radius) == 0
     "the console mask's bits are offset/4 — dome 0, base size 1, noise 2, "
     "speed mult 3; the cartridge boundary routes on exactly those four");
 
-// One base per definition family. MOOD selects by target; TIER is the
-// world's single bank and ignores it.
-inline char* definition_base(const OrganParam& e, uint32_t mood) {
+// One base per definition family. Both surviving kinds — TIER and
+// BEHAVIOR — are the WORLD's single banks, so there is nothing to select
+// with: the target parameter left at ONE_WORLD-II U6b with the last kind
+// that used it.
+inline char* definition_base(const OrganParam& e) {
     switch (e.def_kind) {
     case ORGAN_DEF_TIER: return reinterpret_cast<char*>(&the_board::TIER_LIVE);
     case ORGAN_DEF_BEHAVIOR: return reinterpret_cast<char*>(&the_board::BEHAVIOR_LIVE);
@@ -519,10 +532,10 @@ inline char* definition_base(const OrganParam& e, uint32_t mood) {
     }
 }
 
-inline bool write_definition(const OrganParam& e, uint32_t mood, const float* in) {
+inline bool write_definition(const OrganParam& e, const float* in) {
     if (e.def_kind == ORGAN_DEF_NONE) return false;
 
-    char* p = definition_base(e, mood);
+    char* p = definition_base(e);
     if (!p) return false;
     p += e.def_offset;
 
@@ -548,16 +561,14 @@ inline bool write_definition(const OrganParam& e, uint32_t mood, const float* in
     // a second flag would be a second name for one occasion.
     if (e.def_kind == ORGAN_DEF_TIER || e.def_kind == ORGAN_DEF_BEHAVIOR) {
         g_tier_def_dirty = true;
-    } else {
-        g_def_dirty = true; g_def_dirty_mood = mood;
     }
     return true;
 }
 
-inline float read_definition(const OrganParam& e, uint32_t mood, int lane) {
+inline float read_definition(const OrganParam& e, int lane) {
     if (e.def_kind == ORGAN_DEF_NONE || lane < 0 || lane >= lanes_of(e.type))
         return 0.0f;
-    const char* p = definition_base(e, mood);
+    const char* p = definition_base(e);
     if (!p) return 0.0f;
     p += e.def_offset;
     // The read mirrors the write, and read_lane's instance branch, exactly:
@@ -574,12 +585,6 @@ inline float read_definition(const OrganParam& e, uint32_t mood, int lane) {
 
 // Taken once, by the frame boundary. Returns false when there is nothing
 // to re-apply, so the caller pays a branch on a quiet frame.
-inline bool take_definition_dirty(uint32_t& mood) {
-    if (!g_def_dirty) return false;
-    g_def_dirty = false;
-    mood = g_def_dirty_mood;
-    return true;
-}
 
 // ─── DOORS ────────────────────────────────────────────────────────────
 // A DOOR RAISES A FLAG THE BOUNDARY ALREADY CONSUMES AND ADDS NO AUTHOR,
@@ -755,10 +760,18 @@ EMSCRIPTEN_KEEPALIVE inline const char* organ_doors(void) {
 // these calls and one WriteBuffer (docs/ORGAN.md, "The write path").
 
 // TARGET. -1 is PREVIEW: write the instance, which the program's other
-// authors may take back. A mood id (0..MOOD_COUNT-1) is DEFINITION: write
-// what that mood MEANS and let its own apply produce the instance.
-// Definition is the default; a dial with no definition target falls back
-// to the instance under either mode.
+// authors may take back. 0 is DEFINITION: write what the world MEANS and
+// let its author produce the instance. Definition is the default; a dial
+// with no definition target falls back to the instance under either mode.
+//
+// IT WAS A MOOD ID (ONE_WORLD-II U6b). 0..MOOD_COUNT-1 selected which
+// mood's definition a write landed on, and a stored preset carries that
+// id in its keys. There is one world now, so any target above 0 is a key
+// from a tree that no longer exists — and it is REFUSED OUT LOUD AND BY
+// NAME rather than silently aliased onto the one bank. That is the
+// mood_def precedent, which ATTIC_ATRIUM wrote after a `% MOOD_COUNT`
+// wrap landed a stale id on mood 0 in silence; U1b removed the last two
+// wraps, and this is the same rule at the door instead of at the index.
 EMSCRIPTEN_KEEPALIVE inline void organ_set(int block, int offset, int type,
                                            float x, float y, float z, float w,
                                            int target) {
@@ -769,8 +782,21 @@ EMSCRIPTEN_KEEPALIVE inline void organ_set(int block, int offset, int type,
     void* base = block_base((uint8_t)block);
     if (!base) { note_reject(e->id, "the block has no home"); return; }
 
+    if (target > 0) {
+        static bool warned[64]{};
+        const uint32_t slot = (uint32_t)target & 63u;
+        if (!warned[slot]) {
+            warned[slot] = true;
+            std::cout << "[Organ] REFUSED a definition target of " << target
+                      << " — targets were mood ids and there is one world now"
+                      << " (ONE_WORLD-II); a stale preset is naming a mood\n";
+        }
+        note_reject(e->id, "a definition target above 0 is a stale mood key");
+        return;
+    }
+
     const float lanes_in[4] = { x, y, z, w };
-    if (target >= 0 && write_definition(*e, (uint32_t)target, lanes_in)) {
+    if (target >= 0 && write_definition(*e, lanes_in)) {
         // Deliberately no instance write and no dirty bit: the instance is
         // the applier's to produce.
         return;
@@ -921,10 +947,10 @@ EMSCRIPTEN_KEEPALIVE inline void organ_go_host(int host) {
 
 // One lane of one dial's DEFINITION for one mood. Zero for a dial with no
 // definition target; a consumer asks the manifest's "def" before this.
-EMSCRIPTEN_KEEPALIVE inline float organ_def_get(int index, int mood, int lane) {
+EMSCRIPTEN_KEEPALIVE inline float organ_def_get(int index, int lane) {
     using namespace t7::organ;
-    if (index < 0 || (size_t)index >= kOrganParamCount || mood < 0) return 0.0f;
-    return read_definition(kOrganParams[index], (uint32_t)mood, lane);
+    if (index < 0 || (size_t)index >= kOrganParamCount) return 0.0f;
+    return read_definition(kOrganParams[index], lane);
 }
 
 } // extern "C"

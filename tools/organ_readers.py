@@ -138,6 +138,20 @@ READERS = {
     # applier is the draw that reads it through `a`. It was MOOD's second
     # handle — `atmos.*` on MoodProfile, across four regimes — until the
     # roll left and the bank took the fact.
+    # THE AGENTS' BANK (ONE_WORLD-II U6b). Two readers, two cadences: the
+    # world's birth fills the population, and the per-frame respawn refills
+    # what the eviction took. Both read the bank live — U1c reversed OIL_1's
+    # constexpr sum for exactly that reason.
+    "AGENTS": ("AGENTS_LIVE", "AgentPopulationBank", [
+        ("src/cartridges/the_board/bodies/agents.hpp", "spawn_population"),
+        ("src/cartridges/the_board/bodies/agents.hpp", "respawn_evicted_agents"),
+        # The annulus and the weights are read one level down, in the slot
+        # populator both spawners hand the bank to — blind spot 1's exact
+        # shape (a helper taking the value by parameter).
+        ("src/cartridges/the_board/bodies/agents.hpp", "populate_agent_slot_"),
+        ("src/cartridges/the_board/contracts/agent_surface.hpp", "agents_behavior_sum"),
+        ("src/cartridges/the_board/contracts/agent_surface.hpp", "agents_tier_sum"),
+    ]),
     "ATMOS": ("ATMOS_LIVE", "AtmosphereBank", [
         ("src/cartridges/the_board/direction/mood.hpp", "draw_atmosphere"),
     ]),

@@ -5,8 +5,8 @@ Read-only: a census of the program's pass and submit surface.
 
 ## Provenance
 
-Last commit touching any scanned file: `6ac58115fb35465b78f81ce018bb1c9fd0ccb72d`
-(ONE_WORLD-II U2: the moods fall — by enumeration, not by span)
+Last commit touching any scanned file: `b9552c1617aa561a5d2b10d1a964b94b50a51cb5`
+(ONE_WORLD-II U5: the world is pinned FINITE)
 
 | file scanned | sha256 |
 |---|---|

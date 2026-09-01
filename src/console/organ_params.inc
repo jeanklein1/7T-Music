@@ -561,3 +561,18 @@ ORGAN_PARAM(CONFIG, GPUDesignConfig, shadow_mask, U32, 0.0f,   3.0f, 1.0f, "Meas
 // A measurement AND a taste gate: the tap cost on both GPUs, and whether the
 // narrower penumbra is the piece. Range covers only the two legal values.
 ORGAN_PARAM(CONFIG, GPUDesignConfig, shadow_pcf_taps, U32, 4.0f, 16.0f, 12.0f, "Measure", "sun PCF taps (4 or 16)")
+
+// ─── Population · Agents — EDITS THE NEXT WORLD ─────────────────────
+// AGENTS_LIVE (contracts/agent_surface.hpp), the world's one agent
+// population: how many walk it, and what they are. It was seven rows
+// indexed by mood until ONE_WORLD-II U1c, and unenrolled until U6b —
+// NEW rows, not a re-home, which is why they arrive here last.
+// DESTRUCTIVE-ish by cadence: spawn_population reads the bank at a
+// world's birth and respawn_evicted_agents reads it per frame, so a
+// weight edit reaches the next agent to die and the whole population at
+// the next rebirth.
+ORGAN_PARAM_GEN(AGENTS, AgentPopulationBank, count,                U32, 0.0f, 31.0f,  1.0f,  "Population · Agents", "count")
+ORGAN_PARAM_GEN(AGENTS, AgentPopulationBank, spawn_inner_radius,   F32, 0.0f, 800.0f, 2.0f,  "Population · Agents", "annulus inner radius")
+ORGAN_PARAM_GEN(AGENTS, AgentPopulationBank, spawn_radius,         F32, 0.0f, 1200.0f,4.0f,  "Population · Agents", "annulus outer radius")
+ORGAN_PARAM_GEN(AGENTS, AgentPopulationBank, spawn_center_forward, F32, -400.0f, 400.0f, 2.0f, "Population · Agents", "centre forward offset")
+ORGAN_PARAM_GEN(AGENTS, AgentPopulationBank, home_seeding_radius,  F32, 0.0f, 200.0f, 1.0f,  "Population · Agents", "home seeding radius")

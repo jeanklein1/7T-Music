@@ -328,19 +328,24 @@ generator, so the book and the manifest cannot disagree. `driven` is an
 | Measure ·  | main draw mask (bits: A/B/C terrain, table, ribbon, [5 unused], orbs, fade) | `CONFIG.draw_mask` | CONFIG | U32 | 0 … 255 | 1 | live | none |  |
 | Measure ·  | shadow draw mask (bit0 terrain, bit1 entities+artworks) | `CONFIG.shadow_mask` | CONFIG | U32 | 0 … 3 | 1 | live | none |  |
 | Measure ·  | sun PCF taps (4 or 16) | `CONFIG.shadow_pcf_taps` | CONFIG | U32 | 4 … 16 | 12 | live | none |  |
+| Population · Agents | count | `AGENTS.count` | AGENTS | U32 | 0 … 31 | 1 | gen | none |  |
+| Population · Agents | annulus inner radius | `AGENTS.spawn_inner_radius` | AGENTS | F32 | 0 … 800 | 2 | gen | none |  |
+| Population · Agents | annulus outer radius | `AGENTS.spawn_radius` | AGENTS | F32 | 0 … 1200 | 4 | gen | none |  |
+| Population · Agents | centre forward offset | `AGENTS.spawn_center_forward` | AGENTS | F32 | -400 … 400 | 2 | gen | none |  |
+| Population · Agents | home seeding radius | `AGENTS.home_seeding_radius` | AGENTS | F32 | 0 … 200 | 1 | gen | none |  |
 
 ## The tallies
 
 | | |
 | --- | --- |
-| entries | **305** |
-| by section | Agents 102 · Ribbon 55 · Terrain 37 · Atmosphere 31 · Sky & Light 30 · Interaction 22 · Pawn 18 · Debug 4 · Camera 3 · Measure 3 |
-| by cadence | boundary 106 · driven 15 · gen 20 · live 164 |
-| by macro form | PARAM 168 · PARAM_DEF 102 · PARAM_GEN 20 · PARAM_RO 15 |
-| definition kinds | BEHAVIOR 70 · NONE 203 · TIER 32 |
+| entries | **310** |
+| by section | Agents 102 · Ribbon 55 · Terrain 37 · Atmosphere 31 · Sky & Light 30 · Interaction 22 · Pawn 18 · Population 5 · Debug 4 · Camera 3 · Measure 3 |
+| by cadence | boundary 106 · driven 15 · gen 25 · live 164 |
+| by macro form | PARAM 168 · PARAM_DEF 102 · PARAM_GEN 25 · PARAM_RO 15 |
+| definition kinds | BEHAVIOR 70 · NONE 208 · TIER 32 |
 | witnesses (`ro`) | 15 |
-| blocks and sentinels used | AGENT_ROOM, ATMOS, CANVAS, CONFIG, DRIVERS, LIGHTING, ORBS, ORB_BANK, PANEL, PAWN, RIBBON, RIBBON_SPAWN |
-| namespaces | canvas 15 · the_board 290 |
+| blocks and sentinels used | AGENTS, AGENT_ROOM, ATMOS, CANVAS, CONFIG, DRIVERS, LIGHTING, ORBS, ORB_BANK, PANEL, PAWN, RIBBON, RIBBON_SPAWN |
+| namespaces | canvas 15 · the_board 295 |
 
 ### Doors
 
@@ -407,7 +412,7 @@ verbatim:
 
 THE ANSWER, ROW BY ROW
 ------------------------------------------------------------------------
-  proved    210   a declared reader names the field
+  proved    215   a declared reader names the field
   SUSPECT     0   no declared reader names it
   witness    15   an _RO meter: the question is inverted (blind spot 5)
   scope      80   GPU-side or whole-struct (blind spots 2, 3)
