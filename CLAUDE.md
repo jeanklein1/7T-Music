@@ -38,6 +38,9 @@ docs/reference/DAWN_REFERENCE.md. `the-board-vs` is the same program on
 the Visual Studio multi-config lane, where `--config Debug` is the
 diagnostic build; `-meter` arms the frame meter and `the-board-minimal`
 selects the minimal demo column, both on the Ninja lane at Release.
+`the-board --probe=N` is THE DEVICE GATE: it boots, runs N frames and
+exits on the device's own verdict (`PROBE GREEN`, exit 0 / the first
+error verbatim, exit nonzero). No constructive GPU work ships unprobed.
 
 ## Where truth lives
 - docs/LAWS.md — the rule book. Read before proposing.
@@ -62,12 +65,20 @@ selects the minimal demo column, both on the Ninja lane at Release.
 | `audit/MANIFEST.md` + `binding_surface.gen.inc`, `binding_registry.hpp`, `limits_floor.gen.inc`, `features_wallet.gen.inc` | `tools/binding_gen.py` (authority: `tools/binding_schema.py`) | `python3 tools/binding_gen.py --write` |
 
 ## The gates
-Run from the repo root. Jean runs glaw1 and the build; the rest run anywhere
-python3 and clang++ do.
+Run from the repo root. Jean runs glaw1, the build and the probe; the rest
+run anywhere python3 and clang++ do.
+
+**EVERY GATE BELOW BUT ONE READS TEXT.** They parse WGSL, type-check C++,
+diff idioms and prove the schema against the tree — and a number that is
+legal C++, legal WGSL and wrong ACROSS the two passes all of them. That is
+not hypothetical: ONE_SURFACE-I U5 shrank a buffer in one room and left the
+other at its old size, the full battery was green, and every frame of the
+first native boot failed validation. THE PROBE IS THE ROW THAT RUNS.
 
 | gate | the invocation | what it asserts | verdict |
 | --- | --- | --- | --- |
 | G-LAW 1 | `sh tools/gates/glaw1/run.sh` | the real cartridge TU compiles against the pinned emdawnwebgpu surface | GREEN |
+| the probe | `the-board --probe=120` (Jean's; needs the built binary and a display) | the DEVICE validates N real frames — zero uncaptured errors, no device loss, and the budget actually spent | PROBE GREEN |
 | G-LAW 2 | `python3 tools/gates/glaw2/run.py` | no dangling name, no structural break in `world.wgsl` | GREEN |
 | TU gate | `python3 tools/gates/console_gate/run.py` | two tiers, each named in its own verdict line: CARTRIDGE — `cartridge.hpp` against the pinned emdawnwebgpu surface; CONSOLE — `console.hpp` and `the_board.cpp` against `third_party/dawn_native_headers`. Native TUs, zero diagnostics | PASS |
 | score census | `python3 tools/gates/score/run.py` | roster ↔ frame-spine bijection | GREEN |
@@ -81,3 +92,9 @@ python3 and clang++ do.
 run the five tools above, and the tree is byte-identical again (L33's standing
 witness, run at this commit). A red row here is news: read the gate before the
 tree, and check `docs/OPEN.md` for anything already ruled.
+
+**And green is not a world that draws.** The nine text rows can all be green
+over a program the device refuses; only the probe answers that, and only Jean
+can run it today — CC's environment carries Dawn's headers, not a built Dawn,
+and no display. So a round that touched GPU state closes on Jean's probe, not
+on CC's battery.

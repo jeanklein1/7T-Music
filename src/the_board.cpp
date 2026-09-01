@@ -408,7 +408,47 @@ int main(int argc, char* argv[]) {
         frame();
     }
 
+    // ═══ THE DEVICE GATE'S VERDICT (--probe=N) ═══════════════════════════
+    //
+    // The one thing in this program that reports a pass/fail to a shell.
+    // It exists because every gate in the tree reads text and a device does
+    // not — see core/boot_params.hpp's banner for the boot that earned it.
+    //
+    // The verdict is composed here, after the loop, rather than inside it:
+    // an error on frame 3 is not a reason to stop encoding frame 4, and a
+    // probe that bails on the first objection would report one symptom of
+    // what may be a hundred. Run the budget, then say what happened.
+    //
+    // GREEN is a triple: the device objected to nothing, the device was not
+    // lost, and the frame budget was actually SPENT. The third conjunct is
+    // the one a naive probe forgets — a run that presented four frames and
+    // then ran out of patience has proven nothing, and must not be allowed
+    // to print the same word as a run that presented all of them.
+    int probe_exit = 0;
+    if (t7::boot_params().has_probe) {
+        const uint32_t want = t7::boot_params().probe_frames;
+        const uint32_t got  = app->console.probe_presented();
+        const uint32_t turns = app->console.probe_turns();
+        std::cout << "\n[PROBE] frames " << got << "/" << want
+                  << "  turns " << turns << "/" << t7::probe_turn_budget()
+                  << "  device_errors " << t7::g_device_errors << "\n";
+        if (t7::g_device_errors != 0) {
+            std::cout << "PROBE RED — the device objected. First error:\n  "
+                      << t7::g_first_device_error << "\n";
+            probe_exit = 1;
+        } else if (app->console.device_lost()) {
+            std::cout << "PROBE RED — the device was lost before the budget was spent.\n";
+            probe_exit = 1;
+        } else if (got < want) {
+            std::cout << "PROBE RED — patience spent with " << got << " of " << want
+                      << " frames presented; a program that cannot present did not pass.\n";
+            probe_exit = 1;
+        } else {
+            std::cout << "PROBE GREEN\n";
+        }
+    }
+
     std::cout << "[The Board] Shutdown\n";
     delete app;
-    return 0;
+    return probe_exit;
 }

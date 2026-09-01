@@ -383,6 +383,47 @@ in candidate order.
   removing the guard turns `clamp(p.x, 0+m, 0-m)` — low above high, which
   WGSL leaves undefined — into a body test. Left alone deliberately.
 
+## THE DEVICE GATE (open — the probe is unproven code)
+
+`--probe=N` landed with L48. It boots, runs N frames through the ordinary
+loop, and exits on the device's verdict: `PROBE GREEN` and 0, or the first
+uncaptured error verbatim and nonzero. It exists because ONE_SURFACE-I U5
+moved one room of an L3 MIRROR pair, nine text-reading gates went green,
+and every frame of the first native boot failed validation.
+
+**IT HAS NEVER RUN.** CC's environment carries `third_party/dawn_native_headers`
+and no built Dawn, no GLFW and no display; the TU gate type-checks
+`console.hpp` and `the_board.cpp` and that is the whole of what CC can
+witness about it. Its first run is Jean's, and it is the pre-walk for
+every constructive GPU commit from here.
+
+Three things the first runs settle, in order:
+
+1. **Does `--probe=120` boot and print a verdict at all?** The likely
+   surprises are the exit path (the loop leaves through `running()`, not
+   through a close request, so the window is still open when `main`
+   returns) and whether 120 frames is long enough to reach the states
+   worth validating.
+2. **Does it catch the bug it was built for?** The honest way to know is
+   to run it against `2905ed68` — the tip whose log opened the commission.
+   It must print RED with the binding-size error as its first line. A gate
+   that has never been proven to bite is a gate nobody should trust
+   (Amendment A), and this one has a ready-made injection sitting in
+   history.
+3. **Does `--probe-backend=null` boot?** If Dawn's null backend can serve
+   this console's real GLFW surface, the probe becomes a validate-only run
+   that needs no GPU — and a CI-shaped gate becomes possible. If it cannot,
+   the switch is a dead letter and should be retired with a tombstone
+   saying so, rather than left as an option nobody can take.
+
+**The headless half of the commission is NOT built, and deliberately.**
+§3 asked for a headless boot; this console boots GLFW and configures a real
+window surface, and a headless path would be a second boot path through the
+console — a second door, which L10 forbids. Making the probe headless is a
+console change (an offscreen colour target replacing the swapchain, chosen
+at one seam rather than at two boot paths), and it belongs to whoever wants
+the probe in CI. Nothing in the current campaign needs it.
+
 ## THE MOSAIC IS UNREACHABLE (open, found at ONE_SURFACE-I's close)
 
 **MOSAIC_2's whole apparatus is dead code, and L12 — a LAW — rests on

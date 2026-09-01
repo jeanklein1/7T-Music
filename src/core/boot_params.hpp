@@ -13,8 +13,12 @@
 //   seed — u32, overrides the drawn boot seed (the [World] line then
 //          says "(param)" instead of "(drawn)")
 //   msaa — {1, 4}, the multisample count the pipelines are created with
+//   probe — THE DEVICE GATE. Run N frames and exit on the device's own
+//          verdict. See the banner below; it is the one parameter that
+//          changes what the program DOES rather than what it looks like.
+//   probe-backend — {any, null, cpu}, the probe's adapter ladder.
 //
-// Channel: `--seed= --msaa=` on argv, read ONCE at boot before
+// Channel: `--seed= --msaa= --probe= --probe-backend=` on argv, read ONCE at boot before
 // the device request, never reread, never mutated mid-run. Absent or
 // malformed values are silently ignored; anything accepted prints one
 // [Params] line (P6 — a switch that fired is visible). The URL channel
@@ -28,9 +32,48 @@
 
 namespace t7 {
 
+    // ═══ THE DEVICE GATE — WHY THE PROGRAM HAS A PROBE MODE ══════════
+    //
+    // Every gate in this tree reads TEXT. G-LAW 2 parses WGSL for dangling
+    // names, the TU gate type-checks C++, the mirror census diffs idioms,
+    // binding_gen proves the schema against the tree. Not one of them runs
+    // a shader on a device, and there is a whole class of defect that only
+    // a device can see: a number that is legal C++, legal WGSL, and wrong
+    // ACROSS the two.
+    //
+    // The class has a name in this repo's history now. ONE_SURFACE-I U5
+    // folded a draw-plan segment, shrank the frustum arg buffers to 40
+    // bytes in state.hpp, and left world.wgsl declaring
+    // `array<atomic<u32>, 15>` — 60 bytes, and that literal is what Dawn
+    // computes the pipeline's minimum binding size from. The full battery
+    // was GREEN. Every frame of the first native boot failed validation
+    // and the world could not draw.
+    //
+    // So: `--probe=N` boots the program, runs N frames, and exits on what
+    // the DEVICE said — zero uncaptured errors is PROBE GREEN and exit 0;
+    // anything else prints the first error verbatim and exits nonzero. It
+    // is one command, and no constructive GPU work ships without it.
+    //
+    // THE LADDER (`--probe-backend=`). The probe wants an adapter that
+    // VALIDATES and does nothing else — Dawn's frontend raises the errors
+    // the probe hunts before any backend is reached, so a Null or CPU
+    // adapter returns the same verdict for none of the wall clock, and a
+    // machine with no GPU could run it. That is the goal, and it is
+    // DEFAULTED OFF: whether Dawn's null backend can serve this console's
+    // real GLFW surface is not knowable from the tree, and an instrument
+    // that will not boot is worse than no instrument. `--probe=N` alone
+    // runs the ordinary adapter pick — exactly the configuration whose log
+    // opened this commission, and therefore the one configuration the
+    // probe is already known to work in. One boot with
+    // `--probe-backend=null` settles the rest; nothing depends on the
+    // answer until it is asked.
+    enum class ProbeBackend { Any, Null, CPU };
+
     struct BootParams {
         bool has_seed = false; uint32_t seed = 0;
         bool has_msaa = false; uint32_t msaa = 1;   // DOMESDAY_2 B10: 1 or 4; anything else -> 1
+        bool has_probe = false; uint32_t probe_frames = 120;
+        ProbeBackend probe_backend = ProbeBackend::Any;
     };
 
     // Set once by parse_boot_params (main, before any consumer);
@@ -50,15 +93,32 @@ namespace t7 {
         return boot_params().has_msaa ? boot_params().msaa : 1u;
     }
 
+    // THE PROBE'S PATIENCE. The frame budget counts PRESENTED frames, the
+    // same convention the meter's window uses — a frame that fails its
+    // acquire is not a frame. That alone cannot terminate a probe whose
+    // acquire never succeeds, so the loop also spends a turn budget, and
+    // exhausting it is a RED with its own sentence: a program that cannot
+    // present is not a program that passed. Generous on purpose — boot,
+    // the first-acquire depth build and any driver warm-up all spend turns
+    // that present nothing.
+    inline uint32_t probe_turn_budget() {
+        return 4u * boot_params().probe_frames + 240u;
+    }
+
     inline void boot_params_announce_() {
         BootParams& p = boot_params();
         if (p.has_msaa && p.msaa != 4u) {
             p.msaa = 1u;   // B10: {1, 4} only; anything else -> 1
         }
-        if (p.has_seed || p.has_msaa) {
+        if (p.has_seed || p.has_msaa || p.has_probe) {
             std::cout << "[Params]";
             if (p.has_seed) std::cout << " seed=" << p.seed;
             if (p.has_msaa) std::cout << " msaa=" << p.msaa;
+            if (p.has_probe) {
+                std::cout << " probe=" << p.probe_frames << " probe-backend="
+                    << (p.probe_backend == ProbeBackend::Null ? "null"
+                      : p.probe_backend == ProbeBackend::CPU  ? "cpu" : "any");
+            }
             std::cout << "\n";
         }
     }
@@ -78,6 +138,19 @@ namespace t7 {
                 if (end && *end == '\0' && end != a + 7 && v <= 0xFFFFFFFFull) {
                     p.has_msaa = true; p.msaa = static_cast<uint32_t>(v);
                 }
+            } else if (std::strcmp(a, "--probe") == 0) {
+                p.has_probe = true;   // bare: the default frame budget
+            } else if (std::strncmp(a, "--probe=", 8) == 0) {
+                unsigned long long v = std::strtoull(a + 8, &end, 10);
+                if (end && *end == '\0' && end != a + 8 && v >= 1ull && v <= 1000000ull) {
+                    p.has_probe = true; p.probe_frames = static_cast<uint32_t>(v);
+                }
+            } else if (std::strcmp(a, "--probe-backend=null") == 0) {
+                p.probe_backend = ProbeBackend::Null;
+            } else if (std::strcmp(a, "--probe-backend=cpu") == 0) {
+                p.probe_backend = ProbeBackend::CPU;
+            } else if (std::strcmp(a, "--probe-backend=any") == 0) {
+                p.probe_backend = ProbeBackend::Any;
             }
         }
         boot_params_announce_();
