@@ -15,15 +15,15 @@ carry those facts, or leave them in place and patch around them.
 
 | field | value |
 |---|---|
-| source commit | `7b7f2e659a8aed2246adc62a9bf6b07695dd73c4` |
-| | ONE_SURFACE-I U5: the LOD fold, and the third draw with it |
+| source commit | `c9b284213ae8945f539644fcc52e466c42dbd62c` |
+| | ONE_SURFACE-I U6: the sweep, and most of what it swept was older than the campaign |
 | `src/cartridges/the_board/realization/binding_registry.hpp` | `sha256:968d2d0dcbaa4ffe35f30b8349de93b4912cb3da09a16c56965408c90fc3ad9c` |
 | `src/cartridges/the_board/realization/world.wgsl` | `sha256:5969680e9d9e8c484bf5fe02691abc1aff939798eec391f2ee0602558fd03b7f` |
 | `src/cartridges/the_board/realization/state.hpp` | `sha256:b9affa26fac9d9abaf3e72de669b90ff7ffd0150883492ddb5fec5804594d0d5` |
 | `src/cartridges/the_board/realization/binding_surface.gen.inc` | `sha256:0b98dfab809edd83752dedf7803f758fcf4ce502009763642a37cbf03b2a8446` |
 | `src/cartridges/the_board/realization/renderer.hpp` | `sha256:6d20d67bd53745eb70e14d05f324b4d12b45df9a2bb087cd62547777467bac1d` |
 | `tools/binding_ledger.py` | `sha256:a3c75bab894774eb0302686e5efd52275b280e14abfcf4e8753b28d5b5086692` |
-| `audit/BINDING_LEDGER.md` | `sha256:f1a8f42d3441f6e7e1cb49be7799174ce0d56686b9016f3bd31b71737fda5e70` |
+| `audit/BINDING_LEDGER.md` | `sha256:f4bb21f21923e107d7b2b85846b611b9b44595c359c8ea980db23fb476af58fc` |
 
 `tools/binding_ledger.py` is an input because its parsers are IMPORTED,
 not copied — one parse, two artifacts, no drift between instruments.

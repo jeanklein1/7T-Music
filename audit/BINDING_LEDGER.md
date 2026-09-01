@@ -14,8 +14,8 @@ merge rows the API charges separately.
 | field | value |
 |---|---|
 | demo column censused | `full` |
-| source commit | `7b7f2e659a8aed2246adc62a9bf6b07695dd73c4` |
-| | ONE_SURFACE-I U5: the LOD fold, and the third draw with it |
+| source commit | `c9b284213ae8945f539644fcc52e466c42dbd62c` |
+| | ONE_SURFACE-I U6: the sweep, and most of what it swept was older than the campaign |
 | `src/cartridges/the_board/realization/state.hpp` | `sha256:b9affa26fac9d9abaf3e72de669b90ff7ffd0150883492ddb5fec5804594d0d5` |
 | `src/cartridges/the_board/realization/binding_surface.gen.inc` | `sha256:0b98dfab809edd83752dedf7803f758fcf4ce502009763642a37cbf03b2a8446` |
 | `src/cartridges/the_board/realization/binding_registry.hpp` | `sha256:968d2d0dcbaa4ffe35f30b8349de93b4912cb3da09a16c56965408c90fc3ad9c` |

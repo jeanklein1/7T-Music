@@ -5,8 +5,8 @@ Read-only: a census of the program's pass and submit surface.
 
 ## Provenance
 
-Last commit touching any scanned file: `7b7f2e659a8aed2246adc62a9bf6b07695dd73c4`
-(ONE_SURFACE-I U5: the LOD fold, and the third draw with it)
+Last commit touching any scanned file: `c9b284213ae8945f539644fcc52e466c42dbd62c`
+(ONE_SURFACE-I U6: the sweep, and most of what it swept was older than the campaign)
 
 | file scanned | sha256 |
 |---|---|
