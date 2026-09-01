@@ -210,9 +210,11 @@ namespace t7 {
             //     OPT_1b — PREGEN·EXTENT == EXIST, the assert below is now
             //     tight, not slack): existence eviction (agents unified at
             //     350 — V1; floaters 400, the flagged spawn-headroom fork).
-            // LIVE values ride config (veil_ring/veil_icing/lod0_radius,
+            // LIVE values ride config (veil_ring/veil_icing,
             // tunable — "ring at 6.5 feels right vs 5.5, config-tune live").
-            constexpr float LOD0_RADIUS_DEFAULT = 3.5f * PATCH_EXTENT;   // 175
+            // `LOD0_RADIUS_DEFAULT` (3.5 * PATCH_EXTENT = 175) stood here —
+            // the full/half-mesh split's default. Every patch draws full
+            // mesh since ONE_SURFACE-I U5.
             constexpr float VEIL_RING_DEFAULT   = 6.84f * PATCH_EXTENT;  // 342 — THE RING (desk-tuned
                                                                          // from 6.5; the chain asserts
                                                                          // below hold, but EXIST is now
@@ -223,10 +225,12 @@ namespace t7 {
                 "VEIL CHAIN: PREGEN >= EXIST (nothing exists off resident ground)");
             static_assert(EXIST_RADIUS > VEIL_RING_DEFAULT,
                 "VEIL CHAIN: EXIST > RING (existence outlives the draw set)");
-            static_assert(VEIL_RING_DEFAULT > LOD0_RADIUS_DEFAULT,
-                "VEIL CHAIN: RING > LOD0 (the draw set contains the full-mesh core)");
-            static_assert(VEIL_RING_DEFAULT - VEIL_ICING_DEFAULT > LOD0_RADIUS_DEFAULT,
-                "VEIL CHAIN: the icing band sits wholly outside the LOD0 core");
+            // TWO CHAIN LINKS LEFT WITH LOD0 (ONE_SURFACE-I U5):
+            //   VEIL_RING_DEFAULT > LOD0_RADIUS_DEFAULT
+            //   VEIL_RING_DEFAULT - VEIL_ICING_DEFAULT > LOD0_RADIUS_DEFAULT
+            // Both bound the split point inside the ring's band. There is no
+            // split. What survives is EXIST > RING, which is the live one:
+            // bodies exist to 350 and DRAW to the ring.
 
             // ── THE MOSAIC (MOSAIC_0/1/2) — trencadís rests ──
             // SHARD: wu per cell (~10× under the terrain cell 3.125; a
@@ -506,7 +510,10 @@ namespace t7 {
         namespace DrawBit {
             inline constexpr uint32_t TERRAIN_A = 1u << 0;   // full IB, zone-overlapped
             inline constexpr uint32_t TERRAIN_B = 1u << 1;   // cap-only IB, clean LOD0
-            inline constexpr uint32_t TERRAIN_C = 1u << 2;   // LOD1 IB
+            // TERRAIN_C (1u << 2) was the LOD1 IB's draw bit and left at
+            // ONE_SURFACE-I U5. The bit POSITION is not reused: draw_mask is
+            // a measurement dial and a moved bit reads as a different
+            // measurement — the same law bit5 already carries from PRUNE_1.
             inline constexpr uint32_t TABLE     = 1u << 3;   // the drawable table
             inline constexpr uint32_t RIBBON    = 1u << 4;   // a table MEMBER since ECONOMY_1 —
                                                              // subtracted through DrawBind, not
@@ -564,11 +571,11 @@ namespace t7 {
             uint32_t placement_patch_count;   // active patches for entity Y-correction
             // RETIRED TO NAMED PADS (ONE_WORLD-II U4), not deleted: the
             // rooms' amplitude clamp and their ceiling. Twelve bytes
-            // of hole UPSTREAM of lod_point_x (336) and checker_resultant
+            // of hole UPSTREAM of cull_point_x (336) and checker_resultant
             // would move every offset behind them and part a mirror no
             // instrument reconciles. The house idiom is two fields below
             // (_pad_pier_retired) and one above 696 (_pad_arch_slack_retired);
-            // the three real witnesses — sizeof 704, offsetof(lod_point_x)
+            // the three real witnesses — sizeof 704, offsetof(cull_point_x)
             // 336, and the 16-byte alignment triple — are what the pads keep
             // true, NOT the inline offset comments in this struct's tail,
             // which are stale by 16 and are probated in this commit.
@@ -623,7 +630,8 @@ namespace t7 {
             float _pad_indoor_height_cap_retired;
             float pulse_data[32];             // 8 × {origin_x, origin_z, onset_seconds, amplitude}
             // ─── LOD-band point position ────────────────────────────────
-            // (renamed lod_pawn → lod_point: the value has been THE POINT
+            // (renamed lod_pawn -> lod_point -> cull_point at ONE_SURFACE-I
+            // U5: the value has been THE POINT
             // — the name was a fossil.) The CPU bands patches
             // into LOD0/LOD1 in stream_patches from point_.x/z
             // (the point, 1 frame stale — law E-4). The GPU's frustum-cull
@@ -633,8 +641,8 @@ namespace t7 {
             // So the CPU pushes its banding point here and the cull shader
             // reads it — both sides partition with one yardstick by
             // construction.
-            float lod_point_x;
-            float lod_point_z;
+            float cull_point_x;
+            float cull_point_z;
             // ─── The point ───────────────────────────────────────────
             // Host flag + fly speed — piggybacked on the lod-point pad
             // pair (the possessed_slot precedent). Mirror order matches
@@ -664,19 +672,22 @@ namespace t7 {
             //   ceramic (L12's closing paragraph); the second band that
             //   argument was about is the one that just left, and the
             //   grain's own band is what it always described.
-            // lod0_radius: the terrain full-mesh/half-mesh split (175) —
-            //   read by the CPU band AND the GPU LOD0 gate (one yardstick).
+            // `lod0_radius` stood beside them — the terrain full/half-mesh
+            //   split (175), read by the CPU band and the GPU LOD0 gate as
+            //   one yardstick. Every patch draws full mesh (ONE_SURFACE-I
+            //   U5), so the yardstick measures a boundary that is not there.
+            //   A PAD, for this block's pinned offsets.
             //
             // `veil_strength` stood between icing and lod0. It was 1 in an
             // open world and 0 in a finite one, and the pin made it a
             // constant 0 — so every reader of it was a multiply by zero.
             // A PAD: this struct's layout is pinned by sizeof 704 and
-            // offsetof(lod_point_x) 336, and a hole upstream would move
+            // offsetof(cull_point_x) 336, and a hole upstream would move
             // every field behind it and part the WGSL mirror.
             float veil_ring;
             float veil_icing;
             float _pad_veil_strength_retired;
-            float lod0_radius;
+            float _pad_lod0_radius_retired;
 
             // ─── The palette mirror (FORK-tier graduation) ───────────────
             // The four terrain palettes, graduated from WGSL consts so a
@@ -847,7 +858,9 @@ namespace t7 {
             // draw_mask, main pass:
             //   bit0 terrain plan A (full IB, zone-overlapped)
             //   bit1 terrain plan B (cap-only IB, clean LOD0)
-            //   bit2 terrain plan C (LOD1 IB)
+            //   bit2 UNASSIGNED — it was terrain plan C (the LOD1 IB) and
+            //        left at ONE_SURFACE-I U5; the surviving bits keep
+            //        their positions, so the dial reads as it did
             //   bit3 the drawable table   bit4 (rides bit3 — the ribbon is a
             //                                   table member since ECONOMY_1)
             //   bit5 unassigned (PRUNE_1 retired the two painting draws;
@@ -1597,7 +1610,12 @@ namespace t7 {
         // kernel's classification input. TWIN: world.wgsl DrawPlanParams
         // (L3 MIRROR — same fields, same order, both rooms together).
         struct GPUDrawPlanParams {
-            uint32_t lod0_count;
+            // `lod0_count` stood first (ONE_SURFACE-I U5). It told the cull
+            // kernel where the LOD0 prefix ended so the tail could take the
+            // half-mesh; there is one density now, so the boundary has
+            // nowhere to be. A PAD: the struct is padding-free by assert and
+            // mirrored field-for-field in world.wgsl.
+            uint32_t _pad_lod0_count_retired;
             uint32_t render_count;
             uint32_t rect_count;
             uint32_t _pad0;
@@ -1611,10 +1629,13 @@ namespace t7 {
         inline constexpr uint32_t FC_SEG_A_BYTES = 512;   // 128 entries
         inline constexpr uint32_t FC_SEG_B_OFF   = 512;
         inline constexpr uint32_t FC_SEG_B_BYTES = 512;
-        inline constexpr uint32_t FC_SEG_C_OFF   = 1024;
-        inline constexpr uint32_t FC_SEG_C_BYTES = 1024;  // 256 entries
+        // FC_SEG_C (off 1024, 1024 bytes, 256 entries) was the LOD1 band's
+        // window and left with the half-mesh at ONE_SURFACE-I U5. The LIST
+        // buffer keeps its size: the two surviving windows sit at 0 and 512
+        // and their offsets are the vertex-buffer offsets the draws pass, so
+        // shrinking it would move nothing and re-prove nothing.
         inline constexpr uint32_t FC_LIST_BYTES  = 2048;
-        inline constexpr uint32_t FC_ARGS_BYTES  = 15 * sizeof(uint32_t);  // 3 x 5-u32 draw-args slots
+        inline constexpr uint32_t FC_ARGS_BYTES  = 10 * sizeof(uint32_t);  // 2 x 5-u32 draw-args slots
 
         // ─── ATLAS_1revB D3" — the shadow tile's light-index windows ──
         // One 256-byte window per spot light; window i holds the literal
@@ -2219,9 +2240,9 @@ namespace t7 {
             wgpu::Sampler shadowSampler_;
 
 
-            // GPU frustum culling — LOD0 only.
-            // LOD1 always uses direct DrawIndexed; CPU computes its count.
-            wgpu::Buffer frustumIndirectLOD0_;            // Indirect|CopyDst — 3 x 5-u32 draw-args (the plan)
+            // GPU frustum culling — every patch, one density
+            // (ONE_SURFACE-I U5).
+            wgpu::Buffer frustumIndirectLOD0_;            // Indirect|CopyDst — 2 x 5-u32 draw-args (the plan)
             wgpu::Buffer frustumComputeBuffer_;           // Storage|CopySrc|CopyDst — compute writes here
             // WRAP_0 U4 — the slot line's staging. The draw plan's three
             // instance counters are GPU-side atomics; this is the only way to
@@ -2363,15 +2384,15 @@ namespace t7 {
                     &config_.placement_patch_count, sizeof(uint32_t));
             }
 
-            // Targeted 8-byte upload of lod_point_x/z — called from stream_patches each
+            // Targeted 8-byte upload of cull_point_x/z — called from stream_patches each
             // frame so the GPU frustum-cull shader uses the same POINT position as the
             // CPU's LOD banding (eliminates LOD0/LOD1 boundary flicker).
-            void upload_lod_point(wgpu::Queue& queue) {
-                static_assert(offsetof(GPUDesignConfig, lod_point_x) == 336,
-                    "lod_point_x offset must be 336 for targeted upload");
+            void upload_cull_point(wgpu::Queue& queue) {
+                static_assert(offsetof(GPUDesignConfig, cull_point_x) == 336,
+                    "cull_point_x offset must be 336 for targeted upload");
                 queue.WriteBuffer(configBuffer_,
-                    offsetof(GPUDesignConfig, lod_point_x),
-                    &config_.lod_point_x, sizeof(float) * 2);
+                    offsetof(GPUDesignConfig, cull_point_x),
+                    &config_.cull_point_x, sizeof(float) * 2);
             }
 
             // WALLET_1revA E8 — ONE write, not three. The three sources
@@ -2835,11 +2856,11 @@ namespace t7 {
 
             // ── Staged config writes (the poke idiom). Deliberately
             // NO configDirty_: these fields ride targeted sub-range
-            // uploads (upload_placement_patch_count / upload_lod_point)
+            // uploads (upload_placement_patch_count / upload_cull_point)
             // — exactly the raw config() pokes they replace, identical
             // in upload behavior.
             void stage_placement_patch_count(uint32_t n) { config_.placement_patch_count = n; }
-            void stage_lod_point(float x, float z)       { config_.lod_point_x = x; config_.lod_point_z = z; }
+            void stage_cull_point(float x, float z)       { config_.cull_point_x = x; config_.cull_point_z = z; }
 
             // ── THE VEIL (re-ruled): RING = draw authority, fog = icing.
             // Dirty-gated config setters (ride the U8 drain); getters feed
@@ -2849,7 +2870,6 @@ namespace t7 {
             // first wrote a value the pin made constant; the second wrote a
             // knob whose two arms had been identical since (ONE_SURFACE-I U4).
             float veil_ring()   const { return config_.veil_ring; }
-            float lod0_radius() const { return config_.lod0_radius; }
             const GPUDesignConfig& config() const { return config_; }
 
             uint32_t get_fpv_mode() const { return config_.fpv_mode; }
@@ -2975,16 +2995,19 @@ namespace t7 {
             }
 
             void reset_frustum_indirect(wgpu::Queue& queue) {
-                // THE DRAW PLAN: three 5-u32 arg slots — A full IB, B
-                // cap-only IB, C LOD1 IB. A and B's indexCounts are
-                // constants of their buffers; C's is the LIVE LOD1 count
-                // (OPT_1e — clean prefix at true rest, zoned otherwise);
-                // instanceCounts are the kernel's three atomics
-                // (indices 1 / 6 / 11).
-                uint32_t args[15] = {
+                // THE DRAW PLAN: TWO 5-u32 arg slots — A full IB, B
+                // cap-only IB. Their indexCounts are constants of their
+                // buffers; instanceCounts are the kernel's two atomics
+                // (indices 1 / 6).
+                //
+                // SLOT C — the LOD1 IB, at the LIVE lod1 count — left at
+                // ONE_SURFACE-I U5 with the half-mesh band it drew. The
+                // A/B split SURVIVES and is not LOD: it is ZONE OVERLAP,
+                // full IB where a GoL curtain can reach a patch and
+                // cap-only where none can.
+                uint32_t args[10] = {
                     patchIndexCount_,        0, 0, 0, 0,
                     patchIndexCountCapOnly_, 0, 0, 0, 0,
-                    patch_index_count_lod1_live(), 0, 0, 0, 0,
                 };
                 queue.WriteBuffer(frustumComputeBuffer_, 0, args, sizeof(args));
             }
@@ -4374,7 +4397,7 @@ namespace t7 {
                 config_.veil_ring   = Dim::VEIL_RING_DEFAULT;
                 config_.veil_icing  = Dim::VEIL_ICING_DEFAULT;
                 config_._pad_veil_strength_retired = 0.0f;
-                config_.lod0_radius = Dim::LOD0_RADIUS_DEFAULT;
+                config_._pad_lod0_radius_retired = 0.0f;
                 config_._pad_veil_dither_retired = 0.0f;
                 // THE MOSAIC (MOSAIC_0/1) — trencadís dials, pinned at rest.
                 // THE MOSAIC IS ON (MOSAIC_2). The probe's reason for a

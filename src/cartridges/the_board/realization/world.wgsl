@@ -256,7 +256,7 @@ const LIVE_CARD_EXTENT: f32 = 1000.0;
 const SHELL_RING_WIDTH: f32 = 0.35;   // wu, half-width of a ring band (DEBUG_VIEW 6)
 fn live_card_origin() -> vec2<f32> {
     let cs = PATCH_CELL_SIZE;
-    let raw = vec2(config.lod_point_x, config.lod_point_z)
+    let raw = vec2(config.cull_point_x, config.cull_point_z)
             - vec2(LIVE_CARD_EXTENT * 0.5);
     return floor(raw / cs) * cs;                          // cell snap
 }
@@ -1708,12 +1708,15 @@ struct DesignConfig {
     _pad_indoor_height_cap_retired: f32,  // ONE_WORLD-II U4 — the GoL lift cap. A pad twice over: it was the last pulse pad before the indoor module repurposed it, and it is one again.
     pulse_data: array<vec4<f32>, 8>,  // each: (origin_x, origin_z, onset_seconds, amplitude)
     // CPU-banded POINT position for LOD0/LOD1 partition (renamed
-    // lod_pawn → lod_point: the value has been THE POINT).
+    // lod_pawn -> lod_point -> cull_point (ONE_SURFACE-I U5): the value
+    // has been THE POINT throughout, and the LOD split it was named for
+    // left with the half-mesh. What reads it now is the FRUSTUM CULL and
+    // the four ring gates.
     // Read by the frustum-cull shader so its dist² test agrees with
     // the CPU's banding point (no 1-2 frame disagreement at the
     // boundary annulus).
-    lod_point_x: f32,
-    lod_point_z: f32,
+    cull_point_x: f32,
+    cull_point_z: f32,
     // The point's host + fly speed — piggybacked on the
     // lod-point pad pair (no struct size delta; the possessed_slot
     // precedent). Order matches GPUDesignConfig in state.hpp.
@@ -1734,12 +1737,13 @@ struct DesignConfig {
     //     finite one, and the pin made it a constant 0, so every reader was
     //     a multiply by zero (ONE_SURFACE-I U4). A PAD: this block's offsets
     //     are pinned in both rooms.
-    //   lod0_radius — the terrain full/half-mesh split (175), read by
+    //   _pad_lod0_radius_retired — it was the terrain full/half-mesh
+    //     split (175), read by
     //     the frustum-cull LOD0 gate + the CPU band (one yardstick).
     veil_ring: f32,
     veil_icing: f32,
     _pad_veil_strength_retired: f32,
-    lod0_radius: f32,
+    _pad_lod0_radius_retired: f32,
     // ── The palette mirror (FORK-tier graduation) — C++ twin in
     //    GPUDesignConfig; rest = the pre-graduation literals. rgb in
     //    xyz (w pad); weight component i = palette i.
@@ -2064,7 +2068,7 @@ const DOOR_FADE_W_ZONE: f32 = 0.07;
 //   6  SHELL RINGS     the point's influence radii as rings on the
 //                      terrain, blended (not replacing) so scale reads
 //                      in context. Zero bindings, zero layout — the
-//                      rings use config.lod_point_x/z, already in the
+//                      rings use config.cull_point_x/z, already in the
 //                      terrain FS.
 // Slots 3-6 are permanent. Slots 1-2 replace the old CHECKER_DEBUG_VIEW,
 // 3-4 the old TERRAIN_DEBUG_VIEW, 5 LIVE_CARD_DEBUG_VIEW, 6
@@ -4735,10 +4739,10 @@ fn patch_terrain_fs(in: PatchTerrainVarying) -> @location(0) vec4<f32> {
     // THE RIM — the terrain sibling of the zone per-vertex kill:
     // discard beyond the ring so the visible edge is a smooth CIRCLE (the
     // patch-granular banded draw set is its invisible superset). Staged
-    // point (lod_point) — concentric with the zone/instance kills, so
+    // point (cull_point) — concentric with the zone/instance kills, so
     // every hard draw-set edge is ONE circle (no scallops, no silhouettes).
     // Optional dither-dissolve inside the icing band handled in shade_lit.
-    if (distance(in.world_pos.xz, vec2(config.lod_point_x, config.lod_point_z)) > config.veil_ring) {
+    if (distance(in.world_pos.xz, vec2(config.cull_point_x, config.cull_point_z)) > config.veil_ring) {
         discard;
     }
 
@@ -4937,7 +4941,7 @@ fn patch_terrain_fs(in: PatchTerrainVarying) -> @location(0) vec4<f32> {
     // yardstick. If a shell ring sits OUTSIDE the patch ring, ask
     // whether that influence should really reach a whole patch.
     if (DEBUG_VIEW == 6u) {
-        let pxz = vec2(config.lod_point_x, config.lod_point_z);
+        let pxz = vec2(config.cull_point_x, config.cull_point_z);
         let d = distance(in.world_pos.xz, pxz);
         var ring = vec3(0.0);
         // the bubble — the point's social shell (the flee trigger)
@@ -5235,7 +5239,7 @@ fn pawn_vs(@builtin(vertex_index) vid: u32,
     // ring; the pawn is NOT exempt (ruled). Inactive/out-of-ring slots collapse
     // to a degenerate point at the agent's pos (local geometry * active_f = 0).
     let agent_in_ring = distance(vec2(agent.pos_x, agent.pos_z),
-                                 vec2(config.lod_point_x, config.lod_point_z))
+                                 vec2(config.cull_point_x, config.cull_point_z))
                         - 5.0 <= config.veil_ring;   // 5 wu: agent body half-extent
     let active_f = f32(agent.is_active) * f32(agent_in_ring);
 
@@ -5358,7 +5362,7 @@ fn sphere_vs(@builtin(instance_index) inst: u32, in: MeshVertexInput) -> EntityV
     // Skip non-sphere geometry (degenerate triangle for rasterizer discard).
     // THE RING (draw authority): floaters exist to 400 (the flagged spawn-
     // headroom fork) but DRAW only inside the ring — center − extent ≤ ring.
-    let in_ring = distance(fe.pos.xz, vec2(config.lod_point_x, config.lod_point_z))
+    let in_ring = distance(fe.pos.xz, vec2(config.cull_point_x, config.cull_point_z))
                   - fe.body_radius <= config.veil_ring;
     let r = select(0.0, fe.body_radius, fe.geometry_type == 0u && fe.is_active != 0u && in_ring);
     let world_pos = in.pos * r + fe.pos;
@@ -5415,7 +5419,7 @@ fn monolith_vs(@builtin(instance_index) inst: u32, in: MeshVertexInput) -> Entit
     // Skip non-monolith geometry. THE RING (draw authority): draw only
     // inside the ring — center − extent ≤ ring (extent 2r covers the
     // aspect-stretched axes conservatively; overshoot is fully iced).
-    let in_ring = distance(fe.pos.xz, vec2(config.lod_point_x, config.lod_point_z))
+    let in_ring = distance(fe.pos.xz, vec2(config.cull_point_x, config.cull_point_z))
                   - fe.body_radius * 2.0 <= config.veil_ring;
     let r = select(0.0, fe.body_radius, fe.geometry_type == 1u && fe.is_active != 0u && in_ring);
 
@@ -10644,7 +10648,7 @@ fn sample_terrain_grad_at(world_xz: vec2<f32>) -> vec2<f32> {
 
 const FRUSTUM_PATCH_Y_MIN: f32 = -50.0;   // widened: terrain amplitude + entity heights
 const FRUSTUM_PATCH_Y_MAX: f32 = 200.0;   // widened: tall entities (arches, ribbons)
-// The LOD0 gate reads fc_config.lod0_radius — the SAME config value the
+// The LOD0 gate read fc_config.lod0_radius — the SAME config value the
 // CPU band reads, so the radius has one spelling in the whole program.
 
 // Frustum cull compute bindings (dedicated bind group)
@@ -10664,7 +10668,7 @@ const FRUSTUM_PATCH_Y_MAX: f32 = 200.0;   // widened: tall entities (arches, rib
 // — change both rooms together). fc_indirect: 3 x 5 draw-args slots;
 // instance counters at indices 1 / 6 / 11.
 struct DrawPlanParams {
-    lod0_count: u32,     // CPU band boundary — instances [0, lod0) are LOD0
+    _pad_lod0_count_retired: u32,   // ONE_SURFACE-I U5 — it was the CPU band boundary, instances [0, lod0) being LOD0. One density now.
     render_count: u32,   // draw set end — [lod0, render) LOD1; beyond: pregen
     rect_count: u32,     // active zone rects, packed dense
     _pad0: u32,
@@ -10674,7 +10678,11 @@ struct DrawPlanParams {
 
 const FC_SEG_A_BASE: u32 = 0u;    const FC_SEG_A_CAP: u32 = 128u;
 const FC_SEG_B_BASE: u32 = 128u;  const FC_SEG_B_CAP: u32 = 128u;
-const FC_SEG_C_BASE: u32 = 256u;  const FC_SEG_C_CAP: u32 = 256u;
+// FC_SEG_C (base 256, cap 256) was the LOD1 band's list and left with the
+// half-mesh at ONE_SURFACE-I U5. A and B SURVIVE and are not a LOD split:
+// they are ZONE OVERLAP — full IB where a GoL curtain can reach a patch,
+// cap-only where none can. The widest world the pin allows is 81 patches
+// against either cap of 128.
 
 // THE HONEST MARGIN (R1): every terrain displacement is Y-ONLY —
 // baked heightfield, live-card delta, cell lift, aura, skirt drop all
@@ -10753,34 +10761,30 @@ fn frustum_cull_patches(@builtin(global_invocation_id) id: vec3<u32>) {
     // is the first frustum test LOD1 ever had.
     if (!aabb_in_frustum(planes, bmin, bmax)) { return; }
 
-    if (id.x < fc_draw_plan.lod0_count) {
-        // LOD0 — split by zone overlap: a curtain can only be
-        // non-degenerate where a zone rect reaches the patch, so the
-        // clean majority draws the cap-only IB. Patch rect vs zone
-        // rect, <=8 rects, early-out on the first hit.
-        var zoned = false;
-        for (var z = 0u; z < fc_draw_plan.rect_count; z++) {
-            let r = fc_draw_plan.rects[z];
-            if (pi.origin.x + half >= r.x && pi.origin.x - half <= r.x + r.z &&
-                pi.origin.y + half >= r.y && pi.origin.y - half <= r.y + r.w) {
-                zoned = true;
-                break;
-            }
+    // SPLIT BY ZONE OVERLAP, and by nothing else (ONE_SURFACE-I U5). A
+    // curtain can only be non-degenerate where a zone rect reaches the
+    // patch, so the clean majority draws the cap-only IB. Patch rect vs
+    // zone rect, <=8 rects, early-out on the first hit.
+    //
+    // THE OUTER TEST WAS `id.x < lod0_count` and the else arm was the
+    // LOD1 band. One density means the prefix is the whole list.
+    var zoned = false;
+    for (var z = 0u; z < fc_draw_plan.rect_count; z++) {
+        let r = fc_draw_plan.rects[z];
+        if (pi.origin.x + half >= r.x && pi.origin.x - half <= r.x + r.z &&
+            pi.origin.y + half >= r.y && pi.origin.y - half <= r.y + r.w) {
+            zoned = true;
+            break;
         }
-        if (zoned) {
-            let slot = atomicAdd(&fc_indirect[1], 1u);
-            if (slot < FC_SEG_A_CAP) { fc_visible[FC_SEG_A_BASE + slot] = id.x; }
-            else { atomicSub(&fc_indirect[1], 1u); }
-        } else {
-            let slot = atomicAdd(&fc_indirect[6], 1u);
-            if (slot < FC_SEG_B_CAP) { fc_visible[FC_SEG_B_BASE + slot] = id.x; }
-            else { atomicSub(&fc_indirect[6], 1u); }
-        }
+    }
+    if (zoned) {
+        let slot = atomicAdd(&fc_indirect[1], 1u);
+        if (slot < FC_SEG_A_CAP) { fc_visible[FC_SEG_A_BASE + slot] = id.x; }
+        else { atomicSub(&fc_indirect[1], 1u); }
     } else {
-        // LOD1 — culled at last.
-        let slot = atomicAdd(&fc_indirect[11], 1u);
-        if (slot < FC_SEG_C_CAP) { fc_visible[FC_SEG_C_BASE + slot] = id.x; }
-        else { atomicSub(&fc_indirect[11], 1u); }
+        let slot = atomicAdd(&fc_indirect[6], 1u);
+        if (slot < FC_SEG_B_CAP) { fc_visible[FC_SEG_B_BASE + slot] = id.x; }
+        else { atomicSub(&fc_indirect[6], 1u); }
     }
 }
 

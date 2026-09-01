@@ -164,7 +164,9 @@ ORGAN_PARAM_RO(CONFIG, GPUDesignConfig, fog_color,    VEC3, "Atmosphere · Fog",
 // stored preset's key, so the rename is flagged for Jean and not taken.
 ORGAN_PARAM(CONFIG, GPUDesignConfig, veil_ring,   F32, 265.0f, 349.0f, 0.5f,  "Atmosphere · Veil", "ring (draw authority)")
 ORGAN_PARAM(CONFIG, GPUDesignConfig, veil_icing,  F32, 0.0f,   60.0f,  0.25f, "Atmosphere · Veil", "grain band")
-ORGAN_PARAM(CONFIG, GPUDesignConfig, lod0_radius, F32, 0.0f,   175.0f, 1.0f,  "Atmosphere · Veil", "LOD0 core")
+// `lod0_radius` stood here — the terrain full/half-mesh split. Every patch
+// draws full mesh since ONE_SURFACE-I U5, so the dial named a boundary with
+// nothing on either side of it.
 
 // ─── Atmosphere · Checker ─────────────────────────────────────────
 // Dials on the driver's seam (out = rest + gain·(driven − rest)); the driven

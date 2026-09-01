@@ -126,8 +126,6 @@ inline void init_patch_system(MachineCtx* c, TileWorldState& tile_world_state) {
     c->world_state_.free_layer_count = Dim::MAX_ACTIVE_PATCHES;
     c->world_state_.active_patch_count = 0;
     c->world_state_.render_patch_count = 0;
-    c->world_state_.lod0_patch_count = 0;
-    c->world_state_.all_patch_count = 0;
     c->gpuState_.stage_placement_patch_count(0);
     reset_tile_cache(tile_world_state);  // owner door
     c->world_state_.ground_entries_dirty = true;
@@ -336,9 +334,9 @@ inline void generate_selected_patches(MachineCtx* c, const PatchCandidate* candi
 // define boundary, not fog"), split LOD0/LOD1/pregen, pack them
 // [lod0|lod1|pregen] (the draw-split contract the render reads by count),
 // upload the instance buffer + the lod0/render/all counts + the placement
-// patch count, and push lod_point so the frustum-cull shader re-bands on
+// patch count, and push cull_point so the frustum-cull shader culls on
 // the SAME point the CPU banded on (the anti-flicker contract).
-//   offer-face: GPUPatchInstance[] + lod0/render/all counts + lod_point.
+//   offer-face: GPUPatchInstance[] + render_patch_count + cull_point.
 //   requires:   patches_ registry, the point readback, patch_distance_sq,
 //               the LIVE veil chain (config veil_ring/lod0_radius),
 //               finite_mode; the upload doors.
@@ -352,27 +350,17 @@ inline void band_patches(MachineCtx* c, wgpu::Queue& queue) {
     // memcpy reads [0, count), instances is written [0, w) by the three
     // memcpys before the upload reads [0, w), and every GPUPatchInstance
     // field is assigned at the pack site (inst carries its own init).
+    // ONE BAND (ONE_SURFACE-I U5). The tri-pack was [lod0|lod1|pregen]:
+    // three arrays, three counts, three memcpys into one instance buffer,
+    // and the pack ORDER was the wire contract the draw read by count.
+    // The pregen band left at U4 with the ring gate that filled it; the
+    // LOD1 band leaves here with the half-mesh it drew. What is left is
+    // the walk itself.
     GPUPatchInstance instances[Dim::MAX_ACTIVE_PATCHES];
-    uint32_t lod0Count = 0;
-    uint32_t lod1Count = 0;
-
-    // Temporary arrays for each band. THE PREGEN BAND LEFT AT
-    // ONE_SURFACE-I U4: it held patches OUTSIDE the ring, built but not
-    // drawn, and the finite arm of the gate below made it unreachable the
-    // day the world was pinned.
-    GPUPatchInstance lod0[Dim::MAX_ACTIVE_PATCHES];
-    GPUPatchInstance lod1[Dim::MAX_ACTIVE_PATCHES];
+    uint32_t w = 0;
 
     float point_wx = c->point_.x;   // THE POINT (1-frame stale by law E-4)
     float point_wz = c->point_.z;
-    float half = Dim::PATCH_EXTENT * 0.5f;
-
-    // lod0 is the full/half-mesh split — the same config value the GPU
-    // gate reads, one yardstick in both rooms. The RING's square stood
-    // beside it and gated the pregen band; a walled world draws every
-    // patch it has, and the ring reaches the BODIES on those patches
-    // through the four VS/FS gates, not the patch set.
-    const float lod0_sq = c->gpuState_.lod0_radius() * c->gpuState_.lod0_radius();
 
     for (uint32_t i = 0; i < c->world_state_.active_patch_count; i++) {
         if (c->patch_system_state_.patches_[i].phase != PatchPhase::GENERATED &&
@@ -387,34 +375,21 @@ inline void band_patches(MachineCtx* c, wgpu::Queue& queue) {
         inst.extent = Dim::PATCH_EXTENT;
         inst.layer = c->patch_system_state_.patches_[i].layer;
 
-        float d2 = patch_distance_sq(point_wx, point_wz, ox, oz, half);
-
-        // EVERY PATCH IS VISIBLE: a walled world draws all of what it has.
-        if (d2 <= lod0_sq) {
-            lod0[lod0Count++] = inst;
-        }
-        else {
-            lod1[lod1Count++] = inst;
-        }
+        // EVERY PATCH IS VISIBLE AND EVERY PATCH IS FULL MESH: a walled
+        // world draws all of what it has, at one density.
+        instances[w++] = inst;
     }
 
-    // Pack: LOD-0, then LOD-1
-    uint32_t w = 0;
-    std::memcpy(instances + w, lod0, lod0Count * sizeof(GPUPatchInstance)); w += lod0Count;
-    std::memcpy(instances + w, lod1, lod1Count * sizeof(GPUPatchInstance)); w += lod1Count;
-
     c->gpuState_.upload_patch_instances(queue, instances, w);
-    c->world_state_.lod0_patch_count = lod0Count;
-    c->world_state_.render_patch_count = lod0Count + lod1Count;
-    c->world_state_.all_patch_count = w;
+    c->world_state_.render_patch_count = w;
 
     // Sync placement_patch_count so compute_entity_placement
     // can sample heightfields from the current frame's patch set.
     c->gpuState_.stage_placement_patch_count(w);
     c->gpuState_.upload_placement_patch_count(queue);
 
-    c->gpuState_.stage_lod_point(point_wx, point_wz);
-    c->gpuState_.upload_lod_point(queue);
+    c->gpuState_.stage_cull_point(point_wx, point_wz);
+    c->gpuState_.upload_cull_point(queue);
 }
 
 // ── build_patch_grid (the (gx,gz)→layer index the baked sampler reads) ──

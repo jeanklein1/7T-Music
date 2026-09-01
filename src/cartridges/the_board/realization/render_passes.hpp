@@ -193,7 +193,6 @@ inline void dispatch_frustum_cull(MachineCtx* c, wgpu::CommandEncoder& encoder, 
     // floats), packed dense. Uploaded beside the frustum reset.
     {
         GPUDrawPlanParams plan{};
-        plan.lod0_count   = c->world_state_.lod0_patch_count;
         plan.render_count = c->world_state_.render_patch_count;
         uint32_t n = 0;
         for (uint32_t i = 0; i < Dim::MAX_GOL_ZONES && n < 8; i++) {
@@ -408,12 +407,11 @@ inline void encode_main_opaque(MachineCtx* c, Enc& pass,
         c->gpuState_.visible_patch_indices_buffer(), FC_SEG_B_OFF, FC_SEG_B_BYTES,   // plan B window
         c->gpuState_.patch_index_buffer_cap_only(),  // cap-only IB (clean LOD0)
         c->gpuState_.frustum_indirect_lod0(), 20);
-    if (dmask & DrawBit::TERRAIN_C)
-    c->renderer_.draw_patch_terrain_plan_slot(pass,
-        c->gpuState_.scene_state_group(),            // B5 (R2): the one scene group
-        c->gpuState_.visible_patch_indices_buffer(), FC_SEG_C_OFF, FC_SEG_C_BYTES,   // plan C window
-        c->gpuState_.patch_index_buffer_lod1(),      // LOD1 IB (culled at last)
-        c->gpuState_.frustum_indirect_lod0(), 40);
+    // PLAN C — the LOD1 IB at the third args slot — left at ONE_SURFACE-I
+    // U5 with the half-mesh band the cull kernel used to fill it from. The
+    // LOD1 INDEX BUFFER ITSELF SURVIVES: the SHADOW pass draws both bands
+    // at LOD1 density by ECONOMY_1 E2's ruling, and that consumer is
+    // untouched by a fold in the MAIN pass's density.
     // DOMESDAY_1 B5 (R2): the PlanB/PlanC windows collapsed into the
     // one scene group, so plan C left the RIGHT group bound — the old
     // restore is retired with the groups it restored from.

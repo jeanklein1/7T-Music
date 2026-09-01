@@ -2197,11 +2197,20 @@ namespace t7 {
             // P6 witness read the SAME function, so the log can never
             // disagree with the plan. Each active zone's world AABB
             // (persisted at commit_gol) inflated by one patch, tested
-            // against the disc of the LIVE lod0_radius around the point —
-            // the same radius patch_system.hpp bands patches by.
+            // against the disc of the LIVE RING around the point.
+            //
+            // THE YARDSTICK WIDENED AND THAT IS THE SAFE DIRECTION
+            // (ONE_SURFACE-I U5). It was `lod0_radius` — 175 — because the
+            // curtains it switched lived in the LOD0 band, and the band and
+            // the flag read one value so they could not disagree. There is
+            // no band; the surviving authority is `veil_ring`, 342. A WIDER
+            // disc can only find MORE zones in scope, so it can only choose
+            // the zoned tail MORE often — and the zoned tail is the
+            // conservative arm, the one that seals seams. A widening cannot
+            // open one.
             uint32_t zone_rects_in_core() const {
                 const float px = point_.x, pz = point_.z;
-                const float r  = gpuState_.lod0_radius();
+                const float r  = gpuState_.veil_ring();
                 uint32_t n = 0;
                 for (uint32_t i = 0; i < Dim::MAX_GOL_ZONES; i++) {
                     const auto& z = gol_state_.zones[i];
@@ -2252,10 +2261,9 @@ namespace t7 {
                 // globally almost always, so it never released.
                 //
                 // Conservative by one patch: each zone's world AABB is
-                // inflated by PATCH_EXTENT before the disc test, and the
-                // radius is the LIVE lod0_radius — the same value
-                // patch_system.hpp uses to sort patches into the LOD0 band,
-                // so the flag and the band can never disagree.
+                // inflated by PATCH_EXTENT before the disc test. The radius
+                // is the LIVE ring since ONE_SURFACE-I U5 — see
+                // zone_rects_in_core for why widening is the safe direction.
                 {
                     const uint32_t in_core = zone_rects_in_core();
                     // PROCESS P6 — every switch has a witness. The draw

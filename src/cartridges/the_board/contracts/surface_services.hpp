@@ -94,8 +94,11 @@ struct WorldState {
     // ── Patch counts (this frame) ──
     uint32_t active_patch_count = 0;
     uint32_t render_patch_count = 0;    // drawn patches (within the live RING — the draw authority)
-    uint32_t lod0_patch_count   = 0;    // subset of drawn: within lod0_radius (full mesh)
-    uint32_t all_patch_count    = 0;    // all generated patches (including pre-gen ring)
+    // `lod0_patch_count` (the full-mesh subset) and `all_patch_count` (the
+    // drawn set plus the pregen ring) stood here. The pregen band left at
+    // ONE_SURFACE-I U4 and the LOD split at U5, so both counts named a
+    // partition of one set: `render_patch_count` is the whole of it.
+    // `all_patch_count` had no reader anywhere in the tree even before that.
     uint32_t entities_culled    = 0;    // entities hidden by the EXIST-ring overdraw cull this frame
 
     // ── Dirty flags (deferred GPU uploads) ──

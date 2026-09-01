@@ -70,7 +70,6 @@ generator, so the book and the manifest cannot disagree. `driven` is an
 | Atmosphere · Fog | colour (driven) | `CONFIG.fog_color` | CONFIG | VEC3 | — | — | driven | none | • |
 | Atmosphere · Veil | ring (draw authority) | `CONFIG.veil_ring` | CONFIG | F32 | 265 … 349 | 0.5 | live | none |  |
 | Atmosphere · Veil | grain band | `CONFIG.veil_icing` | CONFIG | F32 | 0 … 60 | 0.25 | live | none |  |
-| Atmosphere · Veil | LOD0 core | `CONFIG.lod0_radius` | CONFIG | F32 | 0 … 175 | 1 | live | none |  |
 | Atmosphere · Checker | rest colour | `DRIVERS.checker.rest_resultant` | DRIVERS | VEC3 | 0 … 1 | 0.01 | live | none |  |
 | Atmosphere · Checker | rest amount | `DRIVERS.checker.rest_amount` | DRIVERS | F32 | 0 … 1 | 0.005 | live | none |  |
 | Atmosphere · Checker | rest variance | `DRIVERS.checker.rest_variance` | DRIVERS | F32 | 0 … 8 | 0.04 | live | none |  |
@@ -336,14 +335,14 @@ generator, so the book and the manifest cannot disagree. `driven` is an
 
 | | |
 | --- | --- |
-| entries | **308** |
-| by section | Agents 102 · Ribbon 55 · Terrain 37 · Sky & Light 30 · Atmosphere 29 · Interaction 22 · Pawn 18 · Population 5 · Debug 4 · Camera 3 · Measure 3 |
-| by cadence | boundary 106 · driven 14 · gen 25 · live 163 |
-| by macro form | PARAM 167 · PARAM_DEF 102 · PARAM_GEN 25 · PARAM_RO 14 |
-| definition kinds | BEHAVIOR 70 · NONE 206 · TIER 32 |
+| entries | **307** |
+| by section | Agents 102 · Ribbon 55 · Terrain 37 · Sky & Light 30 · Atmosphere 28 · Interaction 22 · Pawn 18 · Population 5 · Debug 4 · Camera 3 · Measure 3 |
+| by cadence | boundary 106 · driven 14 · gen 25 · live 162 |
+| by macro form | PARAM 166 · PARAM_DEF 102 · PARAM_GEN 25 · PARAM_RO 14 |
+| definition kinds | BEHAVIOR 70 · NONE 205 · TIER 32 |
 | witnesses (`ro`) | 14 |
 | blocks and sentinels used | AGENTS, AGENT_ROOM, ATMOS, CANVAS, CONFIG, DRIVERS, LIGHTING, ORBS, ORB_BANK, PANEL, PAWN, RIBBON, RIBBON_SPAWN |
-| namespaces | canvas 15 · the_board 293 |
+| namespaces | canvas 15 · the_board 292 |
 
 ### Doors
 
@@ -413,7 +412,7 @@ THE ANSWER, ROW BY ROW
   proved    215   a declared reader names the field
   SUSPECT     0   no declared reader names it
   witness    14   an _RO meter: the question is inverted (blind spot 5)
-  scope      79   GPU-side or whole-struct (blind spots 2, 3)
+  scope      78   GPU-side or whole-struct (blind spots 2, 3)
 
 NO SUSPECTS. Every enrolled dial's field is named in the body of
 a function this tool can read.
