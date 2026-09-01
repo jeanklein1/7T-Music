@@ -141,8 +141,12 @@ inline constexpr std::uint32_t REST_PULSE_COUNT = 0;
 // ── ROW 9 — THE CONTRIBUTOR ROSTER (pointers; navigable, NOT annexed)─
 //   Static landform: CONTRIBUTOR_DAG / POLICIES[] —
 //     contracts/ground_architecture.hpp (+ WGSL §3.4 mirror seam).
-//   GoL zone tint: gol_composite_cell_color + zone color sites —
-//     world.wgsl (GoL keeps its own panel).
+//   The automaton's tint: apply_automaton_color — world.wgsl (the
+//     automaton keeps its own panel, contracts/automaton_surface.hpp).
+//   NOT gol_composite_cell_color, which this pointer named for as long
+//     as it has existed and which was never the tint funnel: its one
+//     caller is compute_pawn_aura, using it as a terrain-colour probe
+//     for the aura's colour delta.
 //   Pawn aura tint: pawn_aura_cfg.tint_strength (a uniform field, not
 //     this panel's pinned DISCRETE_TINT_STRENGTH).
 //   Population (what stands on the surface): population_themes.hpp.

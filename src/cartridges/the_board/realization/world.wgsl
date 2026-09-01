@@ -2137,8 +2137,16 @@ fn palette_color_smooth(weights: vec4<f32>, complexity: f32) -> vec3<f32> {
 // ── ROW 9 — THE CONTRIBUTOR ROSTER (pointers; navigable, NOT annexed)─
 //   Static landform: CONTRIBUTOR_DAG / POLICIES[] — the §3.4 Ground
 //     Architecture seam (CPU twin: contracts/ground_architecture.hpp).
-//   the automaton's tint: gol_composite_cell_color (§7.0b) — reads ROW 1/3
-//     through palette_color_smooth; GoL/pulse keep their own panel.
+//   The automaton's tint: apply_automaton_color (§7.0b), called from the
+//     terrain FS under the baked cell tag. It reads the bank's colour
+//     mode and target, NOT this panel.
+//   `gol_composite_cell_color` IS NOT THE TINT FUNNEL AND NEVER WAS,
+//     whatever its name says. Its ONE caller is compute_pawn_aura, which
+//     uses it as a TERRAIN-COLOUR PROBE to compute `tint - terrain` for
+//     the aura's colour delta. It is index-free and always was. This
+//     roster pointed at it as the GoL tint for as long as the pointer has
+//     existed; the automaton did not make that false, it inherited it.
+//     (terrain_looks.hpp ROW 9 carries the same correction.)
 //   Radial pulses (music-onset rings): the PULSE_SPEED..PULSE_AGE_DECAY
 //     dials directly above fn contrib_radial_pulses_at.
 //   Pawn aura tint: pawn_aura_cfg.tint_strength — a uniform field of

@@ -1092,6 +1092,15 @@ a sweep must not read it as latent.
 **Baseline battery at this recon**: every row green at the pushed tip,
 L33 rebuilds byte-identically, S-6 clean, and S-8 among the witnesses.
 
+### A DOC-TALLY DRIFT FOR U5 (found by the U1 census's adversarial pass)
+
+`docs/ORGAN.md` and the generated `audit/ORGAN.md` disagree on **four**
+tallies, not the three previously recorded — the fourth is `live`, where
+the doc says **164** and the tool says **162**. U5's whole unit is
+rewriting `docs/ORGAN.md` to native truth, so it is recorded here rather
+than patched piecemeal: a hand-written tally beside a generated one is
+the thing that unit exists to end.
+
 ### HANDOFF II · U0 — ALSO DONE, and it needs no probe either
 
 II's U0 asks four questions and three of them are answerable now. All
