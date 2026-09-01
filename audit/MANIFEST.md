@@ -36,28 +36,25 @@ the header.
 | GoL Zone Evolve | `zoneGolEvolvePipeline_` | C | 4 / 8 | 2 / 6 | 0 / 16 | 2 / 14 | 2 / 2 |
 | Zone Derive Params | `zoneDeriveParamsPipeline_` | C | 4 / 8 | 2 / 6 | 0 / 16 | 2 / 14 | 2 / 2 |
 | Zone Seed Mask (2D) | `zoneSeedMaskPipeline_` | C | 4 / 8 | 2 / 6 | 0 / 16 | 2 / 14 | 2 / 2 |
-| Patch Terrain (instanced) | `patchTerrainPipeline_` | V | 4 / 8 | 4 / 4 | 3 / 13 | 2 / 14 | 0 / 4 |
-| Patch Terrain (instanced) | `patchTerrainPipeline_` | F | 3 / 9 | 2 / 6 | 6 / 10 | 3 / 13 | 0 / 4 |
-| Patch Terrain Indirect (VS indirection) | `patchTerrainIndirectPipeline_` | V | 4 / 8 | 4 / 4 | 3 / 13 | 2 / 14 | 0 / 4 |
-| Patch Terrain Indirect (VS indirection) | `patchTerrainIndirectPipeline_` | F | 3 / 9 | 2 / 6 | 6 / 10 | 3 / 13 | 0 / 4 |
-| Pawn Entity (Chess Pawn) | `pawnPipeline_` | V | 4 / 8 | 4 / 4 | 3 / 13 | 2 / 14 | 0 / 4 |
-| Pawn Entity (Chess Pawn) | `pawnPipeline_` | F | 3 / 9 | 2 / 6 | 6 / 10 | 3 / 13 | 0 / 4 |
-| Sphere Entity (Rasterized) | `spherePipeline_` | V | 4 / 8 | 4 / 4 | 3 / 13 | 2 / 14 | 0 / 4 |
-| Sphere Entity (Rasterized) | `spherePipeline_` | F | 3 / 9 | 2 / 6 | 6 / 10 | 3 / 13 | 0 / 4 |
-| Monolith Entity (Rasterized) | `monolithPipeline_` | V | 4 / 8 | 4 / 4 | 3 / 13 | 2 / 14 | 0 / 4 |
-| Monolith Entity (Rasterized) | `monolithPipeline_` | F | 3 / 9 | 2 / 6 | 6 / 10 | 3 / 13 | 0 / 4 |
-| Indoor Shell (Ceiling + Walls) | `shellPipeline_` | V | 4 / 8 | 4 / 4 | 3 / 13 | 2 / 14 | 0 / 4 |
-| Indoor Shell (Ceiling + Walls) | `shellPipeline_` | F | 3 / 9 | 2 / 6 | 6 / 10 | 3 / 13 | 0 / 4 |
-| Sky Ribbon Entity | `ribbonPipeline_` | V | 4 / 8 | 4 / 4 | 3 / 13 | 2 / 14 | 0 / 4 |
-| Sky Ribbon Entity | `ribbonPipeline_` | F | 3 / 9 | 2 / 6 | 6 / 10 | 3 / 13 | 0 / 4 |
-| Orb Sky Layer | `orbRenderPipeline_` | V | 4 / 8 | 4 / 4 | 3 / 13 | 2 / 14 | 0 / 4 |
-| Orb Sky Layer | `orbRenderPipeline_` | F | 3 / 9 | 2 / 6 | 6 / 10 | 3 / 13 | 0 / 4 |
-| Shadow Patch Terrain | `shadowPatchTerrainPipeline_` | V | 4 / 8 | 4 / 4 | 2 / 14 | 2 / 14 | 0 / 4 |
-| Shadow Pawn | `shadowPawnPipeline_` | V | 4 / 8 | 4 / 4 | 2 / 14 | 2 / 14 | 0 / 4 |
-| Shadow Sphere | `shadowSpherePipeline_` | V | 4 / 8 | 4 / 4 | 2 / 14 | 2 / 14 | 0 / 4 |
-| Shadow Monolith | `shadowMonolithPipeline_` | V | 4 / 8 | 4 / 4 | 2 / 14 | 2 / 14 | 0 / 4 |
-| Shadow Indoor Shell | `shadowShellPipeline_` | V | 4 / 8 | 4 / 4 | 2 / 14 | 2 / 14 | 0 / 4 |
-| Shadow Sky Ribbon | `shadowRibbonPipeline_` | V | 4 / 8 | 4 / 4 | 2 / 14 | 2 / 14 | 0 / 4 |
+| Patch Terrain (instanced) | `patchTerrainPipeline_` | V | 3 / 9 | 4 / 4 | 3 / 13 | 2 / 14 | 0 / 4 |
+| Patch Terrain (instanced) | `patchTerrainPipeline_` | F | 3 / 9 | 2 / 6 | 5 / 11 | 3 / 13 | 0 / 4 |
+| Patch Terrain Indirect (VS indirection) | `patchTerrainIndirectPipeline_` | V | 3 / 9 | 4 / 4 | 3 / 13 | 2 / 14 | 0 / 4 |
+| Patch Terrain Indirect (VS indirection) | `patchTerrainIndirectPipeline_` | F | 3 / 9 | 2 / 6 | 5 / 11 | 3 / 13 | 0 / 4 |
+| Pawn Entity (Chess Pawn) | `pawnPipeline_` | V | 3 / 9 | 4 / 4 | 3 / 13 | 2 / 14 | 0 / 4 |
+| Pawn Entity (Chess Pawn) | `pawnPipeline_` | F | 3 / 9 | 2 / 6 | 5 / 11 | 3 / 13 | 0 / 4 |
+| Sphere Entity (Rasterized) | `spherePipeline_` | V | 3 / 9 | 4 / 4 | 3 / 13 | 2 / 14 | 0 / 4 |
+| Sphere Entity (Rasterized) | `spherePipeline_` | F | 3 / 9 | 2 / 6 | 5 / 11 | 3 / 13 | 0 / 4 |
+| Monolith Entity (Rasterized) | `monolithPipeline_` | V | 3 / 9 | 4 / 4 | 3 / 13 | 2 / 14 | 0 / 4 |
+| Monolith Entity (Rasterized) | `monolithPipeline_` | F | 3 / 9 | 2 / 6 | 5 / 11 | 3 / 13 | 0 / 4 |
+| Sky Ribbon Entity | `ribbonPipeline_` | V | 3 / 9 | 4 / 4 | 3 / 13 | 2 / 14 | 0 / 4 |
+| Sky Ribbon Entity | `ribbonPipeline_` | F | 3 / 9 | 2 / 6 | 5 / 11 | 3 / 13 | 0 / 4 |
+| Orb Sky Layer | `orbRenderPipeline_` | V | 3 / 9 | 4 / 4 | 3 / 13 | 2 / 14 | 0 / 4 |
+| Orb Sky Layer | `orbRenderPipeline_` | F | 3 / 9 | 2 / 6 | 5 / 11 | 3 / 13 | 0 / 4 |
+| Shadow Patch Terrain | `shadowPatchTerrainPipeline_` | V | 3 / 9 | 4 / 4 | 2 / 14 | 2 / 14 | 0 / 4 |
+| Shadow Pawn | `shadowPawnPipeline_` | V | 3 / 9 | 4 / 4 | 2 / 14 | 2 / 14 | 0 / 4 |
+| Shadow Sphere | `shadowSpherePipeline_` | V | 3 / 9 | 4 / 4 | 2 / 14 | 2 / 14 | 0 / 4 |
+| Shadow Monolith | `shadowMonolithPipeline_` | V | 3 / 9 | 4 / 4 | 2 / 14 | 2 / 14 | 0 / 4 |
+| Shadow Sky Ribbon | `shadowRibbonPipeline_` | V | 3 / 9 | 4 / 4 | 2 / 14 | 2 / 14 | 0 / 4 |
 
 ## Wallet summary — worst row per lane, program-wide
 
@@ -65,8 +62,8 @@ the header.
 |---|---|---|---|
 | uniform | 6 / 12 | 6 | `ribbonHeadPipeline_` C (+1 more) |
 | storage | 6 / 8 | 2 | `updatePlayerAgentPipeline_` C (+6 more) |
-| sampled | 6 / 16 | 10 | `patchTerrainPipeline_` F (+7 more) |
-| samplers | 3 / 16 | 13 | `updatePlayerAgentPipeline_` C (+14 more) |
+| sampled | 5 / 16 | 11 | `patchTerrainPipeline_` F (+6 more) |
+| samplers | 3 / 16 | 13 | `updatePlayerAgentPipeline_` C (+13 more) |
 | storagetex | 2 / 4 | 2 | `bakePatchPipeline_` C (+6 more) |
 
 ## Table A's shape, with the channel column
@@ -96,12 +93,10 @@ declaration alone — no hand-authored field.
 | `ribbon_body_rw` | 2:144 | storage, read_write | `RibbonBody` | storage |
 | `ribbon_body_read` | 2:145 | storage, read | `RibbonBody` | storage |
 | `frame_r` | 1:1 | uniform | `FrameR` | uniform |
-| `shadow_slot` | 1:2 | uniform | `u32` | uniform |
 | `bilinear_sampler` | 1:5 | handle | `sampler` | samplers |
 | `nearest_sampler` | 1:6 | handle | `sampler` | samplers |
 | `shadow_map` | 3:200 | handle | `texture_depth_2d` | sampled |
 | `shadow_sampler` | 3:201 | handle | `sampler_comparison` | samplers |
-| `spot_shadow_map` | 3:202 | handle | `texture_depth_2d` | sampled |
 | `patch_heightfield_array_write` | 3:40 | handle | `texture_storage_2d_array<rgba16float, write>` | storagetex |
 | `tile_grid` | 0:1 | uniform | `TileGrid` | uniform |
 | `patch_cell_color_array_write` | 3:41 | handle | `texture_storage_2d_array<rgba8unorm, write>` | storagetex |
@@ -138,7 +133,7 @@ declaration alone — no hand-authored field.
 
 ## Witness M-1
 
-Lane sums equal per-seat counts on every one of the 42
+Lane sums equal per-seat counts on every one of the 39
 (pipeline, stage) rows — the channel classification partitions
 the seats. Recomputed from the schema at every emit; a mismatch
 fails the run before this file is written. PASS.

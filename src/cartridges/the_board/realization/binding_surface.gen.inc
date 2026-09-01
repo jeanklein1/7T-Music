@@ -45,7 +45,7 @@
                 // the compute face (signal-only FRAME_C) never carries the render ro
                 // windows, so compute dispatches never co-bind them against rw homes.
                 {
-                    std::array<wgpu::BindGroupLayoutEntry, 4> entries{};
+                    std::array<wgpu::BindGroupLayoutEntry, 3> entries{};
 
                     // FRAME R (CHORD_3) — the render frame in one uniform block:
                     // lighting (CPU-authored, WALLET_1revA’s 848 B trio) plus vp and
@@ -73,15 +73,6 @@
                     entries[2].binding = bind::g1::nearest_sampler;  // LIVE — the card's cell-exact GoL fetch
                     entries[2].visibility = wgpu::ShaderStage::Vertex | wgpu::ShaderStage::Fragment;
                     entries[2].sampler.type = wgpu::SamplerBindingType::NonFiltering;
-
-                    // The light this shadow pass serves: four 256-byte records holding 0..3,
-                    // written once at boot; the dynamic offset selects the light. Every group-1
-                    // render bind carries one offset — 0 except inside the shadow atlas loop.
-                    entries[3].binding = bind::g1::shadow_slot;  // shadow_slot (uniform, dynamic — the light index)
-                    entries[3].visibility = wgpu::ShaderStage::Vertex;
-                    entries[3].buffer.type = wgpu::BufferBindingType::Uniform;
-                    entries[3].buffer.hasDynamicOffset = true;
-                    entries[3].buffer.minBindingSize = sizeof(uint32_t);
 
                     wgpu::BindGroupLayoutDescriptor desc{};
                     desc.label = "Frame R Layout";
@@ -128,7 +119,7 @@
                     // THE AGENTS' ROOM CONSTANTS (CHORD_1) — five uniform seats
                     // became one block: portals, the behavior registry, the tier
                     // registry, and the two occupier windows. One cadence
-                    // (world/mood), one author (CPU), one upload. The seats it
+                    // (the world), one author (CPU), one upload. The seats it
                     // replaced were bindings 1, 3, 4, 7 and 8; the room's uniform
                     // row went 11 of 12 to 7 of 12.
                     // (GROUND_CARD_1 [5c] evictions: tile_grid 25, pier_instances 26,
@@ -610,13 +601,13 @@
                     entries[4].visibility = wgpu::ShaderStage::Vertex;
                     entries[4].buffer.type = wgpu::BufferBindingType::ReadOnlyStorage;
 
-                    // SCENE CONSTANTS (CHORD_4) — the render room’s mood-cadence
+                    // SCENE CONSTANTS (CHORD_4) — the render room’s world-cadence
                     // block: the tier-gains window, the figure profiles, the ribbon
                     // window. UNIFORM, not storage, for the reason the tier registry
                     // and the figure table each carried alone before the merge: the
                     // render VERTEX stage sits at the per-stage STORAGE cap and
                     // uniform has its own budget (BINDING_LEDGER Table B). 4336 B,
-                    // mood-cadence. The scene and shadow layouts seat the SAME block
+                    // world-cadence. The scene and shadow layouts seat the SAME block
                     // — one window each, one home.
                     entries[5].binding = bind::g2::scene_constants;  // scene_constants (uniform, 4336 B — CHORD_4)
                     entries[5].visibility = wgpu::ShaderStage::Vertex;
@@ -632,7 +623,7 @@
 
                 // Scene Textures Layout — stratum 3 (Scene family) of the LOOM_2 recut.
                 {
-                    std::array<wgpu::BindGroupLayoutEntry, 8> entries{};
+                    std::array<wgpu::BindGroupLayoutEntry, 7> entries{};
 
                     // Pawn aura texture (VS + FS read persistent influence field)
                     entries[0].binding = bind::g3::pawn_aura_read;
@@ -671,12 +662,6 @@
                     entries[6].visibility = wgpu::ShaderStage::Fragment;
                     entries[6].sampler.type = wgpu::SamplerBindingType::Comparison;
 
-                    // Spot shadow atlas (depth texture, sampled in spot PCF)
-                    entries[7].binding = bind::g3::spot_shadow_map;
-                    entries[7].visibility = wgpu::ShaderStage::Fragment;
-                    entries[7].texture.sampleType = wgpu::TextureSampleType::Depth;
-                    entries[7].texture.viewDimension = wgpu::TextureViewDimension::e2D;
-
                     wgpu::BindGroupLayoutDescriptor desc{};
                     desc.label = "Scene Textures Layout";
                     desc.entryCount = entries.size();
@@ -711,13 +696,13 @@
                     entries[3].visibility = wgpu::ShaderStage::Vertex;
                     entries[3].buffer.type = wgpu::BufferBindingType::ReadOnlyStorage;
 
-                    // SCENE CONSTANTS (CHORD_4) — the render room’s mood-cadence
+                    // SCENE CONSTANTS (CHORD_4) — the render room’s world-cadence
                     // block: the tier-gains window, the figure profiles, the ribbon
                     // window. UNIFORM, not storage, for the reason the tier registry
                     // and the figure table each carried alone before the merge: the
                     // render VERTEX stage sits at the per-stage STORAGE cap and
                     // uniform has its own budget (BINDING_LEDGER Table B). 4336 B,
-                    // mood-cadence. The scene and shadow layouts seat the SAME block
+                    // world-cadence. The scene and shadow layouts seat the SAME block
                     // — one window each, one home.
                     entries[4].binding = bind::g2::scene_constants;  // scene_constants (uniform, 4336 B — CHORD_4)
                     entries[4].visibility = wgpu::ShaderStage::Vertex;
@@ -843,7 +828,7 @@
                 // A8a: the render face of the old Frame BindGroup — same backings,
                 // same numbers; signal stays with the compute face.
                 {
-                    std::array<wgpu::BindGroupEntry, 4> entries{};
+                    std::array<wgpu::BindGroupEntry, 3> entries{};
 
                     entries[0].binding = bind::g1::frame_r;
                     entries[0].buffer = frameRMainBuffer_;
@@ -854,10 +839,6 @@
 
                     entries[2].binding = bind::g1::nearest_sampler;
                     entries[2].sampler = nearestSampler_;
-
-                    entries[3].binding = bind::g1::shadow_slot;
-                    entries[3].buffer = shadowSlotBuffer_;
-                    entries[3].size = sizeof(uint32_t);
 
                     wgpu::BindGroupDescriptor desc{};
                     desc.label = "Frame R BindGroup";
@@ -1300,7 +1281,7 @@
 
                 // Projected from: renderEntityBindGroup_, renderEntityBindGroupPlanB_, renderEntityBindGroupPlanC_, renderTextureBindGroup_, photographerRenderEntityBindGroup_.
                 {
-                    std::array<wgpu::BindGroupEntry, 8> entries{};
+                    std::array<wgpu::BindGroupEntry, 7> entries{};
 
                     entries[0].binding = bind::g3::pawn_aura_read;
                     entries[0].textureView = pawnAuraReadView_;
@@ -1322,9 +1303,6 @@
 
                     entries[6].binding = bind::g3::shadow_sampler;
                     entries[6].sampler = shadowSampler_;
-
-                    entries[7].binding = bind::g3::spot_shadow_map;
-                    entries[7].textureView = spotShadowMapView_;
 
                     wgpu::BindGroupDescriptor desc{};
                     desc.label = "Scene Textures BindGroup";

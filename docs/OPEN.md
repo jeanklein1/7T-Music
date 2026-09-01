@@ -158,7 +158,8 @@ unchanged and still FLAGGED.
 | S2 | galleries, paintings, hang | **CLOSED (PRUNE_1).** Each flag answered: the veil lift now fires on the elapsed-since-`world_live` condition alone; `compute_entity_placement` lost only its painting loop and Y-corrects the KEEP flora exactly as before; `painting_slots` left `shadowStateLayout_` and the seats behind it re-indexed through `binding_schema.py`, the tool's job, verified by `binding_gen.py --check`. |
 | S3 | portals | **IN FLIGHT (ONE_WORLD-I).** Both flags are answered at U1: the `!ROSTER.transitions \|\| ROSTER.portal` edge left with the `transitions` bit it gated, and `TransitionPhase` left together with its only ignition — the machine, the request door, the six keys, the console's mood door and the `portal_trigger` wire (C++ **and** WGSL) went in one commit. U2 then took the doors themselves: the force-spawn channel, the arch's portal identity (`is_portal` / `is_back_portal` / `destination`), `PortalDestination`, `portal_color_for` and the whole destination law (`portal_density`, `mood_weights`, the palette, `pick_portal_mood` / `pick_open_mood`), the `portal` roster bit and the census's portal column. `GPUPortalArray` and the WGSL portal room outlive it — the PASSER route still reads them — and empty at U4. **U3 then took the ARCH family whole**: `PopFamily` 6 → 5 with all eleven positional tables re-columned, the four arch pipelines, the GPU mesh-gen scratch (WGSL §9 and the converged MESHGEN trio 180/181/182, now unallocated), the entity ground atlas and its `compute_entity_placement` writer with both spine rows, `GPUAgentRoomConstants`'s `occupier_amg` window (2864 → 1584 B), and the field/ribbon occupier loops that read it. |
 | S3 | portals (cont.) | **CLOSED (ONE_WORLD-I U4).** The rooms emptied: `GPUPortalArray` / `GPUPortalEntry` and the WGSL `PortalArray` / `PortalEntry` are gone, and with them the PASSER round — the array's last reader, a behaviour whose whole purpose was walking between doors. `GPUAgentRoomConstants` went 1584 → 512 B. `WorldDrawSurface` did NOT empty: `scheme_weights` survives, so the room S2 predicted would empty under S2+S3 stands on the indoor light scheme alone. |
-| S4 | agent pipelines | FLAGGED — `agent_state[possessed_slot]` **is** the point; camera, veil, terrain aura, LOD streaming, the ribbon's sky rule and the shadow box all read it |
+| S4 | agent pipelines | FLAGGED — `agent_state[possessed_slot]` **is** the point; camera, the ring, terrain aura, the ribbon's sky rule and the shadow box all read it. (It read "LOD streaming" until ONE_SURFACE-I: there is no LOD and no streaming, and the finding is unchanged by that — the point is still what every one of them reads.) |
+| S5 | the streaming conductor | **CLOSED (ONE_SURFACE-I).** Not a prune's subject and never on the S-strip: it was the machine that made an endless plane possible, and ONE_WORLD-II's pin is what made it answerable. `stream_patches` and its budgets, the recenter, the eviction lane, the veil's strength and the LOD split all left across U2–U5; `build_world` is what remains. |
 
 `WorldDrawSurface` was to empty under S2+S3 together, under a `sizeof`
 static_assert. S2 has landed and it did not empty: the fields the
@@ -166,6 +167,13 @@ gallery held were never `WorldDrawSurface`'s — the surviving mentions
 there are the "Gallery" indoor LIGHT SCHEME (`scheme_weights[2]`) and
 the portal dials, which are S3's. Whether the room empties is S3's
 question alone now.
+
+**ANSWERED, and not by S3 (ONE_WORLD-II U4).** The room never emptied
+under a prune; it died with the rooms. `scheme_weights` fed the light-scheme
+roll whose only declared reader was the indoor deriver, so `WorldDrawSurface`,
+`WORLD_DRAW_LIVE` and organ block 10 all left together. The block id is a
+HOLE, never re-packed — a stored preset key is a block id, and re-packing
+would silently re-point every one.
 
 ### PRUNE_1 — WHAT LEFT, AND THE ARGUMENT THAT MADE IT SAFE
 
@@ -254,6 +262,269 @@ machine-verified cell by cell against the pre-campaign tree.
   took a re-ruling with it. Both are law now: a prune may take a dead
   subject's prose, never a live one's law, and the orphan sweep
   includes a WGSL reference scan.
+
+### ONE_WORLD-II — THE WEATHER (landed)
+
+The seven moods, the theme engine and the indoor rooms, in nine commits.
+**The world is one world and wears one weather**: a world is a SEED and
+nothing else, every fact the program used to look up per mood is a LIVE
+BANK the panel owns, and the world is pinned FINITE with its radius drawn
+from the seed between two dials.
+
+| unit | what left, and what rose |
+|---|---|
+| U1 / U1a / U1b / U1c | **The banks rose first, and the moods still stood.** `ATMOS_LIVE` (flat — a bearing plus twelve centre/spread fields, `REGIME_COUNT` and the weighted roll gone), `ORB_LIVE`, `CUBE_LIVE`, `AGENTS_LIVE`, each transcribed from the sunset row and pinned by a witness that spent itself against the still-standing table. Every runtime applier rewired to a bank; the mood tables became single-purpose seeds with no runtime reader. The organ's atmosphere rows went 52 → 12. |
+| U2 | **The moods fell.** `MOOD_TABLE` / `MOOD_LIVE` / `mood_def` / `MoodProfile` / `MOOD_NAMES` / `WorldShape` / `Regime` / `Atmosphere` / `CeilingType`, `--mood`, `DEMO_BOOT_MOOD`, `mood_constants.hpp`, `MoodState` → `SkyState`, `apply_mood` → `stage_world_birth`. Cut as an ENUMERATION of six death-verified symbols, not as a banner span — the clause that made that mandatory is below. |
+| U3 | **The theme engine fell** and `population_themes.hpp` survives as the population panel proper. `THEMES`, the lattice, the envelopes, the cooldowns, `theme_tier_weights`, `theme_short_name`, `MOOD_SPAWN_MULT` and traits' `mood_multiplier`; `compose_spawn_chance` is `global → base × adj → clamp`. |
+| U4 | **The rooms fell, whole.** The shell mesh + `ShellVertex` + `Dim::SHELL_*` + its pipeline, `INDOOR_PALETTES`, `INDOOR_LIVE` / `IndoorSurface`, `WORLD_DRAW_LIVE` / `WorldDrawSurface`, the spot lights (array, atlas half, pipelines, `SPOT_PCF_*`, WGSL), the per-family indoor sizing hook and its policy table, the three structural pads. `GPULighting` 848 → 48 B and `GPUFrameR` 1040 → 240 B in both rooms. Organ blocks 8 and 10 are HOLES. |
+| U5 | **The pin.** `WORLD_FINITE` boots true and nothing unsets it; the radius derives from the seed between `FINITE_RADIUS_MIN/MAX`. `become_world` prints the world it made. |
+| U6a / U6b | **The organ re-homed.** The definition-only mechanism retired whole — the 255/254 sentinels, the `ORGAN_PARAM_DEFONLY` pair, `is_defonly` — because every row addresses an instance now. Blocks 12/13/14 (`ATMOS`, `ORB_BANK`, `AGENTS`) enrolled; the selecting kinds' target parameter left, and a definition target above 0 is REFUSED OUT LOUD by name. |
+| U7 | **The sweep.** Prose probate across `src/`, `tools/` and `docs/`; three orphaned `*_INDOOR_RESCALE_PARAMS` tables U4 left behind; a stale `spotShadowMapTexture_` row in `binding_schema.py`; `mood.hpp` → `sky.hpp`, `apply_mood_lighting` → `stage_sky`, `apply_aura_mood_policy` → `apply_aura_policy`; struck-notes on L10 and L44; the ledgers' hand-copied tally corrected against the tool. |
+| U8 | Instruments, the audit room, the L33 witness and the full battery. The G-LAW 2 record found `kFrameSlotZero` — a constant three live sentences called the offset every group-1 bind passes, referenced by nothing since U4 took the dynamic seat. `tools/organ_gap.py` carried three dead pairs that witnessed nothing and reported zero readers for them, which reads as a pass; the three banks this campaign built were HOMES with no pair at all. Thirteen pairs, all real, zero surviving readers. |
+
+**AMENDMENT B GREW A THIRD CLAUSE, and it was paid for three times.**
+Deletion regions anchor on **symbols, never on banners**; a banner-to-banner
+span is lawful only after every symbol between the banners has been
+individually death-verified and appears on the cut's enumeration, and
+anything found between them that is not on the list survives the cut and is
+flagged. The persistence ladder had to be relocated OUT of the mood region
+before U2 could cut it; a banner span in `world.wgsl` took `veil_dither_noise`
+and `veil_t`; one in `orb_surface.hpp` took `ORB_TABLE`. All three were caught
+— two by a gate, one by the compiler — and a between-banner orphan with no
+callers would have passed every gate in silence.
+
+**AMENDMENT D, the three rooms of a fact.** A fact has its definition (the
+bank), its applier (the read) and its transport (organ rows, C-ABI exports,
+preset keys); when a commit moves any room, every room moves in that commit.
+Paid for at U1, where the ruling deferred transport to U6 and the panel spent
+five units writing `MOOD_LIVE[mood].atmos.*` while the draw read `ATMOS_LIVE`
+— an atmosphere dial turned and nothing happened, and no gate in the tree
+could see it.
+
+**Parked with THE PANEL (below), not done here:** the orphan console verbs
+the sweep surfaced — `cycle_cube_behavior_override`, `reveal_zoetrope`,
+`toggle_cube_kite_mode`, `unrecord_entity` and roughly forty accessor leads —
+each reachable from no key and no door. None is this campaign's subject; they
+await the panel's own recon, which is the sitting that can say what a control
+surface needs.
+
+**The close.** Every gate green at the pushed tip: TU PASS/PASS · G-LAW 2
+GREEN · WGSL PASS · score census GREEN · binding surface all witnesses (S-6
+on a clean tree at the pushed tip) · organ gap PASS · organ ledger NO
+SUSPECTS · mirror census all witnesses · command census all witnesses. L33's
+standing witness was RUN at the closing commit — the five files in `audit/`
+deleted, the five tools re-run, all five byte-identical. **G-LAW 1 and the
+visual gate are Jean's and are not claimed here**, and neither is the boot
+transcript the rider's §C.2 asks for: it comes from a build, and a build is
+Jean's gate. The `[Atmos]` line to expect is one field shorter than the
+target on record — `seed= int= amb= sun el= az= fog=`, no `mood=`, no
+`regime=` — and `[World] Born FINITE radius=R (SxS patches)` is new.
+
+**Flagged, not taken (naming and build are Jean's gates):**
+- ~~`OrbMoodConfig` still wears the moods' name.~~ **TAKEN at ONE_SURFACE-I
+  U0** on Jean's word: the type is `OrbConfig`. Wire-safe — a row's id is
+  `#BLOCK "." #FIELD`, so no struct name reaches a stored preset key.
+- The frustum-cull flag (`useIndirectTerrainPipeline_`) is WRITTEN once at
+  every world's birth and READ BY NOBODY — OPT_1 found it latent, and the
+  column that fed it died at U2, so the write is now the literal `true`. The
+  cut wants a build.
+- Five WGSL orphans that predate this campaign and are not its subjects:
+  `row_occupier`, `seg_closest`, `signal_active`, `translator` (defined,
+  referenced only from prose) and `CARD_NODES_4` (a documented exclusion).
+- `docs/FXC_LAWS_RECORD.md` cites `GPUSpotLightArray`'s `static_assert` in
+  `state.hpp` as a live example; the assert left at U4. It is a stamped
+  record, so the sweep reports it rather than editing it.
+
+### ONE_SURFACE-I — THE STILLNESS (landed)
+
+The finite world is built ONCE, at birth, and never streams again. Seven
+commits. **After this, the ground is still**; ONE_SURFACE-II makes it
+alive.
+
+| unit | what left, and what rose |
+|---|---|
+| U0 housekeeping | The two names ONE_WORLD-II flagged and could not take: `OrbMoodConfig` → `OrbConfig` (wire-safe — a row id is `#BLOCK "." #FIELD`, so no struct name reaches a preset key), and LATENT[frustum_cull_opt_out] taken whole with `SkyDeps::renderer_` and the fwd it existed for. |
+| U1 | **`build_world`.** The whole (2R+1)² grid allocated, spawned, baked, banded and uploaded at birth, at both doors. It stages the seed and bounds and drains the config ITSELF — `phase_stage_upload` has not run when a boot builder bakes. One batch per submit (LATTICE_1); the params buffer holds 225 records against 81 at the widest radius, so the loop runs exactly once. |
+| U2 | **The conductor falls.** `stream_patches`, `request_recenter`, the two windows, the six budgets, the alloc scan, `active_radius`, the `[STREAM]` line, `set_render_radius` and the [ ] keys. R3 becomes `surface_visibility` — banding and the entity cull are functions of a moving POINT, and only the window stopped moving. It also found a bug U1 had shipped: `upload_tile_grid_now` sized its window on the STREAMING radius, correct only because the conductor capped that radius around its own call. |
+| U3 | **The eviction lane**, under its guard — traced verb by verb first: no teardown path reads `entity_refs`; every one sweeps by owner. `evict_patch`, `evict_patch_entities`, `free_layer`, the registry, `FamilyDispatch::evict_slot` and the five family evictors. A new positional net on `FamilyDispatch`, proven to bite. The ribbon's two-tip reference protocol came with it; its REJECT gate stayed. |
+| U4 | **The veil's strength**, and the fold table that overturned the unit's premise. The icing, the RIM knob and `veil_scale` die. The RING does NOT: four gates read it ungated by strength, and at radius 4 the box diagonal is 636 wu against a ring of 342, so it still culls inside the wall. The grain does not fold to a constant either — it is a smoothstep over [300, 342], constant only at radius 1. |
+| U5 | **The LOD fold.** One band, one density; `lod0_radius`, the plan's `lod0_count`, FC_SEG_C, the third args slot, the TERRAIN_C bit and two chain asserts. `lod_point` → `cull_point` (wire-safe: not enrolled). The A/B split SURVIVES and is not LOD — it is zone overlap. The LOD1 index buffer survives its band: the SHADOW pass draws at LOD1 density by ECONOMY_1 E2. |
+| U6 | **The sweep**, and what it swept was mostly older than this campaign: `ground_entries_dirty`, `placement_dirty` and `entities_culled` (zero readers, naming two functions that exist only in comments), `update_entity_draw_visibility` (a stub returning 0 since ONE_WORLD-I U3), `mesh_gen_settled` and `MESH_GEN_SETTLE_S` (no callers), `world_young` (whose only reader they were), `mark_patches_for_regen` and `PatchPhase::NEEDS_REGEN` (structurally unreachable), `PATCH_GRID_RADIUS`/`SIDE`. Both SEAM banners rewritten. |
+| U7 | Instruments, the audit room, the L33 witness, the full battery. |
+
+**THE ONE DISCLOSED BEHAVIOUR DELTA, and it is one seed in four.**
+`derive_finite_radius` draws R ∈ {1,2,3,4}. The conductor's fullRegen arm
+spawned everything inside the PRIORITY window — `PATCH_GRID_RADIUS` = 3,
+a 7×7 — so for R ≤ 3 birth was ALREADY a one-shot build and no budget
+ever fired. Only R = 4 leaves a 32-patch outer ring, which the conductor
+served over later frames ordered from the RIBBON_4 look-ahead point.
+`build_world` takes all 81 in one nearest-first pass from the point, and
+the two orders differ: (4,0) is 200 wu out and (3,3) is 212, so one pass
+serves a patch outside the old priority window before one inside it.
+Entity SELECTION is seed-driven and unchanged; what can differ is which
+of two entities wins ground both want, since footprints register at PLACE
+in candidate order.
+
+**Flagged, not taken:**
+- `veil_ring` and `veil_icing` carry the veil's name for the draw
+  authority and the grain's band. A CONFIG field's name IS its organ row
+  id, and a row id is a stored preset's key — this rename breaks the
+  wire, unlike `cull_point`'s, which was checked and does not.
+- `FINITE_RADIUS_MIN/MAX` are still `constexpr`, not dials.
+  ONE_WORLD-II §1.7 said the pin would enroll them; §1.4 here presumes
+  they are dials whose gen-cadence edits reach the world through rebirth.
+  Enrolling them is an ORGAN_3 graduation — a constructive change neither
+  handoff scoped — and the only thing that could exercise one is THE
+  PANEL, which is also the only thing that can call `rebirth_world`.
+- `world_box_clamp_xz`'s `has_bounds` guard reads like a finiteness test
+  the pin makes constant. **It is not.** It is also the uninitialised-
+  config guard: `GPUState::initializeState` zeroes the bounds and uploads
+  them unconditionally, so a boot frame really does carry (0,0), and
+  removing the guard turns `clamp(p.x, 0+m, 0-m)` — low above high, which
+  WGSL leaves undefined — into a body test. Left alone deliberately.
+
+## THE MOSAIC IS UNREACHABLE (open, found at ONE_SURFACE-I's close)
+
+**MOSAIC_2's whole apparatus is dead code, and L12 — a LAW — rests on
+it.** Found by the campaign's own recon reading the tree after the units
+landed, then verified by hand.
+
+`entity_fs` guards the mosaic on `if (in.mosaic_seed != 0u &&
+config.mosaic_enable > 0.5)`. `mosaic_seed` is a `@location(4)
+@interpolate(flat) u32` on `EntityVarying` — and **no vertex entry in
+world.wgsl ever writes it.** Every `@vertex` returning `EntityVarying`
+(`pawn_vs`, `sphere_vs`, `monolith_vs`, both of `ribbon_vs`'s returns)
+writes `clip_pos`, `world_pos`, `normal` and `entity_color` and nothing
+else; WGSL zero-inits `var out: EntityVarying;`, so the seed is 0 at
+every fragment and the branch never runs. The whole occurrence set of
+`mosaic_seed` in the shader is its declaration, the test, and the two
+uses inside the branch. On the CPU side `EntityInstance::mosaic_seed`
+(contracts/entity_types.hpp) is declared and **never read or written
+anywhere in src/ or tools/** — dead on both sides. `paint_y` is
+unwritten the same way.
+
+Unreachable with it: `mosaic_sample`, `mosaic_far`, `mosaic_shard`, the
+GRAIN, `config.mosaic_facet`, `config.mosaic_shard_size` and
+`config.mosaic_blend`'s far half.
+
+**Why this is not a sweep's to take.** L12 (DISTANCE TAKES THE GRAIN,
+NEVER THE MATERIAL) is a numbered law whose entire worked example is this
+mechanism, and L11's PAINT ANCHOR names `paint_pos`. Deleting it retires
+a law's subject and a visual intention that has a stamped history
+(MOSAIC_0/1/2). Reviving it is one line in each entity VS. Which of those
+two happens is a ruling, and Jean's.
+
+**It also predates ONE_SURFACE.** Nothing in this campaign or
+ONE_WORLD's touched `mosaic_seed`; whatever used to write it left before
+either. The finding is reported here rather than acted on.
+
+### A CORRECTION TO ONE_SURFACE-I U4's COMMIT MESSAGE
+
+U4 kept the grain's smoothstep and its two dials, and argued for it from
+arithmetic: the band is [300, 342], a finite world's box diagonal runs
+212 / 354 / 495 / 636 wu at radii 1..4, so the grain varies for three
+radii in four and could not be folded to a constant. **The arithmetic is
+right and the conclusion is right — bodies do draw out to the ring at
+342, so the grain WOULD vary if it were evaluated — but it is never
+evaluated, for the reason above.** What U4 shipped is unchanged and
+remains behaviour-identical, which is what its acceptance test asked; the
+justification was one layer short of the truth.
+
+Two smaller corrections from the same source, both already true in the
+tree and neither changing what shipped:
+- the ring gates anchor on `config.cull_point_x/z` (staged, one frame
+  stale by law E-4) while `veil_t` anchors on `render_point_pos()`
+  (live). Two anchors, which is precisely the condition L12's closing
+  paragraph says one band exists to avoid.
+- `ribbon_vs` has no ring gate at all — U4 noted this as the ribbon's
+  surviving exemption, and it is worth restating that the exemption is
+  now the ONLY thing distinguishing `ribbon_fs` from `entity_fs`.
+
+## ONE_SURFACE-II — THE AUTOMATON (U0 landed; U1-U4 held)
+
+The Game of Life stops being an ENTITY and becomes a PROPERTY OF THE
+GROUND: one automaton over the whole finite cell grid, WRAP topology, the
+GOL family retired. U0's recon is done and is below. **U1 is HELD, and
+the handoff's own precondition is why**: "RUN AFTER THE STILLNESS CLOSES
+GREEN." ONE_SURFACE-I is green on every gate CC can run, but its close is
+`glaw1, build, **the walk**` — and the walk is the whole point of a
+campaign whose acceptance test is "the world must look untouched". Two
+of those three are Jean's.
+
+That matters more here than it would elsewhere. Every unit of I was a
+REMOVAL whose behaviour could be reasoned to exactly — a fold table, a
+reader census, an arithmetic bound. II's U1 is CONSTRUCTIVE: a new
+world-sized field, two new kernels, a reshaped bind group, and a swapped
+contributor row. "It type-checks and the gates are green" is much weaker
+evidence about a shader that has never run.
+
+### §1.5 IS ANSWERED, and the answer is BOTH — with a precision the
+handoff's phrasing leaves open.
+
+**(a) The pedestal is a LIVE-CARD contributor, not a patch-bake one.**
+`contrib_gol_zones_at(world_xz)` is evaluated inside the live-card
+kernel and stored in the card's **`.a` channel**
+(`textureStore(live_card_write, ..., vec4(height, grad_x, grad_z,
+contrib_gol_zones_at(p_here)))`). Ground consumers then compose
+`h += contrib_gol_zones_at(xz); h -= contrib_gol_suppression_at(xz,
+consumer_pos)`. So the contributor DAG row the handoff names is real, and
+it feeds the LIVE CARD — the patch heightfield bake is a different lane.
+
+**(b) The tint is a draw-time texture sample.** `zone_life_read`
+(`texture_2d_array<f32>`, g3:102) sampled in the terrain FS at
+`i32(z)` — the ZONE INDEX is the array layer — feeding
+`apply_gol_color(base_color, zp, cx, cy, blend)`. Globalizing means the
+layer index has nothing to select and the sample becomes a single plane.
+
+### THE HAZARD U0 FOUND, and the handoff does not mention it
+
+**THE LIVE CARD'S REST LAW HAS A CONJUNCT THE AUTOMATON WOULD FALSIFY
+EVERYWHERE.** The card is at rest — and `phase_live_card_write` returns
+before its dispatch, gated by `liveCardRestClean_` — only when ALL of:
+
+  (1) `config.terrain_time <= 0`      [MUSICAL]
+  (2) the pulse ring is empty         [MUSICAL]
+  (3) **no zone covers the texel**    [NOT MUSICAL]
+
+The shader's own note says why (3) is the awkward one: *"silence the
+music and a living zone still lifts."* With eight zones that is a LOCAL
+condition and the card reaches rest whenever they are quiet or absent.
+A world-sized automaton makes conjunct (3) false wherever ANY cell is
+alive — which, at a seeded density over the whole grid, is essentially
+always. The rest gate would never close again, and the live-card
+dispatch would run every frame for the life of the program.
+
+That is not a reason not to do it. It is a decision U1 has to make ON
+PURPOSE — re-found the rest law on the automaton's own tick (the card is
+clean between ticks), or accept a per-frame card and price it — rather
+than discover afterwards that an optimisation quietly stopped firing.
+
+### The rest of U0's enumeration
+
+- **Zone-shaped WGSL** (dies as indexing, survives as algorithm):
+  `zone_config` / `zone_life` (g2:101/102, read_write storage),
+  `zone_life_tex_write` / `zone_life_read` (g3:101/102),
+  `GoLZoneConfig`, `GoLZoneArray`, `ZoneDeriveRequest` and the derive
+  kernel, `apply_gol_color`, `contrib_gol_zones_at`'s
+  `for z in 0..zone_config.count` walk. The ALGORITHMS — the neighbour
+  rule, the pulse fields, the birth mask, `apply_boundary` — are
+  index-free and survive whole.
+- **The zone organ** (C++): `GoLZoneState[MAX_GOL_ZONES]`,
+  `active_slot_count`, `gol_tier_extent`, `GoLZoneProp`'s per-zone
+  Gaussian bands (930-938), `GOL_PULSE_ALGORITHM_CHANCE` (0.35),
+  `pending_derive_requests`.
+- **The derive-submit seam dies with its cause**, as §1.6 predicts:
+  `SEAM[gol:derive-submit]` exists because runtime zone SPAWNS must
+  derive mid-frame. With seeding birth-only there are no runtime spawns.
+  Note that ONE_SURFACE-I already removed the only thing that created
+  patches after birth, so the seam's premise is already half gone.
+- **The roster's last excision** is the GOL family: PYRAMID 0, SPHERE 1,
+  RIBBON 2, CUBE 3, COUNT 4. `FamilyDispatch` now carries the positional
+  net U3 added and proved, so a re-columning failure lands at the
+  contract.
+- **The beat header** is already what §1.2 wants: `GolDeps` carries
+  `TimeState` and the config header reads BEATS, so `tick_period`
+  becomes one global dial in units the header already speaks.
 
 ## NATIVE PRESET INGESTION (open, born at WEB_SUNSET)
 
@@ -387,7 +658,8 @@ Playhead's forward-cue requirement was always waiting for.
 The socket is already open: `parse_boot_params(int, char**)` kept its full
 signature through the sunset with both parameters unnamed, `main()` still
 calls it with real `argc`/`argv`, and N1 restores the
-`--seed/--mood/--cap/--msaa` loop behind it.
+`--seed/--cap/--msaa` loop behind it. (`--mood` was the fourth until
+ONE_WORLD-II U2 — a world is chosen by its seed alone now.)
 
 ## THE PANEL (held — the campaign that gives the rebirth a caller)
 

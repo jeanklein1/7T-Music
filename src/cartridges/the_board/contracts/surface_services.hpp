@@ -11,17 +11,24 @@
 // The BODIES ride surface/patch_system.hpp, merged at the cohort tail
 // — the same-TU late-definition law, named at spawn_services.
 //
-// The active-patch machine: the streamed patch registry and its
-// lifecycle (allocate → spawn → generate → evict), the frame budgets,
-// the layer allocator, the visibility cylinder, and the per-frame
-// streaming conductor (stream_patches).
+// The active-patch machine: the patch registry and its lifecycle
+// (allocate → spawn → generate), the layer allocator, and the one-shot
+// builder (build_world). It was a STREAMED registry with a fourth
+// lifecycle stage — evict — and a per-frame conductor pacing all four
+// under budgets; a finite world is built once (ONE_SURFACE-I).
 //
-// SEAM[spine:active-patch-system] the ActivePatch struct, the
-//   patches_ registry, find_patch / evict_patch / evict_patch_entities,
-//   plus the entity_refs registry on each
-//   ActivePatch. Cross-module readers: machine/spawn_engine.hpp (commit
-//   functions call host->record_entity), bodies/ribbon.hpp (two-tip late
-//   registration), and the family dispatch eviction rows.
+// SEAM[spine:active-patch-system] the ActivePatch struct, the patches_
+//   registry, and find_patch. Cross-module readers: the occupier commits
+//   (a body commits iff find_patch resolves its host — machine/
+//   entity_pipeline.hpp, bodies/gol_zones.hpp, bodies/ribbon.hpp).
+//
+//   IT NAMED THINGS THAT WERE NOT THERE, and the sweep says so rather
+//   than quietly fixing it: `evict_patch` / `evict_patch_entities` and
+//   the entity_refs registry left at ONE_SURFACE-I U3, the family
+//   dispatch eviction rows with them, and the ribbon's two-tip late
+//   registration at the same unit. It also credited machine/
+//   spawn_engine.hpp with `host->record_entity` calls that file has
+//   never contained — the callers were always the three named above.
 //
 // Depends on cohort include order: state.hpp (Dim:: + the GPU patch
 // DTOs) precedes this header — the one SANCTIONED cohort cable (array
@@ -35,12 +42,67 @@ namespace the_board {
 
 // ROOT ORGAN: the struct's home is here; the
 // instance (world_state_) stays at the composition root.
+// THE PIN (ONE_WORLD-II U5). WorldShape carried `finite` per mood —
+// SHAPE_OPEN false, the rooms and the finite field true — and boot wore
+// the sunset's open row. U2 moved the fact here without changing it; this
+// is the unit that changes it.
+//
+// THE WORLD IS FINITE, AND NOTHING UNSETS IT. Not a mood, not a key, not
+// a param: one constant, read once at every world's birth through the L10
+// door. A finite world is a bounded one — the containment clamp
+// (finite_bounds_resolve, world.wgsl) is its wall, and the veil stands
+// down because a wall defines the boundary where fog used to.
+//
+// THE OPEN PATHS ARE UNTOUCHED, deliberately. Every `finite_mode`-false
+// branch still stands, compiled and correct; they are campaign 3's
+// subject, not this one's. A pin is a value, not an excision.
+inline constexpr bool WORLD_FINITE = true;
+
+// THE PIN'S DIALS (ONE_WORLD-II U2). The radius range every world draws
+// from — WorldShape's finite_radius_min/max, rehomed whole. The atrium's
+// pinned radius (min == max, no roll) died with the atrium; these are
+// SHAPE_FINITE's, the row the campaign keeps. New enrollment when the
+// panel wants them, which is U6's and not this unit's.
+inline constexpr uint32_t FINITE_RADIUS_MIN = 1;
+inline constexpr uint32_t FINITE_RADIUS_MAX = 4;
+
+// THE WIDEST WORLD THE PIN ALLOWS MUST FIT WHAT DRAWS IT (ONE_SURFACE-I
+// U5a). Every patch is one band since U5, so the frustum cull classifies
+// the whole draw set into segment A or B by ZONE OVERLAP — and in the
+// worst case every patch lands in one of them: a world entirely covered
+// by GoL zones fills A, a world with none fills B. 128 entries each
+// against (2*4+1)^2 = 81. Stated rather than trusted: the idiom is
+// tile_world.hpp's, where upload_tile_grid_now binds the same constant to
+// the GPUTileGrid DTO, and the reason is the same — raising the pin
+// should fail the BUILD, not the kernel.
+static_assert((2 * FINITE_RADIUS_MAX + 1) * (2 * FINITE_RADIUS_MAX + 1)
+              <= FC_SEG_A_BYTES / sizeof(uint32_t),
+    "the widest world the pin allows must fit frustum-cull segment A");
+static_assert((2 * FINITE_RADIUS_MAX + 1) * (2 * FINITE_RADIUS_MAX + 1)
+              <= FC_SEG_B_BYTES / sizeof(uint32_t),
+    "and segment B");
+static_assert((2 * FINITE_RADIUS_MAX + 1) * (2 * FINITE_RADIUS_MAX + 1)
+              <= Dim::MAX_ACTIVE_PATCHES,
+    "and the layer pool build_world draws (2R+1)^2 layers from");
+
 struct WorldState {
     // ── Seed + dimensions ──
     uint32_t active_seed   = 0;  // world master seed — authored at the composition root from DEMO.seed; mutable for world transitions
-    uint32_t active_radius = Dim::PATCH_PREGEN_RADIUS;
+    // `active_radius` — the STREAMING window's half-width — stood here.
+    // It was PATCH_PREGEN_RADIUS (7) by default, driven by the [ ] keys,
+    // and capped to finite_radius for the duration of every conductor
+    // call. A finite world's window IS the world, so the two facts were
+    // one fact wearing two names; `finite_radius` below is the survivor
+    // (ONE_SURFACE-I U2).
+    // THE FINITE FACTS, REHOMED (ONE_WORLD-II U2, §1.7). They were
+    // WorldShape's — finite, finite_radius_min, finite_radius_max — and
+    // the shape died with the moods. TWO of the three survive it: the
+    // MODE (a pin, flipped at U5) and the RANGE the world's seed draws a
+    // radius from. The range is the pin's DIALS: a radius per world is
+    // what the parametric spirit wants, and a pinned world still draws.
     bool     finite_mode   = false;
-    uint32_t finite_radius = 2;      // 2 → 5×5 = 25 patches
+    uint32_t finite_radius = 2;      // 2 → 5×5 = 25 patches — drawn per world
+
     uint32_t world_gen     = 0;
 
     // ── Recenter cursor ──
@@ -53,43 +115,42 @@ struct WorldState {
     // observation: nothing the player does sets it again, which is what stops
     // a world that has merely fallen behind from being handed a rebirth's
     // burst. Boot is a transition from nothing (L10), so it boots true.
-    bool world_young = true;
+    // `world_young` stood here (RIBBON_6). Youth was an AGE — set when a
+    // world began, cleared once when its window was three-quarters built —
+    // and it existed so a world being born could be handed a burst the
+    // steady state did not get. There are no budgets to select between and
+    // no partial world to be young: `build_world` returns a world already
+    // whole. Its last reader was `mesh_gen_settled`, which had no callers
+    // of its own (ONE_SURFACE-I U6).
 
     // ── Patch counts (this frame) ──
     uint32_t active_patch_count = 0;
     uint32_t render_patch_count = 0;    // drawn patches (within the live RING — the draw authority)
-    uint32_t lod0_patch_count   = 0;    // subset of drawn: within lod0_radius (full mesh)
-    uint32_t all_patch_count    = 0;    // all generated patches (including pre-gen ring)
-    uint32_t entities_culled    = 0;    // entities hidden by the EXIST-ring overdraw cull this frame
+    // `lod0_patch_count` (the full-mesh subset) and `all_patch_count` (the
+    // drawn set plus the pregen ring) stood here. The pregen band left at
+    // ONE_SURFACE-I U4 and the LOD split at U5, so both counts named a
+    // partition of one set: `render_patch_count` is the whole of it.
+    // `all_patch_count` had no reader anywhere in the tree even before that.
+    // `entities_culled` stood here. Its writer was
+    // `update_entity_draw_visibility`, which has returned a constant 0
+    // since the ARCH loop — the only family whose mesh could be zeroed at
+    // range — left at ONE_WORLD-I U3. Zero readers (ONE_SURFACE-I U6).
 
     // ── Dirty flags (deferred GPU uploads) ──
-    bool ground_entries_dirty   = true;   // defer upload_ground_entries (true at boot)
+    // `ground_entries_dirty` and `placement_dirty` stood here, deferring
+    // `upload_ground_entries` and `dispatch_placement_correction`. Both
+    // flags had ZERO readers tree-wide and both functions they name exist
+    // nowhere but in comments; the conductor was the last thing still
+    // maintaining them (ONE_SURFACE-I U6).
     bool patch_instances_dirty  = true;   // defer LOD sort + upload_patch_instances
-    bool placement_dirty        = true;   // defer dispatch_placement_correction
-    // OIL_1 U9 (ledger: R3 continuous allocation, C2): the allocation
-    // scan runs only when demand can exist. Raisers, covering every
-    // INPUT to the candidate set:
-    //   · boot (this default) and init_patch_system (reset);
-    //   · gridChanged — the render window moved (this also covers the
-    //     cross-module active_radius writer in direction/input.hpp,
-    //     which recenters through the same door);
-    //   · the scan BOX moved — last_alloc_scan_gx/gz below;
-    //   · a freed layer (the eviction block — free_layer's one caller is
-    //     evict_patch, whose one caller is that block);
-    //   · the budget backlog (candidates exceeded ALLOC_BUDGET_PER_FRAME).
-    bool alloc_scan_pending     = true;   // gate on the continuous-allocation scan
-    // THE BOX IS NOT THE WINDOW, and that is why it needs its own raiser.
-    // The scan intersects box(pawn cell ± radius) with the render window
-    // around last_center. In open worlds the two share an origin, so a
-    // box move IS a gridChanged. In FINITE mode the window is pinned at
-    // (0,0) while the box still follows the pawn — so the box is an
-    // independent input, and these two ints are what make the raiser set
-    // provably complete instead of complete-by-conjunction (today the
-    // finite window is fully allocated by the fullRegen bootstrap and
-    // nothing there evicts, so the divergence is unreachable — a fact in
-    // three other places, which is one too many to lean on).
-    int32_t last_alloc_scan_gx  = INT32_MAX;   // INT32_MAX = never scanned
-    int32_t last_alloc_scan_gz  = INT32_MAX;
+
+    // THE CONTINUOUS-ALLOCATION SCAN STOOD HERE (ONE_SURFACE-I U2), with
+    // its raiser flag `alloc_scan_pending` and the two cursors that made
+    // its raiser set provably complete — `last_alloc_scan_gx/gz`, the scan
+    // BOX's own move, which in a finite world diverged from the pinned
+    // window. All three were the streaming conductor's: a finite grid is
+    // allocated once, in build_world, and there is no second moment at
+    // which demand can appear.
 
     // ── Free-layer pool ──
     uint32_t free_layer_count = Dim::MAX_ACTIVE_PATCHES;
@@ -118,7 +179,13 @@ enum class PatchPhase : uint8_t {
                     //   was already placed at ALLOCATED->SPAWNED, before
                     //   this heightfield existed; Y-correction is additive
                     //   and lands later (compute_entity_placement).
-    NEEDS_REGEN,    // heightfield stale (new pyramid in range)
+    // NEEDS_REGEN stood here — "heightfield stale (new pyramid in range)".
+    // `mark_patches_for_regen` was its sole writer and only ever marked
+    // patches already GENERATED; its sole caller is `pyramid_post_commit`.
+    // At a birth every patch is ALLOCATED or SPAWNED when the pyramids
+    // commit, so nothing is GENERATED yet — the lane existed for pyramids
+    // committed AFTER some patches had baked, which is the streamed steady
+    // state alone. Nothing is allocated after birth now (ONE_SURFACE-I U6).
 };
 
 struct ActivePatch {
@@ -128,66 +195,33 @@ struct ActivePatch {
     bool valid = false;
     PatchPhase phase = PatchPhase::ALLOCATED;
 
-    // Entity ownership (recorded at commit, read at eviction)
-    struct EntityRef {
-        uint32_t family;   // PopFamily index
-        uint32_t slot;     // index into Active* array
-    };
-    static constexpr uint32_t MAX_ENTITY_REFS = 16;   // 10 recording families; host-side clustering can stack triggers — headroom + the loud drop below
-    EntityRef entity_refs[MAX_ENTITY_REFS]{};
-    uint32_t entity_ref_count = 0;
-
-    void record_entity(uint32_t family, uint32_t slot) {
-        if (entity_ref_count < MAX_ENTITY_REFS) {
-            entity_refs[entity_ref_count++] = { family, slot };
-        } else {
-            // LOUD DROP (always-on): an unrecorded entity outlives this
-            // patch's eviction — a leak, never silent.
-            std::fprintf(stderr,
-                "[ActivePatch] entity_ref OVERFLOW patch(%d,%d) family=%u slot=%u dropped (cap %u)\n",
-                grid_x, grid_z, family, slot, MAX_ENTITY_REFS);
-        }
-    }
-
-    // Release-by-owner for RECORDS (REQUEST_1 rider): an owner that dies
-    // while this patch still lives takes its record back, so no stale
-    // {family, slot} can ever misdirect a later eviction at a successor
-    // in the reused slot. Swap-with-last; one record per (family, slot)
-    // per patch. NOT to be called from inside evict_patch_entities' own
-    // iteration (it would skip the swapped-in record's evictor) — the
-    // callers are owner-side death verbs outside any patch loop.
-    void unrecord_entity(uint32_t family, uint32_t slot) {
-        for (uint32_t i = 0; i < entity_ref_count; i++) {
-            if (entity_refs[i].family == family && entity_refs[i].slot == slot) {
-                entity_refs[i] = entity_refs[--entity_ref_count];
-                return;
-            }
-        }
-    }
-
+    // THE ENTITY-REF REGISTRY STOOD HERE (ONE_SURFACE-I U3): `EntityRef`,
+    // `entity_refs[MAX_ENTITY_REFS]`, `entity_ref_count`, `record_entity`
+    // with its always-on LOUD DROP, and `unrecord_entity`. It existed for
+    // ONE consumer — `evict_patch_entities`, which walked it to evict a
+    // dying patch's bodies — and patches do not die in a world that is
+    // built once. The guard §1.5 demanded was answered first: no teardown
+    // path reads it; every one sweeps by OWNER. `unrecord_entity` already
+    // had zero callers before the campaign found it.
 };
 
 // ── Dynamic budgets ────────────────────────────────────────────────
 
 // ONE BAKE A FRAME (RIBBON_6). RIBBON_4 was right that the conductor must
 // pace by CADENCE and wrong about why: the meter shows streaming's worst
-// frame at 2 ms of GPU and frame_total at 2.2 ms of CPU, so it never cost a
-// frame — but a pace must still be EVEN, and it must be FAST ENOUGH. A grid
-// crossing demands 15 cells; at the top of the speed dial one arrives every
-// 19 frames. So the unit is one whole patch per frame — one patch, one
-// dispatch, the same shape every streaming frame, and 15 frames to a
-// crossing. Evenness by construction, adequacy by arithmetic, and no ladder
-// to make a deep backlog work harder exactly when the point is moving fastest.
-inline constexpr uint32_t SPAWN_BUDGET_PER_FRAME = 2;   // spawning is CPU and precedes the bake; two keeps the pipeline fed
-inline constexpr uint32_t ALLOC_BUDGET_PER_FRAME = 4;   // bookkeeping
-inline constexpr uint32_t EVICT_BUDGET_PER_FRAME = 4;   // matched to ALLOC: the pool balances by symmetry as well as by refusal (RIBBON_5's FLAG-38)
-inline constexpr uint32_t BAKE_BUDGET_PER_FRAME  = 1;   // the law
-inline constexpr uint32_t BAKE_BUDGET_YOUNG      = 6;   // a world being born is a transition and keeps a transition's burst
-
-// THE LOOK-AHEAD (RIBBON_4): how far along the flight the spawn and bake
-// scans order their candidates from, under a rider. Zero in every other
-// host — a walker's point IS where the work is.
-inline constexpr float    PATCH_LOOK_AHEAD       = 100.0f;  // wu
+// THE PER-FRAME BUDGETS STOOD HERE (ONE_SURFACE-I U2). SPAWN 2, ALLOC 4,
+// EVICT 4, BAKE 1 with a young world's 6, and the rider's 100 wu
+// PATCH_LOOK_AHEAD. Every one of them paced a spend across frames, and a
+// world that is built once has one frame to pace. RIBBON_6's sentence —
+// "a pace must be EVEN, and it must be FAST ENOUGH" — was true of a
+// window crossing a plane; the arithmetic that made it true (15 cells a
+// crossing, one arriving every 19 frames at the top of the speed dial) is
+// arithmetic about a moving window, and the window does not move.
+//
+// ONE BAKE A FRAME survives as ONE BATCH PER SUBMIT, which is what
+// LATTICE_1 actually proved: the queue orders every WriteBuffer ahead of
+// the whole command buffer, so two batches on one encoder corrupt the
+// first's params. That is a SUBMIT law and it lives in build_world.
 
 // ── Visibility — THE VEIL CHAIN (RING = draw authority) ────────────
 //
@@ -222,26 +256,24 @@ struct PatchSystemState {
 // THE MACHINE FACE (MachineCtx), the S3 dispatch seam
 // (select/place/commit — contracts/spawn_services.hpp), and the GPU
 // wire (gpuState_ / renderer_). The reaches outside the face ride
-// the call sites: the tile doors' deps, the mood deps, the driver's
+// the call sites: the tile doors' deps, the sky's deps, the driver's
 // intent organ.
 struct TileWorldState;  // tile_world.hpp — the tile cache organ (fwd: the lifecycle owner mutates it through the owner doors; the machine face's view is const)
-struct ThemesState;     // population_themes.hpp — the theme envelope organ (fwd: same law)
 struct TileWorldDeps;   // tile_world.hpp — the tile doors' face (fwd: reference param)
-struct MoodDeps;        // mood.hpp — the back-portal door's face (fwd: reference param)
+// `struct SkyDeps;` stood here for reset_surface's face. reset_surface has
+// not taken it since the conductor's signature left at ONE_SURFACE-I U2.
 
-// THE S2/S3 BOUNDARY FACE: the patch registry is read across the
-// boundary by the occupier commits (host->record_entity via
-// find_patch) — the interface trio's registry member.
+// THE S2/S3 BOUNDARY FACE: the patch registry is read across the boundary
+// by the occupier commits — a body commits iff `find_patch` resolves its
+// host. It was also read by the patch-death registry, which left at
+// ONE_SURFACE-I U3 with the two evictors declared beside this line.
 ActivePatch* find_patch(MachineCtx* c, int32_t gx, int32_t gz);
-
-void evict_patch(MachineCtx* c, uint32_t pi, wgpu::Queue& queue);
-void evict_patch_entities(MachineCtx* c, ActivePatch& patch, wgpu::Queue& queue);
 
 // Root-called owner verb. CALLERS: boot (init_renderer) AND the transition
 // machine (root); OWNER: patch_system. One door, both paths — boot is a
 // transition from nothing (LAWS L10).
 void reset_surface(MachineCtx* c, wgpu::Queue& queue,
-    TileWorldState& tile_world_state, ThemesState& themes_state);  // was teardown_world -> teardown_surface; reduced to the surface core, then called from boot too
+    TileWorldState& tile_world_state);  // was teardown_world -> teardown_surface; reduced to the surface core, then called from boot too
 
 void init_patch_system(MachineCtx* c, TileWorldState& tile_world_state);
 // The recenter door: names the hidden regen request — the
@@ -249,34 +281,41 @@ void init_patch_system(MachineCtx* c, TileWorldState& tile_world_state);
 // Caller: the radius command (direction/input). DEPS-FORM: the
 // driver world holds no MachineCtx — the door takes its
 // one organ explicitly (the deps-form precedent, clear_spheres).
-void request_recenter(WorldState& ws);
-void mark_patches_for_regen(MachineCtx* c, float min_wx, float min_wz,
-    float max_wx, float max_wz,
-    int32_t home_gx, int32_t home_gz);
+// `request_recenter(WorldState&)` stood here and left at ONE_SURFACE-I U2
+// with the conductor it re-armed; `mark_patches_for_regen(MachineCtx*,
+// float min_wx, float min_wz, float max_wx, float max_wz, int32_t home_gx,
+// int32_t home_gz)` beside it, at U6 — see PatchPhase above for why the
+// pyramid re-bake lane is unreachable in a world built once.
 // LATTICE_1 — one pass, two dispatches, the whole batch.
 void generate_patch_batch(MachineCtx* c, wgpu::CommandEncoder& encoder, wgpu::Queue& queue,
     const GPUPatchParams* params, uint32_t count);
 GPUPatchParams make_patch_params(MachineCtx* c, int32_t gx, int32_t gz, uint32_t layer);
 uint32_t alloc_layer(MachineCtx* c);
-void free_layer(MachineCtx* c, uint32_t layer);
-bool in_render_window(MachineCtx* c, int32_t gx, int32_t gz, int32_t cx, int32_t cz);
+// `free_layer` (the pool's return half) left at ONE_SURFACE-I U3 with the
+// eviction that was its only caller; `in_render_window` at U2, with the
+// window that moved.
 float patch_distance_sq(float px, float pz, float origin_x, float origin_z, float half);
 template<typename Pred>
 uint32_t collect_sorted_patches(MachineCtx* c, PatchCandidate* out,
     float pawn_wx, float pawn_wz, Pred&& pred, bool nearest_first);
 bool in_priority_window(MachineCtx* c, int32_t gx, int32_t gz, int32_t cx, int32_t cz);
 void spawn_selected_patches(MachineCtx* c, const PatchCandidate* candidates, uint32_t count,
-    wgpu::Queue& queue,
-    ThemesState& themes_state);
+    wgpu::Queue& queue);
 void generate_selected_patches(MachineCtx* c, const PatchCandidate* candidates, uint32_t count,
     wgpu::CommandEncoder& encoder, wgpu::Queue& queue,
     bool& tileGridDirty,
     TileWorldState& tile_world_state, TileWorldDeps& tile_world_deps);
 
 // THE CONDUCTOR: the per-frame streaming step.
-void stream_patches(MachineCtx* c, wgpu::CommandEncoder& encoder, wgpu::Queue& queue,
-    TileWorldState& tile_world_state, ThemesState& themes_state,
-    TileWorldDeps& tile_world_deps, MoodDeps& mood_deps);
+// THE ONE-SHOT BUILDER (ONE_SURFACE-I U1). Takes the device because it
+// owns its own encoders: one batch per submit is LATTICE_1's law, and a
+// builder that borrowed the frame's encoder could not honour it.
+void build_world(MachineCtx* c, wgpu::Device& device, wgpu::Queue& queue,
+    TileWorldState& tile_world_state, TileWorldDeps& tile_world_deps);
+
+// `stream_patches` stood here — the per-frame conductor, and the largest
+// single verb in the surface. It left at ONE_SURFACE-I U2 with the
+// question it answered.
 
 } // namespace the_board
 } // namespace t7

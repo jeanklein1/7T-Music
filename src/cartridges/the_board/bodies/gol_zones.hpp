@@ -1,7 +1,6 @@
 #pragma once
 #include <cstdint>
 #include "cartridges/the_board/realization/state.hpp"                    // Dim::*, GPUZoneDeriveRequestArray, wgpu
-#include "cartridges/the_board/contracts/mood_constants.hpp"   // MOOD_COUNT (sizes the mood gate)
 #include "cartridges/the_board/contracts/wgpu_fwd.hpp"   // wgpu handle fwds (lockstep insurance)
 #include "cartridges/the_board/contracts/entity_types.hpp"     // GoLSelection/GoLPlacement (the boundary DTOs) + queue types
 
@@ -131,19 +130,16 @@ struct GoLZoneSpawnConfig {
     static constexpr float HEIGHT_FACTOR_SIGMA = 0.15f;
     static constexpr float HEIGHT_FACTOR_CLAMP_LO = 0.6f;
     // L3 MIRROR: world.wgsl GOL_HEIGHT_FACTOR_MAX. This is the upper bound on
-    // the per-cell multiplier, and the indoor height cap divides by it at
+    // the per-cell multiplier, and the rooms' height cap divided by it at
     // zone_derive_params so the capped lift is exact. Change both rooms.
     static constexpr float HEIGHT_FACTOR_CLAMP_HI = 1.4f;
     // Lens target color range: color = hash * RANGE + LO
     static constexpr float LENS_TARGET_LO = 0.2f;
     static constexpr float LENS_TARGET_RANGE = 0.6f;
-    // SEAM[gol_zones:P4] hygiene rows pattern (P4): the gol mood row
-    //   lives in MOOD_SPAWN_MULT (population_themes.hpp — the GOL
-    //   column). That column is all 1.0 — the mood term rests at
-    //   identity and suppresses nothing today; the veto path
-    //   (veto_on_zero_mood) is the live mechanism awaiting a value.
-    //   Same family as the cube populations' hygiene rows
-    //   (cube_behaviors.hpp). Defensive declaration.
+    // The GoL mood row and the veto it armed left at ONE_WORLD-II U3.
+    //   The column was all 1.0, so the term rested at identity and
+    //   suppressed nothing; the veto was the live mechanism awaiting a
+    //   value that never came, and it was GoL's alone.
 };
 
 // ── Color Modes ──────────────────────────────────────────────────
@@ -448,7 +444,7 @@ struct GoLState {
     uint32_t     zone_count = 0;
     uint32_t     active_slot_count = 0;     // highest active slot + 1 (for dispatch sizing)
 
-    bool         mood_allowed = true;
+    bool         zones_allowed = true;
 
     // Derive request queue: accumulated during patch gen, flushed once
     // per frame as a single GPU compute dispatch (zone_derive_params).
@@ -467,7 +463,9 @@ void commit_gol(GoLState& gs, MachineCtx* c,
     int32_t trigger_gx, int32_t trigger_gz, wgpu::Queue& queue);
 // The evictor — MachineCtx-shaped
 // to match the FAMILY_DISPATCH evict slot (table in cartridge.hpp, post-class)
-void evict_gol(MachineCtx* self, uint32_t slot, wgpu::Queue& queue);
+// `evict_gol` stood here — the GOL family's patch-death evictor. Its one
+// reach was FamilyDispatch::evict_slot, which left at ONE_SURFACE-I U3
+// with the patch-death sweep that was its only caller.
 // Dispatch funnels (table-shaped; the FAMILY_DISPATCH rows point here)
 bool dispatch_select_gol(MachineCtx* self, int32_t gx, int32_t gz, EntityQueueEntry& e);
 bool dispatch_place_gol(MachineCtx* self, EntityQueueEntry& e, PlacementEntry& pe);
@@ -482,7 +480,7 @@ void dispatch_zone_sync(GoLState& gs, GolDeps* c, wgpu::CommandEncoder& encoder)
 void dispatch_zone_evolve(GoLState& gs, GolDeps* c, wgpu::CommandEncoder& encoder);
 
 // ═══ IMPL:
-// rows deref gol_state_(own) + mood/world/time + tile faces via MachineCtx;
+// rows deref gol_state_(own) + world/time + tile faces via MachineCtx;
 // score-verbs deref gpu/renderer/device/time via GolDeps (S5 device).
 // COHORT: after renderer (Renderer) + entity_pipeline/spawn_engine (funnels,
 // footprints) + patch_system (find_patch) + tile_world (faces) + state.
@@ -493,15 +491,19 @@ void dispatch_zone_evolve(GoLState& gs, GolDeps* c, wgpu::CommandEncoder& encode
 
 inline bool select_gol_for_patch(GoLState& gs, MachineCtx* c,
     int32_t gx, int32_t gz, GoLSelection& sel) {
-    // THE COMPOSITION LAW: the shared stack — mood (explicit veto)
+    // THE COMPOSITION LAW: the shared stack — the world's gate
     // → global → tile (F3);
     // clamp [0,1]. The per-lattice-node roll stays below (its own seed
     // domain, cpu_lattice_node_seed — a consumer fact, not the law's).
-    auto composed = compose_spawn_chance(c, gx, gz, PopFamily::GOL,
-        GoLZoneSpawnConfig::SPAWN_CHANCE, mood_mult_for(PopFamily::GOL),
-        /*veto_on_zero_mood=*/true,
-        SpawnClamp::RANGE01);
-    if (composed.vetoed) return false;
+    // THE VETO ARM LEFT WITH THE MOODS (ONE_WORLD-II U3). GoL was the one
+    // caller that asked for veto_on_zero_mood — a hard refusal when the
+    // live mood's multiplier was 0, where every other family multiplied
+    // through. Nothing can be 0 in the stack now that the mood term is
+    // gone, so the flag, the second return channel it fed and this early
+    // return all go. The kept row's GoL multiplier was 1.0f, so the arm
+    // never fired in the world this campaign keeps.
+    const float composed = compose_spawn_chance(c, gx, gz, PopFamily::GOL,
+        GoLZoneSpawnConfig::SPAWN_CHANCE, SpawnClamp::RANGE01);
 
     // Scan lattice nodes overlapping this patch
     float wx0 = gx * Dim::PATCH_EXTENT;
@@ -538,7 +540,7 @@ inline bool select_gol_for_patch(GoLState& gs, MachineCtx* c,
             // Spawn roll (the chance arrived composed — loop-invariant)
             uint32_t seed = cpu_lattice_node_seed(c->world_state_.active_seed, nx, nz, GoLZoneProp::SEED_BAND);
             float roll = cpu_hash_f(seed, GoLZoneProp::SPAWN_ROLL);
-            if (roll >= composed.chance) continue;
+            if (roll >= composed) continue;
 
             // Find free slot
             uint32_t slot = UINT32_MAX;
@@ -845,7 +847,7 @@ inline void flush_zone_derive_requests(GoLState& gs, GolDeps* c, wgpu::Queue& qu
 
 inline bool dispatch_select_gol(MachineCtx* self,
     int32_t gx, int32_t gz, EntityQueueEntry& e) {
-    if (!self->gol_state_.mood_allowed) { return false; }   // mood gate — no new zones
+    if (!self->gol_state_.zones_allowed) { return false; }   // the world's gate — no new zones
     return select_gol_for_patch(self->gol_state_, self, gx, gz, e.gol);
 }
 
@@ -866,7 +868,7 @@ inline void dispatch_commit_gol(MachineCtx* self,
     auto* host = find_patch(self, pe.gol.host_gx, pe.gol.host_gz);
     if (host) {
         commit_gol(self->gol_state_, self, pe.gol, pe.gx, pe.gz, queue);
-        host->record_entity(PopFamily::GOL, pe.gol.slot);
+        // the patch-death registry's write half left at ONE_SURFACE-I U3
     }
     else {
         // Host patch gone — release by owner (the patch key can never match).
@@ -877,13 +879,6 @@ inline void dispatch_commit_gol(MachineCtx* self,
 
 // ═══ THE EVICTOR ══════════════════════════════════════════════════
 
-inline void evict_gol(MachineCtx* self,
-    uint32_t slot, wgpu::Queue& queue) {
-    unregister_footprint_for(self, PopFamily::GOL, slot);   // the hand that claims is the hand that frees
-    self->gpuState_.deactivate_zone_slot(queue, slot);
-    self->gol_state_.zones[slot].active = false;
-    self->gol_state_.zone_count--;
-}
 
 
 // ─── Teardown (owner verb) ────────────────────────────────────────

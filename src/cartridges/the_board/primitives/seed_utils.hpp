@@ -83,15 +83,12 @@ inline float cpu_sample_gaussian(uint32_t seed, uint32_t property, float mean, f
 // float-epsilon miss. Weights are the caller's contract (normalized
 // or authored-to-sum-1); the walk does not normalize.
 //
-// Q4 (fork DOCUMENTED, not migrated): the two THEME selectors
-// (select_theme_at_node, evaluate_theme_envelope) deliberately do NOT
-// route through here. select_theme_at_node NORMALIZES inline (divides by
-// the live weight-sum per step — this walk takes pre-normalized weights),
-// and evaluate_theme_envelope is a STATEFUL SEQUENCED sampler (its per-
-// patch call sequence mutating cooldowns/elapsed IS the biography). A
-// different shape, not one abstraction twice — merging would touch a draw
-// path for a 2-site payoff with only rig-level bit-catch. See the
-// reciprocal note at select_theme_at_node (population_themes.hpp).
+// Q4's documented fork is closed by subtraction (ONE_WORLD-II U3). Two
+// THEME selectors deliberately did not route through this walk — one
+// normalising inline, one a stateful sequenced sampler whose call order
+// was the biography — and the ruling was to document the fork rather than
+// merge it. The theme engine is gone, so there is no fork: this walk is
+// the tree's one weighted selector again.
 inline uint32_t select_weighted(float roll, const float* weights,
                                 uint32_t count) {
     float cumul = 0.0f;
@@ -108,22 +105,6 @@ inline uint32_t select_tier(uint32_t seed, uint32_t tier_prop,
 }
 
 
-// Precompute catenary parameter 'a' from (half_span, rise).
-// 50-iteration bisection. It was the arch's; the arch left at
-// ONE_WORLD-I U3 and the vault ceiling (mood.hpp) is the caller now.
-// Census home: pure math with four cross-module
-// consumers (spawn_engine, entity_pipeline, entities, mood) — the
-// pure-math leaf is the shared header.
-inline float solve_catenary_a(float half_span, float target_h) {
-    float a_lo = 0.1f, a_hi = std::max(half_span * 10.0f, 5.0f);
-    float a = half_span;
-    for (int iter = 0; iter < 50; iter++) {
-        a = 0.5f * (a_lo + a_hi);
-        float val = a * (std::cosh(half_span / a) - 1.0f);
-        if (val > target_h) a_lo = a; else a_hi = a;
-    }
-    return a;
-}
 
 } // namespace the_board
 } // namespace t7

@@ -47,24 +47,22 @@
 
 #include "render/render_cartridge.hpp"
 #include "core/input_event.hpp"
-#include "core/boot_params.hpp"                                    // DOMESDAY_1 B9 — ?seed= / ?mood= boot overrides (ctor, the one authoring site)
+#include "core/boot_params.hpp"                                    // DOMESDAY_1 B9 — the ?seed= boot override (ctor, the one authoring site)
 #include "core/instruments.hpp"                                    // THE INSTRUMENTS DIAL: INSTRUMENTS.frame_meter / .periodic_census gate the recurring self-measurement (compile-time, T7_INSTRUMENTS; default off)
 #include "cartridges/the_board/contracts/roster.hpp"
 #include "cartridges/the_board/demos/demo.hpp"             // THE SELECTED SENTENCE: DEMO + ROSTER (compile-time, INCUBATE_DEMO; default full)
 #include "cartridges/the_board/primitives/seed_utils.hpp"           // hash/gaussian/tier-select helpers (pure-math leaf)
 #include "cartridges/the_board/contracts/ground_architecture.hpp"  // ground contributor/policy tables + compile-time DAG checks
 #include "cartridges/the_board/contracts/entity_types.hpp"         // THE CONTRACT HOME: pipeline contracts + boundary DTOs + queue unions + dispatch row/table decl
-#include "cartridges/the_board/contracts/indoor_module.hpp"        // THE INDOOR MODULE: mood's insert on the spawn chain — one policy table + three dials; consumers ride the cohort (grounded/floaters/ribbon/the machine)
 #include "cartridges/the_board/contracts/spawn_services.hpp"      // THE MACHINE'S DECL TIER: spawn/pipeline service decls + boundary DTOs + MIN_SEPARATION (bodies ride the merged machine headers at the cohort tail)
-#include "cartridges/the_board/contracts/mood_constants.hpp"       // MOOD_COUNT + the Mood IDs
-#include "cartridges/the_board/contracts/spine_state.hpp"          // TimeState + PlayerState + InputState + MoodState/MoodProfile/MOOD_TABLE (spine organ TYPES; instances stay at the root)
+#include "cartridges/the_board/contracts/spine_state.hpp"          // TimeState + PlayerState + InputState + SkyState (spine organ TYPES; instances stay at the root)
 #include "cartridges/the_board/contracts/point.hpp"                // THE POINT: the parent of the player system — host enum + the bubble decl; instance at the root
 #include "cartridges/the_board/contracts/control_panel.hpp"        // THE PANEL: the field's dials + the beacon rests — one home, every room
 #include "cartridges/the_board/contracts/driver_surface.hpp"       // THE DRIVERS' ROOM: rests and gains at the seams; phase_motion_drivers reads DRIVER_LIVE.fog
 #include "cartridges/the_board/contracts/floaters.hpp"   // floater TYPES (ActiveSphere/ActiveCube), file scope
 #include "cartridges/the_board/realization/state.hpp"
 #include "console/organ_registry.hpp"   // the compiled dial registry + its C ABI (needs the home types above)
-#include "cartridges/the_board/surface/population_themes.hpp"  // S2: THEMES + ThemeEnvelope + ThemesState — MERGED single file
+#include "cartridges/the_board/surface/population_themes.hpp"  // THE POPULATION PANEL: GLOBAL_ENTITY_DENSITY, and the spawn dials to come (ONE_WORLD-II U3)
 #include "cartridges/the_board/contracts/surface_services.hpp"  // THE SURFACE'S DECL TIER: WorldState + the patch registry + budgets/visibility + PatchSystemState + the surface service decls (bodies ride surface/patch_system.hpp at the cohort tail)
 #include "cartridges/the_board/surface/tile_world.hpp"          // S2: archetypes + tokens + TileState/cache + TileWorldDeps + impl — MERGED single file; after patch_system for WorldState/Dim::PATCH_EXTENT
 #include "cartridges/the_board/bodies/grounded.hpp"             // grounded-family vocabulary + EntitiesState + impl — MERGED; after entity_pipeline for generic_*
@@ -79,8 +77,8 @@
 #include "coupling/visual_canvas.hpp"
 #include "cartridges/the_board/bodies/ribbon.hpp"               // RibbonState + RibbonDeps + impl — MERGED; after visual_canvas for the coupling face; after agents/cubes/spheres for the FIELD_2 mirror deps
 #include "cartridges/the_board/direction/input.hpp"             // KeyState/MouseState + InputDeps + impl — MERGED; after ribbon for RibbonState (the sky fixture); InputState graduated to spine_state
-#include "cartridges/the_board/realization/render_passes.hpp"   // the pass/dispatch bodies on THE MACHINE FACE + light-VP helpers — MERGED; before mood (compute_spot_light_vp)
-#include "cartridges/the_board/direction/mood.hpp"              // MoodDeps + the atmosphere vocabulary + impl — MERGED; after ribbon/input (fan targets), before the machine natives (they call its derivers); MoodState/MoodProfile/MOOD_TABLE graduated to spine_state
+#include "cartridges/the_board/realization/render_passes.hpp"   // the pass/dispatch bodies on THE MACHINE FACE + light-VP helpers — MERGED; before sky
+#include "cartridges/the_board/direction/sky.hpp"              // SkyDeps + the draw + the world's birth + impl — MERGED; after ribbon/input (fan targets), before the machine natives (they call its derivers); SkyState graduated to spine_state
 #include "cartridges/the_board/machine/spawn_engine.hpp"        // S3: the spawn engine — footprint registry, the composition law, mesh-param rebuilds, the census dumps — MERGED; cohort tail
 #include "cartridges/the_board/machine/entity_pipeline.hpp"     // S3: the three-phase verbs + the welded four — MERGED; after spawn_engine (services) + entities (vocab)
 #include "cartridges/the_board/surface/patch_system.hpp"        // S2: the active-patch machine's bodies on THE MACHINE FACE — MERGED; decl tier in contracts/surface_services.hpp
@@ -202,7 +200,7 @@ namespace t7 {
             OrbsState orbs_state_;
 
             //   gol_state_ — GoLState: the zone slots + counts +
-            //     mood gate + derive-request queue.
+            //     the world's gate + derive-request queue.
             GoLState gol_state_;
 
             //   agent_state_ — AgentState: the 32-slot CPU mirror +
@@ -211,10 +209,6 @@ namespace t7 {
 
 
             RibbonState ribbon_state_;
-
-            //   themes_state_ — ThemesState: the theme
-            //     envelope machine + the per-patch selection.
-            ThemesState themes_state_;
 
             //   tile_world_state_ — TileWorldState: the tile
             //     cache + the terrain tokens (what the terrain remembers).
@@ -257,19 +251,20 @@ namespace t7 {
             TargetBinding checker_mean_dst_{};
             TargetBinding checker_var_dst_{};
 
-            // Sun + atmosphere — authored solely by apply_mood, at boot and at
-            // every transition. No boot literals: MOOD_TABLE is the one source.
+            // Sun + atmosphere — authored solely by stage_world_birth, at boot
+            // and at every rebirth. No boot literals: ATMOS_LIVE is the one
+            // source.
             float sunDirection_[3] = {};
             float sunColor_[3] = {};
             float clearColor_[3] = {};
 
-            // ═══ MOOD STATE ═════════════════════════════════════════════
+            // ═══ SKY STATE ══════════════════════════════════════════════
             //
-            // Struct MoodState lives in contracts/spine_state.hpp.
-            // The INSTANCE stays spine-resident because
-            // mood-applied values feed every other subsystem
+            // Struct SkyState lives in contracts/spine_state.hpp.
+            // The INSTANCE stays spine-resident because the values the
+            // world's birth draws feed every other subsystem
             // (SEAM[spine:transitions], K4).
-            MoodState mood_state_;
+            SkyState sky_state_;
 
             // ═══ PLAYER STATE ════════════════════════════════════════════
             //
@@ -315,20 +310,19 @@ namespace t7 {
             GolDeps       gol_deps_;
             RibbonDeps    ribbon_deps_;
             InputDeps     input_deps_;
-            MoodDeps      mood_deps_;
+            SkyDeps      sky_deps_;
 
-            GPUSpotLightArray cpuSpotLights_{};  // count=0 disables (outdoor)
 
             // SEAM[spine:transitions] (K4, Jean, 2026-07-11): the transition
             //   machine and its working members were DECLARED SPINE-OWNED
             //   ORCHESTRATION per the §2 residency law, the same legitimacy
             //   class as the P5 readbacks. ONE_WORLD-I took the machine and
             //   then the doors; the ruling stands over what remains —
-            //   mood_state_ — and over rebirth_world, the machine's one
-            //   survivor. Mood (direction/mood.hpp) supplies vocabulary +
-            //   appliers + three doors and owns NO instance; struct MoodState's
-            //   TYPE lives in contracts/spine_state.hpp. Constitution §2
-            //   carries the K4 line.
+            //   sky_state_ — and over rebirth_world, the machine's one
+            //   survivor. The sky (direction/sky.hpp) supplies the draw, the
+            //   applier and the birth sequence and owns NO instance; struct
+            //   SkyState's TYPE lives in contracts/spine_state.hpp.
+            //   Constitution §2 carries the K4 line.
             // SEAM[spine:portal-system] CLOSED at ONE_WORLD-I U2 — its whole
             //   subject (the portal arrays, the back-portal anchor, the
             //   force-spawn channel) left with the doors.
@@ -428,7 +422,7 @@ namespace t7 {
             //   mesh adapters are shared (inlined beside the table,
             //   post-class).
             // SEAM[spine:family-dispatch] anchor for cross-file references —
-            //   eviction routes through FAMILY_DISPATCH[f].evict_slot to the
+            //   eviction routed through FAMILY_DISPATCH[f].evict_slot to the
             //   owner-side evict_<family> functions.
             //
             // The row type (struct FamilyDispatch) and the queue-entry
@@ -466,21 +460,21 @@ namespace t7 {
             // ═══ PUBLIC: CARTRIDGE LIFECYCLE ═════════════════════════════
 
             Cartridge()
-                : machine_ctx_{ world_state_, tile_world_state_, themes_state_,
-                                mood_state_, patch_system_state_, spawn_engine_state_,
+                : machine_ctx_{ world_state_, tile_world_state_,
+                                sky_state_, patch_system_state_, spawn_engine_state_,
                                 entities_state_, sphere_state_, cube_behaviors_state_,
                                 ribbon_state_, gol_state_,
                                 time_state_, player_, point_, gpuState_, renderer_ }
-                , tile_world_deps_{ world_state_, mood_state_, gpuState_ }
+                , tile_world_deps_{ world_state_, gpuState_ }
                 , sphere_deps_{ time_state_ }
                 , pawn_deps_{ player_, time_state_, gpuState_, renderer_ }
                 , orbs_deps_{ gpuState_, renderer_, player_, time_state_, world_state_ }
                 , agents_deps_{ gpuState_, player_, point_, world_state_, time_state_ }
-                , cube_deps_{ gpuState_, time_state_, player_, point_, mood_state_ }
+                , cube_deps_{ gpuState_, time_state_, player_, point_ }
                 , gol_deps_{ gpuState_, renderer_, device_, time_state_ }
-                , ribbon_deps_{ gpuState_, time_state_, tile_world_state_, player_, point_, inputState_, world_state_, mood_state_, visual_canvas_, ribbon_amp_lat_dst_, ribbon_amp_vert_dst_, ribbon_tint_stim_dst_, ribbon_tint_mix_dst_ }
+                , ribbon_deps_{ gpuState_, time_state_, tile_world_state_, player_, point_, inputState_, world_state_, sky_state_, visual_canvas_, ribbon_amp_lat_dst_, ribbon_amp_vert_dst_, ribbon_tint_stim_dst_, ribbon_tint_mix_dst_ }
                 , input_deps_{ inputState_, keys_, mouse_, touch_, player_, world_state_, ribbon_state_, gpuState_, device_, point_, mount_, camera_ }
-                , mood_deps_{ mood_state_, world_state_, gpuState_, renderer_, gol_state_, entities_state_, sunDirection_, sunColor_, clearColor_, cpuSpotLights_ } {
+                , sky_deps_{ sky_state_, world_state_, gpuState_, gol_state_, sunDirection_, sunColor_, clearColor_ } {
                 // THE ROOT AUTHORS THE BOOT VALUES (the demo sentence lands
                 // here, not via in-struct defaults — no include-order cable).
                 // DRAW_0: the seed is DRAWN, not authored — boot_seed()
@@ -501,26 +495,12 @@ namespace t7 {
                 // is what keeps a randomized world reportable.
                 std::cout << "[World] Boot seed=" << world_state_.active_seed
                           << " (" << seed_origin << ")\n";
-                mood_state_.active = DEMO.boot_mood;
-                // B9 — a mood present at boot (?mood= / --mood=) forces the
-                // boot mood at this one authoring site; an out-of-range
-                // index is refused OUT LOUD (P6 — a switch that half-fired
-                // must not look fired).
-                if (boot_params().has_mood) {
-                    if (boot_params().mood < MOOD_COUNT) {
-                        mood_state_.active = boot_params().mood;
-                    } else {
-                        std::cout << "[Params] mood=" << boot_params().mood
-                                  << " out of range (MOOD_COUNT="
-                                  << MOOD_COUNT << ") — ignored\n";
-                    }
-                }
-
 
                 // BOOT IS A BIRTH FROM NOTHING — IN FACT (ATRIUM_0).
-                // The seed and the mood are settled above; the world's other
-                // two facts were in-struct defaults until now, right only
-                // while the boot mood was open. Boot walks the L10 door and
+                // The SEED is settled above and is now the whole of what a
+                // world is chosen by: the mood that used to be settled
+                // beside it, and the override that forced it, both left at
+                // ONE_WORLD-II U2. Boot walks the L10 door and
                 // nothing else: there is no world behind it to tear down,
                 // which is exactly what rebirth_world's body is for.
                 become_world(world_state_.active_seed);
@@ -626,20 +606,20 @@ namespace t7 {
                 // only as in-struct defaults that HAPPENED to match.
                 {
                     wgpu::Queue q = device_.GetQueue();
-                    reset_surface(&machine_ctx_, q, tile_world_state_, themes_state_);
+                    reset_surface(&machine_ctx_, q, tile_world_state_);
                 }
 
                 // ═══ MOVEMENT: BOOT — PER-PIECE BOOT VERBS (part one) ═══════
                 // Order is today's, preserved byte-for-byte (PRIME INVARIANT);
                 // one conductor call per piece, presence constexpr-gated.
                 // BOOT IS A TRANSITION FROM NOTHING. The world has one way to come
-                // into being; the only difference between boot and a mood change is
-                // what came before. apply_mood is that one way — it subsumes the
-                // frustum-cull row, the orb one-shot, and every atmospheric value
-                // boot used to hand-copy from MOOD_TABLE[0].
+                // into being; the only difference between boot and a rebirth is
+                // what came before. stage_world_birth is that one way — it subsumes
+                // the frustum-cull row, the orb one-shot, and every atmospheric
+                // value boot used to hand-copy from a table row.
                 {
                     wgpu::Queue q = device_.GetQueue();
-                    apply_mood(&mood_deps_, mood_state_.active, q,
+                    stage_world_birth(&sky_deps_, q,
                         machine_ctx_,
                         orbs_state_, orbs_deps_,
                         pawn_state_);
@@ -668,10 +648,23 @@ namespace t7 {
                     // ROSTER-GATE wanderers (c) — boot population (agent slots
                     // 1+). Slot 0 (the pawn, seeded just above) is untouched.
                     if constexpr (ROSTER.wanderers)
-                        spawn_population_for_mood(agent_state_, &agents_deps_, mood_state_.active, world_state_.active_seed,
+                        spawn_population(agent_state_, &agents_deps_, world_state_.active_seed,
                             Idle::PAWN_POS_X, Idle::PAWN_POS_Z, q);
                     dump_agent_census(agent_state_, &agents_deps_, "boot");
                     dump_entity_census(&machine_ctx_, "boot");
+                }
+
+                // ═══ MOVEMENT: BOOT — S2 THE WORLD IS BUILT ═════════════════
+                // ONE_SURFACE-I U1. The grid is allocated, spawned, baked,
+                // banded and uploaded here, once, before the first frame —
+                // the same door rebirth_world walks. It stands AFTER the
+                // "boot" entity census on purpose: that census reads zero by
+                // construction and says so, and a world built ahead of it
+                // would have made it a lie. The "born" census the builder
+                // prints is the first count of a world that exists.
+                {
+                    wgpu::Queue q = device_.GetQueue();
+                    build_world(&machine_ctx_, device_, q, tile_world_state_, tile_world_deps_);
                 }
 
                 auto t3 = std::chrono::high_resolution_clock::now();
@@ -694,10 +687,9 @@ namespace t7 {
                 // stays true.
                 gpuState_.report_gpu_budget();
                 // ORGAN — the homes exist by now, so bind them; the ABI is
-                // inert until this runs. The mood organ is BORROWED, so the
-                // panel cannot name a state the program has left.
+                // inert until this runs. The point is BORROWED, so the
+                // panel cannot name a host the program has left.
                 t7::organ::bind_home(&gpuState_);
-                t7::organ::bind_mood(&mood_state_);
                 t7::organ::bind_point(&point_);   // RIBBON_1 — the panel's host row
 
                 if constexpr (!ROSTER.all_enabled()) {
@@ -710,16 +702,14 @@ namespace t7 {
                     mark(ROSTER.ribbon, "ribbon");       mark(ROSTER.cube, "cube");
                     mark(ROSTER.gol, "gol");
                     mark(ROSTER.pawn_aura, "pawn_aura"); mark(ROSTER.orbs, "orbs");
-                    mark(ROSTER.spot_lights, "spot_lights");
-                    mark(ROSTER.indoor_shell, "indoor_shell");
                     mark(ROSTER.wanderers, "wanderers");
-                    // Buffer creation: only indoor_shell (SEP) skips in v0;
-                    // pipelines gate per piece (gate a').
-                    const char* skipped = ROSTER.indoor_shell
-                        ? "(none — every disabled piece is SH-shared, created-pristine)"
-                        : "indoor_shell (shell VB/IB)";
+                    // EVERY REMAINING PIECE IS SH-SHARED (ONE_WORLD-II U4).
+                    // The shell was the roster's ONE SEPARABLE piece — the
+                    // only bit whose buffers were skipped rather than created
+                    // pristine — so the ternary that named it has no live
+                    // branch and the classification is empty.
                     std::cout << "[ROSTER] pieces disabled: " << off
-                        << " | buffer creations skipped: " << skipped
+                        << " | buffer creations skipped: (none — every disabled piece is SH-shared, created-pristine)" 
                         << " | pipelines skipped: " << Renderer::pipelines_skipped() << "\n";
                 }
 
@@ -856,7 +846,7 @@ namespace t7 {
                 ClearInputDeltas, COUNT
             };
             enum class RPhase : uint32_t {
-                WitnessHarvest, StreamPatches, RespawnAgents,
+                WitnessHarvest, SurfaceVisibility, RespawnAgents,
                 CensusDumps, RibbonTick, EntityMeshGen, UploadLights, LiveCardWrite, DispatchCompute,
                 WitnessCapture, GolDeriveFlush, GolZoneCompute, PawnAura, OrbSky,
                 FrustumCull, ShadowPass, MainPass,
@@ -1018,11 +1008,11 @@ namespace t7 {
                 auto& signal = c.signal;
                 visual_canvas_.tick(signal);
                 // ORGAN — the drivers' room sits at this seam:
-                // out = rest + gain·deviation. The REST is the mood's,
-                // drawn per world into mood_state_.fog_rest_* by
-                // apply_mood_lighting; the DEVIATION is the canvas's,
+                // out = rest + gain·deviation. The REST is ATMOS_LIVE's,
+                // drawn per world into sky_state_.fog_rest_* by
+                // stage_sky; the DEVIATION is the canvas's,
                 // measured from its anchor row. Gain 1 is the coupling
-                // verbatim, gain 0 is the mood's own fog, and with no
+                // verbatim, gain 0 is the bank's own fog, and with no
                 // bindings the rest alone speaks — so the dial works
                 // headless too.
                 //
@@ -1031,7 +1021,7 @@ namespace t7 {
                 // and the silent case costs no dirty.
                 {
                     const auto& drv = DRIVER_LIVE.fog;
-                    const auto& ms  = mood_state_;
+                    const auto& ms  = sky_state_;
                     if (fog_density_dst_.valid && fog_color_dst_.valid) {
                         const VisualParams& fp = visual_canvas_.params();
                         gpuState_.set_fog(
@@ -1170,10 +1160,11 @@ namespace t7 {
                 else {
                     gpuState_.set_world_bounds(0.0f, 0.0f, 0.0f, 0.0f);
                 }
-                // THE VEIL (ruled): OFF in finite/indoor — walls define the
-                // boundary there, not fog (the same law that makes all patches
-                // visible in finite mode). Dirty-gated; rides the U8 drain.
-                gpuState_.set_veil_strength(world_state_.finite_mode ? 0.0f : 1.0f);
+                // THE VEIL'S STRENGTH was staged here, 0 in a finite world.
+                // It left at ONE_SURFACE-I U4 with the icing it scaled — the
+                // fold table found every reader of it multiplying by zero.
+                // The RING is untouched and is not the veil's: it is the draw
+                // authority, and it still culls inside the wall.
             }
 
             // L10 — A WORLD BECOMES THE WORLD THROUGH ONE DOOR. Boot walks
@@ -1181,16 +1172,23 @@ namespace t7 {
             // seed. The three facts ARE the world's identity: which seed
             // drew it, whether it is walled, how far the walls stand
             // (ATRIUM_0: finite_mode and finite_radius were in-struct
-            // defaults at boot, correct by luck while the boot mood was
-            // open). The radius is DERIVED from the seed and the live
-            // mood's shape, never authored: DemoConfig does not grow, and
-            // its parked D2 axis stays parked. Boot is a birth from
-            // nothing in fact, not in doctrine.
+            // defaults at boot, correct by luck while the boot world was
+            // open). The radius is DERIVED from the seed within the pin's
+            // dials, never authored: DemoConfig does not grow, and its
+            // parked D2 axis stays parked. Boot is a birth from nothing
+            // in fact, not in doctrine.
             void become_world(uint32_t seed) {
-                const auto& m = mood_def(mood_state_.active);
                 world_state_.active_seed   = seed;
-                world_state_.finite_mode   = m.shape.finite;
-                world_state_.finite_radius = derive_finite_radius(seed, m);
+                world_state_.finite_mode   = WORLD_FINITE;
+                world_state_.finite_radius = derive_finite_radius(seed);
+                // SMALL AND LOUD (ONE_WORLD-II U5). The pin is one
+                // constant and one line: a world that is bounded says so,
+                // once, at the door both births walk. The side is the
+                // patch count across the box — 2r+1 — which is the number
+                // a walk can actually count.
+                const uint32_t side = 2u * world_state_.finite_radius + 1u;
+                std::cout << "[World] Born FINITE radius=" << world_state_.finite_radius
+                          << " (" << side << "x" << side << " patches)\n";
             }
 
             // THE REBIRTH (ONE_WORLD-I — graduated whole from the transition
@@ -1256,7 +1254,7 @@ namespace t7 {
             // upload_zone_config_header and deactivate_zone_slot both run
             // per-frame from gol_zones.
             // NOT LATENT, though this body calls them: become_world,
-            // reset_surface, apply_mood, spawn_population_for_mood,
+            // reset_surface, stage_world_birth, spawn_population,
             // dump_agent_census, dump_entity_census, set_world_seed,
             // set_possessed_slot — every one has a live caller at boot or
             // in the frame.
@@ -1272,7 +1270,7 @@ namespace t7 {
             // attic archaeology (L30).
             //
             // MAINTAINED, NOT FROZEN — latency is not exemption. Later
-            // campaigns treat this body as a first-class reader: its mood
+            // campaigns treat this body as a first-class reader: its bank
             // reads rewire like any live caller's, its narration rides
             // probate, twin-room discipline applies. A latent verb rots
             // if a campaign walks past it.
@@ -1317,7 +1315,7 @@ namespace t7 {
                 // owner-verb order is free; the new gates eliminate
                 // only zeros-over-pristine GPU writes (disclosed at
                 // the ladder).
-                reset_surface(&machine_ctx_, queue, tile_world_state_, themes_state_);
+                reset_surface(&machine_ctx_, queue, tile_world_state_);
                 teardown_entities(&machine_ctx_, queue);
                 if constexpr (ROSTER.gol)      // ROSTER-GATE gol (c) — teardown clear skipped when disabled (organ pristine)
                     teardown_gol(gol_state_, &gol_deps_, queue);
@@ -1329,7 +1327,7 @@ namespace t7 {
                     clear_cubes(cube_behaviors_state_, gpuState_, queue);
                 if constexpr (ROSTER.pawn_aura)  // ROSTER-GATE pawn_aura (c) — teardown clear skipped when disabled (no aura to clear)
                     teardown_pawn_aura(pawn_state_);
-                // Sky orbs: apply_mood re-enables + re-seeds as needed
+                // Sky orbs: stage_world_birth re-enables + re-seeds as needed
                 if constexpr (ROSTER.orbs)  // ROSTER-GATE orbs (c) — teardown one-shot skipped when disabled
                     teardown_orbs(orbs_state_, &orbs_deps_);
 
@@ -1372,16 +1370,16 @@ namespace t7 {
                     preserved_color_r, preserved_color_g, preserved_color_b,
                     preserved_skin);
                 gpuState_.set_world_seed(world_state_.active_seed);
-                // THE MOOD IS THE WORLD'S, AND IT DOES NOT MOVE. The machine
-                // carried a destination mood; a rebirth re-draws the SAME
-                // mood under a new seed, so the live id is the argument.
-                apply_mood(&mood_deps_, mood_state_.active, queue,
+                // THE SKY IS THE WORLD'S, AND IT IS DRAWN AGAIN. The machine
+                // carried a destination mood once; there is one world now, so
+                // a rebirth re-draws the SAME bank under a new seed.
+                stage_world_birth(&sky_deps_, queue,
                     machine_ctx_,
                     orbs_state_, orbs_deps_,
                     pawn_state_);
                 // ROSTER-GATE wanderers (c) — rebirth population (slots 1+); slot 0 preserved above.
                 if constexpr (ROSTER.wanderers)
-                    spawn_population_for_mood(agent_state_, &agents_deps_, mood_state_.active, world_state_.active_seed,
+                    spawn_population(agent_state_, &agents_deps_, world_state_.active_seed,
                         Idle::PAWN_POS_X, Idle::PAWN_POS_Z, queue);
                 dump_agent_census(agent_state_, &agents_deps_, "rebirth");
                 // Fires AFTER reset_surface and every teardown verb above,
@@ -1391,10 +1389,19 @@ namespace t7 {
                 dump_entity_census(&machine_ctx_, "rebirth");
                 // ROSTER-GATE ribbon (c) — finite-mode release, owner
                 // verb. Zero effect when ribbon is off (active_count
-                // stays 0). ORDER (O-3): after apply_mood set
-                // mood_state_.active.
+                // stays 0). ORDER (O-3): after the world's birth has
+                // staged the sky.
                 if constexpr (ROSTER.ribbon)
                     release_finite_ribbons(ribbon_state_, &ribbon_deps_, queue);
+
+                // ── THE WORLD IS BUILT (ONE_SURFACE-I U1) ────────────────
+                // The same door boot walks, and the last thing a rebirth
+                // does before it announces itself. It stands AFTER the
+                // "rebirth" entity census for the reason that census gives:
+                // both columns must read 0 there, which is a teardown-
+                // completeness assertion — a world rebuilt ahead of it would
+                // be asserting nothing.
+                build_world(&machine_ctx_, device_, queue, tile_world_state_, tile_world_deps_);
 
                 uint32_t side = world_state_.finite_mode ? 2 * world_state_.finite_radius + 1 : 0;
                 std::cout << "[World] Rebirth complete, seed=" << world_state_.active_seed
@@ -1575,7 +1582,7 @@ namespace t7 {
                 //
                 // THE BASE IS Idle::PAWN_HEADING, not point_.heading: the
                 // arrival row's azimuth is an offset on the ARRIVAL gaze, a
-                // constant, and apply_mood_arrival adds it to exactly this.
+                // constant, and the arrival applier added it to exactly this.
                 // A printed offset against the live heading would be a
                 // different number from the one the panel takes, which is
                 // the one way this instrument could lie.
@@ -1605,13 +1612,24 @@ namespace t7 {
                 }
             }
 
-            // R3 — STREAM PATCHES (S2 surface lifecycle, algo). The streaming
-            // conductor; carries the S3-trigger seam (SEAM[patch:spawn-trigger]
-            // — select/place/commit fire from the stream's own cadence).
-            void phase_stream_patches(RenderCtx& c) {
-                auto& encoder = c.encoder;
+            // R3 — SURFACE VISIBILITY (S2, algo). What the conductor did that
+            // was never streaming's: BAND the draw set as the point moves, and
+            // CULL the entity draw set by distance. Both are functions of a
+            // moving POINT; the conductor's other work was a function of a
+            // moving WINDOW, and a finite window does not move
+            // (ONE_SURFACE-I U2).
+            //
+            // IT TOOK NO ENCODER. Every line here is CPU plus a WriteBuffer,
+            // which is why the row is Driver::Algo with no GPU pass and its
+            // meter slot is never armed — phase_respawn_agents' precedent.
+            void phase_surface_visibility(RenderCtx& c) {
                 auto& queue = c.queue;
-                stream_patches(&machine_ctx_, encoder, queue, tile_world_state_, themes_state_, tile_world_deps_, mood_deps_);
+                band_patches(&machine_ctx_, queue);
+                // `update_entity_draw_visibility` stood beside it, filling
+                // `entities_culled`. It has returned a constant 0 since the
+                // ARCH loop left at ONE_WORLD-I U3 — the only family whose
+                // mesh could be zeroed at range — and nothing read the
+                // field. Both left at ONE_SURFACE-I U6.
             }
 
             // R4 — RESPAWN AGENTS (S3, algo; RC-1: after stream). Refills slots
@@ -1620,7 +1638,7 @@ namespace t7 {
             // HARVEST — no data edge. ROSTER-GATE wanderers — call site.
             void phase_respawn_agents(RenderCtx& c) {
                 auto& queue = c.queue;
-                respawn_evicted_agents(agent_state_, &agents_deps_, mood_state_.active, world_state_.active_seed, queue);
+                respawn_evicted_agents(agent_state_, &agents_deps_, world_state_.active_seed, queue);
             }
 
             // R6 — CENSUS DUMPS (wall-clock interval, diagnostic). GoL residue
@@ -1653,7 +1671,7 @@ namespace t7 {
                 // blocking console write on the render thread, so ~50 lines
                 // every 30 s IS the long frame every 30 s. Off, the row above
                 // (the residue proof, a correctness witness) still runs and
-                // this returns. The "boot" and "mood-transition" dumps are
+                // this returns. The "boot" and "rebirth" dumps are
                 // NOT on the dial: those are P6 transition witnesses, and
                 // their frames are already long.
                 if constexpr (!INSTRUMENTS.periodic_census) return;
@@ -1987,7 +2005,7 @@ namespace t7 {
             // this row left with the doors (ONE_WORLD-I U2).
             void phase_upload_lights(RenderCtx& c) {
                 auto& queue = c.queue;
-                upload_lights(&mood_deps_, queue);
+                upload_lights(&sky_deps_, queue);
             }
 
             // LIVE CARD WRITE (GROUND_CARD_1; between R9 and R10). The per-frame
@@ -2182,11 +2200,20 @@ namespace t7 {
             // P6 witness read the SAME function, so the log can never
             // disagree with the plan. Each active zone's world AABB
             // (persisted at commit_gol) inflated by one patch, tested
-            // against the disc of the LIVE lod0_radius around the point —
-            // the same radius patch_system.hpp bands patches by.
+            // against the disc of the LIVE RING around the point.
+            //
+            // THE YARDSTICK WIDENED AND THAT IS THE SAFE DIRECTION
+            // (ONE_SURFACE-I U5). It was `lod0_radius` — 175 — because the
+            // curtains it switched lived in the LOD0 band, and the band and
+            // the flag read one value so they could not disagree. There is
+            // no band; the surviving authority is `veil_ring`, 342. A WIDER
+            // disc can only find MORE zones in scope, so it can only choose
+            // the zoned tail MORE often — and the zoned tail is the
+            // conservative arm, the one that seals seams. A widening cannot
+            // open one.
             uint32_t zone_rects_in_core() const {
                 const float px = point_.x, pz = point_.z;
-                const float r  = gpuState_.lod0_radius();
+                const float r  = gpuState_.veil_ring();
                 uint32_t n = 0;
                 for (uint32_t i = 0; i < Dim::MAX_GOL_ZONES; i++) {
                     const auto& z = gol_state_.zones[i];
@@ -2237,10 +2264,9 @@ namespace t7 {
                 // globally almost always, so it never released.
                 //
                 // Conservative by one patch: each zone's world AABB is
-                // inflated by PATCH_EXTENT before the disc test, and the
-                // radius is the LIVE lod0_radius — the same value
-                // patch_system.hpp uses to sort patches into the LOD0 band,
-                // so the flag and the band can never disagree.
+                // inflated by PATCH_EXTENT before the disc test. The radius
+                // is the LIVE ring since ONE_SURFACE-I U5 — see
+                // zone_rects_in_core for why widening is the safe direction.
                 {
                     const uint32_t in_core = zone_rects_in_core();
                     // PROCESS P6 — every switch has a witness. The draw
@@ -2283,7 +2309,7 @@ namespace t7 {
             // R18 — SHADOW PASS. draw_shadow_all into the shadow map(s).
             void phase_shadow_pass(RenderCtx& c) {
                 auto& encoder = c.encoder;
-                render_shadow_pass(&machine_ctx_, encoder, cpuSpotLights_);
+                render_shadow_pass(&machine_ctx_, encoder);
             }
 
             // R19 — MAIN PASS. The rasterized scene into the backbuffer.
@@ -2312,7 +2338,7 @@ namespace t7 {
             };
             static constexpr RRow RENDER_SPINE[] = {
                 { RPhase::WitnessHarvest,      "witness_harvest",       &Cartridge::phase_witness_harvest,       Driver::Algo,      true,                                   F_WITNESS },
-                { RPhase::StreamPatches,       "stream_patches",        &Cartridge::phase_stream_patches,        Driver::Algo,      true,                                   F_STREAM | F_COMPUTE },
+                { RPhase::SurfaceVisibility,   "surface_visibility",    &Cartridge::phase_surface_visibility,    Driver::Algo,      true,                                   F_STREAM },
                 { RPhase::RespawnAgents,       "respawn_agents",        &Cartridge::phase_respawn_agents,        Driver::Algo,      ROSTER.wanderers,                       F_NONE },
                 { RPhase::CensusDumps,         "census_dumps",          &Cartridge::phase_census_dumps,          Driver::WallClock, true,                                   F_NONE },
                 { RPhase::RibbonTick,          "ribbon_tick",           &Cartridge::phase_ribbon_tick,           Driver::Mixed,     ROSTER.ribbon,                          F_SIGNAL },
@@ -2433,7 +2459,7 @@ namespace t7 {
             // The meter_row registry (state.hpp — the GPU half's raw row
             // ids) is pinned to RPhase HERE, at the enum's home. Drift
             // fails glaw1.
-            static_assert(meter_row::StreamPatches       == (uint32_t)RPhase::StreamPatches,       "meter_row drift: StreamPatches");
+            static_assert(meter_row::SurfaceVisibility   == (uint32_t)RPhase::SurfaceVisibility,   "meter_row drift: SurfaceVisibility");
             static_assert(meter_row::EntityMeshGen       == (uint32_t)RPhase::EntityMeshGen,       "meter_row drift: EntityMeshGen");
             static_assert(meter_row::DispatchCompute     == (uint32_t)RPhase::DispatchCompute,     "meter_row drift: DispatchCompute");
             static_assert(meter_row::GolDeriveFlush      == (uint32_t)RPhase::GolDeriveFlush,      "meter_row drift: GolDeriveFlush");
@@ -2489,7 +2515,7 @@ namespace t7 {
             static_assert((uint32_t)RPhase::RibbonTick < (uint32_t)RPhase::DispatchCompute, "O-1: the ribbon's state write precedes the compute that reads it");
             static_assert((uint32_t)RPhase::WitnessHarvest < (uint32_t)RPhase::DispatchCompute, "O-2: witness harvest before compute");
             static_assert((uint32_t)RPhase::DispatchCompute < (uint32_t)RPhase::WitnessCapture, "O-2: witness capture after compute (feeds next frame's harvest)");
-            static_assert((uint32_t)RPhase::StreamPatches < (uint32_t)RPhase::RespawnAgents, "RC-1: respawn after the stream (S3 after S2)");
+            static_assert((uint32_t)RPhase::SurfaceVisibility < (uint32_t)RPhase::RespawnAgents, "RC-1: respawn after the surface (S3 after S2)");
             static_assert((uint32_t)RPhase::FrustumCull < (uint32_t)RPhase::ShadowPass, "O-7: frustum cull precedes the shadow pass (ordering pin)");
             static_assert((uint32_t)RPhase::FrustumCull < (uint32_t)RPhase::MainPass, "O-7: frustum cull before the main pass (indirect draws consume the cull)");
             static_assert((uint32_t)RPhase::LiveCardWrite > (uint32_t)RPhase::UploadLights &&
@@ -2737,17 +2763,17 @@ namespace t7 {
                 }
             }
 
-            // Mood is VOCABULARY + APPLIERS + THREE DOORS: CeilingType /
-            // MoodProfile / MOOD_TABLE / indoor palettes +
-            // the door, applier, and deriver declarations are in mood.hpp
-            // (file scope, above the class); the definitions live in the
-            // same header's MODULE IMPLEMENTATION zone (the merged file,
-            // pre-class in the cohort). MOOD OWNS NO STATE —
-            // nothing at the COMPOSITION ROOT; mood_state_ is spine-resident
+            // THE SKY is THE DRAW + ONE APPLIER + THE BIRTH SEQUENCE: the
+            // door, applier and deriver declarations are in sky.hpp (file
+            // scope, above the class); the definitions live in the same
+            // header's MODULE IMPLEMENTATION zone (the merged file, pre-class
+            // in the cohort). THE SKY OWNS NO STATE — nothing at the
+            // COMPOSITION ROOT; sky_state_ is spine-resident
             // (SEAM[spine:transitions], L38 — assembly only; this is declared
-            // orchestration). The force-spawn mutation that belonged to the
-            // arch's owner left with the doors (ONE_WORLD-I U2). The
-            // lighting-scheme tables stay impl-side. See §1.
+            // orchestration). It was MOOD, a vocabulary and four appliers; the
+            // vocabulary died at ONE_WORLD-II U2 and U4 and the file was
+            // renamed at U7. The force-spawn mutation that belonged to the
+            // arch's owner left with the doors (ONE_WORLD-I U2). See §1.
 
         public:
 
@@ -2934,39 +2960,39 @@ namespace t7 {
         //   and every row's trailing name string is boot-checked against
         //   family_short_name by validate_spine (F-2), so a row swap fails
         //   LOUD. Row columns (FamilyDispatch, entity_types.hpp):
-        //     { try_select, try_place, try_commit, evict_slot,
+        //     { try_select, try_place, try_commit,
         //       prepare_mesh, dispatch_mesh, active_count, slot_census,
         //       grounded, name }
         // CONSUMERS: the machine tail walks select/place/commit per queue
-        //   entry; eviction routes through evict_slot; the mesh pair feeds the
+        //   entry; the evict_slot row left at ONE_SURFACE-I U3; the mesh pair feeds the
         //   RENDER_UPDATE mesh phases (none-fork = family has no mesh).
         inline const FamilyDispatch FAMILY_DISPATCH[PopFamily::COUNT] = {
             { dispatch_select_pyramid_generic, dispatch_place_pyramid_generic, dispatch_commit_pyramid_generic,
-              evict_pyramid, dispatch_prepare_mesh_none, dispatch_mesh_gen_none,   // mesh hook → none-fork: pyramid mesh dead-by-design; placement feeds the heightfield
+              dispatch_prepare_mesh_none, dispatch_mesh_gen_none,   // mesh hook → none-fork: pyramid mesh dead-by-design; placement feeds the heightfield
               active_count_pyramid,
               slot_census_pyramid,
               PYRAMID_TRAITS.grounded,
               "pyr" },
             { dispatch_select_sphere_generic, dispatch_place_sphere_generic, dispatch_commit_sphere_generic,
-              evict_sphere, dispatch_prepare_mesh_none, dispatch_mesh_gen_none,
+              dispatch_prepare_mesh_none, dispatch_mesh_gen_none,
               active_count_sphere,
               slot_census_sphere,
               SPHERE_TRAITS.grounded,   // false — orbits an anchor, claims no ground
               "sph" },   // no CPU mesh gen — GPU compute handles update_sphere
             { dispatch_select_ribbon, dispatch_place_ribbon, dispatch_commit_ribbon,
-              evict_ribbon, dispatch_prepare_mesh_none, dispatch_mesh_gen_none,
+              dispatch_prepare_mesh_none, dispatch_mesh_gen_none,
               active_count_ribbon,
               slot_census_ribbon,
               true,   // anchored: the tips touch ground (no TRAITS object)
               "ribn" },  // no CPU mesh gen — GPU compute handles ribbon rendering
             { dispatch_select_cube_generic, dispatch_place_cube_generic, dispatch_commit_cube_generic,
-              evict_cube, dispatch_prepare_mesh_none, dispatch_mesh_gen_none,
+              dispatch_prepare_mesh_none, dispatch_mesh_gen_none,
               active_count_cube,
               slot_census_cube,
               CUBE_TRAITS.grounded,      // false — hovers and drifts, claims no ground
               "cube" },  // no CPU mesh gen — GPU compute handles update_cube
             { dispatch_select_gol, dispatch_place_gol, dispatch_commit_gol,
-              evict_gol, dispatch_prepare_mesh_none, dispatch_mesh_gen_none,
+              dispatch_prepare_mesh_none, dispatch_mesh_gen_none,
               active_count_gol,
               slot_census_gol,
               true,   // registers directly, gol_zones.hpp (no TRAITS object)

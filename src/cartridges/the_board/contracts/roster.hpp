@@ -42,7 +42,8 @@
 //
 //   Only SEP pieces skip creation in v0; SH·* sites carry
 //   LATENT[gate-a-shared] with the retirement condition; NO-RES pieces own
-//   nothing to skip. This arc gates one SEP piece (indoor_shell).
+//   nothing to skip. Its one SEP piece was the rooms' shell, and the
+//   classification is empty since ONE_WORLD-II U4.
 
 namespace t7 {
 namespace the_board {
@@ -60,8 +61,9 @@ struct PopFamily {
 
 // F-1: the family ORDER is load-bearing — FIVE
 // tables are POSITIONAL in it (the five proximity tables left at
-// ONE_WORLD-I U5: MIN_SEPARATION, THEMES[].spawn_weight, MOOD_SPAWN_MULT,
-// TilePopulation::spatial_density, INDOOR_TREATMENT, and
+// ONE_WORLD-I U5: MIN_SEPARATION, the rooms' per-family treatment, and
+// — until ONE_WORLD-II U3 took the theme engine with them —
+// THEMES[].spawn_weight, MOOD_SPAWN_MULT, TilePopulation::spatial_density,
 // family_short_name's NAMES[] — the eleventh, which PRUNE_2 found outside
 // this roll call and pinned to COUNT where it lives), as is
 // FAMILY_DISPATCH (whose rows are
@@ -144,11 +146,13 @@ static_assert(placement_order_is_permutation(),
 struct Roster {
     bool pyramid, sphere, ribbon, cube, gol;
     // FEATURES (5)
+    // FIVE FEATURES BECAME THREE (ONE_WORLD-II U4). spot_lights and the
+    // shell went with the rooms — and this struct is initialised
+    // POSITIONALLY from the matrix's GRID, so both the brace list and the
+    // two GRID rows moved in the same commit as these two lines.
     bool pawn_aura;     // presence ramp + aura terrain compute
     bool orbs;          // sky dome (distinct from the sphere family)
-    bool spot_lights;   // indoor spot array + shadow atlas
-    bool indoor_shell;  // walls + ceiling mesh
-    bool wanderers;     // mood-authored NPC population (agent slots 1+)
+    bool wanderers;     // the bank's NPC population (agent slots 1+)
 
     constexpr bool family_enabled(uint32_t f) const {
         switch (f) {
@@ -163,8 +167,7 @@ struct Roster {
 
     constexpr bool all_enabled() const {
         return pyramid && sphere && ribbon && cube && gol &&
-               pawn_aura && orbs && spot_lights && indoor_shell &&
-               wanderers;
+               pawn_aura && orbs && wanderers;
     }
 
     // Mirror of all_enabled — the degenerate sentence (every tickable
@@ -173,8 +176,7 @@ struct Roster {
     // still equals the retired minimal.hpp.
     constexpr bool none_enabled() const {
         return !pyramid && !sphere && !ribbon && !cube && !gol &&
-               !pawn_aura && !orbs && !spot_lights && !indoor_shell &&
-               !wanderers;
+               !pawn_aura && !orbs && !wanderers;
     }
 };
 

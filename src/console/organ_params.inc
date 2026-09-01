@@ -13,7 +13,7 @@
 // ═══════════════════════════════════════════════════════════════════════
 
 // ─── ADDING A DIAL IS ONE LINE IN THIS FILE ────────────────────────────
-// Nothing else, anywhere. Five forms, and EVERY FORM HAS AN _NS TWIN
+// Nothing else, anywhere. Four forms, and EVERY FORM HAS AN _NS TWIN
 // taking the enrolled struct's NAMESPACE first — the plain names forward
 // `the_board`, so a line that does not care never sees the parameter:
 //
@@ -23,10 +23,6 @@
 //                                      and the row wears `on respawn`
 //   ORGAN_PARAM_DEF(… , DEFKIND, DEFSTRUCT, DEFFIELD)
 //                                      the same, plus the DEFINITION it writes
-//   ORGAN_PARAM_DEFONLY(TYPE, MIN, MAX, STEP, GROUP, LABEL,
-//                       DEFKIND, DEFSTRUCT, DEFFIELD)
-//                                      a definition with NO INSTANCE:
-//                                      preview on it is refused
 //   ORGAN_PARAM_RO(BLOCK, STRUCT, FIELD, TYPE, GROUP, LABEL)
 //                                      a WITNESS: metered, never written,
 //                                      and carrying no range
@@ -39,8 +35,10 @@
 //
 // ELIGIBILITY: a field is a definition only if its applier is the field's
 // ONE runtime reader, and a kind shares a flag when it shares an author.
-// DEFKIND is MOOD, TIER, BEHAVIOR or ORB_MOOD; a definition-only row's
-// block is a SENTINEL DERIVED FROM ITS KIND.
+// DEFKIND is TIER or BEHAVIOR — both the world's single banks, so the
+// write's target is ignored. MOOD and ORB_MOOD were the per-mood kinds and
+// left with the moods (ONE_WORLD-II U1a/U1b/U6a), and the definition-only
+// form left with them: every row addresses an instance now.
 
 // GROUP IS A PATH, "Section · Group": a consumer splits on the FIRST
 // separator and renders two levels, never three. A dial sits under its
@@ -54,15 +52,14 @@
 // new block whenever the first token changes.
 
 // ─── THE SUN ─────────────────────────────────────────────────────────
-// GPULighting::sun is the fragment shader's window, and apply_mood_lighting
-// DRAWS it — from the live regime's row, under the world's seed — at every
-// mood entry and at every MOOD definition re-speak. So its four rows are
-// witnesses: what the draw produced. The sun's BEARING is the mood's and is
-// authored here (centre + spreads); its colour, intensity and ambient are the
-// regime's and are authored under Atmosphere · Regime N, through the lens.
-ORGAN_PARAM_DEFONLY(VEC3, -1.0f, 1.0f, 0.01f, "Sky & Light · Sun", "direction (centre)", MOOD, MoodProfile, atmos.sun_direction)
-ORGAN_PARAM_DEFONLY(F32, 0.0f, 180.0f, 1.0f, "Sky & Light · Sun", "azimuth spread (±deg)",   MOOD, MoodProfile, atmos.sun_az_spread_deg)
-ORGAN_PARAM_DEFONLY(F32, 0.0f, 45.0f,  0.5f, "Sky & Light · Sun", "elevation spread (±deg)", MOOD, MoodProfile, atmos.sun_el_spread_deg)
+// GPULighting::sun is the fragment shader's window, and stage_sky DRAWS
+// it — from ATMOS_LIVE, under the world's seed — at every world's birth and
+// at every atmosphere re-speak. So its four rows are witnesses: what the
+// draw produced. The sun's BEARING is authored here (centre + spreads); its
+// colour, intensity and ambient are authored under Atmosphere · Sky.
+ORGAN_PARAM(ATMOS, AtmosphereBank, sun_direction,     VEC3, -1.0f, 1.0f, 0.01f, "Sky & Light · Sun", "direction (centre)")
+ORGAN_PARAM(ATMOS, AtmosphereBank, sun_az_spread_deg, F32, 0.0f, 180.0f, 1.0f, "Sky & Light · Sun", "azimuth spread (±deg)")
+ORGAN_PARAM(ATMOS, AtmosphereBank, sun_el_spread_deg, F32, 0.0f, 45.0f,  0.5f, "Sky & Light · Sun", "elevation spread (±deg)")
 ORGAN_PARAM_RO(LIGHTING, GPULighting, sun.direction, VEC3, "Sky & Light · Sun", "direction (drawn)")
 ORGAN_PARAM_RO(LIGHTING, GPULighting, sun.color,     VEC3, "Sky & Light · Sun", "colour (drawn)")
 ORGAN_PARAM_RO(LIGHTING, GPULighting, sun.intensity, F32,  "Sky & Light · Sun", "intensity (drawn)")
@@ -82,115 +79,66 @@ ORGAN_PARAM(ORBS, OrbConsole, dome_radius, F32, 0.0f, 2000.0f, 5.0f,   "Sky & Li
 ORGAN_PARAM(ORBS, OrbConsole, base_size,   F32, 0.0f, 12.0f,   0.05f,  "Sky & Light · Dome", "base size")
 
 // ─── Sky & Light · Orbs ─────────────────────────────────────────────
-// ORB_MOOD_LIVE (contracts/orb_surface.hpp), definition-only and
-// mood-selected. Four of these five re-seed the sky; brightness rides.
-ORGAN_PARAM_DEFONLY(BOOL, 0.0f,   1.0f,     1.0f,    "Sky & Light · Orbs", "enabled", ORB_MOOD, OrbMoodConfig, enabled)
-ORGAN_PARAM_DEFONLY(U32,  0.0f,   256.0f,   1.0f,    "Sky & Light · Orbs", "count", ORB_MOOD, OrbMoodConfig, count)
-ORGAN_PARAM_DEFONLY(U32,  0.0f,   3.0f,     1.0f,    "Sky & Light · Orbs", "palette id", ORB_MOOD, OrbMoodConfig, palette_id)
-ORGAN_PARAM_DEFONLY(F32,  0.01f,  2.0f,     0.01f,   "Sky & Light · Orbs", "drag", ORB_MOOD, OrbMoodConfig, drag)
-ORGAN_PARAM_DEFONLY(F32,  0.0f,   1.0f,     0.005f,  "Sky & Light · Orbs", "brightness", ORB_MOOD, OrbMoodConfig, brightness)
+// ORB_LIVE (contracts/orb_surface.hpp), the world's one row. Four of these
+// five re-seed the sky; brightness rides.
+ORGAN_PARAM(ORB_BANK, OrbConfig, enabled, BOOL, 0.0f,   1.0f,     1.0f,    "Sky & Light · Orbs", "enabled")
+ORGAN_PARAM(ORB_BANK, OrbConfig, count, U32,  0.0f,   256.0f,   1.0f,    "Sky & Light · Orbs", "count")
+ORGAN_PARAM(ORB_BANK, OrbConfig, palette_id, U32,  0.0f,   3.0f,     1.0f,    "Sky & Light · Orbs", "palette id")
+ORGAN_PARAM(ORB_BANK, OrbConfig, drag, F32,  0.01f,  2.0f,     0.01f,   "Sky & Light · Orbs", "drag")
+ORGAN_PARAM(ORB_BANK, OrbConfig, brightness, F32,  0.0f,   1.0f,     0.005f,  "Sky & Light · Orbs", "brightness")
 
 // ─── Sky & Light · Motion — all rules ───────────────────────────────
 // Every row here acts under every rule, so the group carries no live-rule
 // line. The four rule drags floor one step off configure_orbs' sentinel.
 ORGAN_PARAM(ORBS, OrbConsole, speed_mult,  F32, 0.0f, 4.0f, 0.01f,  "Sky & Light · Motion — all rules", "speed mult")
 ORGAN_PARAM(ORBS, OrbConsole, noise_floor, F32, 0.0f, 3.0f, 0.005f, "Sky & Light · Motion — all rules", "noise floor")
-ORGAN_PARAM_DEFONLY(F32,  -2.0f,  2.0f,     0.005f,  "Sky & Light · Motion — all rules", "rotation speed (rad/s)", ORB_MOOD, OrbMoodConfig, rotation_speed)
-ORGAN_PARAM_DEFONLY(VEC3, -1.0f,  1.0f,     0.01f,   "Sky & Light · Motion — all rules", "rotation axis", ORB_MOOD, OrbMoodConfig, rotation_axis)
-ORGAN_PARAM_DEFONLY(F32,  0.02f,  4.0f,     0.02f,   "Sky & Light · Motion — all rules", "drag × brownian rule", ORB_MOOD, OrbMoodConfig, rule_drag_brownian)
-ORGAN_PARAM_DEFONLY(F32,  0.02f,  4.0f,     0.02f,   "Sky & Light · Motion — all rules", "drag × orbital rule", ORB_MOOD, OrbMoodConfig, rule_drag_orbital)
-ORGAN_PARAM_DEFONLY(F32,  0.02f,  4.0f,     0.02f,   "Sky & Light · Motion — all rules", "drag × frozen rule", ORB_MOOD, OrbMoodConfig, rule_drag_frozen)
-ORGAN_PARAM_DEFONLY(F32,  0.02f,  4.0f,     0.02f,   "Sky & Light · Motion — all rules", "drag × flocking rule", ORB_MOOD, OrbMoodConfig, rule_drag_flocking)
+ORGAN_PARAM(ORB_BANK, OrbConfig, rotation_speed, F32,  -2.0f,  2.0f,     0.005f,  "Sky & Light · Motion — all rules", "rotation speed (rad/s)")
+ORGAN_PARAM(ORB_BANK, OrbConfig, rotation_axis, VEC3, -1.0f,  1.0f,     0.01f,   "Sky & Light · Motion — all rules", "rotation axis")
+ORGAN_PARAM(ORB_BANK, OrbConfig, rule_drag_brownian, F32,  0.02f,  4.0f,     0.02f,   "Sky & Light · Motion — all rules", "drag × brownian rule")
+ORGAN_PARAM(ORB_BANK, OrbConfig, rule_drag_orbital, F32,  0.02f,  4.0f,     0.02f,   "Sky & Light · Motion — all rules", "drag × orbital rule")
+ORGAN_PARAM(ORB_BANK, OrbConfig, rule_drag_frozen, F32,  0.02f,  4.0f,     0.02f,   "Sky & Light · Motion — all rules", "drag × frozen rule")
+ORGAN_PARAM(ORB_BANK, OrbConfig, rule_drag_flocking, F32,  0.02f,  4.0f,     0.02f,   "Sky & Light · Motion — all rules", "drag × flocking rule")
 
 // ─── Sky & Light · Orbital rule ─────────────────────────────────────
 // One row, and the group's name is what tells the control surface to print the
 // live-rule line: it acts under ORBITAL and under no other rule.
-ORGAN_PARAM_DEFONLY(F32,  0.005f, 1.0f,     0.005f,  "Sky & Light · Orbital rule", "orbital speed (rad/s)", ORB_MOOD, OrbMoodConfig, orbital_base_speed)
+ORGAN_PARAM(ORB_BANK, OrbConfig, orbital_base_speed, F32,  0.005f, 1.0f,     0.005f,  "Sky & Light · Orbital rule", "orbital speed (rad/s)")
 
 // ─── Sky & Light · Flocking rule ────────────────────────────────────
 // The seven boids rows, acting under FLOCKING alone; the header carries
 // the live-rule line. Floors sit one step off the same sentinel.
-ORGAN_PARAM_DEFONLY(F32,  1.0f,   200.0f,   1.0f,    "Sky & Light · Flocking rule", "separation radius", ORB_MOOD, OrbMoodConfig, flock_sep_radius)
-ORGAN_PARAM_DEFONLY(F32,  2.0f,   480.0f,   2.0f,    "Sky & Light · Flocking rule", "alignment radius", ORB_MOOD, OrbMoodConfig, flock_align_radius)
-ORGAN_PARAM_DEFONLY(F32,  4.0f,   800.0f,   4.0f,    "Sky & Light · Flocking rule", "cohesion radius", ORB_MOOD, OrbMoodConfig, flock_coh_radius)
-ORGAN_PARAM_DEFONLY(F32,  0.5f,   120.0f,   0.5f,    "Sky & Light · Flocking rule", "separation weight", ORB_MOOD, OrbMoodConfig, flock_sep_weight)
-ORGAN_PARAM_DEFONLY(F32,  0.2f,   32.0f,    0.2f,    "Sky & Light · Flocking rule", "alignment weight", ORB_MOOD, OrbMoodConfig, flock_align_weight)
-ORGAN_PARAM_DEFONLY(F32,  0.25f,  60.0f,    0.25f,   "Sky & Light · Flocking rule", "cohesion weight", ORB_MOOD, OrbMoodConfig, flock_coh_weight)
-ORGAN_PARAM_DEFONLY(F32,  1.0f,   240.0f,   1.0f,    "Sky & Light · Flocking rule", "max speed", ORB_MOOD, OrbMoodConfig, flock_max_speed)
-
-// ─── Sky & Light · Schemes — EDITS THE NEXT DRAW ────────────────
-// WORLD_DRAW_LIVE (contracts/mood_constants.hpp), rolled once as a room is
-// built. The weights are probabilities select_tier normalises.
-ORGAN_PARAM_GEN(WORLD, WorldDrawSurface, scheme_weights[0], F32, 0.0f, 1.0f, 0.005f, "Sky & Light · Schemes", "cathedral")
-ORGAN_PARAM_GEN(WORLD, WorldDrawSurface, scheme_weights[1], F32, 0.0f, 1.0f, 0.005f, "Sky & Light · Schemes", "quartet")
-ORGAN_PARAM_GEN(WORLD, WorldDrawSurface, scheme_weights[2], F32, 0.0f, 1.0f, 0.005f, "Sky & Light · Schemes", "gallery")
-ORGAN_PARAM_GEN(WORLD, WorldDrawSurface, scheme_weights[3], F32, 0.0f, 1.0f, 0.005f, "Sky & Light · Schemes", "sanctum")
-// ─── Sky & Light · Portals — EDITS THE NEXT PORTAL ──────────────
-// A portal's colour is a fact about its DESTINATION, so the per-mood rows
-// are indexed by destination mood and the last is the way back.
-
-// ─── Atmosphere · Regimes — THE REGIME LAW ──────────────────────────
-// One weight per regime, the MOOD's. The walk normalises, so these are
-// proportions and a 0 is an absent regime; a write re-rolls under the seed.
-ORGAN_PARAM_DEFONLY(F32, 0.0f, 1.0f, 0.01f, "Atmosphere · Regimes", "draw · regime 1", MOOD, MoodProfile, regime_weight[0])
-ORGAN_PARAM_DEFONLY(F32, 0.0f, 1.0f, 0.01f, "Atmosphere · Regimes", "draw · regime 2", MOOD, MoodProfile, regime_weight[1])
-ORGAN_PARAM_DEFONLY(F32, 0.0f, 1.0f, 0.01f, "Atmosphere · Regimes", "draw · regime 3", MOOD, MoodProfile, regime_weight[2])
-ORGAN_PARAM_DEFONLY(F32, 0.0f, 1.0f, 0.01f, "Atmosphere · Regimes", "draw · regime 4", MOOD, MoodProfile, regime_weight[3])
-
-// ─── Atmosphere · Regime 1-4 ────────────────────────────────────────
-// A REGIME IS A WHOLE SKY: every parameter the draw reads, as a centre ±
-// a spread. The seed picks one, and a write re-draws the live world's.
-ORGAN_PARAM_DEFONLY(VEC3, 0.0f, 1.0f,  0.01f,   "Atmosphere · Regime 1", "sun colour",                    MOOD, MoodProfile, atmos.regime[0].sun_color)
-ORGAN_PARAM_DEFONLY(F32,  0.0f, 1.0f,  0.01f,   "Atmosphere · Regime 1", "sun colour spread (±bright)",   MOOD, MoodProfile, atmos.regime[0].sun_color_spread)
-ORGAN_PARAM_DEFONLY(F32,  0.0f, 4.0f,  0.01f,   "Atmosphere · Regime 1", "intensity",                     MOOD, MoodProfile, atmos.regime[0].intensity)
-ORGAN_PARAM_DEFONLY(F32,  0.0f, 2.0f,  0.01f,   "Atmosphere · Regime 1", "intensity spread",              MOOD, MoodProfile, atmos.regime[0].intensity_spread)
-ORGAN_PARAM_DEFONLY(F32,  0.0f, 1.0f,  0.005f,  "Atmosphere · Regime 1", "ambient",                       MOOD, MoodProfile, atmos.regime[0].ambient)
-ORGAN_PARAM_DEFONLY(F32,  0.0f, 0.5f,  0.005f,  "Atmosphere · Regime 1", "ambient spread",                MOOD, MoodProfile, atmos.regime[0].ambient_spread)
-ORGAN_PARAM_DEFONLY(F32,  0.0f, 0.05f, 0.0002f, "Atmosphere · Regime 1", "fog density",                   MOOD, MoodProfile, atmos.regime[0].fog_density)
-ORGAN_PARAM_DEFONLY(F32,  0.0f, 0.02f, 0.0001f, "Atmosphere · Regime 1", "fog density spread",            MOOD, MoodProfile, atmos.regime[0].fog_density_spread)
-ORGAN_PARAM_DEFONLY(VEC3, 0.0f, 1.0f,  0.01f,   "Atmosphere · Regime 1", "fog colour",                    MOOD, MoodProfile, atmos.regime[0].fog_color)
-ORGAN_PARAM_DEFONLY(F32,  0.0f, 1.0f,  0.01f,   "Atmosphere · Regime 1", "fog colour spread (±bright)",   MOOD, MoodProfile, atmos.regime[0].fog_color_spread)
-ORGAN_PARAM_DEFONLY(VEC3, 0.0f, 1.0f,  0.01f,   "Atmosphere · Regime 1", "clear colour",                  MOOD, MoodProfile, atmos.regime[0].clear_color)
-ORGAN_PARAM_DEFONLY(F32,  0.0f, 1.0f,  0.01f,   "Atmosphere · Regime 1", "clear colour spread (±bright)", MOOD, MoodProfile, atmos.regime[0].clear_color_spread)
-
-ORGAN_PARAM_DEFONLY(VEC3, 0.0f, 1.0f,  0.01f,   "Atmosphere · Regime 2", "sun colour",                    MOOD, MoodProfile, atmos.regime[1].sun_color)
-ORGAN_PARAM_DEFONLY(F32,  0.0f, 1.0f,  0.01f,   "Atmosphere · Regime 2", "sun colour spread (±bright)",   MOOD, MoodProfile, atmos.regime[1].sun_color_spread)
-ORGAN_PARAM_DEFONLY(F32,  0.0f, 4.0f,  0.01f,   "Atmosphere · Regime 2", "intensity",                     MOOD, MoodProfile, atmos.regime[1].intensity)
-ORGAN_PARAM_DEFONLY(F32,  0.0f, 2.0f,  0.01f,   "Atmosphere · Regime 2", "intensity spread",              MOOD, MoodProfile, atmos.regime[1].intensity_spread)
-ORGAN_PARAM_DEFONLY(F32,  0.0f, 1.0f,  0.005f,  "Atmosphere · Regime 2", "ambient",                       MOOD, MoodProfile, atmos.regime[1].ambient)
-ORGAN_PARAM_DEFONLY(F32,  0.0f, 0.5f,  0.005f,  "Atmosphere · Regime 2", "ambient spread",                MOOD, MoodProfile, atmos.regime[1].ambient_spread)
-ORGAN_PARAM_DEFONLY(F32,  0.0f, 0.05f, 0.0002f, "Atmosphere · Regime 2", "fog density",                   MOOD, MoodProfile, atmos.regime[1].fog_density)
-ORGAN_PARAM_DEFONLY(F32,  0.0f, 0.02f, 0.0001f, "Atmosphere · Regime 2", "fog density spread",            MOOD, MoodProfile, atmos.regime[1].fog_density_spread)
-ORGAN_PARAM_DEFONLY(VEC3, 0.0f, 1.0f,  0.01f,   "Atmosphere · Regime 2", "fog colour",                    MOOD, MoodProfile, atmos.regime[1].fog_color)
-ORGAN_PARAM_DEFONLY(F32,  0.0f, 1.0f,  0.01f,   "Atmosphere · Regime 2", "fog colour spread (±bright)",   MOOD, MoodProfile, atmos.regime[1].fog_color_spread)
-ORGAN_PARAM_DEFONLY(VEC3, 0.0f, 1.0f,  0.01f,   "Atmosphere · Regime 2", "clear colour",                  MOOD, MoodProfile, atmos.regime[1].clear_color)
-ORGAN_PARAM_DEFONLY(F32,  0.0f, 1.0f,  0.01f,   "Atmosphere · Regime 2", "clear colour spread (±bright)", MOOD, MoodProfile, atmos.regime[1].clear_color_spread)
-
-ORGAN_PARAM_DEFONLY(VEC3, 0.0f, 1.0f,  0.01f,   "Atmosphere · Regime 3", "sun colour",                    MOOD, MoodProfile, atmos.regime[2].sun_color)
-ORGAN_PARAM_DEFONLY(F32,  0.0f, 1.0f,  0.01f,   "Atmosphere · Regime 3", "sun colour spread (±bright)",   MOOD, MoodProfile, atmos.regime[2].sun_color_spread)
-ORGAN_PARAM_DEFONLY(F32,  0.0f, 4.0f,  0.01f,   "Atmosphere · Regime 3", "intensity",                     MOOD, MoodProfile, atmos.regime[2].intensity)
-ORGAN_PARAM_DEFONLY(F32,  0.0f, 2.0f,  0.01f,   "Atmosphere · Regime 3", "intensity spread",              MOOD, MoodProfile, atmos.regime[2].intensity_spread)
-ORGAN_PARAM_DEFONLY(F32,  0.0f, 1.0f,  0.005f,  "Atmosphere · Regime 3", "ambient",                       MOOD, MoodProfile, atmos.regime[2].ambient)
-ORGAN_PARAM_DEFONLY(F32,  0.0f, 0.5f,  0.005f,  "Atmosphere · Regime 3", "ambient spread",                MOOD, MoodProfile, atmos.regime[2].ambient_spread)
-ORGAN_PARAM_DEFONLY(F32,  0.0f, 0.05f, 0.0002f, "Atmosphere · Regime 3", "fog density",                   MOOD, MoodProfile, atmos.regime[2].fog_density)
-ORGAN_PARAM_DEFONLY(F32,  0.0f, 0.02f, 0.0001f, "Atmosphere · Regime 3", "fog density spread",            MOOD, MoodProfile, atmos.regime[2].fog_density_spread)
-ORGAN_PARAM_DEFONLY(VEC3, 0.0f, 1.0f,  0.01f,   "Atmosphere · Regime 3", "fog colour",                    MOOD, MoodProfile, atmos.regime[2].fog_color)
-ORGAN_PARAM_DEFONLY(F32,  0.0f, 1.0f,  0.01f,   "Atmosphere · Regime 3", "fog colour spread (±bright)",   MOOD, MoodProfile, atmos.regime[2].fog_color_spread)
-ORGAN_PARAM_DEFONLY(VEC3, 0.0f, 1.0f,  0.01f,   "Atmosphere · Regime 3", "clear colour",                  MOOD, MoodProfile, atmos.regime[2].clear_color)
-ORGAN_PARAM_DEFONLY(F32,  0.0f, 1.0f,  0.01f,   "Atmosphere · Regime 3", "clear colour spread (±bright)", MOOD, MoodProfile, atmos.regime[2].clear_color_spread)
-
-ORGAN_PARAM_DEFONLY(VEC3, 0.0f, 1.0f,  0.01f,   "Atmosphere · Regime 4", "sun colour",                    MOOD, MoodProfile, atmos.regime[3].sun_color)
-ORGAN_PARAM_DEFONLY(F32,  0.0f, 1.0f,  0.01f,   "Atmosphere · Regime 4", "sun colour spread (±bright)",   MOOD, MoodProfile, atmos.regime[3].sun_color_spread)
-ORGAN_PARAM_DEFONLY(F32,  0.0f, 4.0f,  0.01f,   "Atmosphere · Regime 4", "intensity",                     MOOD, MoodProfile, atmos.regime[3].intensity)
-ORGAN_PARAM_DEFONLY(F32,  0.0f, 2.0f,  0.01f,   "Atmosphere · Regime 4", "intensity spread",              MOOD, MoodProfile, atmos.regime[3].intensity_spread)
-ORGAN_PARAM_DEFONLY(F32,  0.0f, 1.0f,  0.005f,  "Atmosphere · Regime 4", "ambient",                       MOOD, MoodProfile, atmos.regime[3].ambient)
-ORGAN_PARAM_DEFONLY(F32,  0.0f, 0.5f,  0.005f,  "Atmosphere · Regime 4", "ambient spread",                MOOD, MoodProfile, atmos.regime[3].ambient_spread)
-ORGAN_PARAM_DEFONLY(F32,  0.0f, 0.05f, 0.0002f, "Atmosphere · Regime 4", "fog density",                   MOOD, MoodProfile, atmos.regime[3].fog_density)
-ORGAN_PARAM_DEFONLY(F32,  0.0f, 0.02f, 0.0001f, "Atmosphere · Regime 4", "fog density spread",            MOOD, MoodProfile, atmos.regime[3].fog_density_spread)
-ORGAN_PARAM_DEFONLY(VEC3, 0.0f, 1.0f,  0.01f,   "Atmosphere · Regime 4", "fog colour",                    MOOD, MoodProfile, atmos.regime[3].fog_color)
-ORGAN_PARAM_DEFONLY(F32,  0.0f, 1.0f,  0.01f,   "Atmosphere · Regime 4", "fog colour spread (±bright)",   MOOD, MoodProfile, atmos.regime[3].fog_color_spread)
-ORGAN_PARAM_DEFONLY(VEC3, 0.0f, 1.0f,  0.01f,   "Atmosphere · Regime 4", "clear colour",                  MOOD, MoodProfile, atmos.regime[3].clear_color)
-ORGAN_PARAM_DEFONLY(F32,  0.0f, 1.0f,  0.01f,   "Atmosphere · Regime 4", "clear colour spread (±bright)", MOOD, MoodProfile, atmos.regime[3].clear_color_spread)
+ORGAN_PARAM(ORB_BANK, OrbConfig, flock_sep_radius, F32,  1.0f,   200.0f,   1.0f,    "Sky & Light · Flocking rule", "separation radius")
+ORGAN_PARAM(ORB_BANK, OrbConfig, flock_align_radius, F32,  2.0f,   480.0f,   2.0f,    "Sky & Light · Flocking rule", "alignment radius")
+ORGAN_PARAM(ORB_BANK, OrbConfig, flock_coh_radius, F32,  4.0f,   800.0f,   4.0f,    "Sky & Light · Flocking rule", "cohesion radius")
+ORGAN_PARAM(ORB_BANK, OrbConfig, flock_sep_weight, F32,  0.5f,   120.0f,   0.5f,    "Sky & Light · Flocking rule", "separation weight")
+ORGAN_PARAM(ORB_BANK, OrbConfig, flock_align_weight, F32,  0.2f,   32.0f,    0.2f,    "Sky & Light · Flocking rule", "alignment weight")
+ORGAN_PARAM(ORB_BANK, OrbConfig, flock_coh_weight, F32,  0.25f,  60.0f,    0.25f,   "Sky & Light · Flocking rule", "cohesion weight")
+ORGAN_PARAM(ORB_BANK, OrbConfig, flock_max_speed, F32,  1.0f,   240.0f,   1.0f,    "Sky & Light · Flocking rule", "max speed")
+// ─── Atmosphere · Sky — EDITS THE LIVE WORLD'S SKY ──────────────────
+// ATMOS_LIVE (contracts/atmosphere_surface.hpp), the world's one sky as a
+// distribution: every row is a CENTRE, every "spread" a uniform ± around
+// it, and a spread of 0 draws the centre exactly. A write re-draws THIS
+// world under the SAME seed — the draw moves with the dial rather than
+// re-rolling, which is the whole point of a distribution the panel owns.
+//
+// FIFTY-TWO ROWS STOOD HERE (ONE_WORLD-II U1): four regime-weight dials
+// and four identical twelve-row blocks, one per regime, definition-only
+// against a mood definition. Every mood weighted regime 0 alone, so three
+// of the blocks addressed slots no world ever wore and the weights steered a walk
+// with one destination. Twelve rows say the same thing, and they address
+// an INSTANCE now, so preview works on them.
+ORGAN_PARAM(ATMOS, AtmosphereBank, sun_color,           VEC3, 0.0f, 1.0f,  0.01f,   "Atmosphere · Sky", "sun colour")
+ORGAN_PARAM(ATMOS, AtmosphereBank, sun_color_spread,    F32,  0.0f, 1.0f,  0.01f,   "Atmosphere · Sky", "sun colour spread (±bright)")
+ORGAN_PARAM(ATMOS, AtmosphereBank, intensity,           F32,  0.0f, 4.0f,  0.01f,   "Atmosphere · Sky", "intensity")
+ORGAN_PARAM(ATMOS, AtmosphereBank, intensity_spread,    F32,  0.0f, 2.0f,  0.01f,   "Atmosphere · Sky", "intensity spread")
+ORGAN_PARAM(ATMOS, AtmosphereBank, ambient,             F32,  0.0f, 1.0f,  0.005f,  "Atmosphere · Sky", "ambient")
+ORGAN_PARAM(ATMOS, AtmosphereBank, ambient_spread,      F32,  0.0f, 0.5f,  0.005f,  "Atmosphere · Sky", "ambient spread")
+ORGAN_PARAM(ATMOS, AtmosphereBank, fog_density,         F32,  0.0f, 0.05f, 0.0002f, "Atmosphere · Sky", "fog density")
+ORGAN_PARAM(ATMOS, AtmosphereBank, fog_density_spread,  F32,  0.0f, 0.02f, 0.0001f, "Atmosphere · Sky", "fog density spread")
+ORGAN_PARAM(ATMOS, AtmosphereBank, fog_color,           VEC3, 0.0f, 1.0f,  0.01f,   "Atmosphere · Sky", "fog colour")
+ORGAN_PARAM(ATMOS, AtmosphereBank, fog_color_spread,    F32,  0.0f, 1.0f,  0.01f,   "Atmosphere · Sky", "fog colour spread (±bright)")
+ORGAN_PARAM(ATMOS, AtmosphereBank, clear_color,         VEC3, 0.0f, 1.0f,  0.01f,   "Atmosphere · Sky", "clear colour")
+ORGAN_PARAM(ATMOS, AtmosphereBank, clear_color_spread,  F32,  0.0f, 1.0f,  0.01f,   "Atmosphere · Sky", "clear colour spread (±bright)")
 
 // ─── Atmosphere · Fog (the drivers' room + its witnesses) ────────────
 // Fog is DRIVEN, so the dial sits on the driver's seam and the driven
@@ -200,16 +148,25 @@ ORGAN_PARAM_RO(CONFIG, GPUDesignConfig, fog_density,  F32,  "Atmosphere · Fog",
 ORGAN_PARAM_RO(CONFIG, GPUDesignConfig, fog_color,    VEC3, "Atmosphere · Fog", "colour (driven)")
 
 // ─── Atmosphere · Veil ───────────────────────────────────────────────
-// THE VEIL CHAIN BOUNDS THESE THREE AND THE RANGES CARRY IT: EXIST(350) >
-// ring > lod0, and ring − icing > lod0. Widen one and re-prove the chain.
+// TWO ROWS LEFT THIS SECTION AT ONE_SURFACE-I U4, and neither could move a
+// pixel when it did. `veil_dither` chose between the icing's tint and
+// dither arms, and the pin had held `veil` at zero — where both arms
+// return the same colour. `veil_strength` was the RO meter of that zero.
+//
+// THE CHAIN STILL BOUNDS WHAT IS LEFT, and the ranges still carry it:
+// EXIST(350) > ring > lod0, and ring − icing > lod0. Widen one and
+// re-prove the chain. What the fold table changed is what the two survivors
+// MEAN: `veil_ring` is the DRAW AUTHORITY, read by four gates that never
+// asked about strength and still culling inside a walled world; `veil_icing`
+// is the GRAIN's band, its one surviving reader being veil_t's smoothstep
+// under entity_fs' `grain = 1 - veil_t` (L12). The names are the veil's and
+// the facts are not; renaming a CONFIG field renames its row id, which is a
+// stored preset's key, so the rename is flagged for Jean and not taken.
 ORGAN_PARAM(CONFIG, GPUDesignConfig, veil_ring,   F32, 265.0f, 349.0f, 0.5f,  "Atmosphere · Veil", "ring (draw authority)")
-ORGAN_PARAM(CONFIG, GPUDesignConfig, veil_icing,  F32, 0.0f,   60.0f,  0.25f, "Atmosphere · Veil", "icing band")
-ORGAN_PARAM(CONFIG, GPUDesignConfig, lod0_radius, F32, 0.0f,   175.0f, 1.0f,  "Atmosphere · Veil", "LOD0 core")
-ORGAN_PARAM(CONFIG, GPUDesignConfig, veil_dither, F32, 0.0f,   1.0f,   1.0f,  "Atmosphere · Veil", "rim dither (>0.5)")
-// veil_strength has ONE author and it is not a dial: the cartridge writes
-// `finite_mode ? 0 : 1`, a world-shape fact. The control surface meters it — 1
-// outdoors, 0 wherever walls define the edge.
-ORGAN_PARAM_RO(CONFIG, GPUDesignConfig, veil_strength, F32, "Atmosphere · Veil", "authority (driven)")
+ORGAN_PARAM(CONFIG, GPUDesignConfig, veil_icing,  F32, 0.0f,   60.0f,  0.25f, "Atmosphere · Veil", "grain band")
+// `lod0_radius` stood here — the terrain full/half-mesh split. Every patch
+// draws full mesh since ONE_SURFACE-I U5, so the dial named a boundary with
+// nothing on either side of it.
 
 // ─── Atmosphere · Checker ─────────────────────────────────────────
 // Dials on the driver's seam (out = rest + gain·(driven − rest)); the driven
@@ -284,20 +241,8 @@ ORGAN_PARAM(CONFIG, GPUDesignConfig, mosaic_passage_scale, F32, 0.0f, 48.0f, 0.2
 ORGAN_PARAM(CONFIG, GPUDesignConfig, mosaic_blend,         F32, 0.0f, 1.0f,  0.005f, "Terrain · Mosaic", "boundary blend")
 ORGAN_PARAM(CONFIG, GPUDesignConfig, mosaic_facet,         F32, 0.0f, 1.0f,  0.005f, "Terrain · Mosaic", "facet lean")
 
-// ─── Terrain · Indoor — EDITS THE NEXT SPAWN ────────────────────
-// INDOOR_LIVE (contracts/indoor_module.hpp), DESTRUCTIVE: nine of these
-// two fields' ten readers run at spawn, so nothing here is wired.
-ORGAN_PARAM_GEN(INDOOR, IndoorSurface, height_cap_fraction, F32, 0.0f, 1.0f, 0.005f, "Terrain · Indoor", "height cap fraction")
-ORGAN_PARAM_GEN(INDOOR, IndoorSurface, ribbon_scale,        F32, 0.0f, 0.6f, 0.005f, "Terrain · Indoor", "ribbon scale")
-// The three indoor structurals, METERED. Their author is the mood applier,
-// composing each from MoodProfile's STRUCTURAL group — world generation
-// reads that, so a dial would edit a world already built.
-ORGAN_PARAM_RO(CONFIG, GPUDesignConfig, terrain_amp_ceiling, F32, "Terrain · Indoor", "terrain amp ceiling (driven)")
-ORGAN_PARAM_RO(CONFIG, GPUDesignConfig, ceiling_height,      F32, "Terrain · Indoor", "ceiling height (driven)")
-ORGAN_PARAM_RO(CONFIG, GPUDesignConfig, indoor_height_cap,   F32, "Terrain · Indoor", "GoL lift cap (driven)")
-
 // ─── Pawn · Aura (the drivers' room + its witnesses) ─────────────────
-// The intent is the presence ramp's rest TARGET; key 3 and the mood policy
+// The intent is the presence ramp's rest TARGET; key 3 and the aura policy
 // door write it here too. The two driven outputs witness below.
 ORGAN_PARAM(DRIVERS, DriverSurface, aura.intent,      BOOL, 0.0f, 1.0f,  1.0f,    "Pawn · Aura", "intent")
 ORGAN_PARAM(DRIVERS, DriverSurface, aura.attack,      F32,  0.05f, 8.0f, 0.05f,   "Pawn · Aura", "attack (1/s)")
@@ -530,10 +475,6 @@ ORGAN_PARAM_DEF(AGENT_ROOM, GPUAgentRoomConstants, behaviors[9].home_pull,      
 ORGAN_PARAM_DEF(AGENT_ROOM, GPUAgentRoomConstants, behaviors[9].neighbor_radius, F32, 0.0f,  50.0f,  0.25f,   "Agents · levy_flight", "neighbour radius", BEHAVIOR, AgentBehaviorBank, b[9].neighbor_radius)
 ORGAN_PARAM_DEF(AGENT_ROOM, GPUAgentRoomConstants, behaviors[9].speed_cap,       F32, 0.0f,  10.0f,  0.05f,   "Agents · levy_flight", "speed cap", BEHAVIOR, AgentBehaviorBank, b[9].speed_cap)
 
-// ─── Agents · Portals — EDITS THE NEXT DRAW ─────────────────────
-// WORLD_DRAW_LIVE again, the population half. THE DESTINATION LAW: one
-// weight per mood, normalised by the walk, and a 0 shuts a door.
-
 // ─── Interaction · Field ───────────────────────────────────────
 // GPUDesignConfig, boot-pinned from contracts/control_panel.hpp and read
 // by both dialects. field_k is clamped against the beacon's S at the writer.
@@ -629,4 +570,17 @@ ORGAN_PARAM(CONFIG, GPUDesignConfig, shadow_mask, U32, 0.0f,   3.0f, 1.0f, "Meas
 // narrower penumbra is the piece. Range covers only the two legal values.
 ORGAN_PARAM(CONFIG, GPUDesignConfig, shadow_pcf_taps, U32, 4.0f, 16.0f, 12.0f, "Measure", "sun PCF taps (4 or 16)")
 
-// ─── Atrium — EDITS THE NEXT ENTRANCE ───────────────────────────
+// ─── Population · Agents — EDITS THE NEXT WORLD ─────────────────────
+// AGENTS_LIVE (contracts/agent_surface.hpp), the world's one agent
+// population: how many walk it, and what they are. It was seven rows
+// indexed by mood until ONE_WORLD-II U1c, and unenrolled until U6b —
+// NEW rows, not a re-home, which is why they arrive here last.
+// DESTRUCTIVE-ish by cadence: spawn_population reads the bank at a
+// world's birth and respawn_evicted_agents reads it per frame, so a
+// weight edit reaches the next agent to die and the whole population at
+// the next rebirth.
+ORGAN_PARAM_GEN(AGENTS, AgentPopulationBank, count,                U32, 0.0f, 31.0f,  1.0f,  "Population · Agents", "count")
+ORGAN_PARAM_GEN(AGENTS, AgentPopulationBank, spawn_inner_radius,   F32, 0.0f, 800.0f, 2.0f,  "Population · Agents", "annulus inner radius")
+ORGAN_PARAM_GEN(AGENTS, AgentPopulationBank, spawn_radius,         F32, 0.0f, 1200.0f,4.0f,  "Population · Agents", "annulus outer radius")
+ORGAN_PARAM_GEN(AGENTS, AgentPopulationBank, spawn_center_forward, F32, -400.0f, 400.0f, 2.0f, "Population · Agents", "centre forward offset")
+ORGAN_PARAM_GEN(AGENTS, AgentPopulationBank, home_seeding_radius,  F32, 0.0f, 200.0f, 1.0f,  "Population · Agents", "home seeding radius")

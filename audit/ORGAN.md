@@ -23,100 +23,53 @@ generator, so the book and the manifest cannot disagree. `driven` is an
 
 | section | label | id | block / family | type | range | step | cadence | def-kind | ro |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| Sky & Light · Sun | direction (centre) | `MoodProfile.atmos.sun_direction` | NONE (255) | VEC3 | -1 … 1 | 0.01 | boundary | mood |  |
-| Sky & Light · Sun | azimuth spread (±deg) | `MoodProfile.atmos.sun_az_spread_deg` | NONE (255) | F32 | 0 … 180 | 1 | boundary | mood |  |
-| Sky & Light · Sun | elevation spread (±deg) | `MoodProfile.atmos.sun_el_spread_deg` | NONE (255) | F32 | 0 … 45 | 0.5 | boundary | mood |  |
+| Sky & Light · Sun | direction (centre) | `ATMOS.sun_direction` | ATMOS | VEC3 | -1 … 1 | 0.01 | live | none |  |
+| Sky & Light · Sun | azimuth spread (±deg) | `ATMOS.sun_az_spread_deg` | ATMOS | F32 | 0 … 180 | 1 | live | none |  |
+| Sky & Light · Sun | elevation spread (±deg) | `ATMOS.sun_el_spread_deg` | ATMOS | F32 | 0 … 45 | 0.5 | live | none |  |
 | Sky & Light · Sun | direction (drawn) | `LIGHTING.sun.direction` | LIGHTING | VEC3 | — | — | driven | none | • |
 | Sky & Light · Sun | colour (drawn) | `LIGHTING.sun.color` | LIGHTING | VEC3 | — | — | driven | none | • |
 | Sky & Light · Sun | intensity (drawn) | `LIGHTING.sun.intensity` | LIGHTING | F32 | — | — | driven | none | • |
 | Sky & Light · Sun | ambient (drawn) | `LIGHTING.sun.ambient` | LIGHTING | F32 | — | — | driven | none | • |
 | Sky & Light · Dome | dome radius | `ORBS.dome_radius` | ORBS | F32 | 0 … 2000 | 5 | boundary | none |  |
 | Sky & Light · Dome | base size | `ORBS.base_size` | ORBS | F32 | 0 … 12 | 0.05 | boundary | none |  |
-| Sky & Light · Orbs | enabled | `OrbMoodConfig.enabled` | NONE_ORB (254) | BOOL | 0 … 1 | 1 | boundary | orb_mood |  |
-| Sky & Light · Orbs | count | `OrbMoodConfig.count` | NONE_ORB (254) | U32 | 0 … 256 | 1 | boundary | orb_mood |  |
-| Sky & Light · Orbs | palette id | `OrbMoodConfig.palette_id` | NONE_ORB (254) | U32 | 0 … 3 | 1 | boundary | orb_mood |  |
-| Sky & Light · Orbs | drag | `OrbMoodConfig.drag` | NONE_ORB (254) | F32 | 0.01 … 2 | 0.01 | boundary | orb_mood |  |
-| Sky & Light · Orbs | brightness | `OrbMoodConfig.brightness` | NONE_ORB (254) | F32 | 0 … 1 | 0.005 | boundary | orb_mood |  |
+| Sky & Light · Orbs | enabled | `ORB_BANK.enabled` | ORB_BANK | BOOL | 0 … 1 | 1 | live | none |  |
+| Sky & Light · Orbs | count | `ORB_BANK.count` | ORB_BANK | U32 | 0 … 256 | 1 | live | none |  |
+| Sky & Light · Orbs | palette id | `ORB_BANK.palette_id` | ORB_BANK | U32 | 0 … 3 | 1 | live | none |  |
+| Sky & Light · Orbs | drag | `ORB_BANK.drag` | ORB_BANK | F32 | 0.01 … 2 | 0.01 | live | none |  |
+| Sky & Light · Orbs | brightness | `ORB_BANK.brightness` | ORB_BANK | F32 | 0 … 1 | 0.005 | live | none |  |
 | Sky & Light · Motion — all rules | speed mult | `ORBS.speed_mult` | ORBS | F32 | 0 … 4 | 0.01 | boundary | none |  |
 | Sky & Light · Motion — all rules | noise floor | `ORBS.noise_floor` | ORBS | F32 | 0 … 3 | 0.005 | boundary | none |  |
-| Sky & Light · Motion — all rules | rotation speed (rad/s) | `OrbMoodConfig.rotation_speed` | NONE_ORB (254) | F32 | -2 … 2 | 0.005 | boundary | orb_mood |  |
-| Sky & Light · Motion — all rules | rotation axis | `OrbMoodConfig.rotation_axis` | NONE_ORB (254) | VEC3 | -1 … 1 | 0.01 | boundary | orb_mood |  |
-| Sky & Light · Motion — all rules | drag × brownian rule | `OrbMoodConfig.rule_drag_brownian` | NONE_ORB (254) | F32 | 0.02 … 4 | 0.02 | boundary | orb_mood |  |
-| Sky & Light · Motion — all rules | drag × orbital rule | `OrbMoodConfig.rule_drag_orbital` | NONE_ORB (254) | F32 | 0.02 … 4 | 0.02 | boundary | orb_mood |  |
-| Sky & Light · Motion — all rules | drag × frozen rule | `OrbMoodConfig.rule_drag_frozen` | NONE_ORB (254) | F32 | 0.02 … 4 | 0.02 | boundary | orb_mood |  |
-| Sky & Light · Motion — all rules | drag × flocking rule | `OrbMoodConfig.rule_drag_flocking` | NONE_ORB (254) | F32 | 0.02 … 4 | 0.02 | boundary | orb_mood |  |
-| Sky & Light · Orbital rule | orbital speed (rad/s) | `OrbMoodConfig.orbital_base_speed` | NONE_ORB (254) | F32 | 0.005 … 1 | 0.005 | boundary | orb_mood |  |
-| Sky & Light · Flocking rule | separation radius | `OrbMoodConfig.flock_sep_radius` | NONE_ORB (254) | F32 | 1 … 200 | 1 | boundary | orb_mood |  |
-| Sky & Light · Flocking rule | alignment radius | `OrbMoodConfig.flock_align_radius` | NONE_ORB (254) | F32 | 2 … 480 | 2 | boundary | orb_mood |  |
-| Sky & Light · Flocking rule | cohesion radius | `OrbMoodConfig.flock_coh_radius` | NONE_ORB (254) | F32 | 4 … 800 | 4 | boundary | orb_mood |  |
-| Sky & Light · Flocking rule | separation weight | `OrbMoodConfig.flock_sep_weight` | NONE_ORB (254) | F32 | 0.5 … 120 | 0.5 | boundary | orb_mood |  |
-| Sky & Light · Flocking rule | alignment weight | `OrbMoodConfig.flock_align_weight` | NONE_ORB (254) | F32 | 0.2 … 32 | 0.2 | boundary | orb_mood |  |
-| Sky & Light · Flocking rule | cohesion weight | `OrbMoodConfig.flock_coh_weight` | NONE_ORB (254) | F32 | 0.25 … 60 | 0.25 | boundary | orb_mood |  |
-| Sky & Light · Flocking rule | max speed | `OrbMoodConfig.flock_max_speed` | NONE_ORB (254) | F32 | 1 … 240 | 1 | boundary | orb_mood |  |
-| Sky & Light · Schemes | cathedral | `WORLD.scheme_weights[0]` | WORLD | F32 | 0 … 1 | 0.005 | gen | none |  |
-| Sky & Light · Schemes | quartet | `WORLD.scheme_weights[1]` | WORLD | F32 | 0 … 1 | 0.005 | gen | none |  |
-| Sky & Light · Schemes | gallery | `WORLD.scheme_weights[2]` | WORLD | F32 | 0 … 1 | 0.005 | gen | none |  |
-| Sky & Light · Schemes | sanctum | `WORLD.scheme_weights[3]` | WORLD | F32 | 0 … 1 | 0.005 | gen | none |  |
-| Atmosphere · Regimes | draw · regime 1 | `MoodProfile.regime_weight[0]` | NONE (255) | F32 | 0 … 1 | 0.01 | boundary | mood |  |
-| Atmosphere · Regimes | draw · regime 2 | `MoodProfile.regime_weight[1]` | NONE (255) | F32 | 0 … 1 | 0.01 | boundary | mood |  |
-| Atmosphere · Regimes | draw · regime 3 | `MoodProfile.regime_weight[2]` | NONE (255) | F32 | 0 … 1 | 0.01 | boundary | mood |  |
-| Atmosphere · Regimes | draw · regime 4 | `MoodProfile.regime_weight[3]` | NONE (255) | F32 | 0 … 1 | 0.01 | boundary | mood |  |
-| Atmosphere · Regime 1 | sun colour | `MoodProfile.atmos.regime[0].sun_color` | NONE (255) | VEC3 | 0 … 1 | 0.01 | boundary | mood |  |
-| Atmosphere · Regime 1 | sun colour spread (±bright) | `MoodProfile.atmos.regime[0].sun_color_spread` | NONE (255) | F32 | 0 … 1 | 0.01 | boundary | mood |  |
-| Atmosphere · Regime 1 | intensity | `MoodProfile.atmos.regime[0].intensity` | NONE (255) | F32 | 0 … 4 | 0.01 | boundary | mood |  |
-| Atmosphere · Regime 1 | intensity spread | `MoodProfile.atmos.regime[0].intensity_spread` | NONE (255) | F32 | 0 … 2 | 0.01 | boundary | mood |  |
-| Atmosphere · Regime 1 | ambient | `MoodProfile.atmos.regime[0].ambient` | NONE (255) | F32 | 0 … 1 | 0.005 | boundary | mood |  |
-| Atmosphere · Regime 1 | ambient spread | `MoodProfile.atmos.regime[0].ambient_spread` | NONE (255) | F32 | 0 … 0.5 | 0.005 | boundary | mood |  |
-| Atmosphere · Regime 1 | fog density | `MoodProfile.atmos.regime[0].fog_density` | NONE (255) | F32 | 0 … 0.05 | 0.0002 | boundary | mood |  |
-| Atmosphere · Regime 1 | fog density spread | `MoodProfile.atmos.regime[0].fog_density_spread` | NONE (255) | F32 | 0 … 0.02 | 0.0001 | boundary | mood |  |
-| Atmosphere · Regime 1 | fog colour | `MoodProfile.atmos.regime[0].fog_color` | NONE (255) | VEC3 | 0 … 1 | 0.01 | boundary | mood |  |
-| Atmosphere · Regime 1 | fog colour spread (±bright) | `MoodProfile.atmos.regime[0].fog_color_spread` | NONE (255) | F32 | 0 … 1 | 0.01 | boundary | mood |  |
-| Atmosphere · Regime 1 | clear colour | `MoodProfile.atmos.regime[0].clear_color` | NONE (255) | VEC3 | 0 … 1 | 0.01 | boundary | mood |  |
-| Atmosphere · Regime 1 | clear colour spread (±bright) | `MoodProfile.atmos.regime[0].clear_color_spread` | NONE (255) | F32 | 0 … 1 | 0.01 | boundary | mood |  |
-| Atmosphere · Regime 2 | sun colour | `MoodProfile.atmos.regime[1].sun_color` | NONE (255) | VEC3 | 0 … 1 | 0.01 | boundary | mood |  |
-| Atmosphere · Regime 2 | sun colour spread (±bright) | `MoodProfile.atmos.regime[1].sun_color_spread` | NONE (255) | F32 | 0 … 1 | 0.01 | boundary | mood |  |
-| Atmosphere · Regime 2 | intensity | `MoodProfile.atmos.regime[1].intensity` | NONE (255) | F32 | 0 … 4 | 0.01 | boundary | mood |  |
-| Atmosphere · Regime 2 | intensity spread | `MoodProfile.atmos.regime[1].intensity_spread` | NONE (255) | F32 | 0 … 2 | 0.01 | boundary | mood |  |
-| Atmosphere · Regime 2 | ambient | `MoodProfile.atmos.regime[1].ambient` | NONE (255) | F32 | 0 … 1 | 0.005 | boundary | mood |  |
-| Atmosphere · Regime 2 | ambient spread | `MoodProfile.atmos.regime[1].ambient_spread` | NONE (255) | F32 | 0 … 0.5 | 0.005 | boundary | mood |  |
-| Atmosphere · Regime 2 | fog density | `MoodProfile.atmos.regime[1].fog_density` | NONE (255) | F32 | 0 … 0.05 | 0.0002 | boundary | mood |  |
-| Atmosphere · Regime 2 | fog density spread | `MoodProfile.atmos.regime[1].fog_density_spread` | NONE (255) | F32 | 0 … 0.02 | 0.0001 | boundary | mood |  |
-| Atmosphere · Regime 2 | fog colour | `MoodProfile.atmos.regime[1].fog_color` | NONE (255) | VEC3 | 0 … 1 | 0.01 | boundary | mood |  |
-| Atmosphere · Regime 2 | fog colour spread (±bright) | `MoodProfile.atmos.regime[1].fog_color_spread` | NONE (255) | F32 | 0 … 1 | 0.01 | boundary | mood |  |
-| Atmosphere · Regime 2 | clear colour | `MoodProfile.atmos.regime[1].clear_color` | NONE (255) | VEC3 | 0 … 1 | 0.01 | boundary | mood |  |
-| Atmosphere · Regime 2 | clear colour spread (±bright) | `MoodProfile.atmos.regime[1].clear_color_spread` | NONE (255) | F32 | 0 … 1 | 0.01 | boundary | mood |  |
-| Atmosphere · Regime 3 | sun colour | `MoodProfile.atmos.regime[2].sun_color` | NONE (255) | VEC3 | 0 … 1 | 0.01 | boundary | mood |  |
-| Atmosphere · Regime 3 | sun colour spread (±bright) | `MoodProfile.atmos.regime[2].sun_color_spread` | NONE (255) | F32 | 0 … 1 | 0.01 | boundary | mood |  |
-| Atmosphere · Regime 3 | intensity | `MoodProfile.atmos.regime[2].intensity` | NONE (255) | F32 | 0 … 4 | 0.01 | boundary | mood |  |
-| Atmosphere · Regime 3 | intensity spread | `MoodProfile.atmos.regime[2].intensity_spread` | NONE (255) | F32 | 0 … 2 | 0.01 | boundary | mood |  |
-| Atmosphere · Regime 3 | ambient | `MoodProfile.atmos.regime[2].ambient` | NONE (255) | F32 | 0 … 1 | 0.005 | boundary | mood |  |
-| Atmosphere · Regime 3 | ambient spread | `MoodProfile.atmos.regime[2].ambient_spread` | NONE (255) | F32 | 0 … 0.5 | 0.005 | boundary | mood |  |
-| Atmosphere · Regime 3 | fog density | `MoodProfile.atmos.regime[2].fog_density` | NONE (255) | F32 | 0 … 0.05 | 0.0002 | boundary | mood |  |
-| Atmosphere · Regime 3 | fog density spread | `MoodProfile.atmos.regime[2].fog_density_spread` | NONE (255) | F32 | 0 … 0.02 | 0.0001 | boundary | mood |  |
-| Atmosphere · Regime 3 | fog colour | `MoodProfile.atmos.regime[2].fog_color` | NONE (255) | VEC3 | 0 … 1 | 0.01 | boundary | mood |  |
-| Atmosphere · Regime 3 | fog colour spread (±bright) | `MoodProfile.atmos.regime[2].fog_color_spread` | NONE (255) | F32 | 0 … 1 | 0.01 | boundary | mood |  |
-| Atmosphere · Regime 3 | clear colour | `MoodProfile.atmos.regime[2].clear_color` | NONE (255) | VEC3 | 0 … 1 | 0.01 | boundary | mood |  |
-| Atmosphere · Regime 3 | clear colour spread (±bright) | `MoodProfile.atmos.regime[2].clear_color_spread` | NONE (255) | F32 | 0 … 1 | 0.01 | boundary | mood |  |
-| Atmosphere · Regime 4 | sun colour | `MoodProfile.atmos.regime[3].sun_color` | NONE (255) | VEC3 | 0 … 1 | 0.01 | boundary | mood |  |
-| Atmosphere · Regime 4 | sun colour spread (±bright) | `MoodProfile.atmos.regime[3].sun_color_spread` | NONE (255) | F32 | 0 … 1 | 0.01 | boundary | mood |  |
-| Atmosphere · Regime 4 | intensity | `MoodProfile.atmos.regime[3].intensity` | NONE (255) | F32 | 0 … 4 | 0.01 | boundary | mood |  |
-| Atmosphere · Regime 4 | intensity spread | `MoodProfile.atmos.regime[3].intensity_spread` | NONE (255) | F32 | 0 … 2 | 0.01 | boundary | mood |  |
-| Atmosphere · Regime 4 | ambient | `MoodProfile.atmos.regime[3].ambient` | NONE (255) | F32 | 0 … 1 | 0.005 | boundary | mood |  |
-| Atmosphere · Regime 4 | ambient spread | `MoodProfile.atmos.regime[3].ambient_spread` | NONE (255) | F32 | 0 … 0.5 | 0.005 | boundary | mood |  |
-| Atmosphere · Regime 4 | fog density | `MoodProfile.atmos.regime[3].fog_density` | NONE (255) | F32 | 0 … 0.05 | 0.0002 | boundary | mood |  |
-| Atmosphere · Regime 4 | fog density spread | `MoodProfile.atmos.regime[3].fog_density_spread` | NONE (255) | F32 | 0 … 0.02 | 0.0001 | boundary | mood |  |
-| Atmosphere · Regime 4 | fog colour | `MoodProfile.atmos.regime[3].fog_color` | NONE (255) | VEC3 | 0 … 1 | 0.01 | boundary | mood |  |
-| Atmosphere · Regime 4 | fog colour spread (±bright) | `MoodProfile.atmos.regime[3].fog_color_spread` | NONE (255) | F32 | 0 … 1 | 0.01 | boundary | mood |  |
-| Atmosphere · Regime 4 | clear colour | `MoodProfile.atmos.regime[3].clear_color` | NONE (255) | VEC3 | 0 … 1 | 0.01 | boundary | mood |  |
-| Atmosphere · Regime 4 | clear colour spread (±bright) | `MoodProfile.atmos.regime[3].clear_color_spread` | NONE (255) | F32 | 0 … 1 | 0.01 | boundary | mood |  |
+| Sky & Light · Motion — all rules | rotation speed (rad/s) | `ORB_BANK.rotation_speed` | ORB_BANK | F32 | -2 … 2 | 0.005 | live | none |  |
+| Sky & Light · Motion — all rules | rotation axis | `ORB_BANK.rotation_axis` | ORB_BANK | VEC3 | -1 … 1 | 0.01 | live | none |  |
+| Sky & Light · Motion — all rules | drag × brownian rule | `ORB_BANK.rule_drag_brownian` | ORB_BANK | F32 | 0.02 … 4 | 0.02 | live | none |  |
+| Sky & Light · Motion — all rules | drag × orbital rule | `ORB_BANK.rule_drag_orbital` | ORB_BANK | F32 | 0.02 … 4 | 0.02 | live | none |  |
+| Sky & Light · Motion — all rules | drag × frozen rule | `ORB_BANK.rule_drag_frozen` | ORB_BANK | F32 | 0.02 … 4 | 0.02 | live | none |  |
+| Sky & Light · Motion — all rules | drag × flocking rule | `ORB_BANK.rule_drag_flocking` | ORB_BANK | F32 | 0.02 … 4 | 0.02 | live | none |  |
+| Sky & Light · Orbital rule | orbital speed (rad/s) | `ORB_BANK.orbital_base_speed` | ORB_BANK | F32 | 0.005 … 1 | 0.005 | live | none |  |
+| Sky & Light · Flocking rule | separation radius | `ORB_BANK.flock_sep_radius` | ORB_BANK | F32 | 1 … 200 | 1 | live | none |  |
+| Sky & Light · Flocking rule | alignment radius | `ORB_BANK.flock_align_radius` | ORB_BANK | F32 | 2 … 480 | 2 | live | none |  |
+| Sky & Light · Flocking rule | cohesion radius | `ORB_BANK.flock_coh_radius` | ORB_BANK | F32 | 4 … 800 | 4 | live | none |  |
+| Sky & Light · Flocking rule | separation weight | `ORB_BANK.flock_sep_weight` | ORB_BANK | F32 | 0.5 … 120 | 0.5 | live | none |  |
+| Sky & Light · Flocking rule | alignment weight | `ORB_BANK.flock_align_weight` | ORB_BANK | F32 | 0.2 … 32 | 0.2 | live | none |  |
+| Sky & Light · Flocking rule | cohesion weight | `ORB_BANK.flock_coh_weight` | ORB_BANK | F32 | 0.25 … 60 | 0.25 | live | none |  |
+| Sky & Light · Flocking rule | max speed | `ORB_BANK.flock_max_speed` | ORB_BANK | F32 | 1 … 240 | 1 | live | none |  |
+| Atmosphere · Sky | sun colour | `ATMOS.sun_color` | ATMOS | VEC3 | 0 … 1 | 0.01 | live | none |  |
+| Atmosphere · Sky | sun colour spread (±bright) | `ATMOS.sun_color_spread` | ATMOS | F32 | 0 … 1 | 0.01 | live | none |  |
+| Atmosphere · Sky | intensity | `ATMOS.intensity` | ATMOS | F32 | 0 … 4 | 0.01 | live | none |  |
+| Atmosphere · Sky | intensity spread | `ATMOS.intensity_spread` | ATMOS | F32 | 0 … 2 | 0.01 | live | none |  |
+| Atmosphere · Sky | ambient | `ATMOS.ambient` | ATMOS | F32 | 0 … 1 | 0.005 | live | none |  |
+| Atmosphere · Sky | ambient spread | `ATMOS.ambient_spread` | ATMOS | F32 | 0 … 0.5 | 0.005 | live | none |  |
+| Atmosphere · Sky | fog density | `ATMOS.fog_density` | ATMOS | F32 | 0 … 0.05 | 0.0002 | live | none |  |
+| Atmosphere · Sky | fog density spread | `ATMOS.fog_density_spread` | ATMOS | F32 | 0 … 0.02 | 0.0001 | live | none |  |
+| Atmosphere · Sky | fog colour | `ATMOS.fog_color` | ATMOS | VEC3 | 0 … 1 | 0.01 | live | none |  |
+| Atmosphere · Sky | fog colour spread (±bright) | `ATMOS.fog_color_spread` | ATMOS | F32 | 0 … 1 | 0.01 | live | none |  |
+| Atmosphere · Sky | clear colour | `ATMOS.clear_color` | ATMOS | VEC3 | 0 … 1 | 0.01 | live | none |  |
+| Atmosphere · Sky | clear colour spread (±bright) | `ATMOS.clear_color_spread` | ATMOS | F32 | 0 … 1 | 0.01 | live | none |  |
 | Atmosphere · Fog | drive gain | `DRIVERS.fog.gain` | DRIVERS | F32 | 0 … 1 | 0.01 | live | none |  |
 | Atmosphere · Fog | density (driven) | `CONFIG.fog_density` | CONFIG | F32 | — | — | driven | none | • |
 | Atmosphere · Fog | colour (driven) | `CONFIG.fog_color` | CONFIG | VEC3 | — | — | driven | none | • |
 | Atmosphere · Veil | ring (draw authority) | `CONFIG.veil_ring` | CONFIG | F32 | 265 … 349 | 0.5 | live | none |  |
-| Atmosphere · Veil | icing band | `CONFIG.veil_icing` | CONFIG | F32 | 0 … 60 | 0.25 | live | none |  |
-| Atmosphere · Veil | LOD0 core | `CONFIG.lod0_radius` | CONFIG | F32 | 0 … 175 | 1 | live | none |  |
-| Atmosphere · Veil | rim dither (>0.5) | `CONFIG.veil_dither` | CONFIG | F32 | 0 … 1 | 1 | live | none |  |
-| Atmosphere · Veil | authority (driven) | `CONFIG.veil_strength` | CONFIG | F32 | — | — | driven | none | • |
+| Atmosphere · Veil | grain band | `CONFIG.veil_icing` | CONFIG | F32 | 0 … 60 | 0.25 | live | none |  |
 | Atmosphere · Checker | rest colour | `DRIVERS.checker.rest_resultant` | DRIVERS | VEC3 | 0 … 1 | 0.01 | live | none |  |
 | Atmosphere · Checker | rest amount | `DRIVERS.checker.rest_amount` | DRIVERS | F32 | 0 … 1 | 0.005 | live | none |  |
 | Atmosphere · Checker | rest variance | `DRIVERS.checker.rest_variance` | DRIVERS | F32 | 0 … 8 | 0.04 | live | none |  |
@@ -165,11 +118,6 @@ generator, so the book and the manifest cannot disagree. `driven` is an
 | Terrain · Mosaic | passage scale | `CONFIG.mosaic_passage_scale` | CONFIG | F32 | 0 … 48 | 0.25 | live | none |  |
 | Terrain · Mosaic | boundary blend | `CONFIG.mosaic_blend` | CONFIG | F32 | 0 … 1 | 0.005 | live | none |  |
 | Terrain · Mosaic | facet lean | `CONFIG.mosaic_facet` | CONFIG | F32 | 0 … 1 | 0.005 | live | none |  |
-| Terrain · Indoor | height cap fraction | `INDOOR.height_cap_fraction` | INDOOR | F32 | 0 … 1 | 0.005 | gen | none |  |
-| Terrain · Indoor | ribbon scale | `INDOOR.ribbon_scale` | INDOOR | F32 | 0 … 0.6 | 0.005 | gen | none |  |
-| Terrain · Indoor | terrain amp ceiling (driven) | `CONFIG.terrain_amp_ceiling` | CONFIG | F32 | — | — | driven | none | • |
-| Terrain · Indoor | ceiling height (driven) | `CONFIG.ceiling_height` | CONFIG | F32 | — | — | driven | none | • |
-| Terrain · Indoor | GoL lift cap (driven) | `CONFIG.indoor_height_cap` | CONFIG | F32 | — | — | driven | none | • |
 | Pawn · Aura | intent | `DRIVERS.aura.intent` | DRIVERS | BOOL | 0 … 1 | 1 | live | none |  |
 | Pawn · Aura | attack (1/s) | `DRIVERS.aura.attack` | DRIVERS | F32 | 0.05 … 8 | 0.05 | live | none |  |
 | Pawn · Aura | release (1/s) | `DRIVERS.aura.release` | DRIVERS | F32 | 0.05 … 8 | 0.05 | live | none |  |
@@ -377,19 +325,24 @@ generator, so the book and the manifest cannot disagree. `driven` is an
 | Measure ·  | main draw mask (bits: A/B/C terrain, table, ribbon, [5 unused], orbs, fade) | `CONFIG.draw_mask` | CONFIG | U32 | 0 … 255 | 1 | live | none |  |
 | Measure ·  | shadow draw mask (bit0 terrain, bit1 entities+artworks) | `CONFIG.shadow_mask` | CONFIG | U32 | 0 … 3 | 1 | live | none |  |
 | Measure ·  | sun PCF taps (4 or 16) | `CONFIG.shadow_pcf_taps` | CONFIG | U32 | 4 … 16 | 12 | live | none |  |
+| Population · Agents | count | `AGENTS.count` | AGENTS | U32 | 0 … 31 | 1 | gen | none |  |
+| Population · Agents | annulus inner radius | `AGENTS.spawn_inner_radius` | AGENTS | F32 | 0 … 800 | 2 | gen | none |  |
+| Population · Agents | annulus outer radius | `AGENTS.spawn_radius` | AGENTS | F32 | 0 … 1200 | 4 | gen | none |  |
+| Population · Agents | centre forward offset | `AGENTS.spawn_center_forward` | AGENTS | F32 | -400 … 400 | 2 | gen | none |  |
+| Population · Agents | home seeding radius | `AGENTS.home_seeding_radius` | AGENTS | F32 | 0 … 200 | 1 | gen | none |  |
 
 ## The tallies
 
 | | |
 | --- | --- |
-| entries | **354** |
-| by section | Agents 102 · Atmosphere 71 · Ribbon 55 · Terrain 42 · Sky & Light 34 · Interaction 22 · Pawn 18 · Debug 4 · Camera 3 · Measure 3 |
-| by cadence | boundary 180 · driven 18 · gen 26 · live 130 |
-| by macro form | PARAM 134 · PARAM_DEF 102 · PARAM_DEFONLY 74 · PARAM_GEN 26 · PARAM_RO 18 |
-| definition kinds | BEHAVIOR 70 · MOOD 55 · NONE 178 · ORB_MOOD 19 · TIER 32 |
-| witnesses (`ro`) | 18 |
-| blocks and sentinels used | AGENT_ROOM, CANVAS, CONFIG, DRIVERS, INDOOR, LIGHTING, NONE (255), NONE_ORB (254), ORBS, PANEL, PAWN, RIBBON, RIBBON_SPAWN, WORLD |
-| namespaces | canvas 15 · the_board 339 |
+| entries | **307** |
+| by section | Agents 102 · Ribbon 55 · Terrain 37 · Sky & Light 30 · Atmosphere 28 · Interaction 22 · Pawn 18 · Population 5 · Debug 4 · Camera 3 · Measure 3 |
+| by cadence | boundary 106 · driven 14 · gen 25 · live 162 |
+| by macro form | PARAM 166 · PARAM_DEF 102 · PARAM_GEN 25 · PARAM_RO 14 |
+| definition kinds | BEHAVIOR 70 · NONE 205 · TIER 32 |
+| witnesses (`ro`) | 14 |
+| blocks and sentinels used | AGENTS, AGENT_ROOM, ATMOS, CANVAS, CONFIG, DRIVERS, LIGHTING, ORBS, ORB_BANK, PANEL, PAWN, RIBBON, RIBBON_SPAWN |
+| namespaces | canvas 15 · the_board 292 |
 
 ### Doors
 
@@ -421,18 +374,18 @@ its seed and its asserts. Anything else is a surviving runtime
 reader — the class of defect this witness exists to catch.
 
   AGENT_BEHAVIORS      definition=1 seed=10 comment=7             
+  AGENTS_TABLE         definition=1 seed=1 comment=1              
   AGENT_TIER_GAINS     definition=1 seed=4 static_assert=2 comment=6 
+  ATMOS_TABLE          definition=1 seed=1 static_assert=8 comment=4 
   CANVAS_TABLE         definition=1 seed=1 comment=1              
+  CUBE_TABLE           definition=1 seed=1 static_assert=3 comment=1 
   DRIVER_TABLE         definition=1 seed=1 comment=1              
-  INDOOR_TABLE         definition=1 seed=1 static_assert=2 comment=1 
-  MOOD_TABLE           definition=1 seed=7 static_assert=31 comment=28 
+  ORB_TABLE            definition=1 seed=1 comment=4              
   ORB_CONSOLE          definition=1 seed=1 comment=2              
-  ORB_MOOD_TABLE       definition=1 seed=7 comment=6              
   PANEL_TABLE          definition=1 seed=1 static_assert=6 comment=2 
   PAWN_AURA_DEFAULT    definition=1 seed=1 static_assert=1 comment=3 
   RIBBON_SPAWN_TABLE   definition=1 seed=1 static_assert=2        
   RIBBON_TABLE         definition=1 seed=1 static_assert=3 comment=2 
-  WORLD_DRAW_TABLE     definition=1 seed=1 comment=2              
 
 SURVIVING RUNTIME READERS ACROSS 13 GRADUATED PAIRS: 0
 
@@ -447,7 +400,7 @@ states a belief; only the reader proves it. The tail of its run,
 verbatim:
 
 ```
-      · derive_indoor_lights               src/cartridges/the_board/direction/mood.hpp
+      ? census also names the bank here: init_renderer          src/cartridges/the_board/cartridge.hpp
 
   OUT OF SCOPE, with the reason:
       AGENT_ROOM   GPU-side: tier_gains and behaviors ship as whole arrays through two WriteBuffers and are read in world.wgsl
@@ -456,10 +409,10 @@ verbatim:
 
 THE ANSWER, ROW BY ROW
 ------------------------------------------------------------------------
-  proved    256   a declared reader names the field
+  proved    215   a declared reader names the field
   SUSPECT     0   no declared reader names it
-  witness    18   an _RO meter: the question is inverted (blind spot 5)
-  scope      80   GPU-side or whole-struct (blind spots 2, 3)
+  witness    14   an _RO meter: the question is inverted (blind spot 5)
+  scope      78   GPU-side or whole-struct (blind spots 2, 3)
 
 NO SUSPECTS. Every enrolled dial's field is named in the body of
 a function this tool can read.

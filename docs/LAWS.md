@@ -261,20 +261,33 @@ found the whole family at once: an amber sphere the CPU census did not know
 existed, a test rig that outlived its own retirement condition, five
 transcriptions of `MOOD_TABLE[0]` across three files, and a frustum-cull flag
 whose only writer was `apply_mood` — so the world booted in `open_default`
-wearing a cull setting that belonged to no mood at all.
+wearing a cull setting that belonged to no mood at all. (Those names are the
+minute's, kept as it was written; the struck-note below says what each is now.)
 
 The two doors this law currently names:
 
-- `apply_mood` — the atmosphere, the feature gates, the orbs. Called at boot
-  and at every transition, with `mood_state_.active`.
-- `reset_surface` — patches, tiles, themes, queues, piers, footprints. Called
-  at boot and by the transition machine. It was `teardown_surface`; the rename
-  is the law made visible in the name.
+- `stage_world_birth` — the atmosphere, the feature gates, the orbs. Called
+  at boot and at every rebirth, with the world's seed.
+- `reset_surface` — patches, tiles, queues, piers, footprints. Called at boot
+  and by the rebirth. It was `teardown_surface`; the rename is the law made
+  visible in the name.
+
+**STRUCK-NOTE — the subjects, not the law (ONE_WORLD-II, 2026-09-01).** Every
+name in the paragraph above and the two below belonged to the mood system,
+and the mood system is gone. What each became: `apply_mood` →
+`stage_world_birth`; `mood_state_.active` → nothing, the world is chosen by
+its SEED alone; `MOOD_TABLE[0]` → `ATMOS_TABLE`, one row seeding `ATMOS_LIVE`;
+`apply_mood_lighting` → `stage_sky` (U7); `MoodState` → `SkyState`;
+`open_default` → the one world there is. The law is untouched because it never
+depended on them: BOOT_ONE_VOICE found the family through a mood system, and
+the finding is about boot, not about moods. The frustum-cull flag the last
+bullet names is still WRITTEN by the one door and still read by nobody —
+flagged at `realization/renderer.hpp`, a build question and Jean's.
 
 **What this does NOT license.** Boot legitimately owns things a transition
 never touches — buffer creation, pipeline construction, the one-shot index
 generation, and the REST values of knobs no mood authors (fog is the live
-example: `apply_mood_lighting` does not touch it, so the boot fog values are
+example: the sky's applier does not touch it, so the boot fog values are
 correct, not residue). The test is not "did a transition write it" but
 "**does a transition path author this value?**" If yes, boot calls that path.
 If no, boot is its author and says so.
@@ -1131,6 +1144,14 @@ boundary wiring at all.
 *Paid for by:* ORGAN_3/3b. `INDOOR_HEIGHT_CAP_FRACTION` has one idempotent
 reader and nine destructive ones, so its bank has none.
 
+**STRUCK-NOTE (ONE_WORLD-II U4, noted U7).** The example died: the rooms'
+height cap left with the ceilings it capped, and its bank with it. The LAW is
+untouched and still governs — `RIBBON_SPAWN_LIVE` and the world-draw bank are
+the two destructive banks that keep its temperament today (see
+`src/console/organ_registry.hpp`, "THE TWO DESTRUCTIVE BANKS"). The example is
+kept rather than replaced because the reason it was paid for is the reason it
+is worth reading.
+
 ## L45 — AN ENROLLMENT STATES A BELIEF; ONLY THE READER PROVES IT
 
 A graduation from a design table to a live bank is complete when the table's
@@ -1160,3 +1181,59 @@ what.
 
 *Paid for by:* ORGAN_6. `rejected 19` printed for two campaigns and carried no
 information; `organ_last_reject` is the cure.
+
+## THE PERSISTENCE LADDER (relocated ONE_WORLD-II U0, 2026-09-01)
+
+Every parameter stands on one rung, and the rung says who takes it back and
+when. Not a numbered rule: a MODEL the numbered rules lean on, and the frame
+the organ's cadences, the drivers' rest and the world's rebirth are all cut
+against.
+
+```
+1 the instrument's registration — the LIVE banks; held through all
+2 the player's preferences — seeded once, then the player's; held
+3 the environment's instance — DRAWN from the banks at world birth;
+  re-spoken at the boundary when a rung-1 dial is edited
+4 the world's draw — (seed, banks) → terrain, spawns, THIS SKY;
+  reborn at teardown, the same seed the same world
+5 the drivers' output — rest (3) + gain (1) · deviation, per frame
+6 the live simulation — advances per frame; a discrete command
+  changes the LAW, not the state; reborn only at teardown
+A rebirth holds 1-2, re-speaks 3, reborns 4 and 6; 5 continues over
+the new rest. "Held regardless" is rungs 1 and 2; "a custom
+environment" is a rung-1 row plus its rung-4 draw.
+```
+
+**Why it moved, and why verbatim.** Its only live home was a comment block
+inside `contracts/spine_state.hpp`'s `MOOD SYSTEM (vocabulary)` region —
+lexically between `struct MoodState` and `enum class CeilingType`, both of
+which ONE_WORLD-II deletes. The ladder would have left the tree as a side
+effect of an excision that has nothing to do with it. It qualifies here by
+this file's own admission test: delete the moods and the ladder is still
+true, and the next author still walks into the same trap.
+
+It moved **before** the amendment that ONE_WORLD-II owes it, and unedited —
+so the relocation is provably lossless and the amendment is a separate,
+visible act. **That amendment is made, at ONE_WORLD-II U2**, in the same
+commit that took `apply_mood`: rung 3's AUTHOR changed (the banks are
+drawn from at world birth, where a mood definition used to be applied at
+entry) and rung 4's source with it (`(seed, banks)`, not `(seed, tables)`).
+The tail's "transition" is a "rebirth" — the transition machine left at
+ONE_WORLD-I. Rung 3 itself did NOT collapse: rung 5 reads it every frame,
+and neither a constexpr bank nor a teardown-scoped draw can be a per-frame
+rest. Six rungs stand, and the two sentences that define "held regardless"
+and "a custom environment" stand with them.
+
+**The citation it carried was already dangling.** The block cited
+`docs/ORGAN.md, "The persistence ladder"` — a section deleted at `f294a9fe`
+(ORGAN_7 P5) and never graduated with that commit's four laws. Two sibling
+citations in `src/` were dangling the same way and were U7's to probate:
+`docs/ORGAN.md, "The drivers' room"` (`contracts/driver_surface.hpp`) and
+`docs/ORGAN.md, "Instance and definition"` (`spine_state.hpp`, at the
+eligibility rule).
+
+**DISCHARGED at ONE_WORLD-II U7.** The drivers'-room citation was rewritten
+to say the section is gone and where the fact lives instead; the
+eligibility-rule citation was retargeted to `docs/ORGAN.md, "Definition and
+preview"`, which that file does carry. Every `docs/ORGAN.md` citation left in
+`src/` now names a heading that exists.

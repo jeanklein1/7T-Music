@@ -131,7 +131,6 @@ struct TileShape {
 
 struct TileState {
     TileShape      shape;   // the cast's (landform character)
-    TilePopulation pop;     // themes' (spawn density + weights)
 };
 
 // Spatial cache: keyed by (grid_x, grid_z)
@@ -148,14 +147,13 @@ struct GridKeyHash {
 // ═══ MODULE DEPS ════════════════════════════════════════════════════
 // The requirements face made literal: what tile_world's authoring
 // verbs consume beyond their own state. Organ-named members, bound
-// once at the root. const trio law: world + mood read-only, the GPU
+// once at the root. const trio law: world + sky read-only, the GPU
 // wire writable. (WorldState fwd — patch_system.hpp follows this
 // header in the cohort; the reference member tolerates the
 // incomplete type.)
 struct WorldState;
 struct TileWorldDeps {
     const WorldState& world_state_;
-    const MoodState&  mood_state_;
     GPUState&         gpuState_;
 };
 
@@ -170,15 +168,16 @@ struct TileWorldState {
 // ═══ MODULE FUNCTIONS — DECLARATIONS ═══════════════════════════════
 //
 // DEFINED below (the merged impl): generate reaches the
-// machine's mood/world state; upload reaches the GPU wire.
+// machine's world state; upload reaches the GPU wire.
 // THE S2/S3 BOUNDARY FACE: the tile cache is read across the boundary
 // by the spawn preamble and the surface samplers (estimate_terrain_
 // height / terrain_tile_warm) — the interface trio's memory member.
 
-// evict_distant_tiles: the tile eviction sweep. The KeepFn overload spares
-// tiles a caller marks load-bearing (a live patch stands on them); the 3-arg
-// form forwards with an always-false keep (nothing spared) -- its historical
-// behavior, so no other call site changes.
+// evict_distant_tiles: the tile eviction sweep. The KeepFn overload spared
+// tiles a caller marked load-bearing (a live patch stood on them) and its
+// one caller was the conductor's moved-window block; it left at
+// ONE_SURFACE-I U2 with the moving window. The 2-arg form survives — its
+// caller is the teardown, where nothing is spared by design.
 template <typename KeepFn>
 void evict_distant_tiles(TileWorldState& tw, int32_t centerX, int32_t centerZ, KeepFn keep);
 void evict_distant_tiles(TileWorldState& tw, int32_t centerX, int32_t centerZ);
@@ -212,10 +211,10 @@ void tile_apply_spawn_mult(const TileWorldState& tw, int32_t gx, int32_t gz,
 bool tile_archetype(const TileWorldState& tw, int32_t gx, int32_t gz, uint32_t& out);
 
 // ═══ IMPL: the
-// bodies deref WorldState/MoodState/GPUState via TileWorldDeps (no
+// bodies deref WorldState/SkyState/GPUState via TileWorldDeps (no
 // Cartridge). COHORT PROOF: the merged file sits AFTER patch_system.hpp
 // (WorldState complete + Dim::PATCH_EXTENT/Dim::PATCH_PREGEN_RADIUS) and after
-// population_themes.hpp (THEMES) and mood.hpp (MOOD_TABLE); the S2
+// population_themes.hpp and the sky's own tables; the S2
 // faces stay declared before the machine templates instantiate. ══════
 
 // Forgetting radius: tiles beyond this many grid cells get evicted
@@ -248,19 +247,27 @@ inline void evict_distant_tiles(TileWorldState& tw, int32_t centerX, int32_t cen
 inline void upload_tile_grid_now(TileWorldState& tw, TileWorldDeps* c, wgpu::Queue& queue, int32_t cx, int32_t cz) {
     static constexpr int32_t TILE_PAD = 1;
     // Q8: TILE_GRID capacity guard. The GPUTileGrid DTO (state.hpp) sizes
-    // entries[] for radius PATCH_PREGEN_RADIUS + 1 (TILE_GRID_SIDE), and
-    // active_radius is runtime-clamped to <= PATCH_PREGEN_RADIUS
-    // (set_render_radius; the finite cap goes lower). The built window radius
-    // is active_radius + TILE_PAD, so it fits the DTO iff TILE_PAD <= 1 (the
-    // DTO's own pad). Both the DTO side and the active_radius clamp track
-    // PATCH_PREGEN_RADIUS, so the ONLY free variable that could overflow is
-    // TILE_PAD — this closes the compile-time half of the surface; the
-    // runtime half is the existing active_radius clamp.
+    // entries[] for radius PATCH_PREGEN_RADIUS + 1 (TILE_GRID_SIDE), and the
+    // window built here is finite_radius + TILE_PAD. FINITE_RADIUS_MAX is 4
+    // and PATCH_PREGEN_RADIUS is 7, so the DTO has three rings to spare and
+    // the only free variable that could overflow is TILE_PAD.
+    //
+    // IT READ active_radius UNTIL ONE_SURFACE-I U2, and the read was correct
+    // only because it was reached from inside the conductor, which capped
+    // active_radius to finite_radius for the duration of its own call and
+    // restored it after. build_world calls this from outside that cap, so a
+    // window sized on the STREAMING radius would have built a 17-wide grid
+    // whose outer six rings carry the default tile — a different origin, a
+    // different side, and every tile landing somewhere else in the sampler's
+    // index. The window is the world's radius, stated as the world's radius.
     static_assert(TILE_PAD <= 1,
-        "tile-grid window (active_radius <= PATCH_PREGEN_RADIUS, plus TILE_PAD) "
+        "tile-grid window (finite_radius <= PATCH_PREGEN_RADIUS, plus TILE_PAD) "
         "must fit the GPUTileGrid DTO sized for PATCH_PREGEN_RADIUS + 1");
-    int32_t rp = (int32_t)c->world_state_.active_radius + TILE_PAD;
-    uint32_t tileGridSide = 2 * (c->world_state_.active_radius + TILE_PAD) + 1;
+    static_assert(FINITE_RADIUS_MAX + TILE_PAD <= Dim::PATCH_PREGEN_RADIUS + 1,
+        "the widest world the pin allows, plus the pad, must fit the "
+        "GPUTileGrid DTO: raise TILE_GRID_SIDE before raising FINITE_RADIUS_MAX");
+    int32_t rp = (int32_t)c->world_state_.finite_radius + TILE_PAD;
+    uint32_t tileGridSide = 2 * (c->world_state_.finite_radius + TILE_PAD) + 1;
     GPUTileGrid grid{};
     grid.origin_x = cx - rp;
     grid.origin_z = cz - rp;
@@ -290,6 +297,9 @@ inline void upload_tile_grid_now(TileWorldState& tw, TileWorldDeps* c, wgpu::Que
     c->gpuState_.upload_tile_grid(queue, grid);
 }
 
+// The pool archetype's weight — the outdoor rest (ONE_WORLD-II U1c).
+inline constexpr float POOL_ARCHETYPE_REST = 0.05f;
+
 inline TileState generate_tile_state(TileWorldState& tw, TileWorldDeps* c, int32_t gx, int32_t gz) {
     // Count neighbor archetypes
     uint32_t neighbor_counts[ARCHETYPE_COUNT] = {};
@@ -312,13 +322,15 @@ inline TileState generate_tile_state(TileWorldState& tw, TileWorldDeps* c, int32
         weights[a] = ARCHETYPES[a].base_weight;
     }
 
+    // THE POOL'S REST (ONE_WORLD-II U1c). A mood branch stood here — 1.5
+    // in a room against 0.05 outside, a thirtyfold swing, and this file's
+    // ONLY mood read. The world is open-air and the campaign pins it, so
+    // the room's arm dies with the rooms and the open value is simply the
+    // truth: named rather than left as a literal in a folded branch,
+    // because it is a dial the panel will want and does not have yet
+    // (new enrollment, and that is U6's).
     static constexpr uint32_t POOL_IDX = 3;
-    if (mood_def(c->mood_state_.active).shape.indoor) {
-        weights[POOL_IDX] = 1.5f;   // ~30% of indoor tiles become pools
-    }
-    else {
-        weights[POOL_IDX] = 0.05f;  // ~1.5% of outdoor tiles
-    }
+    weights[POOL_IDX] = POOL_ARCHETYPE_REST;   // ~1.5% of tiles
 
     // ── Terrain token priors: multiply active tokens into weights ──
     for (uint32_t t = 0; t < MAX_TERRAIN_TOKENS; t++) {
@@ -376,7 +388,6 @@ inline TileState generate_tile_state(TileWorldState& tw, TileWorldDeps* c, int32
     // consume tile_seed props. Same one (gx,gz) generation moment; the
     // TYPE-line split still holds, the authoring now lives with its
     // vocabulary.
-    ts.pop = generate_tile_population(c->world_state_.active_seed, gx, gz);
 
     return ts;
 }
@@ -488,7 +499,14 @@ inline void tile_apply_spawn_mult(const TileWorldState& tw, int32_t gx, int32_t 
                   << ") family " << family << " — ensure_tile did not precede the gate\n";
         std::abort();
     }
-    adj_mod *= it->second.pop.spatial_density[family];
+    // THE TILE TERM LEFT (ONE_WORLD-II U3). It multiplied by the tile's
+    // per-family spatial_density, authored by generate_tile_population off
+    // the THEME LATTICE. The lattice is gone, so the density had no author
+    // and would have stood at its 1.0 default forever: an identity
+    // multiply dressed as a layer. The MISS abort below is kept — it
+    // proves the allocation -> spawn ordering, which is a fact about the
+    // tile cache and not about themes.
+    (void)family;
 }
 
 // F4: the archetype face, bool-out — the miss default stays

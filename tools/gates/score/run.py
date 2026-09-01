@@ -63,7 +63,7 @@ PHASE_DEFS = set(re.findall(r'void (phase_\w+)\s*\(', CART))
 KNOWN_FAMILIES = {
     'pyramid',
     'sphere', 'ribbon', 'cube', 'gol', 'pawn_aura', 'orbs',
-    'spot_lights', 'indoor_shell', 'wanderers',
+    'wanderers',
 }
 
 def gate_families(gate):
@@ -95,7 +95,7 @@ FOUNDATIONAL_PHASES = {
     'phase_stage_upload':          'the O-5b/c DRAIN — the sole signal/config uploader',
     'phase_clear_input_deltas':    'driver bookkeeping, dead-last (O-5e)',
     'phase_witness_harvest':       'the witness harvest (P5) — spine-owned readback',
-    'phase_stream_patches':        'S2 streaming conductor (SEAM[patch:spawn-trigger])',
+    'phase_surface_visibility':    'S2 banding + entity distance cull — both functions of the moving POINT (the conductor that answered the moving WINDOW left at ONE_SURFACE-I U2)',
     'phase_census_dumps':          'spine diagnostics (constitution §5; gol residue proof at G3)',
     'phase_entity_mesh_gen':       'the mesh-gen pass — per-family gating is intra-phase',
     'phase_upload_lights':         'flag-guarded uploads (lights_dirty; light count=0 disables)',
@@ -133,13 +133,14 @@ GREP_MANIFEST = {
     'gol':      [('cartridge.hpp', 'teardown',  imm(r'ROSTER\.gol',     r'teardown_gol')),
                  ('cartridge.hpp', 'mesh prep', imm(r'ROSTER\.gol',     r'[^;]*?\.prepare_mesh'))],
     'pawn_aura':[('cartridge.hpp', 'teardown',  imm(r'ROSTER\.pawn_aura', r'teardown_pawn_aura'))],
-    'orbs':     [('direction/mood.hpp', 'boot config', blk(r'ROSTER\.orbs', 'configure_orbs')),
+    'orbs':     [('direction/sky.hpp', 'boot config', blk(r'ROSTER\.orbs', 'configure_orbs')),
                  ('organ_boundary.inc', 'organ re-speak', imm(r'ROSTER\.orbs', r'configure_orbs')),
                  ('cartridge.hpp', 'teardown',   imm(r'ROSTER\.orbs',  r'teardown_orbs'))],
     # DELEGATED pieces: the gate lives at the module door (cited), not the spine.
-    'spot_lights': [('direction/mood.hpp', 'apply door', rf'if constexpr \(ROSTER\.spot_lights\)')],
-    'indoor_shell':[('direction/mood.hpp', 'apply door', rf'if constexpr \(ROSTER\.indoor_shell\)')],
-    'wanderers':   [('cartridge.hpp', 'boot population', imm(r'ROSTER\.wanderers', r'spawn_population_for_mood'))],
+    # ONE_WORLD-II U1c: the verb shed the mood it was named for and is
+    # `spawn_population` now. The pin moves in the subject's commit (L27
+    # join) so this gate is runnable at every unit, never one behind.
+    'wanderers':   [('cartridge.hpp', 'boot population', imm(r'ROSTER\.wanderers', r'spawn_population'))],
 }
 
 def strip_comments_strings(s):

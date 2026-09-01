@@ -3,8 +3,8 @@
 #include <array>
 #include "cartridges/the_board/realization/state.hpp"                    // Dim::MAX_AGENTS, GPUAgentState, GPU_AGENT_*_COUNT, wgpu
 #include "cartridges/the_board/bodies/pawn_figures.hpp"        // PAWN_FIGURES, FIGURE_SHARES, family spans (H1) — this TU names them directly
-#include "cartridges/the_board/contracts/mood_constants.hpp"   // MOOD_COUNT + the Mood IDs
 #include "cartridges/the_board/contracts/agent_tiers.hpp"      // Tier vocabulary graduated to contracts/agent_tiers.hpp (ORGAN_2b) — the bank TIER_LIVE is the world's definition; the translator below reads it.
+#include "cartridges/the_board/contracts/agent_surface.hpp"   // AGENTS_LIVE — the agents' bank (ONE_WORLD-II U1c)
 #include "cartridges/the_board/contracts/wgpu_fwd.hpp"   // wgpu handle fwds (lockstep insurance)
 #include "cartridges/the_board/contracts/control_panel.hpp"   // ORGAN_4 P3b — PANEL_LIVE.possession.radius: the reach, graduated out of this file's console
 
@@ -114,7 +114,7 @@ static_assert(AGENT_EVICTION_RADIUS == Dim::EXIST_RADIUS,
 // AGENT_CENSUS_INTERVAL — wall-clock period (seconds). The periodic
 // agent census died (BATCH C); the surviving consumer is the ROSTER
 // gol-residue proof cadence (phase_census_dumps). The on-demand agent
-// census remains at "boot" and "mood-transition".
+// census remains at "boot" and "rebirth".
 inline constexpr float AGENT_CENSUS_INTERVAL = 30.0f;
 
 // ═══ REGISTRY: BEHAVIORS ═════════════════════════════════════════
@@ -134,154 +134,24 @@ inline constexpr float AGENT_CENSUS_INTERVAL = 30.0f;
 
 // ═══ REGISTRY: POPULATIONS ═══════════════════════════════════════
 
-struct AgentPopulationDef {
-    uint32_t mood_id;
-    uint32_t count;                                          // 0..Dim::MAX_AGENTS-1
-    std::array<float, AGENT_BEHAVIOR_COUNT> behavior_weights;
-    std::array<float, AGENT_TIER_COUNT>     tier_weights;
-    float    spawn_inner_radius;                             // world units (annulus inner)
-    float    spawn_radius;                                   // world units (annulus outer)
-    float    spawn_center_forward;                           // ATRIUM_9 — world units the annulus'
-                                                             // CENTRE rides along the arrival gaze
-    float    home_seeding_radius;                            // world units from spawn point
-};
 
 // ─── Why no constexpr helper builders ───────────────────────────
 
-//
-inline constexpr AgentPopulationDef AGENT_POPULATIONS[MOOD_COUNT] = {
-    /* MOOD_OPEN_SUNSET — Scout-heavy travelers (BiasedWalk) */
-    { /*mood_id=*/ MOOD_OPEN_SUNSET, /*count=*/ 10,
-      //                       player rwalk  bwalk wandr hseek slowp pursu  flee flock  levy
-      /*behavior_weights=*/ {    0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f },
-      //                     worker scout sentl leadr
-      /*tier_weights=*/     {  1.0f, 3.0f, 0.0f, 0.0f },
-      /*spawn_inner_radius=*/ 200.0f,
-      /*spawn_radius=*/       340.0f,
-      /*spawn_center_forward=*/ 0.0f,
-      /*home_seeding_radius=*/ 8.0f },
-    /* MOOD_INDOOR_FLAT — gallery walkers (SlowPatrol) */
-    { /*mood_id=*/ MOOD_INDOOR_FLAT, /*count=*/ 4,
-      //                       player rwalk  bwalk wandr hseek slowp pursu  flee flock  levy
-      /*behavior_weights=*/ {    0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f },
-      //                     worker scout sentl leadr
-      /*tier_weights=*/     {  2.0f, 0.0f, 2.0f, 1.0f },
-      /*spawn_inner_radius=*/ 0.0f,
-      /*spawn_radius=*/       60.0f,
-      /*spawn_center_forward=*/ 0.0f,
-      /*home_seeding_radius=*/ 30.0f },
-    /* MOOD_INDOOR_VAULT — gallery walkers (SlowPatrol) */
-    { /*mood_id=*/ MOOD_INDOOR_VAULT, /*count=*/ 4,
-      //                       player rwalk  bwalk wandr hseek slowp pursu  flee flock  levy
-      /*behavior_weights=*/ {    0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f },
-      //                     worker scout sentl leadr
-      /*tier_weights=*/     {  2.0f, 0.0f, 2.0f, 1.0f },
-      /*spawn_inner_radius=*/ 0.0f,
-      /*spawn_radius=*/       60.0f,
-      /*spawn_center_forward=*/ 0.0f,
-      /*home_seeding_radius=*/ 30.0f },
-    /* MOOD_FINITE_OUTDOOR — unpopulated */
-    { /*mood_id=*/ MOOD_FINITE_OUTDOOR, /*count=*/ 0,
-      /*behavior_weights=*/ {},
-      /*tier_weights=*/     {},
-      /*spawn_inner_radius=*/ 0.0f,
-      /*spawn_radius=*/       0.0f,
-      /*spawn_center_forward=*/ 0.0f,
-      /*home_seeding_radius=*/ 0.0f },
-    /* MOOD_OPEN_NIGHT — the sunset's travelers, thinned to six (ATMOS_1) */
-    { /*mood_id=*/ MOOD_OPEN_NIGHT, /*count=*/ 6,
-      //                       player rwalk  bwalk wandr hseek slowp pursu  flee flock  levy
-      /*behavior_weights=*/ {    0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f },
-      //                     worker scout sentl leadr
-      /*tier_weights=*/     {  1.0f, 3.0f, 0.0f, 0.0f },
-      /*spawn_inner_radius=*/ 200.0f,
-      /*spawn_radius=*/       340.0f,
-      /*spawn_center_forward=*/ 0.0f,
-      /*home_seeding_radius=*/ 8.0f },
-    /* MOOD_OPEN_NOON — the sunset's travelers, twelve strong (ATMOS_1) */
-    { /*mood_id=*/ MOOD_OPEN_NOON, /*count=*/ 12,
-      //                       player rwalk  bwalk wandr hseek slowp pursu  flee flock  levy
-      /*behavior_weights=*/ {    0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f },
-      //                     worker scout sentl leadr
-      /*tier_weights=*/     {  1.0f, 3.0f, 0.0f, 0.0f },
-      /*spawn_inner_radius=*/ 200.0f,
-      /*spawn_radius=*/       340.0f,
-      /*spawn_center_forward=*/ 0.0f,
-      /*home_seeding_radius=*/ 8.0f },
-    /* MOOD_ATRIUM — THREE FIGURES (ATRIUM_8). Three read as a passage; five
-       read as traffic, and thirty-one before them read as a crowd repelling
-       itself. Jean backtracked on five.
-
-       THE RING BEGINS AT THE ARC'S CENTRE (ATRIUM_9). It used to be drawn
-       around the VISITOR, and a ring around the visitor is a ring the
-       visitor is inside: a third of it stood behind them, unseen, and the
-       rest arrived from the sides. spawn_center_forward walks the centre 40
-       wu along the arrival gaze — ATRIUM_TABLE.arc_center_offset exactly,
-       the point every door already faces — so the three begin where they
-       are already going: in front, in the frame, walking a door.
-
-       THE POSTER IS STILL CLEAR. sand[0] sits at 15 (A8.3); the ring's
-       nearest point to the arrival stands at 40 - 22 = 18, so nothing
-       spawns in the frame the visitor is reading. The outer 22 keeps the
-       ring inside the shell with room to spare — at finite_radius 1 the
-       centre lands within 5 wu of the room's own middle.
-
-       tier_weights stays worker-only, and that is a decision rather than the
-       oversight it now looks like beside the rolled figures: the tier
-       multiplies speed_cap, so a rolled tier puts back exactly the frolic
-       A8.1 took out (scout is 1.4x). One line to overturn when the pace is
-       settled. */
-    { /*mood_id=*/ MOOD_ATRIUM, /*count=*/ 3u,
-      //                       player rwalk  bwalk wandr hseek slowp pursu  flee flock  levy
-      /*behavior_weights=*/ {    0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f },
-      //                     worker scout sentl leadr
-      /*tier_weights=*/     {  1.0f, 0.0f, 0.0f, 0.0f },
-      /*spawn_inner_radius=*/ 6.0f,
-      /*spawn_radius=*/       22.0f,
-      /*spawn_center_forward=*/ 40.0f,
-      /*home_seeding_radius=*/ 0.0f },
-};
-
-static_assert(sizeof(AGENT_POPULATIONS) / sizeof(AGENT_POPULATIONS[0]) == MOOD_COUNT,
-              "AGENT_POPULATIONS must declare one row per mood");
-
-// OIL_1 U6 (ledger: R4, C4): the per-mood weight sums, summed at COMPILE
-// TIME in the SAME ascending order as the runtime loops they replace —
-// identical float values by construction. One home, beside the table
-// they summarize; the per-frame respawn reads these instead of
-// re-summing a constexpr row every frame.
-// TWO DERIVATIONS, ONE VALUE: spawn_population_for_mood still sums its
-// own denominators inline (boot/transition cadence — outside the ledger
-// row this unit answers, so it was left alone). They must agree; both
-// feed the same normalization in populate_agent_slot_. If either the
-// table or one summation is ever edited, edit the other.
-inline constexpr std::array<float, MOOD_COUNT> AGENT_BEH_SUMS = [] {
-    std::array<float, MOOD_COUNT> s{};
-    for (uint32_t m = 0; m < MOOD_COUNT; m++)
-        for (uint32_t b = 0; b < AGENT_BEHAVIOR_COUNT; b++)
-            s[m] += AGENT_POPULATIONS[m].behavior_weights[b];
-    return s;
-}();
-inline constexpr std::array<float, MOOD_COUNT> AGENT_TIER_SUMS = [] {
-    std::array<float, MOOD_COUNT> s{};
-    for (uint32_t m = 0; m < MOOD_COUNT; m++)
-        for (uint32_t t = 0; t < AGENT_TIER_COUNT; t++)
-            s[m] += AGENT_POPULATIONS[m].tier_weights[t];
-    return s;
-}();
-
-// Row order must match the mood ids in MOOD_TABLE (mood.hpp).
-// Unfolded rather than a constexpr loop — the restyle is a named
-// later stage.
-static_assert(AGENT_POPULATIONS[MOOD_OPEN_SUNSET   ].mood_id == MOOD_OPEN_SUNSET,    "AGENT_POPULATIONS row 0 must be MOOD_OPEN_SUNSET");
-static_assert(AGENT_POPULATIONS[MOOD_INDOOR_FLAT   ].mood_id == MOOD_INDOOR_FLAT,    "AGENT_POPULATIONS row 1 must be MOOD_INDOOR_FLAT");
-static_assert(AGENT_POPULATIONS[MOOD_INDOOR_VAULT  ].mood_id == MOOD_INDOOR_VAULT,   "AGENT_POPULATIONS row 2 must be MOOD_INDOOR_VAULT");
-static_assert(AGENT_POPULATIONS[MOOD_FINITE_OUTDOOR].mood_id == MOOD_FINITE_OUTDOOR, "AGENT_POPULATIONS row 3 must be MOOD_FINITE_OUTDOOR");
-static_assert(AGENT_POPULATIONS[MOOD_OPEN_NIGHT     ].mood_id == MOOD_OPEN_NIGHT,     "AGENT_POPULATIONS row 4 must be MOOD_OPEN_NIGHT");
-static_assert(AGENT_POPULATIONS[MOOD_OPEN_NOON      ].mood_id == MOOD_OPEN_NOON,      "AGENT_POPULATIONS row 5 must be MOOD_OPEN_NOON");
-static_assert(AGENT_POPULATIONS[MOOD_ATRIUM         ].mood_id == MOOD_ATRIUM,         "AGENT_POPULATIONS row 6 must be MOOD_ATRIUM");
+// AGENT_POPULATIONS stood here — seven rows, one per mood, and the
+// AGENTS_TABLE seeding witness that proved the bank was the sunset row
+// transcribed. Both left at ONE_WORLD-II U2: the witness had done its
+// whole job in U1c, which is what a transcription witness is for.
+// AgentPopulationDef went with them; the bank's own type is
+// AgentPopulationBank (contracts/agent_surface.hpp).
 
 // ═══ AGENT MODULE STATE ══════════════════════════════════════════
+
+// THE AGENT SPAWN SALT. `0xA6E00000u + mood_id` in both spawners until
+// ONE_WORLD-II U1c; the boot mood was 0, so this constant is the value
+// every world has actually drawn with and placement is unchanged. One
+// home, because two copies of a hash salt is how a respawn stops landing
+// where a spawn put things.
+inline constexpr uint32_t AGENT_SPAWN_SALT = 0xA6E00000u;
 
 struct AgentState {
     GPUAgentState slots[Dim::MAX_AGENTS]            = {};
@@ -292,13 +162,11 @@ struct AgentState {
 
 // Lifecycle
 void upload_agent_registries_to_gpu(AgentsDeps* c, wgpu::Queue& queue);
-void spawn_population_for_mood(AgentState& as, AgentsDeps* c,
-                               uint32_t mood_id,
+void spawn_population(AgentState& as, AgentsDeps* c,
                                uint32_t seed,
                                float center_x, float center_z,
                                wgpu::Queue& queue);
 void respawn_evicted_agents(AgentState& as, AgentsDeps* c,
-                            uint32_t mood_id,
                             uint32_t world_seed,
                             wgpu::Queue& queue);
 // Player commands
@@ -392,7 +260,7 @@ inline void upload_agent_registries_to_gpu(AgentsDeps* c, wgpu::Queue& queue) {
 
 inline void populate_agent_slot_(const AgentState& as,
                           GPUAgentState& out,
-                          const AgentPopulationDef& pop,
+                          const AgentPopulationBank& pop,
                           uint32_t agent_seed,
                           float beh_sum, float tier_sum,
                           float center_x, float center_z) {
@@ -415,7 +283,7 @@ inline void populate_agent_slot_(const AgentState& as,
     // front of the viewer instead of all around them. The direction is
     // Idle::PAWN_HEADING's — the ARRIVAL gaze, a constant, not the live
     // heading: the composition is the room's, and it must not swing when
-    // the visitor turns. Every mood but the atrium passes 0 here, and at
+    // the visitor turns. Every caller passes 0 here, and at
     // 0 both cosines fall out and the centre is the caller's, unmoved.
     const float two_pi = 6.28318530718f;
     const float gaze = heading_to_bearing(Idle::PAWN_HEADING);
@@ -479,13 +347,11 @@ inline void populate_agent_slot_(const AgentState& as,
 
 // ═══ SPAWN ════════════════════════════════════════════════════════
 
-inline void spawn_population_for_mood(AgentState& as, AgentsDeps* c,
-                               uint32_t mood_id,
+inline void spawn_population(AgentState& as, AgentsDeps* c,
                                uint32_t seed,
                                float center_x, float center_z,
                                wgpu::Queue& queue) {
-    if (mood_id >= MOOD_COUNT) return;
-    const auto& pop = AGENT_POPULATIONS[mood_id];
+    const auto& pop = AGENTS_LIVE;
 
     // Zero every non-player slot before refilling. The player's body
     // (slot PLAYER_SLOT) is preserved across a rebirth.
@@ -505,7 +371,13 @@ inline void spawn_population_for_mood(AgentState& as, AgentsDeps* c,
             // Slot 0 is reserved for PLAYER_SLOT; non-player slots
             // pack densely from slot 1 upward.
             uint32_t slot = i + 1u;
-            uint32_t agent_seed = cpu_hash(cpu_hash(seed, 0xA6E00000u + mood_id), i + 1u);
+            // THE SALT IS FROZEN, NOT DROPPED (ONE_WORLD-II U1c). It read
+            // `0xA6E00000u + mood_id`, so the mood was arithmetic in the
+            // seed and not merely a table index: removing the term outright
+            // would move every agent's tier, behaviour, position and home.
+            // The boot mood was 0, so the frozen salt IS the salt this
+            // world has always drawn with, and placement is bit-for-bit.
+            uint32_t agent_seed = cpu_hash(cpu_hash(seed, AGENT_SPAWN_SALT), i + 1u);
 
             populate_agent_slot_(as, as.slots[slot], pop, agent_seed,
                                  beh_sum, tier_sum,
@@ -515,7 +387,7 @@ inline void spawn_population_for_mood(AgentState& as, AgentsDeps* c,
     }
 
     c->gpuState_.upload_agent_state_all(queue, as.slots);
-    std::cout << "[Agents] Spawned " << spawned << " for mood " << mood_id
+    std::cout << "[Agents] Spawned " << spawned
               << " around (" << center_x << "," << center_z << ")\n";
 }
 
@@ -526,18 +398,20 @@ inline void spawn_population_for_mood(AgentState& as, AgentsDeps* c,
 // (respawn_counters lives in the CPU MIRROR section of agents.hpp.)
 
 inline void respawn_evicted_agents(AgentState& as, AgentsDeps* c,
-                            uint32_t mood_id,
                             uint32_t world_seed,
                             wgpu::Queue& queue) {
-    if (mood_id >= MOOD_COUNT) return;
-    const auto& pop = AGENT_POPULATIONS[mood_id];
+    const auto& pop = AGENTS_LIVE;
     if (pop.count == 0) return;
 
-    // OIL_1 U6: the sums are compile-time table facts (AGENT_BEH_SUMS /
-    // AGENT_TIER_SUMS beside AGENT_POPULATIONS) — same order, identical
-    // values; the per-frame re-sum of a constexpr row retired.
-    const float beh_sum = AGENT_BEH_SUMS[mood_id];
-    const float tier_sum = AGENT_TIER_SUMS[mood_id];
+    // THE SUMS ARE THE BANK'S NOW (ONE_WORLD-II U1c). OIL_1 U6 replaced a
+    // per-frame re-sum with constexpr AGENT_BEH_SUMS / AGENT_TIER_SUMS over
+    // the authored table — right while the table was the only truth, wrong
+    // against a writable bank: a constexpr sum over the DESIGN goes stale
+    // the moment a weight dial moves, and the normalisation below would
+    // divide by a total its own weights no longer add to. Fourteen adds,
+    // in a body that already walks both arrays.
+    const float beh_sum = agents_behavior_sum();
+    const float tier_sum = agents_tier_sum();
     if (beh_sum <= 0.0f || tier_sum <= 0.0f) return;
 
     const uint32_t possessed = c->player_.possessed_slot;
@@ -561,7 +435,7 @@ inline void respawn_evicted_agents(AgentState& as, AgentsDeps* c,
 
         as.respawn_counters[slot]++;
         uint32_t agent_seed = cpu_hash(
-            cpu_hash(world_seed, 0xA6E00000u + mood_id),
+            cpu_hash(world_seed, AGENT_SPAWN_SALT),   // the same frozen salt (ONE_WORLD-II U1c)
             slot * 0x10001u + as.respawn_counters[slot] * 0x100u);
 
         populate_agent_slot_(as, as.slots[slot], pop, agent_seed,
@@ -574,7 +448,7 @@ inline void respawn_evicted_agents(AgentState& as, AgentsDeps* c,
 
     // RIBBON_4: respawn_evicted_agents is a per-frame spine row, and under a
     // fast point agents are evicted and respawned continuously — steady-state
-    // chatter, not a transition witness. The mood-spawn line above stays.
+    // chatter, not a transition witness. The spawn line above stays.
     if constexpr (t7::INSTRUMENTS.stream_witness) {
         if (respawned > 0) {
             std::cout << "[Agents] Respawn " << respawned

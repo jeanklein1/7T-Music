@@ -18,7 +18,7 @@
 // Depends on cohort include order: entity_types.hpp (traits/adapter/
 // instance vocabulary), grounded.hpp (props/configs/palettes + the
 // tier enums — COMPLETE, the merged bodies deref them), state.hpp
-// (GPU mesh params), mood.hpp (MOOD_TABLE + the mood
+// (GPU mesh params), sky.hpp (the world's birth and its
 // doors), machine/spawn_engine.hpp (the services, defined just above
 // in the cohort). MERGED at the cohort tail (the
 // B ruling): the decl tier (the generic_* decls
@@ -27,30 +27,22 @@
 namespace t7 {
 namespace the_board {
 
-// ─── Indoor Sizing (THE INDOOR MODULE's per-family hooks) ────────
+// ─── THE ROOMS' SIZING STOOD HERE ────────────────────────────────
 //
-// Policy rides INDOOR_TREATMENT + the dials
-// (contracts/indoor_module.hpp); the families below keep only their
-// hand-curated param-index lists — only LENGTH dimensions get
-// scaled, never ratios (PyrIdx::ASPECT, PyrIdx::TRUNCATION), counts,
-// or angles. (The list used to cite TAPER/ENTASIS, BASE_LAYERS/RIBS/
-// ARM_COUNT and LEAN_DIR/FROND_DROOP; every one of those props was a
-// column's, cactus's or palm's and left at PRUNE_2 — the LAW is
-// unchanged, only its examples.) CAP families call the shared
-// cap_to_ceiling law.
-// (EXACT — snap HEIGHT to wall_height and scale every other length
-// param by the same ratio so proportions hold — left with the column,
-// its only practitioner; IndoorSize::EXACT stands unclaimed.)
-// Adding a new eligible family means declaring its own
-// <family>_apply_indoor_rescale (a cap_to_ceiling call + its list),
-// registering it in the adapter, and rowing INDOOR_TREATMENT.
+// A per-family hook shrank a body under a room's ceiling: a policy table
+// (contracts/indoor_module.hpp), an adapter slot, and one hand-curated
+// param-index list per family naming only the LENGTH dimensions, never
+// ratios, counts or angles. All of it left with the ceilings at
+// ONE_WORLD-II U4 — the module, the slot, the shared cap_to_ceiling law
+// and the unclaimed EXACT policy — and U7 takes the three orphaned lists
+// it left behind and this paragraph, which described a hook no adapter
+// carries (L30).
 //
-// SEAM[entity_pipeline:rescale-per-family] DONE — was a free-function
-//   switch on family_id; lifted to per-family adapter slot during
-//   Pass 7 of the modularity rollout. The rolled-band helper
-//   (rescale_to_rolled_target: target in [lo,hi]×ceiling, property
-//   index 7777u for the roll) lost its callers to the module's cap
-//   law — held by git.
+// SEAM[entity_pipeline:rescale-per-family] CLOSED with its subject. It was
+//   a free-function switch on family_id, lifted to a per-family adapter
+//   slot during Pass 7 of the modularity rollout, and the rolled-band
+//   helper it grew (rescale_to_rolled_target) lost its callers to the
+//   module's cap law before the module lost its own. Held by git.
 
 // ═══ MODULE FUNCTIONS ══════════════════════════════════════════════
 //
@@ -65,10 +57,10 @@ namespace the_board {
 // The three-phase verbs and the welded family block (pyramid —
 // the families that weld to the ground/regen services). Each block
 // keeps the same 10-element template. Reaches
-// the machine face for c->mood_state_ / c->world_state_ /
+// the machine face for c->sky_state_ / c->world_state_ /
 // c->entities_state_ and the GPU wire (c->gpuState_); routes through
 // the spawn services (run_spawn_preamble / negotiate_position /
-// mark_patches_for_regen) as free calls.
+// the retired mark_patches_for_regen) as free calls.
 
 
 // ═══ GENERIC HELPERS ═════════════════════════════════════════════
@@ -126,10 +118,11 @@ inline bool generic_select(MachineCtx* c,
     for (uint32_t t = 0; t < traits.tier_count && t < 8; t++)
         weights[t] = adapter.get_tier_profile(t).weight;
 
-    // Apply theme tier weights (per-family array from PopulationTheme)
-    const float* theme_tw = theme_tier_weights(gate.theme_idx, traits.family_id);
-    for (uint32_t t = 0; t < traits.tier_count && t < 8; t++)
-        weights[t] *= theme_tw[t];
+    // THE THEME BIAS LEFT (ONE_WORLD-II U3). A per-family array from the
+    // live PopulationTheme multiplied these weights; the engine that chose
+    // that theme is gone, so the adapter's own tier weights are the whole
+    // truth — which is what they were before the bias was layered over
+    // them, and what the panel will dial directly.
 
     uint32_t tier = select_tier(gate.seed, traits.tier_prop,
         weights, traits.tier_count);
@@ -166,17 +159,10 @@ inline bool generic_select(MachineCtx* c,
     inst.trigger_gz = gz;
     inst.slot       = gate.slot;
     inst.tier_idx   = tier;
-    inst.theme_idx  = gate.theme_idx;
 
-    // ── Indoor sizing (must run before compute_solid_half so the
-    //    solid extents are derived from the scaled params). THE
-    //    INDOOR MODULE dispatches on its policy table: NATURAL
-    //    skips; EXACT and CAP run the family's adapter hook. ──
-    if (mood_def(c->mood_state_.active).shape.indoor
-        && INDOOR_TREATMENT[traits.family_id].size != IndoorSize::NATURAL
-        && adapter.apply_indoor_rescale) {
-        adapter.apply_indoor_rescale(inst, mood_def(c->mood_state_.active).shape.wall_height);
-    }
+    // (Indoor sizing ran here — the INDOOR MODULE dispatching on its
+    //  policy table to shrink a family under a ceiling. It left with the
+    //  ceilings at ONE_WORLD-II U4, and so did the adapter hook it called.)
 
     // ── Per-family derived values ──
     adapter.compute_solid_half(inst, profile);
@@ -200,7 +186,7 @@ inline bool generic_place(MachineCtx* c,
         traits.position_jitter,
         traits.rotation_prop,
         traits.grounded,   // ruling 21: the ground-claim policy, from the family's own record
-        inst.solid_half, /*containment_r*/ inst.solid_half, traits.family_id, inst.slot, inst.tier_idx);
+        inst.solid_half, traits.family_id, inst.slot, inst.tier_idx);
     if (!pos.ok) return false;
 
     inst.host_gx  = pos.host_gx;
@@ -232,7 +218,6 @@ inline void generic_commit(MachineCtx* c,
     if (adapter.post_commit)
         adapter.post_commit(c, inst, queue);
 
-    c->world_state_.ground_entries_dirty = true;
 }
 
 
@@ -309,7 +294,7 @@ inline constexpr EntityFamilyTraits PYRAMID_TRAITS = {
     PopFamily::PYRAMID, Dim::MAX_PYRAMID_INSTANCES,
     true,                 // grounded — bakes into the heightfield
     PyramidProp::SPAWN_ROLL, PyramidConfig::SPAWN_CHANCE,
-    mood_mult_for(PopFamily::PYRAMID), PyramidConfig::POSITION_JITTER,
+    PyramidConfig::POSITION_JITTER,
     3, PyramidProp::TIER,
     PYRAMID_PARAM_DEFS, PYRAMID_PARAM_COUNT,
     PyramidProp::POSITION_X, PyramidProp::POSITION_Z, PyramidProp::ROTATION,
@@ -320,16 +305,8 @@ inline SpawnGateOutput pyramid_run_gate(MachineCtx* c, int32_t gx, int32_t gz) {
     return gate_from_traits(c, gx, gz, PYRAMID_TRAITS, c->entities_state_.pyramids);
 }
 
-inline constexpr uint32_t PYRAMID_INDOOR_RESCALE_PARAMS[] = {
-    PyrIdx::HEIGHT, PyrIdx::BASE_HALF, PyrIdx::EDGE_BLEND,
-    // ASPECT, TRUNCATION are ratios — not scaled.
-};
-
-inline void pyramid_apply_indoor_rescale(EntityInstance& inst, float ceiling_h) {
-    cap_to_ceiling(inst, ceiling_h, INDOOR_LIVE.height_cap_fraction,
-        /*current_h*/ inst.params[PyrIdx::HEIGHT],
-        PYRAMID_INDOOR_RESCALE_PARAMS);
-}
+// PYRAMID_INDOOR_RESCALE_PARAMS stood here — pyramid_apply_indoor_rescale's
+// table, orphaned when U4 took that adapter slot. U7's orphan sweep.
 
 inline void pyramid_compute_solid_half(EntityInstance& inst, const TierProfile&) {
     float base_half = inst.params[PyrIdx::BASE_HALF];
@@ -398,15 +375,17 @@ inline void pyramid_post_commit(MachineCtx* c, const EntityInstance& inst, wgpu:
     float abs_cr = std::abs(cr), abs_sr = std::abs(sr);
     float ext_x = (half_x + blend) * abs_cr + (half_z + blend) * abs_sr;
     float ext_z = (half_x + blend) * abs_sr + (half_z + blend) * abs_cr;
-    mark_patches_for_regen(c, 
-        inst.cx - ext_x, inst.cz - ext_z,
-        inst.cx + ext_x, inst.cz + ext_z,
-        inst.host_gx, inst.host_gz);
+    // `mark_patches_for_regen(...)` was called here with the pyramid's
+    // rotated world extent, so any GENERATED patch it reached would bake
+    // again over the new contribution. In a world built once nothing is
+    // GENERATED when the pyramids commit, and nothing commits after
+    // (ONE_SURFACE-I U6). The extent above is still the pyramid's own and
+    // still computed; what left is the lane it fed.
+    (void)ext_x; (void)ext_z;
 }
 
 inline constexpr EntityFamilyAdapter PYRAMID_ADAPTER = {
     pyramid_run_gate,
-    pyramid_apply_indoor_rescale,
     pyramid_compute_solid_half, pyramid_compute_colors,
     pyramid_write_active, pyramid_write_gpu, pyramid_post_commit,
     pyramid_get_tier_profile,
@@ -426,7 +405,10 @@ inline bool dispatch_place_pyramid_generic(MachineCtx* self, EntityQueueEntry& e
 }
 inline void dispatch_commit_pyramid_generic(MachineCtx* self, PlacementEntry& pe, wgpu::Queue& queue) {
     auto* host = find_patch(self, pe.generic.host_gx, pe.generic.host_gz);
-    if (host) { generic_commit(self, PYRAMID_TRAITS, PYRAMID_ADAPTER, pe.generic, queue); host->record_entity(PopFamily::PYRAMID, pe.generic.slot); }
+    // `host->record_entity(...)` stood beside the commit — the patch-death
+    // registry's write half, retired with the registry (ONE_SURFACE-I U3).
+    // `host` is still the gate: a body commits iff its patch exists.
+    if (host) { generic_commit(self, PYRAMID_TRAITS, PYRAMID_ADAPTER, pe.generic, queue); }
     // HOST PATCH GONE. The footprint was registered at place; its host
     // vanished before commit. Release by OWNER — the one release path.
     else { unregister_footprint_for(self, PopFamily::PYRAMID, pe.generic.slot); self->entities_state_.pyramids[pe.generic.slot].active = false; }
@@ -468,8 +450,7 @@ inline void dispatch_commit_pyramid_generic(MachineCtx* self, PlacementEntry& pe
     static_assert(TR.grounded        == GND,     #TR " grounded must match");     \
     static_assert(TR.spawn_roll_prop == PROP,    #TR " spawn_roll_prop must match"); \
     static_assert(TR.spawn_chance    == CHANCE,  #TR " spawn_chance must match"); \
-    static_assert(TR.color_part_count == NCOL,   #TR " color_part_count must match"); \
-    static_assert(TR.mood_multiplier == mood_mult_for(FAM), #TR " mood_multiplier must match")
+    static_assert(TR.color_part_count == NCOL,   #TR " color_part_count must match")
 
 T7_GATE_PIN(PYRAMID_TRAITS, PopFamily::PYRAMID, Dim::MAX_PYRAMID_INSTANCES, true,  PyramidProp::SPAWN_ROLL, PyramidConfig::SPAWN_CHANCE,     0u);
 T7_GATE_PIN(SPHERE_TRAITS,  PopFamily::SPHERE,  Dim::MAX_SPHERE_INSTANCES,  false, SphereProp::SPAWN_ROLL,  SphereConfig::SPAWN_CHANCE,      0u);

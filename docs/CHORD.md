@@ -14,18 +14,25 @@ document is the taxonomy's record until ORGAN gives it an instrument.
 
 ## The blocks (CHORD_1..4)
 - agent_room  (g2:1, uniform, C)  = portals + behaviors + tier_gains
-  + occupier_amg. 2864 B. Cadence: world/mood. (It carried a second
+  + occupier_amg. 2864 B. Cadence: world. (It carried a second
   occupier window, occupier_cmg, for the column/antenna shafts; that
   window and those families left at PRUNE_2 U4, 6960 B -> 2864 B.)
 - field_bus   (g2:9, uniform, C)  = head_poses + ribbon + authored.
   6656 B. Cadence: frame (fastest member governs).
 - frame_r     (g1:1, uniform, VF) = lighting + vp + camera + sphere_pos
-  (BEQ_A). 1040 B.
-  Two instances: main and photographer. vp/camera arrive by
-  copyBufferToBuffer from the GPU-sovereign state each frame — the
-  CPU never reads them (readback law).
+  (BEQ_A). 240 B — it was 1040 until ONE_WORLD-II U4 collapsed
+  `Lighting` to the sun alone (the point array had one write, `count = 0`,
+  and the spot array died with the rooms).
+  One instance. The photographer's left with the gallery at PRUNE_1.
+  vp/camera arrive by copyBufferToBuffer from the GPU-sovereign state
+  each frame — the CPU never reads them (readback law).
 - scene_constants (g2:200, uniform, V) = tier_gains + figure_profiles
-  + ribbon. 4336 B. Cadence: world/mood. Bound by scene and shadow.
+  + ribbon. 4336 B. Cadence: world. Bound by scene and shadow.
+
+(The two cadences read "world/mood" until ONE_WORLD-II: a world and a
+mood were two clocks and a mood entry could tick without a rebirth.
+There is one clock now — the world's birth — so the pair collapsed to
+one word, and neither block's shape or size moved with it.)
 
 ## Rulings of record
 - WINDOWS, NOT HOMES: a fact's home is its one CPU-side struct and its

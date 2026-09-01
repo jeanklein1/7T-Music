@@ -367,7 +367,7 @@ static void frame() {
 int main(int argc, char* argv[]) {
     // DOMESDAY_1 B9 — the parameter surface, parsed before ANY
     // consumer: the cartridge ctor (inside `new App()` below) reads
-    // seed and mood; the console reads cap. One read, never again.
+    // seed; the console reads cap. One read, never again.
     t7::parse_boot_params(argc, argv);
     std::cout << "\n";
     std::cout << "========================================\n";

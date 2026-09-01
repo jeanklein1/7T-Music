@@ -1,6 +1,6 @@
 #pragma once
 #include <cstdint>
-#include <iostream>       // census + the indoor-skip line
+#include <iostream>       // the census lines
 #include <cmath>      // std::floor, std::sqrt, std::min/max companions   // (impl, merged)
 #include <algorithm>  // std::min, std::max   // (impl, merged)
 #include <iomanip>    // census column formatting   // (impl, merged)
@@ -161,7 +161,6 @@ SpawnGatePreambleResult run_spawn_preamble(C* c,
     int32_t gx, int32_t gz,
     ActiveT* active_arr, uint32_t max_instances,
     uint32_t spawn_roll_prop, float spawn_chance,
-    const float* mood_mult,
     uint32_t family)
 {
     SpawnGatePreambleResult r{};
@@ -177,17 +176,13 @@ SpawnGatePreambleResult run_spawn_preamble(C* c,
     }
 
     // 2-6. THE COMPOSITION LAW: the stack, authored once —
-    // mood → global → tile (F3) → base × adj → min(·,1).
-    // Generic semantics: multiply-through on mood zero (no veto flag),
-    // MIN1 clamp.
-    r.theme_idx = c->themes_state_.temporal_flavor;
-    auto composed = compose_spawn_chance(c, gx, gz, family,
-        spawn_chance, mood_mult,
-        /*veto_on_zero_mood=*/false,
-        SpawnClamp::MIN1);
+    // global → base × adj → min(·,1). The mood and tile terms left with
+    // ONE_WORLD-II U3; the mood term was identity at the kept row.
+    const float composed = compose_spawn_chance(c, gx, gz, family,
+        spawn_chance, SpawnClamp::MIN1);
 
     // 7. Spawn gate (seed + roll; the chance arrives composed)
-    auto ctx = evaluate_spawn_gate(c, gx, gz, spawn_roll_prop, composed.chance);
+    auto ctx = evaluate_spawn_gate(c, gx, gz, spawn_roll_prop, composed);
     if (!ctx.passed) return r;
 
     // 8-9. Find and reserve slot
@@ -209,7 +204,7 @@ SpawnGatePreambleResult run_spawn_preamble(C* c,
 //
 // The generic families ran identical bodies here, each restating five constants that
 // its own TRAITS row already declares — max_instances, spawn_roll_prop,
-// spawn_chance, mood_multiplier, family_id — around one call. The restating
+// spawn_chance, family_id — around one call. The restating
 // was why four of those fields read as DEAD: the row was the right home and
 // nobody read it, so the cut was about to remove the home and keep the nine
 // duplicates.
@@ -221,9 +216,9 @@ SpawnGatePreambleResult run_spawn_preamble(C* c,
 // BIT-IDENTITY: same callee, same arguments, same order. run_spawn_preamble is
 // untouched. The SpawnGatePreambleResult -> SpawnGateOutput conversion moves
 // from nine copies to one; note the two structs order their fields
-// DIFFERENTLY (preamble: seed, slot, theme_idx, ok — output: ok, seed, slot,
-// theme_idx), so this is a real field-by-field reorder and must stay written
-// out rather than becoming a cast or a copy.
+// DIFFERENTLY (preamble: seed, slot, ok — output: ok, seed, slot), so this is
+// a real field-by-field reorder and must stay written out rather than
+// becoming a cast or a copy. Both lost their theme_idx at ONE_WORLD-II U3.
 template<typename ActiveT>
 inline SpawnGateOutput gate_from_traits(MachineCtx* c, int32_t gx, int32_t gz,
     const EntityFamilyTraits& t, ActiveT* active_arr)
@@ -231,8 +226,8 @@ inline SpawnGateOutput gate_from_traits(MachineCtx* c, int32_t gx, int32_t gz,
     auto gate = run_spawn_preamble(c, gx, gz,
         active_arr, t.max_instances,
         t.spawn_roll_prop, t.spawn_chance,
-        t.mood_multiplier, t.family_id);
-    return { gate.ok, gate.seed, gate.slot, gate.theme_idx };
+        t.family_id);
+    return { gate.ok, gate.seed, gate.slot };
 }
 
 
@@ -242,64 +237,11 @@ inline SpawnGateOutput gate_from_traits(MachineCtx* c, int32_t gx, int32_t gz,
 // mesh-param rebuilds + distance culling, the census, gate
 // evaluation, and the select → place → commit
 // dispatch loops. Reaches the machine face for the root organs
-// (c->world_state_ / c->time_state_ / c->mood_state_ /
-// c->themes_state_ / c->tile_world_state_ / c->entities_state_ /
+// (c->world_state_ / c->time_state_ / c->sky_state_ /
+// c->tile_world_state_ / c->entities_state_ /
 // c->player_) and the GPU wire (c->gpuState_); the loops route
 // through FAMILY_DISPATCH with the machine face as the row argument.
 
-
-// ── Helper 1b: the indoor bounds law ────────────────────────
-//
-// One law for every placement site (negotiate_position). In
-// finite indoor worlds, push the
-// candidate inward so the clamped radius stays at least
-// INDOOR_ENTITY_WALL_MARGIN from every wall. We clamp instead of
-// rejecting because rejection would silently drop entities
-// anchored to corner patches (their seed-determined position
-// keeps landing in the wall margin and never recovers). Clamping
-// shifts the candidate to the boundary of the legal box, then
-// the existing footprint-overlap check handles any pile-ups.
-//
-// MARGIN clamps footprint_r (today's law; a collapsed box falls
-// back to the room center — max footprint at radius=1 is 65,
-// capped entities are well under that). FULL clamps
-// containment_r — the family's WHOLE extent stays inside
-// (ribbon: scaled lateral_amp + the scaled cube span) — and a
-// collapsed box SKIPS the spawn with
-// one loud line: cramming is worse than absence. FREE never
-// clamps (gol may straddle).
-inline bool indoor_bounds_clamp(MachineCtx* c, uint32_t family,
-    float footprint_r, float containment_r, float& cx, float& cz)
-{
-    if (!(c->world_state_.finite_mode && mood_def(c->mood_state_.active).shape.indoor))
-        return true;
-    const IndoorBounds bounds = INDOOR_TREATMENT[family].bounds;
-    if (bounds == IndoorBounds::FREE) return true;
-
-    float bmin = -(float)c->world_state_.finite_radius * Dim::PATCH_EXTENT;
-    float bmax = ((float)c->world_state_.finite_radius + 1.0f) * Dim::PATCH_EXTENT;
-    float clearance = INDOOR_ENTITY_WALL_MARGIN
-        + (bounds == IndoorBounds::FULL ? containment_r : footprint_r);
-    float lo = bmin + clearance;
-    float hi = bmax - clearance;
-    if (lo > hi) {
-        if (bounds == IndoorBounds::FULL) {
-            std::cout << "[DIAG:INDOOR-SKIP] " << family_short_name(family)
-                      << " containment_r=" << containment_r
-                      << " exceeds the room — spawn skipped\n";
-            return false;
-        }
-        float center = (bmin + bmax) * 0.5f;
-        cx = center;
-        cz = center;
-        return true;
-    }
-    if (cx < lo) cx = lo;
-    else if (cx > hi) cx = hi;
-    if (cz < lo) cz = lo;
-    else if (cz > hi) cz = hi;
-    return true;
-}
 
 // ── Helper 2: NegotiatePosition ─────────────────────────────
 
@@ -308,7 +250,7 @@ inline PositionResult negotiate_position(MachineCtx* c,
     uint32_t pos_x_prop, uint32_t pos_z_prop, float jitter,
     uint32_t rotation_seed_prop,
     bool grounded,
-    float footprint_r, float containment_r, uint32_t family, uint32_t slot, uint32_t tier)
+    float footprint_r, uint32_t family, uint32_t slot, uint32_t tier)
 {
     PositionResult r{};
     r.ok = false;
@@ -318,14 +260,12 @@ inline PositionResult negotiate_position(MachineCtx* c,
         pos_x_prop, pos_z_prop, jitter, r.cx, r.cz);
     r.rotation = cpu_hash_f(seed, rotation_seed_prop) * 6.283185f;
 
-    // The indoor bounds law rides INDOOR_TREATMENT (contracts/
-    // indoor_module.hpp): MARGIN keeps the standing wall-margin
-    // clamp; FULL (ribbon on this path) clamps the caller-supplied
-    // containment extent so the whole family stays inside; FREE
-    // skips (gol never crosses this negotiation — it places by
-    // patch cell). A collapsed FULL box skips the spawn.
-    if (!indoor_bounds_clamp(c, family, footprint_r, containment_r, r.cx, r.cz))
-        return r;
+    // (The indoor bounds law ran here — INDOOR_TREATMENT's per-family
+    //  MARGIN / FULL / FREE policy, clamping a spawn off the walls or
+    //  skipping it when the room was too small for the family's whole
+    //  extent. It left with the walls at ONE_WORLD-II U4. The FINITE
+    //  containment clamp is a different law and lives in the shader,
+    //  where it always did — finite_bounds_resolve.)
 
     // 2. Separation + footprint check — GROUND CLAIM, and only for bodies
     // that touch the ground. A non-grounded family (sphere, cube) is not
@@ -623,7 +563,7 @@ inline void dump_entity_census(MachineCtx* c, const char* trigger) {
     // arrivals makes stillness print nothing, which is the point.
     //
     // THE WINDOW IS THE INTERVAL CONSTANT, not a delta against
-    // lastCensusDump_. Boot and mood-transition never write that field (they
+    // lastCensusDump_. Boot and rebirth never write that field (they
     // mirror the agent census, which does not either), so a delta would
     // measure the wrong span immediately after a transition; a fixed window
     // means the same thing at every trigger. Sub-frame slop is expected and
@@ -688,19 +628,22 @@ inline void dump_entity_census(MachineCtx* c, const char* trigger) {
 // float multiplication ORDER below is the bit-identity contract
 // — do not reorder a multiply, do not move a
 // clamp. Exact argument orders of min/max preserved per policy.
-inline SpawnChanceResult compose_spawn_chance(MachineCtx* c, int32_t gx, int32_t gz,
-    uint32_t family, float base_chance, const float* mood_mult,
-    bool veto_on_zero_mood, SpawnClamp clamp) {
-    float adj_mod = mood_mult[c->mood_state_.active];
-    if (veto_on_zero_mood && adj_mod <= 0.0f) return { 0.0f, true };
-    adj_mod *= GLOBAL_ENTITY_DENSITY;
-    tile_apply_spawn_mult(c->tile_world_state_, gx, gz, family, adj_mod);  // F3: the S2 boundary face
+inline float compose_spawn_chance(MachineCtx* c, int32_t gx, int32_t gz,
+    uint32_t family, float base_chance, SpawnClamp clamp) {
+    // THE MOOD TERM WAS IDENTITY AND IS NOW ABSENT (ONE_WORLD-II U3). The
+    // stack read mood -> global -> tile (F3) -> base x adj -> clamp. The
+    // mood term indexed MOOD_SPAWN_MULT by the live mood; the sunset row
+    // read { 1, 1, 1, 1, 1 } for all five families, so this is
+    // behaviour-identical and not merely intended. The TILE term went with
+    // the theme lattice that authored it. What is left is the global
+    // density and the family's own base chance.
+    float adj_mod = GLOBAL_ENTITY_DENSITY;
     float chance = base_chance * adj_mod;
     switch (clamp) {
         case SpawnClamp::MIN1:    chance = std::min(chance, 1.0f); break;
         case SpawnClamp::RANGE01: chance = std::max(0.0f, std::min(1.0f, chance)); break;
     }
-    return { chance, false };
+    return chance;
 }
 
 // Evaluate the spawn gate: seed + flat probability check.

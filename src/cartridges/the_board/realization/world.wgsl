@@ -2,8 +2,8 @@
 //
 // THE_BOARD CARTRIDGE — GPU spine.
 //
-// Counterpart to cartridge.hpp. The CPU spine authors intent (mood
-// transitions, entity lifecycle, dispatch tables, signal preparation);
+// Counterpart to cartridge.hpp. The CPU spine authors intent (the world's
+// birth, entity lifecycle, dispatch tables, signal preparation);
 // this file is what the GPU runs every frame — terrain evaluation,
 // entity compute, render pipelines, mesh generation. GPU is
 // sovereign: CPU dead-reckoning exists only for placement, picking,
@@ -98,8 +98,8 @@
 // ── Radial Pulses (§3.5) ─────────────────────────────────────────
 //   PULSE_SPEED / MAX_AGE / DAMPING  Ring dynamics
 //
-// For CPU-side tuning surfaces (moods, entity tiers, spawn chances,
-// terrain tokens), see the companion directory in cartridge.hpp.
+// For CPU-side tuning surfaces (the live banks, entity tiers, spawn
+// chances, terrain tokens), see the companion directory in cartridge.hpp.
 // ═══════════════════════════════════════════════════════════════════════
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -256,7 +256,7 @@ const LIVE_CARD_EXTENT: f32 = 1000.0;
 const SHELL_RING_WIDTH: f32 = 0.35;   // wu, half-width of a ring band (DEBUG_VIEW 6)
 fn live_card_origin() -> vec2<f32> {
     let cs = PATCH_CELL_SIZE;
-    let raw = vec2(config.lod_point_x, config.lod_point_z)
+    let raw = vec2(config.cull_point_x, config.cull_point_z)
             - vec2(LIVE_CARD_EXTENT * 0.5);
     return floor(raw / cs) * cs;                          // cell snap
 }
@@ -575,7 +575,7 @@ fn evaluate_radial_wave(
 // signature for stability (the mix consumer applies it; the delta
 // consumer applies it per node).
 // THE NODE, DERIVED (LATTICE_1b). A lattice node's parameters are a pure
-// function of (node, node_seed, band, config.terrain_amp_ceiling) — R-F
+// function of (node, node_seed, band) — R-F
 // verified end to end: `world_xz` enters ONLY the two wave primitives. So
 // the derivation — ~11 hash_property calls, three Box-Muller draws and two
 // angle transcendentals — can be done ONCE per node and reused by every
@@ -623,10 +623,11 @@ fn derive_wave_node(node: vec2<i32>, node_seed: u32, band: TerrainBand) -> WaveN
     let is_radial = hash_property(node_seed, WAVE_PROP_TYPE) > 0.5;
     let freq = abs(sample_gaussian(node_seed, WAVE_PROP_FREQ, band.freq_mean, band.freq_sigma));
     var amp = abs(sample_gaussian(node_seed, WAVE_PROP_AMP, band.amp_mean, band.amp_sigma));
-    // Indoor amplitude ceiling: clamp large waves to keep terrain gentle
-    if (config.terrain_amp_ceiling > 0.0) {
-        amp = min(amp, config.terrain_amp_ceiling);
-    }
+    // The rooms' amplitude ceiling clamped large waves here — dead once the
+    // rooms were, and removed as a BRANCH (ONE_WORLD-II U4). The
+    // float order of every expression around it is untouched: this
+    // derivation runs under a bit-identity discipline and is re-run
+    // identically in two rooms.
     let damping = max(abs(sample_gaussian(node_seed, WAVE_PROP_DAMPING, band.damping_mean, band.damping_sigma)), band.damping_min);
     let phase_base = hash_property(node_seed, WAVE_PROP_PHASE) * 2.0 * PI;
 
@@ -881,7 +882,7 @@ struct FrameSignal {
 //
 // Unified entity state — mirrors GPUAgentState in state.hpp (88 bytes).
 // Slot 0 is the player's body (possessed at session start); slots 1..31
-// are mood-authored agents driven by AGENT_BEHAVIORS. Scalar fields
+// are the bank's agents, driven by AGENT_BEHAVIORS. Scalar fields
 // throughout so WGSL uniform/storage layout matches C++ without vec3
 // alignment surprises. Orientation stored (not derived) to preserve
 // terrain-tilt transparency for the possessed slot.
@@ -1012,7 +1013,7 @@ struct PawnFigure {
 
 const PAWN_FIGURE_COUNT_WGSL: u32 = 14u;
 
-// SCENE CONSTANTS (CHORD_4) — the render room's mood-cadence block:
+// SCENE CONSTANTS (CHORD_4) — the render room's world-cadence block:
 // the tier-gains window, the figure profiles, the ribbon window.
 // Bound by the scene AND shadow layouts, VERTEX only. Mirrors
 // GPUSceneConstants in state.hpp BYTE-FOR-BYTE (4336 B). Offsets:
@@ -1665,8 +1666,13 @@ struct DesignConfig {
     world_bound_min: vec2<f32>,   // XZ min clamp (0,0 = infinite)
     world_bound_max: vec2<f32>,   // XZ max clamp (0,0 = infinite)
     placement_patch_count: u32,   // active patches for entity Y-correction
-    terrain_amp_ceiling: f32,     // max per-wave amplitude (0 = unlimited, >0 = clamp for indoor)
-    ceiling_height: f32,          // indoor ceiling Y for camera clamp (0 = no ceiling)
+    _pad_terrain_amp_ceiling_retired: f32,   // ONE_WORLD-II U4 — the rooms'
+    _pad_ceiling_height_retired: f32,        // amp clamp and their camera
+                                             // ceiling. RETIRED TO PADS, not
+                                             // deleted: this block's offsets
+                                             // are pinned in both rooms and a
+                                             // 12-byte hole upstream would
+                                             // move every field behind them.
     terrain_time: f32,            // t_beats for terrain evaluation (0 = frozen)
     // ─── Polyphony-driven band motion ────────────────────────────
     // Per-band blend: -1 = inactive sentinel (the evaluators skip the band); [0,1] = activation.
@@ -1698,16 +1704,19 @@ struct DesignConfig {
     // agent_state[]. Piggybacks on the radial-pulse pad triple (no
     // struct size delta). Order matches GPUDesignConfig in state.hpp.
     possessed_slot: u32,
-    veil_dither: f32,     // THE RIM taste knob: >0.5 → icing dither-dissolves (mirror of GPUDesignConfig)
-    indoor_height_cap: f32,  // indoor cap on the GoL cell lift, 0 = disabled. READER: zone_derive_params, once per zone birth (mirror of GPUDesignConfig — last pulse pad repurposed)
+    _pad_veil_dither_retired: f32,   // ONE_SURFACE-I U4 — THE RIM knob. Both its arms read `veil`, which the pin held at 0, so it had not moved a pixel since. Mirror of GPUDesignConfig.
+    _pad_indoor_height_cap_retired: f32,  // ONE_WORLD-II U4 — the GoL lift cap. A pad twice over: it was the last pulse pad before the indoor module repurposed it, and it is one again.
     pulse_data: array<vec4<f32>, 8>,  // each: (origin_x, origin_z, onset_seconds, amplitude)
     // CPU-banded POINT position for LOD0/LOD1 partition (renamed
-    // lod_pawn → lod_point: the value has been THE POINT).
+    // lod_pawn -> lod_point -> cull_point (ONE_SURFACE-I U5): the value
+    // has been THE POINT throughout, and the LOD split it was named for
+    // left with the half-mesh. What reads it now is the FRUSTUM CULL and
+    // the four ring gates.
     // Read by the frustum-cull shader so its dist² test agrees with
     // the CPU's banding point (no 1-2 frame disagreement at the
     // boundary annulus).
-    lod_point_x: f32,
-    lod_point_z: f32,
+    cull_point_x: f32,
+    cull_point_z: f32,
     // The point's host + fly speed — piggybacked on the
     // lod-point pad pair (no struct size delta; the possessed_slot
     // precedent). Order matches GPUDesignConfig in state.hpp.
@@ -1715,18 +1724,26 @@ struct DesignConfig {
     point_fly_speed: f32,
     // THE VEIL (re-ruled: RING = draw authority, fog = icing). Mirrors
     // GPUDesignConfig (state.hpp):
-    //   veil_ring — the SOLE draw authority (325): the band's outer
+    //   veil_ring — THE DRAW AUTHORITY (342), and the one strand of the
+    //     veil chain that was never the veil's: four gates read it and
+    //     none is gated by strength. It still CULLS in a walled world —
+    //     at radius 4 the box diagonal is 636 wu against a ring of 342.
+    //     Formerly described as the band's outer
     //     gate, the entity cull, and every VS draw gate read it;
     //     nothing draws beyond it.
     //   veil_icing — δ: the narrow fade band [ring−δ, ring] in
     //     shade_lit (cosmetic; joins materialize inside it).
-    //   veil_strength — 1 outdoors, 0 finite/indoor (staged by U5).
-    //   lod0_radius — the terrain full/half-mesh split (175), read by
+    //   _pad_veil_strength_retired — it was 1 in an open world and 0 in a
+    //     finite one, and the pin made it a constant 0, so every reader was
+    //     a multiply by zero (ONE_SURFACE-I U4). A PAD: this block's offsets
+    //     are pinned in both rooms.
+    //   _pad_lod0_radius_retired — it was the terrain full/half-mesh
+    //     split (175), read by
     //     the frustum-cull LOD0 gate + the CPU band (one yardstick).
     veil_ring: f32,
     veil_icing: f32,
-    veil_strength: f32,
-    lod0_radius: f32,
+    _pad_veil_strength_retired: f32,
+    _pad_lod0_radius_retired: f32,
     // ── The palette mirror (FORK-tier graduation) — C++ twin in
     //    GPUDesignConfig; rest = the pre-graduation literals. rgb in
     //    xyz (w pad); weight component i = palette i.
@@ -2051,7 +2068,7 @@ const DOOR_FADE_W_ZONE: f32 = 0.07;
 //   6  SHELL RINGS     the point's influence radii as rings on the
 //                      terrain, blended (not replacing) so scale reads
 //                      in context. Zero bindings, zero layout — the
-//                      rings use config.lod_point_x/z, already in the
+//                      rings use config.cull_point_x/z, already in the
 //                      terrain FS.
 // Slots 3-6 are permanent. Slots 1-2 replace the old CHECKER_DEBUG_VIEW,
 // 3-4 the old TERRAIN_DEBUG_VIEW, 5 LIVE_CARD_DEBUG_VIEW, 6
@@ -2374,7 +2391,7 @@ const PAWN_FORCEFIELD_SPEED_SCALE: f32 = 1.0;        // How quickly radius shrin
 //   mosaic cell ........ PATCH_CELL_SIZE            3.125 wu
 //   patch .............. PATCH_EXTENT               50 wu
 //   pawn body (visual) . PAWN_FIGURES radius        ~0.5 wu
-//   cube altitude ...... orbit_height (Gaussian)    indoor <18.75, outdoor 25-75 wu
+//   cube altitude ...... orbit_height (Gaussian)    25-75 wu
 //   the bubble ......... config.point_bubble_radius 80 wu
 //   possess reach ...... POSSESSION_RADIUS          20 wu (agents.hpp)
 //   agent eviction ..... AGENT_EVICTION_RADIUS      350 wu
@@ -3033,9 +3050,9 @@ fn pawn_gol_suppression(world_xz: vec2<f32>, pawn_xz: vec2<f32>) -> f32 {
 //     is ≈ 39 — none.
 //
 // The scale is the reach because there is no cell-lift ceiling in this
-// tree to be the scale instead: config.indoor_height_cap is indoor-only
-// with 0 as its disable sentinel, and GOL_HEIGHT_FACTOR_MAX is a per-cell
-// multiplier, not a height. A reach is a named home and needs no new one.
+// tree to be the scale instead: the rooms' cap was the only one and it
+// left with them (ONE_WORLD-II U4), and GOL_HEIGHT_FACTOR_MAX is a
+// per-cell multiplier, not a height. A reach is a named home already.
 //
 // Returns exactly 0.0 when either gate shuts, so max()-ing it in is
 // BIT-IDENTICAL to the pawn's factor alone wherever the witness is silent.
@@ -3558,8 +3575,8 @@ fn query_ground_walker_witness(xz: vec2<f32>, qi: QueryInputs) -> f32 {
 // here?" clamp AROUND the query — NOT folded into this "where is the
 // surface?" query, which stays PURE. On the heightfield the ground
 // extends infinitely even in a finite world (world_bound is an
-// invisible wall, not terrain extent — MOOD_FINITE_OUTDOOR is finite
-// with no walls), so valid is always 1u and consumers clamp via the
+// invisible wall, not terrain extent — the finite world is walled by
+// its bounds and by nothing else), so valid is always 1u and consumers clamp via the
 // separate containment layer as today. Boundary's real home is the
 // manifold FAMILY's closedness story: a sphere is CLOSED — no edge,
 // valid always 1 — closedness replaces containment on closed
@@ -3689,18 +3706,21 @@ fn coupling_pawn_to_camera_target(pawn_pos: vec3<f32>, cam: CameraState) -> vec3
 // distance into depth, and at a low sun almost all of it does.
 //
 // UMBRA_5 fixed this laterally and left the depth axis at its old size.
-// The result, found late in PENUMBRA_1: at MOOD_OPEN_SUNSET the near plane
+// The result, found late in PENUMBRA_1: under the sunset sun the near plane
 // clipped everything past ~259 wu down-sun while the visible rim ran to
 // 325 — a band of visible terrain casting nothing at all.
 //
-// THE REQUIREMENT, per outdoor mood (the two indoor moods mute the sun
-// coupling entirely, so they do not constrain it):
+// THE REQUIREMENT, per case. The two rows were the two sun-lit moods when
+// this was derived (ONE_WORLD-II U7 keeps the NUMBERS and renames the
+// rows, because the numbers are why the constant is 550): the open world's
+// sun is ATMOS_TABLE's row today, and the walled row is the finite pin at
+// its widest radius.
 //
 //   axial half-need = |d_xz| * R_xz + |d_y| * H
 //
-//   mood                  |d_xz|  |d_y|    R_xz    half-need
-//   MOOD_OPEN_SUNSET       0.966  0.259   395.7 *    398.8
-//   MOOD_FINITE_OUTDOOR    0.704  0.710   636.4 †    493.6
+//   case                  |d_xz|  |d_y|    R_xz    half-need
+//   the open world         0.966  0.259   395.7 *    398.8
+//   walled, radius 4       0.704  0.710   636.4 †    493.6
 //
 //   * veil ring 325 + a patch's far corner, 50*sqrt(2) — the caster set is
 //     patch-granular, so its supremum is R + 50*sqrt(2) = 395.71 wu.
@@ -3708,10 +3728,10 @@ fn coupling_pawn_to_camera_target(pawn_pos: vec3<f32>, cam: CameraState) -> vec3
 //     corner with a caster in the opposite one, so the separation is the
 //     room's full diagonal, 450*sqrt(2).
 //   H = 64 wu of terrain height half-span: the six TERRAIN_BANDS at
-//     mu+3sigma sum to 61.5, and terrain_amp_ceiling is 0 (unlimited)
-//     outdoors, so this is a stated worst case rather than a read constant.
+//     mu+3sigma sum to 61.5, and no amplitude cap survives to bound them,
+//     so this is a stated worst case rather than a read constant.
 //
-// Half-range 550 covers the worst mood with 56.4 wu to spare, and the
+// Half-range 550 covers the worse case with 56.4 wu to spare, and the
 // point sits at the exact centre so the two clips are symmetric.
 // Widening costs nothing but depth precision, and Depth32Float has it to
 // spare: one ULP near z = 0.5 is 6.6e-5 wu against a normal offset of
@@ -4042,47 +4062,6 @@ struct DirectionalLight {
     _pad3: f32,
 }
 
-const MAX_POINT_LIGHTS: u32 = 8u;
-
-struct PointLight {
-    position: vec3<f32>,
-    range: f32,
-    color: vec3<f32>,
-    intensity: f32,
-}
-
-struct PointLightArray {
-    count: u32,
-    _pad0: u32,
-    _pad1: u32,
-    _pad2: u32,
-    lights: array<PointLight, 8>,  // MAX_POINT_LIGHTS
-}
-
-struct SpotLight {
-    position: vec3<f32>,
-    _pad0: f32,
-    direction: vec3<f32>,
-    _pad1: f32,
-    color: vec3<f32>,
-    intensity: f32,
-    inner_cone: f32,      // cos(inner angle)
-    outer_cone: f32,      // cos(outer angle)
-    range: f32,
-    _pad2: f32,
-    view_proj: mat4x4<f32>,
-}
-
-const MAX_SPOT_LIGHTS: u32 = 4u;
-
-struct SpotLightArray {
-    count: u32,
-    _pad0: u32,
-    _pad1: u32,
-    _pad2: u32,
-    lights: array<SpotLight, 4>,
-}
-
 // WALLET_1revA — the lighting block. THREE fragment-stage storage
 // bindings became ONE uniform: the trio cost three of the entity
 // family's eight F-stage storage seats and bought nothing that one
@@ -4090,14 +4069,29 @@ struct SpotLightArray {
 // one fact, one home; only their standalone bindings died.
 //
 // Uniform-legal by construction: every member is align 16, each
-// offset is a 16-multiple, and 848 B is far under the 65,536 B
-// uniform binding cap. TWIN: GPULighting in state.hpp (L3 MIRROR,
-// static_assert(sizeof(GPULighting) == 848)).
+// offset is a 16-multiple. TWIN: GPULighting in state.hpp (L3 MIRROR,
+// static_assert(sizeof(GPULighting) == 48)).
+//
+// IT HELD THREE ARRAYS AND NOW HOLDS ONE (ONE_WORLD-II U4). The SPOT
+// array — four ceiling cones, each carrying its own shadow VP — left
+// with the rooms. The POINT array left with it and for a colder
+// reason: `points.count = 0` was the only write it ever took, so 272
+// bytes of the program's most-shared uniform were a permanently empty
+// passenger. Sun and ambient are the whole of the light, in both rooms.
+//
+// THE NAMES THIS CUT RETIRED FROM THIS MODULE, so the G-LAW 2 record
+// diff has a claim for each: `SpotLight`, `SpotLightArray`,
+// `MAX_SPOT_LIGHTS`, `SPOT_PCF_RADIUS_TEXELS`, `calc_spot_light`,
+// `sample_spot_shadow_pcf`, `spot_shadow_map` and `shadow_slot` (the
+// spot half); `PointLight`, `PointLightArray`, `MAX_POINT_LIGHTS` and
+// `calc_point_lights` (the empty passenger); `ShellVertexInput`,
+// `shell_vs` and `shadow_shell_vs` (the shell mesh, §8's two entry
+// points); and `indoor_bounds_resolve`, which did not die but was
+// RENAMED — it is `finite_bounds_resolve` below, and its own banner
+// says why the old name was never true.
 struct Lighting {
     sun    : DirectionalLight,   // offset   0
-    points : PointLightArray,    // offset  48
-    spots  : SpotLightArray,     // offset 320
-}                                // size 848, uniform-legal
+}                                // size 48, uniform-legal
 
 // --- Shadow constants
 
@@ -4213,9 +4207,9 @@ fn sample_shadow_pcf(world_pos: vec3<f32>, normal: vec3<f32>) -> f32 {
     // measurement. The 5x5-texel footprint is compact, so it should be
     // small.
     //
-    // This is now the SAME arrangement sample_spot_shadow_pcf has always
-    // used (its `f32(x) + 0.5` term over -2..=1 gives the identical centres).
-    // The spot kernel never combed; only the sun kernel did.
+    // This is the SAME arrangement the spot kernel used (its `f32(x) + 0.5`
+    // term over -2..=1 gave the identical centres) before it left with the
+    // rooms. The spot kernel never combed; only the sun kernel did.
     // THE TAP DIAL (PANORAMA_1). The 4-tap arm takes the INNER four —
     // (±0.5, ±0.5) — which are the same centres the 16-tap kernel already
     // uses, so nothing about the arrangement changes: the tents still sum
@@ -4297,11 +4291,10 @@ fn calc_directional_light(world_pos: vec3<f32>, normal: vec3<f32>, geo_normal: v
     let light_dir = -frame_r.lighting.sun.direction;  // toward light
     let ndotl = max(dot(normal, light_dir), 0.0);
 
-    // Sun PCF stays off when spots are active: indoors the sun map's
-    // CONTENT is spot atlas tiles 0-1 (ATLAS_1revB draws them there), so a
-    // sun-matrix sample would read spot depths. light_vp itself is no
-    // longer overwritten (the per-tile copy died in ATLAS_1revB).
-    // Restoring indoor sun shadow needs its own map content — future ruling.
+    // Sun PCF used to stay off while spot lights were live: the sun map's
+    // CONTENT was then spot atlas tiles 0-1 (ATLAS_1revB drew them there),
+    // so a sun-matrix sample would have read spot depths. The spots left at
+    // ONE_WORLD-II U4 and the map is the sun's alone again.
     //
     // AND IT STAYS OFF ON GROUND THAT FACES AWAY FROM THE SUN (PANORAMA_0
     // LIGHT_0). Surface turned from a 17-degree sun is dark by GEOMETRY, and
@@ -4315,267 +4308,24 @@ fn calc_directional_light(world_pos: vec3<f32>, normal: vec3<f32>, geo_normal: v
     // geo_normal argument is unchanged and still decides the normal offset
     // wherever the taps do run. Skipping the call cannot move a pixel because
     // the pixel was never reading the call's answer.
+    // The second conjunct was `frame_r.lighting.spots.count == 0u`: it
+    // SUPPRESSED the sun's 16-tap PCF whenever spot lights were live,
+    // because the sun's map was then the atlas's first texture and no
+    // longer held the sun. The spots are gone, so the count was always 0
+    // and the conjunct always true — removing it is behaviour-identical
+    // (ONE_WORLD-II U4).
     var shadow = 1.0;
-    if (ndotl > 0.0 && frame_r.lighting.spots.count == 0u) {
+    if (ndotl > 0.0) {
         shadow = sample_shadow_pcf(world_pos, geo_normal);
     }
 
     return frame_r.lighting.sun.color * frame_r.lighting.sun.intensity * ndotl * shadow;
 }
 
-// --- Point Lights (diffuse only, no shadows)
 
-fn calc_point_lights(world_pos: vec3<f32>, normal: vec3<f32>) -> vec3<f32> {
-    var total = vec3(0.0);
-    let count = min(frame_r.lighting.points.count, MAX_POINT_LIGHTS);
-
-    for (var i: u32 = 0u; i < count; i++) {
-        let light = frame_r.lighting.points.lights[i];
-        let light_vec = light.position - world_pos;
-        let dist = length(light_vec);
-        let light_dir = light_vec / max(dist, 0.001);
-
-        // Smooth distance attenuation
-        let attenuation = clamp(1.0 - dist / light.range, 0.0, 1.0);
-        let attenuation_sq = attenuation * attenuation;
-
-        // Diffuse
-        let ndotl = max(dot(normal, light_dir), 0.0);
-
-        total += light.color * light.intensity * attenuation_sq * ndotl;
-    }
-    return total;
-}
-
-// --- Spot Light Shadow Sampling (perspective, two-texture atlas)
-//
-// Two full-size depth textures, each split left/right into half-width tiles:
-//   shadow_map      (repurposed sun map) → lights 0, 1
-//   spot_shadow_map                      → lights 2, 3
-// Doubles per-tile resolution vs the old single-texture 2×2 grid,
-// with zero extra VRAM — the sun map is idle during indoor moods.
-//
-// Bias strategy: NO DEPTH BIAS HERE — but there IS a normal offset, added
-// by PENUMBRA_1 P5 and described at the end of this banner. (UMBRA_6.)
-// The hand-rolled pair that used to
-// live here — a base bias divided by clip.w to compensate for hyperbolic
-// 1/z depth, plus a per-pixel slope term from the radial light direction —
-// is deleted. The rasterizer's slope-scaled bias replaces both, and on the
-// perspective question it is strictly better: bias is applied to
-// window-space z, AFTER the divide and viewport transform, so the
-// hyperbolic 1/z distribution is handled exactly where the old /clip.w was
-// a hand-rolled approximation of the same thing.
-//
-// The old term's CEILING went missing for one campaign and came back:
-// slope_bias was capped by SPOT_SLOPE_BIAS_MAX, UMBRA_6 left
-// depthBiasClamp at 0.0 (which means NO clamp, not clamp-at-zero) so the
-// grazing term ran unbounded, and PENUMBRA_1 P2 restored a ceiling. The
-// live value lives in renderer.hpp beside the assignment — not quoted
-// here, because a cross-room quotation of a C++ field is a label waiting
-// to go stale. The spot path is still not independently SIZED: it
-// inherits slopeScale from the sun pipelines through a completely
-// different projection. Jean's, at the indoor gate.
-//
-// The spot pass reuses the SAME pipelines as the sun pass, so it inherits
-// that bias without a second home.
-//
-// THERE IS NOW A NORMAL OFFSET HERE (PENUMBRA_1 P5), and the old ruling
-// against one is superseded rather than merely overruled. That ruling said
-// an offset "breaks contact shadows (disconnects pawn shadow from feet by
-// lifting the comparison point above the occluder depth)" — true of a
-// DEPTH lift, which is what this path had at the time. A normal offset
-// moves the sample POSITION along the surface instead, so it walks out of
-// the occluder's texel without lifting the comparison off contact. That is
-// the whole distinction UMBRA_7 was built on, and it applies here too.
-//
-// What genuinely blocked it was that the frustum is perspective, so texel
-// world-size is not constant. Derived per fragment below, it is.
-
-// This kernel's own footprint. NOT PCF_RADIUS_TEXELS — that is the sun's,
-// and coupling two kernels through one dial is the pattern this campaign
-// family exists to break. Derivation: 4x4 at spacing 1 with the +0.5
-// centring term puts tap centres at +-0.5 and +-1.5, and each
-// textureSampleCompare carries a 2x2 bilinear footprint reaching +-1, so
-// the kernel reaches +-2.5 texels.
-const SPOT_PCF_RADIUS_TEXELS: f32 = 2.5;
-
-// `normal` is back (PENUMBRA_1 P5) and it is the GEOMETRIC one — see
-// calc_directional_light. UMBRA_6 dropped it with the slope term that was
-// its only reader; the spot path then ran with no offset, and with a
-// constant bias that was INERT rather than absent (depthBias = 2 on a
-// float format bought 6.0e-8 NDC) until P2 deleted it outright. That
-// window was the campaign's thinnest ice.
-fn sample_spot_shadow_pcf(world_pos: vec3<f32>, geo_normal: vec3<f32>, light_index: u32) -> f32 {
-    let light = frame_r.lighting.spots.lights[light_index];
-
-    // THE SPOT NORMAL OFFSET. The frustum is perspective, so texel world-size
-    // is not constant — which is why UMBRA ruled this path offset-free. Derive
-    // it per fragment instead, from data already in hand:
-    //
-    //   f — the projection's 1/tan(halfFOV). Recovered from the matrix rather
-    //       than mirrored from the CPU: view_proj's first ROW is f * right and
-    //       right is unit, so its length IS f. (P1-D: the FOV is per-light,
-    //       computed CPU-side from light.outer_cone, and never uploaded as a
-    //       scalar — there is no constant to quote, and inventing one would
-    //       open a new L3 mirror.)
-    //   distance — radial, not axial. Slightly over-estimates inside the cone,
-    //       which is the conservative direction for an offset.
-    //   tile texels — the X axis, 1024 of them (PORT_5a: SHADOW_MAP_SIZE/2).
-    //       P1-D found the projection
-    //       carries NO aspect term (proj[0] == proj[5] == f) while the tile is
-    //       1024 x 2048, so spot texels are non-square by exactly 2x. The
-    //       handoff's rule for that case is to take the LARGER texel
-    //       world-size, and X is the coarser axis. Over-offsets on one axis
-    //       rather than under-offsetting on the other. The aspect itself is a
-    //       HORIZON item; it is not fixed here.
-    // spot_f is a DIVISOR and it is unguarded here on purpose: it is
-    // guarded by an invariant kept in another room. A zeroed view_proj
-    // would make it 0, spot_texel_world +Inf, and offset_w NaN on every
-    // zero component of geo_normal — a flat floor's (0,1,0) being the
-    // commonest indoor receiver. That cannot be reached: apply_mood_lighting
-    // (direction/mood.hpp) runs compute_spot_light_vp for every
-    // i < cpuSpotLights_.count before uploading, and calc_spot_light below
-    // bounds its loop by the same count, so every light this function is
-    // ever called for has a computed matrix. fov is clamped to <= 2.8 rad,
-    // so f = 1/tan(fov/2) >= 0.17. If that loop bound and that fill ever
-    // stop agreeing, this is where it surfaces.
-    let spot_f     = length(vec3(light.view_proj[0][0],
-                                 light.view_proj[1][0],
-                                 light.view_proj[2][0]));
-    let light_dist = distance(world_pos, light.position);
-    let spot_texel_world = 2.0 * light_dist / (spot_f * SHADOW_MAP_SIZE * 0.5);
-
-    let spot_dir = normalize(light.position - world_pos);
-    let ndotl    = clamp(dot(geo_normal, spot_dir), 0.0, 1.0);
-    let offset_w = geo_normal * (spot_texel_world * SPOT_PCF_RADIUS_TEXELS
-                                 * (0.33 + 0.67 * (1.0 - ndotl)));
-
-    // Transform to light clip space (perspective)
-    let light_clip = light.view_proj * vec4(world_pos + offset_w, 1.0);
-    let light_ndc = light_clip.xyz / light_clip.w;
-
-    // NDC to UV (flip Y), then scale + offset into atlas tile.
-    // Each texture holds 2 tiles side by side (left/right halves).
-    // Tile = half width (0.5), full height (1.0).
-    let raw_uv = vec2(
-        light_ndc.x * 0.5 + 0.5,
-        -light_ndc.y * 0.5 + 0.5
-    );
-    let within = light_index % 2u;
-    let tile_offset = vec2(f32(within) * 0.5, 0.0);
-    let shadow_uv = raw_uv * vec2(0.5, 1.0) + tile_offset;
-
-    // No bias term — it moved to the rasterizer (UMBRA_6).
-    let current_depth = light_ndc.z;
-
-    let out_of_bounds = raw_uv.x < 0.0 || raw_uv.x > 1.0 ||
-                        raw_uv.y < 0.0 || raw_uv.y > 1.0 ||
-                        current_depth < 0.0 || current_depth > 1.0;
-
-    let clamped_uv = clamp(shadow_uv,
-        tile_offset + vec2(0.001, 0.001),
-        tile_offset + vec2(0.499, 0.999));
-    // THIS CLAMP IS LOAD-BEARING. It looks like residue of the bias UMBRA_6
-    // deleted — PENUMBRA_1 P6 was written to delete it on exactly that
-    // reading — and it is not. Two reasons, either one sufficient:
-    //
-    // 1. IT IS THE MANUAL CLAMP THE FORMAT REQUIRES. Both shadow textures
-    //    are Depth32Float, a FLOATING-POINT resource. HLSL's SampleCmp
-    //    reference: on a floating-point resource "the comparison value is
-    //    not automatically clamped between 0.0 and 1.0. Therefore, a manual
-    //    clamp of the comparison value may be necessary for common
-    //    shadowing techniques." Unorm depth formats do clamp; float ones do
-    //    not, and the difference is observable on D3D12 (gpuweb#4653).
-    //
-    // 2. IT IS THE ONLY NaN SCRUBBER ON THIS PATH, and out_of_bounds cannot
-    //    be one. Every ordered comparison against NaN is false, so a NaN
-    //    current_depth makes `< 0.0 || > 1.0` FALSE and the fragment passes
-    //    the guard. clamp(NaN, 0, 1) folds to saturate/min-max, and D3D's
-    //    rule is that a min/max with one NaN operand returns the other — so
-    //    NaN becomes 0.0, the nearest depth, and the fragment reads FULLY
-    //    LIT. Without the clamp a NaN reference fails all sixteen compares
-    //    (NaN < stored is false) and the fragment reads FULLY BLACK. The
-    //    clamp is what makes this path fail open instead of fail black.
-    //
-    // Note the taps below are NOT gated by out_of_bounds — they run on every
-    // fragment and only the RETURNED value is selected, so this argument
-    // reaches the sampler on 100% of fragments, not just survivors.
-    //
-    // Cost of keeping it: zero. On D3D12 clamp(x, 0, 1) folds into the _sat
-    // destination modifier of the instruction that produces x.
-    let clamped_depth = clamp(current_depth, 0.0, 1.0);
-
-    // 4x4 PCF kernel — branch on texture (lights 0-1 on sun map, 2-3 on spot map)
-    let texel_size = 1.0 / SHADOW_MAP_SIZE;
-    var shadow: f32 = 0.0;
-    if (light_index < 2u) {
-        for (var y: i32 = -2; y <= 1; y++) {
-            for (var x: i32 = -2; x <= 1; x++) {
-                let offset = vec2(f32(x) + 0.5, f32(y) + 0.5) * texel_size;
-                shadow += textureSampleCompare(
-                    shadow_map,
-                    shadow_sampler,
-                    clamped_uv + offset,
-                    clamped_depth
-                );
-            }
-        }
-    } else {
-        for (var y: i32 = -2; y <= 1; y++) {
-            for (var x: i32 = -2; x <= 1; x++) {
-                let offset = vec2(f32(x) + 0.5, f32(y) + 0.5) * texel_size;
-                shadow += textureSampleCompare(
-                    spot_shadow_map,
-                    shadow_sampler,
-                    clamped_uv + offset,
-                    clamped_depth
-                );
-            }
-        }
-    }
-    return select(shadow / 16.0, 0.0, out_of_bounds);
-}
-
-// --- Spot Lights (cone + distance + shadow atlas, indoor moods)
-
-fn calc_spot_light(world_pos: vec3<f32>, normal: vec3<f32>, geo_normal: vec3<f32>) -> vec3<f32> {
-    var total = vec3(0.0);
-    let count = min(frame_r.lighting.spots.count, MAX_SPOT_LIGHTS);
-
-    for (var i: u32 = 0u; i < count; i++) {
-        let light = frame_r.lighting.spots.lights[i];
-        if (light.intensity <= 0.0) { continue; }
-
-        let light_vec = light.position - world_pos;
-        let dist = length(light_vec);
-        let light_dir = light_vec / max(dist, 0.001);
-
-        // Distance attenuation
-        let attenuation = clamp(1.0 - dist / light.range, 0.0, 1.0);
-        let attenuation_sq = attenuation * attenuation;
-
-        // Cone falloff
-        let spot_cos = dot(-light_dir, light.direction);
-        let cone_falloff = smoothstep(light.outer_cone, light.inner_cone, spot_cos);
-
-        // Diffuse
-        let ndotl = max(dot(normal, light_dir), 0.0);
-
-        // Per-light shadow from atlas tile
-        let shadow = sample_spot_shadow_pcf(world_pos, geo_normal, i);
-
-        total += light.color * light.intensity * attenuation_sq * cone_falloff * ndotl * shadow;
-    }
-    return total;
-}
-
-// --- Unified Shading
-// THE RIM dither knob's noise — world-space stipple so the dissolve sticks
-// to the geometry (it "condenses" rather than screen-crawls). Taste knob;
-// off by default.
-fn veil_dither_noise(p: vec2<f32>) -> f32 {
-    return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453);
-}
+// `veil_dither_noise` stood here — the RIM knob's blue-noise threshold,
+// and the icing's dither arm was its only caller. Both left at
+// ONE_SURFACE-I U4.
 
 // THE ICING's t — factored (MOSAIC_2) so the veil and the mosaic's
 // grain read ONE value. Point-anchored, XZ, exactly as the veil law
@@ -4587,47 +4337,43 @@ fn veil_t(world_pos: vec3<f32>) -> f32 {
                       distance(world_pos.xz, render_point_pos().xz));
 }
 
-// veil_scale: 1.0 = the family joins the veil (terrain + all entity_fs
-// users); 0.0 = a ruled exemption (ribbon — a flown structure that shares
-// ENTITY_FS but must stay visible at range). NOT an anchor knob — the
-// veil always measures from the point.
+// `veil_scale` stood in this signature (ONE_SURFACE-I U4): 1.0 = the
+// family joined the veil, 0.0 = a ruled exemption for the ribbon, a flown
+// structure that shares ENTITY_FS and had to stay whole at range. Its one
+// use was the icing composite, and a parameter that scales a value the
+// pin holds at zero is a parameter with one answer.
 // geo_normal is the GEOMETRIC normal — see calc_directional_light. Callers
 // whose shading normal IS the geometry (every entity) pass it twice; the
 // terrain passes its pre-aura normal.
-fn shade_lit(world_pos: vec3<f32>, normal: vec3<f32>, geo_normal: vec3<f32>, base_color: vec3<f32>, veil_scale: f32) -> vec3<f32> {
+
+fn shade_lit(world_pos: vec3<f32>, normal: vec3<f32>, geo_normal: vec3<f32>, base_color: vec3<f32>) -> vec3<f32> {
     // Ambient (always present)
     let ambient = base_color * frame_r.lighting.sun.ambient;
 
     // Directional light with shadows
     let sun = base_color * calc_directional_light(world_pos, normal, geo_normal);
 
-    // Point lights (diffuse only)
-    let points = base_color * calc_point_lights(world_pos, normal);
-
-    // Spot light (cone + distance, indoor moods)
-    let spot = base_color * calc_spot_light(world_pos, normal, geo_normal);
-
-    let lit = ambient + sun + points + spot;
+    // SUN + AMBIENT, AND THAT IS ALL (ONE_WORLD-II U4). Two terms stood
+    // here: the point array, permanently empty, and the spot cones with
+    // their atlas PCF. Both left with the rooms.
+    let lit = ambient + sun;
 
     // Fog — the EYE-anchored atmospheric term (a view effect; stays).
     let dist = distance(world_pos, frame_r.camera.pos);
     let fog = 1.0 - exp(-dist * config.fog_density);
     let fogged = mix(lit, config.fog_color, fog);
 
-    // THE ICING (re-ruled) — the POINT-anchored fade band AT the ring,
-    // composed AFTER the eye-fog. Cosmetic, not concealment: the RING is
-    // the draw authority (nothing is drawn beyond it), and this narrow
-    // band [ring−δ, ring] is where draw-set joins materialize. Zero
-    // inside ring−δ (pixel-identical there); full fog/horizon color at
-    // the ring (the rim melts into sky). strength: 0 in finite/indoor.
-    let veil = veil_t(world_pos) * config.veil_strength * veil_scale;
-    // THE RIM taste knob: veil_dither > 0.5 → the icing band DITHER-
-    // dissolves (geometry condenses) instead of tinting to fog.
-    if (config.veil_dither > 0.5) {
-        if (veil_dither_noise(world_pos.xz) < veil) { discard; }
-        return fogged;
-    }
-    return mix(fogged, config.fog_color, veil);
+    // THE ICING STOOD HERE (ONE_SURFACE-I U4), and the fold table is the
+    // proof it was already a no-op. It composed a POINT-anchored fade band
+    // at the ring — `veil = veil_t(p) * config.veil_strength * veil_scale`
+    // — and a walled world stages strength 0, so `veil` was identically
+    // zero: the tint arm returned `mix(fogged, fog_color, 0)`, which IS
+    // `fogged`, and the dither arm's `veil_dither_noise(p) < 0` never
+    // discarded. Two arms, one value, and this line is that value.
+    //
+    // The band it faded existed to hide an EDGE — the far rim of a
+    // streamed plane melting into sky. A walled world has a wall.
+    return fogged;
 }
 
 // ═══ THE MOSAIC (MOSAIC_0/1/2) — trencadís for the mesh-gen families ═══
@@ -4993,10 +4739,10 @@ fn patch_terrain_fs(in: PatchTerrainVarying) -> @location(0) vec4<f32> {
     // THE RIM — the terrain sibling of the zone per-vertex kill:
     // discard beyond the ring so the visible edge is a smooth CIRCLE (the
     // patch-granular banded draw set is its invisible superset). Staged
-    // point (lod_point) — concentric with the zone/instance kills, so
+    // point (cull_point) — concentric with the zone/instance kills, so
     // every hard draw-set edge is ONE circle (no scallops, no silhouettes).
     // Optional dither-dissolve inside the icing band handled in shade_lit.
-    if (distance(in.world_pos.xz, vec2(config.lod_point_x, config.lod_point_z)) > config.veil_ring) {
+    if (distance(in.world_pos.xz, vec2(config.cull_point_x, config.cull_point_z)) > config.veil_ring) {
         discard;
     }
 
@@ -5050,7 +4796,7 @@ fn patch_terrain_fs(in: PatchTerrainVarying) -> @location(0) vec4<f32> {
     // --- Musical animation modes: re-evaluate cell color with biases
     // Runtime guard: every live color channel at rest -> skip the live
     // re-evaluation (the baked gen-time composite stands). Drivers are gen-2
-    // couplings through the visual canvas; the mood retired as author.
+    // couplings through the visual canvas; the bank retired as author.
     // CHECKER-REBUILD: the checker field is live whenever music_amount
     // rises off 0 (the pull, the wander, and the door all key off it).
     // SIGNED DOORS (charter): the door biases are axes centered on rest.
@@ -5188,14 +4934,14 @@ fn patch_terrain_fs(in: PatchTerrainVarying) -> @location(0) vec4<f32> {
         }
     }
 
-    var out_colour = shade_lit(in.world_pos, normal, geo_normal, base_color, 1.0);
+    var out_colour = shade_lit(in.world_pos, normal, geo_normal, base_color);
 
     // DEBUG_VIEW 6 — THE SHELL RINGS: each ring is an influence radius
     // the code actually uses; the grey patch ring is the world's own
     // yardstick. If a shell ring sits OUTSIDE the patch ring, ask
     // whether that influence should really reach a whole patch.
     if (DEBUG_VIEW == 6u) {
-        let pxz = vec2(config.lod_point_x, config.lod_point_z);
+        let pxz = vec2(config.cull_point_x, config.cull_point_z);
         let d = distance(in.world_pos.xz, pxz);
         var ring = vec3(0.0);
         // the bubble — the point's social shell (the flee trigger)
@@ -5493,7 +5239,7 @@ fn pawn_vs(@builtin(vertex_index) vid: u32,
     // ring; the pawn is NOT exempt (ruled). Inactive/out-of-ring slots collapse
     // to a degenerate point at the agent's pos (local geometry * active_f = 0).
     let agent_in_ring = distance(vec2(agent.pos_x, agent.pos_z),
-                                 vec2(config.lod_point_x, config.lod_point_z))
+                                 vec2(config.cull_point_x, config.cull_point_z))
                         - 5.0 <= config.veil_ring;   // 5 wu: agent body half-extent
     let active_f = f32(agent.is_active) * f32(agent_in_ring);
 
@@ -5616,7 +5362,7 @@ fn sphere_vs(@builtin(instance_index) inst: u32, in: MeshVertexInput) -> EntityV
     // Skip non-sphere geometry (degenerate triangle for rasterizer discard).
     // THE RING (draw authority): floaters exist to 400 (the flagged spawn-
     // headroom fork) but DRAW only inside the ring — center − extent ≤ ring.
-    let in_ring = distance(fe.pos.xz, vec2(config.lod_point_x, config.lod_point_z))
+    let in_ring = distance(fe.pos.xz, vec2(config.cull_point_x, config.cull_point_z))
                   - fe.body_radius <= config.veil_ring;
     let r = select(0.0, fe.body_radius, fe.geometry_type == 0u && fe.is_active != 0u && in_ring);
     let world_pos = in.pos * r + fe.pos;
@@ -5647,15 +5393,23 @@ fn entity_fs(in: EntityVarying) -> @location(0) vec4<f32> {
         albedo = s.color;
         n = normalize(geo_n + s.facet * (config.mosaic_facet * grain));
     }
-    return vec4(shade_lit(in.world_pos, n, geo_n, albedo, 1.0), 1.0);
+    return vec4(shade_lit(in.world_pos, n, geo_n, albedo), 1.0);
 }
 
-// Ribbon FS — same shading as entity_fs but veil-EXEMPT (ruled fork): the
-// ribbon is a flown sky structure, meant to be seen/ridden far beyond the
-// band; veil_scale 0.0 keeps it whole while everything else condenses.
+// Ribbon FS — same shading as entity_fs, and it no longer has to say so.
+// It was the veil's ONE ruled exemption: a flown sky structure meant to be
+// seen and ridden far beyond the band, passing veil_scale 0.0 to keep
+// itself whole while everything else condensed. The icing left at
+// ONE_SURFACE-I U4 and every family is whole, so the fork is two entry
+// points that differ only in whether they consult a mosaic.
+//
+// IT IS STILL EXEMPT FROM SOMETHING, and that survives on its own: the
+// ribbon has no VS ring gate. pawn_vs, sphere_vs and cube_vs each collapse
+// their geometry outside config.veil_ring; the ribbon does not, which is
+// the same ruling reaching it through a different mechanism.
 @fragment
 fn ribbon_fs(in: EntityVarying) -> @location(0) vec4<f32> {
-    return vec4(shade_lit(in.world_pos, normalize(in.normal), normalize(in.normal), in.entity_color, 0.0), 1.0);
+    return vec4(shade_lit(in.world_pos, normalize(in.normal), normalize(in.normal), in.entity_color), 1.0);
 }
 
 // --- Monolith vertex shader (imperfect cube, per-face color from seed)
@@ -5665,7 +5419,7 @@ fn monolith_vs(@builtin(instance_index) inst: u32, in: MeshVertexInput) -> Entit
     // Skip non-monolith geometry. THE RING (draw authority): draw only
     // inside the ring — center − extent ≤ ring (extent 2r covers the
     // aspect-stretched axes conservatively; overshoot is fully iced).
-    let in_ring = distance(fe.pos.xz, vec2(config.lod_point_x, config.lod_point_z))
+    let in_ring = distance(fe.pos.xz, vec2(config.cull_point_x, config.cull_point_z))
                   - fe.body_radius * 2.0 <= config.veil_ring;
     let r = select(0.0, fe.body_radius, fe.geometry_type == 1u && fe.is_active != 0u && in_ring);
 
@@ -5826,31 +5580,6 @@ fn shadow_monolith_vs(@builtin(instance_index) inst: u32, in: MeshVertexInput) -
 //     (the pyramid-ground husk). That range was a hole BETWEEN live ranges;
 //     PRUNE_2 excised every range above arch's, so the atlas now runs
 //     0..15 (arch) and everything above is simply unallocated.
-
-// --- Indoor Shell (ceiling + walls)
-// Pre-baked world-space geometry, no per-instance transforms.
-struct ShellVertexInput {
-    @location(0) pos: vec3<f32>,
-    @location(1) normal: vec3<f32>,
-    @location(2) color: vec3<f32>,
-};
-
-@vertex
-fn shell_vs(in: ShellVertexInput) -> EntityVarying {
-    var out: EntityVarying;
-    out.clip_pos = frame_r.vp.m * vec4(in.pos, 1.0);
-    out.world_pos = in.pos;
-    out.normal = in.normal;
-    out.entity_color = in.color;
-    return out;
-}
-
-@vertex
-fn shadow_shell_vs(in: ShellVertexInput) -> ShadowVarying {
-    var out: ShadowVarying;
-    out.clip_pos = shadow_light_vp() * vec4(in.pos, 1.0);
-    return out;
-}
 
 // §6.5 THE RIBBON ENTITY (RIBBON_1; RIBBON_2 — the wall, the sweep, the body as a thing)
 // ONE ENTITY, ONE ROOM: head, spine, body and frame live here. The CPU
@@ -6769,7 +6498,7 @@ fn shadow_ribbon_vs(@builtin(vertex_index) vid: u32) -> ShadowVarying {
 @group(2) @binding(240)   var<storage, read_write> vp_data: VPMatrix;
 
 // Agent system — unified entity buffer. Slot 0 is the player's body;
-// slots 1..31 are mood-authored agents. The player's relationship
+// slots 1..31 are the bank's agents. The player's relationship
 // to this array is config.possessed_slot. Array size matches
 // Dim::MAX_AGENTS (32) in state.hpp — keep in sync.
 @group(2) @binding(0)  var<storage, read_write> agent_state: array<AgentState, 32>;
@@ -6779,7 +6508,7 @@ fn shadow_ribbon_vs(@builtin(vertex_index) vid: u32) -> ShadowVarying {
 // with the doors (ONE_WORLD-I U2) and its last reader with the round
 // (U4); the room is gone, not merely unfilled.
 // THE AGENTS' ROOM CONSTANTS (CHORD_1) — one cadence, one block.
-// Everything here is CPU-authored at world/mood cadence. Mirrors
+// Everything here is CPU-authored at world cadence. Mirrors
 // GPUAgentRoomConstants in state.hpp BYTE-FOR-BYTE (512 B; the
 // static_asserts are the handshake). Offsets: portals 0,
 // behaviors 0, tier_gains 320. (ATRIUM_4 grew behaviors by one row,
@@ -6867,14 +6596,15 @@ fn render_pawn_vel_xz() -> vec2<f32> {
 
 // --- Light system (Group 0: render, bindings 320-339)
 // WALLET_1revA: one uniform block, not three storage bindings. 321 and
-// 322 are retired; the sun, the point array and the spot array reach
-// the fragment stage as `frame_r.lighting.sun` / `.points` / `.spots`.
+// 322 are retired; the sun reaches the fragment stage as
+// `frame_r.lighting.sun`. The point and spot arrays it shared the block
+// with left at ONE_WORLD-II U4.
 // FRAME R (CHORD_3) — the render frame's block: lighting (CPU-
 // authored) + vp + camera (GPU-sovereign, arriving by encoder copy
 // from vp_data / camera_state each frame — the CPU never reads
 // them). One instance backs one bind group over this layout.
 // Mirrors GPUFrameR in state.hpp BYTE-FOR-BYTE
-// (1040 B). Offsets: lighting 0, vp 848, camera 976, sphere_pos 1024.
+// (240 B). Offsets: lighting 0, vp 48, camera 176, sphere_pos 224.
 //
 // THIRD PASSENGER (BEQ_A). sphere slot 0's position — the terrain
 // fragment stage's one frame-uniform read of render_floating,
@@ -6883,47 +6613,34 @@ fn render_pawn_vel_xz() -> vec2<f32> {
 // and camera: update_sphere writes it, the frame encoder copies 12
 // bytes from Floating Entity Array offset 0 into each instance, and
 // the CPU never reads it.
+// ONE_WORLD-II U4 SHRANK IT BY 800 BYTES: `lighting` is member 0, so
+// the spot and point arrays leaving moved vp, camera and sphere_pos
+// with them. TWIN: GPUFrameR in state.hpp — 240 B, offsets vp 48,
+// camera 176, sphere_pos 224 (L3 MIRROR, both rooms this commit).
 struct FrameR {
-    lighting: Lighting,
-    vp: VPMatrix,
-    camera: CameraState,
-    sphere_pos: vec3<f32>,
-    _pad_sphere: f32,
-}
+    lighting: Lighting,          // offset   0
+    vp: VPMatrix,                // offset  48
+    camera: CameraState,         // offset 176
+    sphere_pos: vec3<f32>,       // offset 224
+    _pad_sphere: f32,            // offset 236
+}                                // size 240
 @group(1) @binding(1) var<uniform> frame_r: FrameR;
 
-// ─── THE SHADOW TILE'S LIGHT INDEX ────────────────────────────────
-// One u32 on a DYNAMIC-OFFSET uniform seat: the buffer is four
-// 256-byte records holding 0..3, written once at boot, and the shadow
-// pass rebinds group 1 with this light's offset. Every other group-1
-// render bind carries offset 0.
-//
-// WHY AN INDEX AND NOT THE MATRIX. A matrix would need the SUN's on
-// the outdoor path, and the sun VP's only writer is update_camera_vp — on
-// the GPU, every frame; a CPU-pushed matrix would give it two owners
-// at two cadences. An index has no owners and no cadence, and its
-// failure mode is a validation error rather than a wrong pixel.
-@group(1) @binding(2) var<uniform> shadow_slot: u32;
-
-// D2' — the shadow VS's light matrix, from where it already lives.
-// Outdoors (no spots) the sun VP is frame_r.vp.light_vp, written by
-// update_camera_vp and read here exactly as the 13 shadow VSes read it
-// before. Indoors it is the per-light matrix that already rides the
-// lighting buffer, the same array sample_spot_shadow_pcf indexes in the
-// fragment stage. Nothing is duplicated and nothing new is written.
+// THE SHADOW VS'S LIGHT MATRIX. It forked (ONE_WORLD-II U4): the sun's VP
+// from frame_r.vp.light_vp, or a room light's per-light matrix off the
+// lighting block, selected by a u32 on the program's ONE
+// dynamic-offset uniform seat. There is one light now, so there is no
+// fork, no index and no seat — and every group-1 render bind in the
+// program sheds its offset argument with it.
 fn shadow_light_vp() -> mat4x4<f32> {
-    if (frame_r.lighting.spots.count == 0u) {
-        return frame_r.vp.light_vp;
-    }
-    return frame_r.lighting.spots.lights[shadow_slot].view_proj;
+    return frame_r.vp.light_vp;
 }
 
 // --- Render textures (Group 1: bindings 22-23, 25-27)
 @group(1) @binding(5) var bilinear_sampler: sampler;
 @group(1) @binding(6) var nearest_sampler: sampler;
-@group(3) @binding(200) var shadow_map: texture_depth_2d;           // sun shadows (outdoor) / spot atlas lights 0-1 (indoor)
+@group(3) @binding(200) var shadow_map: texture_depth_2d;           // the sun's shadows (it wore a second hat as the atlas's first texture until ONE_WORLD-II U4)
 @group(3) @binding(201) var shadow_sampler: sampler_comparison;
-@group(3) @binding(202) var spot_shadow_map: texture_depth_2d;     // spot atlas lights 2-3 (indoor)
 
 // §7.0a PATCH GENERATION BINDINGS
 
@@ -7283,7 +7000,7 @@ struct ZoneDeriveRequestArray {
 // L3 MIRROR: GoLZoneSpawnConfig::HEIGHT_FACTOR_CLAMP_HI (bodies/gol_zones.hpp).
 // The per-cell height_factor is a CPU Gaussian clamped to [LO, HI] and then
 // multiplied by the birth mask's {0,1}, so this is the true upper bound on
-// the per-cell multiplier. The indoor cap below divides by it. Both rooms.
+// the per-cell multiplier. Both rooms.
 const GOL_HEIGHT_FACTOR_MAX: f32 = 1.4;
 const ZONE_DERIVE_LENS_LO: f32       = 0.2;       // LENS target color floor
 const ZONE_DERIVE_LENS_RANGE: f32     = 0.6;       // LENS target color range
@@ -7441,24 +7158,12 @@ fn zone_derive_params(@builtin(global_invocation_id) gid: vec3<u32>) {
         zc.color_mode = GOL_COLOR_LENS;
     }
 
-    // THE INDOOR HEIGHT CAP. Pre-Stage-5 a zone that punched a ceiling was a
-    // separate extrusion mesh; now GoL IS the ground, so an uncapped indoor
-    // zone lifts the LAND through the roof of a room the camera is clamped
-    // inside. Applied HERE because derive is the only site that sees
-    // alive_height, and it runs ONCE PER ZONE BIRTH — 8 per world — instead
-    // of at every card texel, walker, flyer, placement and entity VS.
-    // DIVIDED BY THE CLAMP BOUND: the realised lift is
-    //   visual · alive_height · height_factor · mode_gol_height_scale
-    // with visual ∈ [0,1] (apply_boundary) and height_factor ≤
-    // GOL_HEIGHT_FACTOR_MAX, so bounding alive_height by cap/MAX makes the
-    // MAXIMUM realised lift exactly the cap. A cell at the top of the mask
-    // range reaches exactly INDOOR_HEIGHT_CAP_FRACTION × ceiling; cells below
-    // reach less, which is the mask doing its job, not the cap lying.
-    // cap == 0 is the disable sentinel — outdoor stays byte-identical.
-    if (config.indoor_height_cap > 0.0) {
-        zc.alive_height = min(zc.alive_height,
-                              config.indoor_height_cap / GOL_HEIGHT_FACTOR_MAX);
-    }
+    // THE ROOMS' HEIGHT CAP STOOD HERE. It bounded a zone's alive_height so
+    // an uncapped zone could not lift the LAND through the roof of a room
+    // the camera was clamped inside. Its sentinel was 0 = disabled and an
+    // open world was already byte-identical through it, so ONE_WORLD-II U4
+    // removed the branch with the rooms that set it — and U7 removes the
+    // paragraph, which described a clamp no code applies (L30).
 
     // Zone origin: snap corner to the cell grid with the TIER-DERIVED
     // extent, then center (the same snap formula; extent now varies).
@@ -8967,20 +8672,24 @@ fn world_box_clamp_xz(xz: vec2<f32>, margin: f32) -> vec2<f32> {
     return p;
 }
 
-// ─── Indoor bounds resolve — walls (via the box) + ceiling ───────
+// ─── Finite bounds resolve — THE INVISIBLE WALL ──────────────────
 // Readers: update_camera_vp, update_sphere, update_cube. The 2.0 is the
-// CAMERA'S OWN margin, now stated at the call site instead of inside
-// the law — which is what let the pawn pass its own.
-fn indoor_bounds_resolve(pos: vec3<f32>) -> vec3<f32> {
+// CAMERA'S OWN margin, stated at the call site instead of inside the law
+// — which is what let the pawn pass its own.
+//
+// IT WAS CALLED indoor_bounds_resolve AND IT NEVER WAS ONE
+// (ONE_WORLD-II U4). Its body is world_box_clamp_xz over
+// config.world_bound_min/max: the CONTAINMENT clamp, which the b3 ruling
+// already named "an invisible wall, not terrain extent —
+// MOOD_FINITE_OUTDOOR is finite with no walls". It survives the rooms
+// whole and wears its honest name at last. The ceiling clamp that made
+// the old name half-true went with the ceilings; what is left is the
+// world box at the camera's margin.
+fn finite_bounds_resolve(pos: vec3<f32>) -> vec3<f32> {
     var p = pos;
-    let cxz = world_box_clamp_xz(vec2(p.x, p.z), 2.0);  // don't let the body press into walls
+    let cxz = world_box_clamp_xz(vec2(p.x, p.z), 2.0);  // don't let the body press into the wall
     p.x = cxz.x;
     p.z = cxz.y;
-    // Ceiling clamp (works for any mood with a ceiling_height > 0)
-    if (config.ceiling_height > 0.0) {
-        let ceiling_margin = 3.0;
-        p.y = min(p.y, config.ceiling_height - ceiling_margin);
-    }
     return p;
 }
 
@@ -9198,9 +8907,9 @@ fn update_camera_vp() {
             camera.pos.y = max(camera.pos.y, ground_at_cam + min_clearance);
         }
 
-        // ─── Indoor boundary clamp: stay within walls and below ceiling ──
-        // (extracted to indoor_bounds_resolve — the one law, behavior-identical)
-        camera.pos = indoor_bounds_resolve(camera.pos);
+        // ─── The finite containment clamp: stay inside the wall ──
+        // (extracted to finite_bounds_resolve — the one law, behavior-identical)
+        camera.pos = finite_bounds_resolve(camera.pos);
 
         camera_state = camera;
     }
@@ -9283,11 +8992,11 @@ fn update_sphere() {
             let y_target = max(authored_orbit_y, floor_y + SPHERE_CLEARANCE);
             fe.pos.y = prev_y + (y_target - prev_y) * (1.0 - exp(-4.0 * dt));
 
-            // RESIDUE_2 [2]: runtime walls — the sphere reads the indoor
+            // RESIDUE_2 [2]: runtime walls — the sphere reads the finite
             // bounds through the one law (margins v1 are the camera's
             // own). An orbit that crosses a wall slides along it —
             // accepted percept v1. Identity outdoors.
-            fe.pos = indoor_bounds_resolve(fe.pos);
+            fe.pos = finite_bounds_resolve(fe.pos);
 
             floating_entities.entities[slot] = fe;
         }
@@ -9711,12 +9420,12 @@ fn update_cube(@builtin(global_invocation_id) gid: vec3<u32>) {
             // ── Compose final position ────────────────────────────
             fe.pos = home + fe.drift;
 
-            // RESIDUE_2 [2]: runtime walls — the cube reads the indoor
+            // RESIDUE_2 [2]: runtime walls — the cube reads the finite
             // bounds through the one law (margins v1 are the camera's
             // own). Drift that presses into a wall slides along it;
             // home + drift stay untouched, so the clamp re-resolves
             // each frame. Identity outdoors.
-            fe.pos = indoor_bounds_resolve(fe.pos);
+            fe.pos = finite_bounds_resolve(fe.pos);
 
             // ── PLASTICITY (CONTACT_2 C1b) ─────────────────────────
             // Displacement leaks from drift (temporary) into anchor
@@ -10939,7 +10648,7 @@ fn sample_terrain_grad_at(world_xz: vec2<f32>) -> vec2<f32> {
 
 const FRUSTUM_PATCH_Y_MIN: f32 = -50.0;   // widened: terrain amplitude + entity heights
 const FRUSTUM_PATCH_Y_MAX: f32 = 200.0;   // widened: tall entities (arches, ribbons)
-// The LOD0 gate reads fc_config.lod0_radius — the SAME config value the
+// The LOD0 gate read fc_config.lod0_radius — the SAME config value the
 // CPU band reads, so the radius has one spelling in the whole program.
 
 // Frustum cull compute bindings (dedicated bind group)
@@ -10959,7 +10668,7 @@ const FRUSTUM_PATCH_Y_MAX: f32 = 200.0;   // widened: tall entities (arches, rib
 // — change both rooms together). fc_indirect: 3 x 5 draw-args slots;
 // instance counters at indices 1 / 6 / 11.
 struct DrawPlanParams {
-    lod0_count: u32,     // CPU band boundary — instances [0, lod0) are LOD0
+    _pad_lod0_count_retired: u32,   // ONE_SURFACE-I U5 — it was the CPU band boundary, instances [0, lod0) being LOD0. One density now.
     render_count: u32,   // draw set end — [lod0, render) LOD1; beyond: pregen
     rect_count: u32,     // active zone rects, packed dense
     _pad0: u32,
@@ -10969,7 +10678,11 @@ struct DrawPlanParams {
 
 const FC_SEG_A_BASE: u32 = 0u;    const FC_SEG_A_CAP: u32 = 128u;
 const FC_SEG_B_BASE: u32 = 128u;  const FC_SEG_B_CAP: u32 = 128u;
-const FC_SEG_C_BASE: u32 = 256u;  const FC_SEG_C_CAP: u32 = 256u;
+// FC_SEG_C (base 256, cap 256) was the LOD1 band's list and left with the
+// half-mesh at ONE_SURFACE-I U5. A and B SURVIVE and are not a LOD split:
+// they are ZONE OVERLAP — full IB where a GoL curtain can reach a patch,
+// cap-only where none can. The widest world the pin allows is 81 patches
+// against either cap of 128.
 
 // THE HONEST MARGIN (R1): every terrain displacement is Y-ONLY —
 // baked heightfield, live-card delta, cell lift, aura, skirt drop all
@@ -11048,34 +10761,30 @@ fn frustum_cull_patches(@builtin(global_invocation_id) id: vec3<u32>) {
     // is the first frustum test LOD1 ever had.
     if (!aabb_in_frustum(planes, bmin, bmax)) { return; }
 
-    if (id.x < fc_draw_plan.lod0_count) {
-        // LOD0 — split by zone overlap: a curtain can only be
-        // non-degenerate where a zone rect reaches the patch, so the
-        // clean majority draws the cap-only IB. Patch rect vs zone
-        // rect, <=8 rects, early-out on the first hit.
-        var zoned = false;
-        for (var z = 0u; z < fc_draw_plan.rect_count; z++) {
-            let r = fc_draw_plan.rects[z];
-            if (pi.origin.x + half >= r.x && pi.origin.x - half <= r.x + r.z &&
-                pi.origin.y + half >= r.y && pi.origin.y - half <= r.y + r.w) {
-                zoned = true;
-                break;
-            }
+    // SPLIT BY ZONE OVERLAP, and by nothing else (ONE_SURFACE-I U5). A
+    // curtain can only be non-degenerate where a zone rect reaches the
+    // patch, so the clean majority draws the cap-only IB. Patch rect vs
+    // zone rect, <=8 rects, early-out on the first hit.
+    //
+    // THE OUTER TEST WAS `id.x < lod0_count` and the else arm was the
+    // LOD1 band. One density means the prefix is the whole list.
+    var zoned = false;
+    for (var z = 0u; z < fc_draw_plan.rect_count; z++) {
+        let r = fc_draw_plan.rects[z];
+        if (pi.origin.x + half >= r.x && pi.origin.x - half <= r.x + r.z &&
+            pi.origin.y + half >= r.y && pi.origin.y - half <= r.y + r.w) {
+            zoned = true;
+            break;
         }
-        if (zoned) {
-            let slot = atomicAdd(&fc_indirect[1], 1u);
-            if (slot < FC_SEG_A_CAP) { fc_visible[FC_SEG_A_BASE + slot] = id.x; }
-            else { atomicSub(&fc_indirect[1], 1u); }
-        } else {
-            let slot = atomicAdd(&fc_indirect[6], 1u);
-            if (slot < FC_SEG_B_CAP) { fc_visible[FC_SEG_B_BASE + slot] = id.x; }
-            else { atomicSub(&fc_indirect[6], 1u); }
-        }
+    }
+    if (zoned) {
+        let slot = atomicAdd(&fc_indirect[1], 1u);
+        if (slot < FC_SEG_A_CAP) { fc_visible[FC_SEG_A_BASE + slot] = id.x; }
+        else { atomicSub(&fc_indirect[1], 1u); }
     } else {
-        // LOD1 — culled at last.
-        let slot = atomicAdd(&fc_indirect[11], 1u);
-        if (slot < FC_SEG_C_CAP) { fc_visible[FC_SEG_C_BASE + slot] = id.x; }
-        else { atomicSub(&fc_indirect[11], 1u); }
+        let slot = atomicAdd(&fc_indirect[6], 1u);
+        if (slot < FC_SEG_B_CAP) { fc_visible[FC_SEG_B_BASE + slot] = id.x; }
+        else { atomicSub(&fc_indirect[6], 1u); }
     }
 }
 
@@ -11198,7 +10907,7 @@ struct OrbConfig {
     color_pulse:         f32,   // 0..1
     color_converge:      f32,   // 0..1
     color_surge:         f32,   // 0..1
-    hue_converge_target: f32,   // mood-scoped, changes at mood entry
+    hue_converge_target: f32,   // the bank's, changes at a world's birth
 
     // ── Dome anchor — DEAD WIRE (the VS eye-centers the
     // dome; bytes retained for ABI, zero-filled by configure) ──
@@ -11744,7 +11453,7 @@ fn orb_dynamics(@builtin(global_invocation_id) id: vec3<u32>) {
         //  module-scope) — the succession's second transport: the
         //  buffer where classes must hear each other, the direct call
         //  where a subsystem is closed (orb↔orb only; the snapshot
-        //  keeps it race-free). Radius mapping keeps the mood dial:
+        //  keeps it race-free). Radius mapping keeps the bank's dial:
         //  shell = 2r·config.field_slack = flock_sep_radius exactly — and the
         //  shell gives separation a TRUE finite reach where 1/d² had an
         //  infinite tail behind a gate. Magnitude ownership unchanged:

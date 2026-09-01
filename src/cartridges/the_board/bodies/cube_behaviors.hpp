@@ -3,7 +3,6 @@
 #include <array>
 #include "cartridges/the_board/realization/state.hpp"                       // Dim::MAX_CUBE_INSTANCES, GPUState, GPUFloatingEntityState, wgpu
 #include "cartridges/the_board/contracts/floaters.hpp"  // ActiveCube, CUBE_TIER_COUNT
-#include "cartridges/the_board/contracts/mood_constants.hpp"      // MOOD_COUNT + the Mood IDs
 #include "cartridges/the_board/contracts/wgpu_fwd.hpp"   // wgpu handle fwds (lockstep insurance)
 #include "cartridges/the_board/contracts/entity_types.hpp"   // queue types (the funnel signatures)
 
@@ -35,7 +34,6 @@ struct CubeDeps {
     const TimeState& time_state_;
     const PlayerState& player_;
     const PointState&  point_;   // the point's house (position mirror — the corral ring's center)
-    const MoodState& mood_state_;
 };
 
 // ═══ BEHAVIOR IDS ════════════════════════════════════════════════
@@ -185,57 +183,52 @@ static_assert(sizeof(CUBE_TIER_GAINS) / sizeof(CUBE_TIER_GAINS[0]) == CUBE_TIER_
 
 // ═══ REGISTRY: POPULATIONS ═══════════════════════════════════════
 //
-// Mood ordering matches MOOD_TABLE (contracts/spine_state.hpp).
-//
-// Cubes carry a mood term, mood_mult_for(PopFamily::CUBE) from
-// MOOD_SPAWN_MULT (surface/population_themes.hpp). That column is
-// {1, 1, 1, 1, 1, 1} — all identity. This banner used to claim
-// {1, 1, 0, 0, 1, 0} and conclude that cubes "don't spawn in indoor
-// moods"; the indoor zeros never existed in the live table, and the
-// per-row "exists for hygiene" notes inherited the error. The mood
-// term suppresses no row today, so every row here IS consulted.
-// Indoor cube spawning is shaped by indoor_bounds_clamp
-// (machine/spawn_engine.hpp), not by this multiplier.
+// Cubes carried a mood term until ONE_WORLD-II U3 — mood_mult_for from
+// MOOD_SPAWN_MULT, a column of all 1.0. This banner once claimed
+// {1, 1, 0, 0, 1, 0} and concluded that cubes "don't spawn in indoor
+// moods"; those zeros never existed in the live table, and the per-row
+// "exists for hygiene" notes inherited the error. The term suppressed no
+// row then and does not exist now.
 
-struct CubePopulationDef {
-    uint32_t mood_id;
+// THE SUNSET ROW'S THREE VALUES, named so the bank's witness has a source
+// to be proved against after CUBE_POPULATIONS itself left with the moods.
+// They are the authored numbers, not a copy of the copy.
+inline constexpr float CUBE_POPULATIONS_SUNSET_STAT = 1.0f;
+inline constexpr float CUBE_POPULATIONS_SUNSET_CURL = 0.0f;
+inline constexpr float CUBE_POPULATIONS_SUNSET_WAVE = 0.0f;
+
+// ─── THE CUBE BANK (ONE_WORLD-II U1c) ────────────────────────────
+// CUBE_POPULATIONS was seven rows, one per mood, indexed at every cube
+// spawn by the live mood. It is one row now — and it always was one row in
+// every way that mattered: ALL SEVEN carried { 1.0f, 0.0f, 0.0f }
+// identically, so the mood axis here was fiction and the seeding is
+// behaviour-identical for that reason and not merely by the sunset ruling.
+//
+// The bank owns cube behaviour as the agents own agents, so it stands at
+// the cube's own home rather than folding into the population panel.
+// Enrollment is NEW (these rows never existed) and stays U6 by ruling; the
+// bank therefore has no transport to move with it today.
+//
+// A CONSEQUENCE, NAMED: `curl` and `wave` carry zero spawn weight and did
+// under every mood, so no cube has ever spawned into either. The only
+// reachable path to them is cycle_cube_behavior_override, itself a console
+// orphan parked with the panel. Reported, not acted on — a taste question,
+// and Jean's.
+struct CubeBank {
     std::array<float, CUBE_BEHAVIOR_COUNT> behavior_weights;
 };
 
-inline constexpr CubePopulationDef CUBE_POPULATIONS[MOOD_COUNT] = {
-    /* MOOD_OPEN_SUNSET */
-    { MOOD_OPEN_SUNSET,
-      //                    stat curl  wave
-      /*behavior_weights=*/ { 1.0f, 0.0f, 0.0f } },
-    /* MOOD_INDOOR_FLAT */
-    { MOOD_INDOOR_FLAT,
-      /*behavior_weights=*/ { 1.0f, 0.0f, 0.0f } },
-    /* MOOD_INDOOR_VAULT */
-    { MOOD_INDOOR_VAULT,
-      /*behavior_weights=*/ { 1.0f, 0.0f, 0.0f } },
-    /* MOOD_FINITE_OUTDOOR */
-    { MOOD_FINITE_OUTDOOR,
-      /*behavior_weights=*/ { 1.0f, 0.0f, 0.0f } },
-    /* MOOD_OPEN_NIGHT (ATMOS_1) */
-    { MOOD_OPEN_NIGHT,
-      /*behavior_weights=*/ { 1.0f, 0.0f, 0.0f } },
-    /* MOOD_OPEN_NOON (ATMOS_1) */
-    { MOOD_OPEN_NOON,
-      /*behavior_weights=*/ { 1.0f, 0.0f, 0.0f } },
-    /* MOOD_ATRIUM (ATRIUM_1) */
-    { MOOD_ATRIUM,
-      /*behavior_weights=*/ { 1.0f, 0.0f, 0.0f } },
+// TRANSCRIBED AND PINNED (the canonized pattern), from the sunset row.
+inline constexpr CubeBank CUBE_TABLE = {
+    //                    stat  curl  wave
+    /*behavior_weights=*/ { 1.0f, 0.0f, 0.0f }
 };
+static_assert(CUBE_TABLE.behavior_weights[0] == CUBE_POPULATIONS_SUNSET_STAT
+           && CUBE_TABLE.behavior_weights[1] == CUBE_POPULATIONS_SUNSET_CURL
+           && CUBE_TABLE.behavior_weights[2] == CUBE_POPULATIONS_SUNSET_WAVE,
+    "CUBE_TABLE is the sunset row, transcribed (ONE_WORLD-II U1c)");
 
-static_assert(sizeof(CUBE_POPULATIONS) / sizeof(CUBE_POPULATIONS[0]) == MOOD_COUNT,
-              "CUBE_POPULATIONS must declare one row per mood");
-static_assert(CUBE_POPULATIONS[0].mood_id == MOOD_OPEN_SUNSET,    "row 0 must be MOOD_OPEN_SUNSET");
-static_assert(CUBE_POPULATIONS[1].mood_id == MOOD_INDOOR_FLAT,    "row 1 must be MOOD_INDOOR_FLAT");
-static_assert(CUBE_POPULATIONS[2].mood_id == MOOD_INDOOR_VAULT,   "row 2 must be MOOD_INDOOR_VAULT");
-static_assert(CUBE_POPULATIONS[3].mood_id == MOOD_FINITE_OUTDOOR, "row 3 must be MOOD_FINITE_OUTDOOR");
-static_assert(CUBE_POPULATIONS[4].mood_id == MOOD_OPEN_NIGHT,     "row 4 must be MOOD_OPEN_NIGHT");
-static_assert(CUBE_POPULATIONS[5].mood_id == MOOD_OPEN_NOON,      "row 5 must be MOOD_OPEN_NOON");
-static_assert(CUBE_POPULATIONS[6].mood_id == MOOD_ATRIUM,         "row 6 must be MOOD_ATRIUM");
+inline CubeBank CUBE_LIVE = CUBE_TABLE;
 
 // ═══ DIAGNOSTIC STATE (owned by the tools) ═══════════════════════
 
@@ -297,12 +290,14 @@ struct CubeBehaviorsState {
 
 // Spawn-side (stateless — consumed by entity_pipeline.hpp's cube_write_gpu)
 void apply_cube_tier_gains(float& spring_stiffness, float& drag, uint32_t tier_idx);
-uint32_t pick_cube_behavior_for_spawn(uint32_t mood_id, uint32_t seed);
+uint32_t pick_cube_behavior_for_spawn(uint32_t seed);
 // Teardown owner-clear
 void clear_cubes(CubeBehaviorsState& cbs, GPUState& gpu, wgpu::Queue& queue);  // DEPS-FORM PRECEDENT: explicit GPUState& param, born-converted
 // The evictor — MachineCtx-shaped
 // to match the FAMILY_DISPATCH evict slot (table in cartridge.hpp, post-class)
-void evict_cube(MachineCtx* self, uint32_t slot, wgpu::Queue& queue);
+// `evict_cube` stood here — the CUBE family's patch-death evictor. Its one
+// reach was FamilyDispatch::evict_slot, which left at ONE_SURFACE-I U3
+// with the patch-death sweep that was its only caller.
 // Dispatch funnels (table-shaped; defined below beside the recipe)
 bool dispatch_select_cube_generic(MachineCtx* self, int32_t gx, int32_t gz, EntityQueueEntry& e);
 bool dispatch_place_cube_generic(MachineCtx* self, EntityQueueEntry& e, PlacementEntry& pe);
@@ -327,9 +322,9 @@ void project_cell_color(const CubeBehaviorsState& cbs, uint32_t active_seed, uin
     float& out_r, float& out_g, float& out_b);
 
 // ═══ IMPL:
-// rows deref cube_state(own) + mood/time/world via MachineCtx; corral/kite
+// rows deref cube_state(own) + time/world via MachineCtx; corral/kite
 // read AgentState + player_ via CubeDeps. COHORT: after agents (AgentState)
-// + entity_pipeline (generic_*) + spawn_engine (preamble) + mood/state.
+// + entity_pipeline (generic_*) + spawn_engine (preamble) + sky/state.
 
 // Apply tier gains to base substrate values. Called by cube_write_gpu
 // during spawn — the result is what gets stored on the cube.
@@ -341,9 +336,8 @@ inline void apply_cube_tier_gains(float& spring_stiffness, float& drag, uint32_t
 }
 
 //
-inline uint32_t pick_cube_behavior_for_spawn(uint32_t mood_id, uint32_t seed) {
-    if (mood_id >= MOOD_COUNT) return CUBE_BEHAVIOR_STATIONARY;
-    const auto& pop = CUBE_POPULATIONS[mood_id];
+inline uint32_t pick_cube_behavior_for_spawn(uint32_t seed) {
+    const auto& pop = CUBE_LIVE;
 
     float total = 0.0f;
     for (uint32_t i = 0; i < CUBE_BEHAVIOR_COUNT; i++) total += pop.behavior_weights[i];
@@ -605,12 +599,6 @@ inline void toggle_cube_kite_mode(CubeBehaviorsState& cbs, CubeDeps* c, wgpu::Qu
 
 // ═══ THE EVICTOR ══════════════════════════════════════════════════
 
-inline void evict_cube(MachineCtx* self,
-    uint32_t slot, wgpu::Queue& queue) {
-    self->cube_behaviors_state_.activeCubes_[slot].active = false;  // cube state owned by CubeBehaviorsState
-    GPUFloatingEntityState empty{};
-    self->gpuState_.upload_cube_entity_slot(queue, slot, empty);
-}
 
 // ═══ THE CUBE RECIPE ══════════════════════════════════════════════
 //
@@ -713,7 +701,7 @@ inline constexpr EntityFamilyTraits CUBE_TRAITS = {
     PopFamily::CUBE, LATTICE_CELLS,   // the LIVING ceiling (7×36 = 252); capacity stays 256 — slots 252-255 never allocate
     false,                // NOT grounded — hovers and drifts; claims no ground (ruling 21)
     CubeProp::SPAWN_ROLL, CubeConfig::SPAWN_CHANCE,
-    mood_mult_for(PopFamily::CUBE), CubeConfig::POSITION_JITTER,
+    CubeConfig::POSITION_JITTER,
     CUBE_TIER_COUNT, CubeProp::TIER,
     CUBE_PARAM_DEFS, CUBE_PARAM_COUNT,
     CubeProp::ANCHOR_X, CubeProp::ANCHOR_Z, CubeProp::ROTATION,
@@ -797,7 +785,7 @@ inline void cube_write_gpu(MachineCtx* c, const EntityInstance& inst, wgpu::Queu
                         ? CUBE_TIER_GAINS[inst.tier_idx].plasticity : 0.0f;
     fe.drift[0] = 0.0f; fe.drift[1] = 0.0f; fe.drift[2] = 0.0f;
     fe.drift_vel[0] = 0.0f; fe.drift_vel[1] = 0.0f; fe.drift_vel[2] = 0.0f;
-    fe.behavior_id    = pick_cube_behavior_for_spawn(c->mood_state_.active, inst.seed);
+    fe.behavior_id    = pick_cube_behavior_for_spawn(inst.seed);
     fe.behavior_phase = cpu_hash(inst.seed, 0xF10A7E70u);
     // BIRTH INTO THE LIVE MODE (RIDER[cube:spawn-mode-desync]).
     // Per-cube mode truth lives on the GPU; kite_mode is one CPU flag
@@ -880,29 +868,12 @@ inline void cube_write_gpu(MachineCtx* c, const EntityInstance& inst, wgpu::Queu
     zcbs.settled[inst.slot] = true;
 }
 
-inline constexpr uint32_t CUBE_INDOOR_RESCALE_PARAMS[] = {
-    CubeIdx::BODY_RADIUS, CubeIdx::ORBIT_HEIGHT, CubeIdx::INFLUENCE_RADIUS,
-    CubeIdx::BOB_AMPLITUDE,
-    // SPIN_SPEED (a rate), BOB_PERIOD (a time), ASPECT_Y / ASPECT_Z /
-    // FACE_VARIANCE (ratios) intentionally not scaled.
-};
-
-// Cube policy: CAP (INDOOR_TREATMENT). Vertical extent =
-// orbit_height + the body's half-height + bob_amplitude; the
-// half-height is body_radius × aspect_y (the render kernel scales Y
-// by r · aspect_y; the GPU floor clamp uses the same term). ASPECT_Y
-// is a ratio, so scaling BODY_RADIUS carries the half-height.
-inline void cube_apply_indoor_rescale(EntityInstance& inst, float ceiling_h) {
-    cap_to_ceiling(inst, ceiling_h, INDOOR_LIVE.height_cap_fraction,
-        /*current_h*/ inst.params[CubeIdx::ORBIT_HEIGHT]
-            + inst.params[CubeIdx::BODY_RADIUS] * inst.params[CubeIdx::ASPECT_Y]
-            + inst.params[CubeIdx::BOB_AMPLITUDE],
-        CUBE_INDOOR_RESCALE_PARAMS);
-}
+// CUBE_INDOOR_RESCALE_PARAMS and its CAP policy note stood here —
+// cube_apply_indoor_rescale's table, orphaned when U4 took that adapter
+// slot. U7's orphan sweep; the same cut as the sphere's and the pyramid's.
 
 inline constexpr EntityFamilyAdapter CUBE_ADAPTER = {
     cube_run_gate,
-    cube_apply_indoor_rescale,            // CAP (INDOOR_TREATMENT): the floaters joined the module
     cube_compute_solid_half, cube_compute_colors,
     cube_write_active, cube_write_gpu, nullptr,
     cube_get_tier_profile,

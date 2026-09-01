@@ -51,8 +51,6 @@ namespace t7 {
             constexpr const char* RIBBON_VS = "ribbon_vs";
             constexpr const char* SHADOW_RIBBON_VS = "shadow_ribbon_vs";
             // PYRAMID_VS / SHADOW_PYRAMID_VS CUT — pyramid mesh never drawn
-            constexpr const char* SHELL_VS = "shell_vs";
-            constexpr const char* SHADOW_SHELL_VS = "shadow_shell_vs";
 
             // Entity placement Y-correction
 
@@ -102,10 +100,6 @@ namespace t7 {
             wgpu::BindGroupLayout worldLayout_;
             wgpu::BindGroupLayout zonesStateLayout_;
             wgpu::BindGroupLayout zonesTexturesLayout_;
-            // ATLAS_1revB D3" — the offset every non-shadow set of the
-            // render-entity group passes. A dynamic-offset layout requires an
-            // offset at EVERY set; only the shadow tile loop varies it.
-            static constexpr uint32_t kShadowSlotZero = 0;
             wgpu::TextureFormat colorFormat_;
             wgpu::TextureFormat depthFormat_;
 
@@ -188,7 +182,6 @@ namespace t7 {
             wgpu::RenderPipeline monolithPipeline_;      // Monolith entity
             wgpu::RenderPipeline ribbonPipeline_;        // Sky ribbon entity
             // pyramidPipeline_ CUT — pyramid mesh never drawn
-            wgpu::RenderPipeline shellPipeline_;         // Indoor shell (ceiling + walls)
 
             // Shadow pass pipelines (depth-only, no fragment shader)
             wgpu::RenderPipeline shadowPawnPipeline_;
@@ -196,12 +189,10 @@ namespace t7 {
             wgpu::RenderPipeline shadowMonolithPipeline_;
             wgpu::RenderPipeline shadowRibbonPipeline_;
             // shadowPyramidPipeline_ CUT
-            wgpu::RenderPipeline shadowShellPipeline_;
 
             // Patch terrain pipelines (instanced rendering)
             wgpu::RenderPipeline patchTerrainPipeline_;          // direct draw; all FS features compiled in
             wgpu::RenderPipeline patchTerrainIndirectPipeline_;  // same + USE_PATCH_INDIRECTION=true (for frustum cull)
-            bool useIndirectTerrainPipeline_ = false;
             wgpu::RenderPipeline shadowPatchTerrainPipeline_;
 
             // Entity placement Y-correction pipeline (0D)
@@ -681,21 +672,23 @@ namespace t7 {
                 pass.DrawIndexedIndirect(indirectArgs, indirectOffset);
             }
 
-            // STATUS: LATENT[mood_cull_opt_out] — the flag is WRITTEN every
-            // mood change (mood.hpp apply_mood, from MoodProfile::
-            // allow_frustum_cull) and READ BY NOBODY. Its one reader was
-            // render_passes.hpp's `if (!use_indirect_terrain()) return;`
-            // early-out, retired with the direct indoor path when the draw
-            // plan took every mood ("the kernel runs in EVERY mood now",
-            // dispatch_frustum_cull). So the two indoor MOOD_TABLE rows say
-            // allow_frustum_cull = false and their terrain is culled anyway
-            // — the table reads as a knob and is not one. Found by OPT_1's
-            // O0-f recensus; the cut (this pair, the MoodProfile column, its
-            // two drift asserts, and the apply_mood poke) is a positional-
-            // table edit and wants a build, so it is Jean's ruling, not a
-            // residue sweep's. Revive-or-rewire when this region is worked.
-            void set_frustum_cull_active(bool active) { useIndirectTerrainPipeline_ = active; }
-            bool use_indirect_terrain() const { return useIndirectTerrainPipeline_; }
+            // LATENT[frustum_cull_opt_out] STOOD HERE AND IS TAKEN
+            // (ONE_SURFACE-I U0 housekeeping, Jean's word). The pair was
+            // `useIndirectTerrainPipeline_` with `set_frustum_cull_active` /
+            // `use_indirect_terrain`: one write, the literal `true` from
+            // stage_world_birth, and no reader at all. Its one reader had
+            // been render_passes.hpp's `if (!use_indirect_terrain()) return;`
+            // early-out, retired when the draw plan took every world
+            // ("the kernel runs in EVERY mood now", dispatch_frustum_cull) —
+            // so a row asking for allow_frustum_cull = false had its terrain
+            // culled anyway, and the column read as a knob it was not.
+            // OPT_1's O0-f recensus found it; ONE_WORLD-II U2 killed the
+            // column that fed it and U7 re-read it and left it flagged
+            // because the cut wanted a build. The build is run.
+            //
+            // THE FRUSTUM CULL ITSELF IS UNTOUCHED. What died is an OPT-OUT
+            // nothing could exercise; dispatch_frustum_cull runs every frame
+            // as it has since the draw plan landed.
 
             // ═══ OIL_1 U13 (ledger: R19, C7) — THE COLOR PASS-HEAD CONTRACT
             // The entity draw helpers below ride group0 (the pass's entity
@@ -706,43 +699,6 @@ namespace t7 {
             // layout (renderLayout), so every draw sees the groups it saw
             // before.
 
-            // Shared helper for all "indexed mesh" COLOR draws — the twin
-            // of draw_shadow_indexed_mesh below, same signature and same
-            // body. Per-family wrappers differ only in pipeline and
-            // (rarely) instance count / first instance.
-            //
-            // TIDY_0d: `indexCount == 0` returns before SetPipeline. A
-            // species whose mesh is empty draws nothing either way — the
-            // guard changes no pixel — but Dawn logs "Draw with an index
-            // count of 0 is unusual" for the submitted zero-count draw,
-            // once per submitted zero-count draw. Every species submits its
-            // high-water prefix
-            // rather than a live count, so a family with nothing live still
-            // arrives here with 0. Replacing the prefix with a live count
-            // is the ARENA-era fix; this only stops the warning.
-            // THE INDIRECT SIBLING (BUNDLE_1). Same shape, but the count
-            // comes from a draw-ledger record instead of an argument — so
-            // the draw can be RECORDED ONCE into a bundle and replayed while
-            // its number keeps moving. The `indexCount == 0` early-out below
-            // has no twin here and needs none: a record of zeros draws
-            // nothing, and it is the record that carries the guard now.
-            // (TIDY_0d's reason for that early-out — Dawn logging "Draw with
-            // an index count of 0 is unusual" for a submitted zero-count draw
-            // — does not arise: the count is not known at encode time.)
-            template <class Enc>
-            void draw_indexed_mesh_indirect(
-                Enc& pass,
-                wgpu::RenderPipeline pipeline,
-                wgpu::Buffer vertexBuffer,
-                wgpu::Buffer indexBuffer,
-                wgpu::Buffer ledger,
-                uint64_t ledgerOffset
-            ) {
-                pass.SetPipeline(pipeline);
-                pass.SetVertexBuffer(0, vertexBuffer);
-                pass.SetIndexBuffer(indexBuffer, wgpu::IndexFormat::Uint32);
-                pass.DrawIndexedIndirect(ledger, ledgerOffset);
-            }
 
             template <class Enc>
             void draw_indexed_mesh(
@@ -817,50 +773,7 @@ namespace t7 {
             // draw_arch CUT — the family left at ONE_WORLD-I U3
             // draw_pyramid CUT — caller-free; pyramid mesh never drawn
 
-            template <class Enc>
-            void draw_shell(
-                Enc& pass,
-                wgpu::Buffer vertexBuffer,
-                wgpu::Buffer indexBuffer,
-                wgpu::Buffer ledger,
-                uint64_t ledgerOffset
-            ) {
-                if constexpr (!(ROSTER.indoor_shell)) return;  // ROSTER-GATE indoor_shell (a') — pipeline never created; the holder tolerates
-                // The zero early-out went with the count: the shell's record
-                // carries the guard now (BUNDLE_1), and the shadow twin says
-                // the same at draw_shadow_shell.
-                draw_indexed_mesh_indirect(pass, shellPipeline_,
-                    vertexBuffer, indexBuffer, ledger, ledgerOffset);
-            }
 
-            // Shared helper for all "indexed mesh" shadow draws. Per-family
-            // wrappers below differ only in pipeline + (rarely) instance count.
-            // ═══ OIL_1 U12 (ledger: R18, C7) — THE SHADOW PASS-HEAD CONTRACT
-            // Every draw_shadow_* below rides binds set ONCE at the pass
-            // head by render_shadow_pass: group0 = the render entity
-            // group, group1 = the shadow texture group. They were
-            // identical at every call (the DrawBind pair), so each
-            // helper's own pair was a redundant re-set of unchanged
-            // state — ~18-22 per pass, and per atlas tile indoors.
-            // Bind-group state is sticky within a pass and all these
-            // pipelines share ONE layout (shadowRenderLayout), so every
-            // draw sees exactly the groups it saw before.
-            // The shadow twin of draw_indexed_mesh_indirect. Same record —
-            // a family's index count is one number, not one per pass.
-            template <class Enc>
-            void draw_shadow_indexed_mesh_indirect(
-                Enc& pass,
-                wgpu::RenderPipeline pipeline,
-                wgpu::Buffer vertexBuffer,
-                wgpu::Buffer indexBuffer,
-                wgpu::Buffer ledger,
-                uint64_t ledgerOffset
-            ) {
-                pass.SetPipeline(pipeline);
-                pass.SetVertexBuffer(0, vertexBuffer);
-                pass.SetIndexBuffer(indexBuffer, wgpu::IndexFormat::Uint32);
-                pass.DrawIndexedIndirect(ledger, ledgerOffset);
-            }
 
             template <class Enc>
             void draw_shadow_indexed_mesh(
@@ -951,19 +864,6 @@ namespace t7 {
             // draw_shadow_arch CUT — the family left at ONE_WORLD-I U3
             // draw_shadow_pyramid CUT — caller-free
 
-            template <class Enc>
-            void draw_shadow_shell(
-                Enc& pass,
-                wgpu::Buffer vertexBuffer,
-                wgpu::Buffer indexBuffer,
-                wgpu::Buffer ledger,
-                uint64_t ledgerOffset
-            ) {
-                if constexpr (!(ROSTER.indoor_shell)) return;  // ROSTER-GATE indoor_shell (a') — pipeline never created; the holder tolerates
-                // Record-guarded, as the colour twin is (BUNDLE_1).
-                draw_shadow_indexed_mesh_indirect(pass, shadowShellPipeline_,
-                    vertexBuffer, indexBuffer, ledger, ledgerOffset);
-            }
 
             // Gate (a'): compile-time count of pipelines the
             // selected demo skips — the boot summary's number.
@@ -976,7 +876,6 @@ namespace t7 {
                 if (!(ROSTER.gol)) n += 7;
                 if (!(ROSTER.orbs)) n += 5;
                 if (!(ROSTER.pawn_aura)) n += 1;
-                if (!(ROSTER.indoor_shell)) n += 2;
                 if (!(ROSTER.wanderers)) n += 1;
                 return n;
             }
@@ -1496,36 +1395,6 @@ namespace t7 {
                     }
                 }
 
-                // Shell pipeline -- indoor ceiling + walls, ShellVertex (pos+normal+color), static world-space
-                {
-                    std::array<wgpu::VertexAttribute, 3> shellAttrs{};
-                    shellAttrs[0].format = wgpu::VertexFormat::Float32x3;
-                    shellAttrs[0].offset = 0;
-                    shellAttrs[0].shaderLocation = 0;  // pos
-                    shellAttrs[1].format = wgpu::VertexFormat::Float32x3;
-                    shellAttrs[1].offset = 12;
-                    shellAttrs[1].shaderLocation = 1;  // normal
-                    shellAttrs[2].format = wgpu::VertexFormat::Float32x3;
-                    shellAttrs[2].offset = 24;
-                    shellAttrs[2].shaderLocation = 2;  // color
-
-                    wgpu::VertexBufferLayout shellVBL{};
-                    shellVBL.arrayStride = 36;
-                    shellVBL.stepMode = wgpu::VertexStepMode::Vertex;
-                    shellVBL.attributeCount = shellAttrs.size();
-                    shellVBL.attributes = shellAttrs.data();
-
-                    // ROSTER-GATE indoor_shell (a) — SEPARABLE: skip the shell
-                    // pipeline creation when disabled. draw_shell self-gates on
-                    // shell_index_count==0 (stays 0 — apply_mood_indoor_shell is
-                    // (b)-gated), so the null pipeline is never bound.
-                    // cull None: shell normals face inward (ceiling) + outward (walls).
-                    if constexpr (ROSTER.indoor_shell) {  // ROSTER-GATE indoor_shell (a') — shader compile skipped when disabled
-                    if (!makeEntity("shell", "Indoor Shell (Ceiling + Walls)", Entry::SHELL_VS,
-                        &shellVBL, wgpu::CullMode::None, shellPipeline_)) return false;
-                    }
-                }
-
                 // Ribbon pipeline -- sky ribbon, GPU-generated cubes from vertex_index.
                 // RIBBON_FS = entity shading with veil_scale 0 (the ruled fork: a
                 // flown structure stays whole beyond the band).
@@ -1824,7 +1693,7 @@ namespace t7 {
                     // units, so its meaning scales with the sun's depth
                     // range — and N2 widened that range from 599.9 wu to
                     // 1100.0 wu so the caster set fits along the light axis
-                    // in every mood. Carrying 2.8e-3 across unchanged would
+                    // in every world. Carrying 2.8e-3 across unchanged would
                     // have silently widened the ceiling from 1.680 wu to
                     // 3.080 wu, 1.83x, with nothing in the diff to show it.
                     //
@@ -1850,7 +1719,7 @@ namespace t7 {
                     // real category boundary (different layout, different depth state, no FS).
                     // Forks are parameters: shadow-VS (verbatim), VBL, cullMode — same
                     // Back/None split as the entity family (single-sided
-                    // pawn/ribbon/shell → None; solids → Back).
+                    // pawn/ribbon → None; solids → Back).
                     // TWO BIAS PROFILES (PENUMBRA_3 C2). The profile rides the
                     // existing cullMode fork as a DEFAULTED 7th parameter, so the
                     // ten call sites that keep SOLID stay byte-identical. It must
@@ -1980,34 +1849,6 @@ namespace t7 {
                     if constexpr (ROSTER.cube) {  // ROSTER-GATE cube (a') — shader compile skipped when disabled
                     if (!makeShadow("shadow_monolith", "Shadow Monolith", Entry::SHADOW_MONOLITH_VS,
                         &shadowMeshVBL, wgpu::CullMode::Back, shadowMonolithPipeline_)) return false;
-                    }
-
-                    // Shadow Shell (ShellVertex: pos+normal+color, stride 36)
-                    {
-                        std::array<wgpu::VertexAttribute, 3> shadowShellAttrs{};
-                        shadowShellAttrs[0].format = wgpu::VertexFormat::Float32x3;
-                        shadowShellAttrs[0].offset = 0;
-                        shadowShellAttrs[0].shaderLocation = 0;
-                        shadowShellAttrs[1].format = wgpu::VertexFormat::Float32x3;
-                        shadowShellAttrs[1].offset = 12;
-                        shadowShellAttrs[1].shaderLocation = 1;
-                        shadowShellAttrs[2].format = wgpu::VertexFormat::Float32x3;
-                        shadowShellAttrs[2].offset = 24;
-                        shadowShellAttrs[2].shaderLocation = 2;
-
-                        wgpu::VertexBufferLayout shadowShellVBL{};
-                        shadowShellVBL.arrayStride = 36;
-                        shadowShellVBL.stepMode = wgpu::VertexStepMode::Vertex;
-                        shadowShellVBL.attributeCount = shadowShellAttrs.size();
-                        shadowShellVBL.attributes = shadowShellAttrs.data();
-
-                        // ROSTER-GATE indoor_shell (a) — SEPARABLE: skip the
-                        // shadow-shell pipeline too. draw_shadow_shell self-gates
-                        // on count==0 (shared helper's early-out).
-                        if constexpr (ROSTER.indoor_shell) {  // ROSTER-GATE indoor_shell (a') — shader compile skipped when disabled
-                        if (!makeShadow("shadow_shell", "Shadow Indoor Shell", Entry::SHADOW_SHELL_VS,
-                            &shadowShellVBL, wgpu::CullMode::None, shadowShellPipeline_)) return false;
-                        }
                     }
 
                     // Shadow ribbon (bufferless, GPU-generated from vertex_index; None).

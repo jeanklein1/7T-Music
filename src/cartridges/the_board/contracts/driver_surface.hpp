@@ -5,13 +5,15 @@
 // A driven parameter wears no dial on its value; it wears dials on its
 // DRIVER. This room holds those dials' homes and nothing else: no module
 // facts live here, no GPU block reads it, and the seams read it once per
-// tick. docs/ORGAN.md, "The drivers' room".
+// tick. (docs/ORGAN.md had a "The drivers' room" section once; it went
+// at ORGAN_7 P5 with the persistence ladder's, and the ladder's home
+// is docs/LAWS.md now. This file IS the drivers' room.)
 //   rest — what a seam holds when the driver's authority is dialled away.
-//          The fog's rest is the MOOD's (MoodState.fog_rest_*), so this
+//          The fog's rest is the WORLD's (SkyState.fog_rest_*), so this
 //          room keeps only the fog's gain.
 //   gain — the blend: out = rest + gain·(driven − rest). 1 is the coupling
 //          verbatim, 0 is full manual.
-//   aura intent — the presence ramp's rest TARGET; key 3's door, the mood
+//   aura intent — the presence ramp's rest TARGET; key 3's door, the aura
 //          policy door (force-off) and the panel write it.
 
 namespace t7 {

@@ -23,10 +23,11 @@
 // face below (inputState / keys_ / mouse_ / player_ / world_state_ /
 // ribbon_state / gpuState_ / device_), the command fan's TARGET
 // organs (on_key_down's parameters — pawn / orbs / agents / cubes),
-// the owner command doors (pawn.hpp / orbs.hpp / agents.hpp /
-// cube_behaviors.hpp / patch_system.hpp's request_recenter), and the
-// patch radii (Dim::PATCH_GRID_RADIUS /
-// Dim::PATCH_PREGEN_RADIUS — patch_system.hpp vocabulary).
+// and the owner command doors (pawn.hpp / orbs.hpp / agents.hpp /
+// cube_behaviors.hpp). It also reached patch_system.hpp's
+// `request_recenter` and the two patch radii it clamped between; the
+// radius command left at ONE_SURFACE-I U2 — a radius change is a rebirth
+// now, and the rebirth's caller is THE PANEL's to build.
 // ─────────────────────────────────────────────────────────────────
 
 // The deps face holds the queue-fetch handle (the S5 pattern, gol);
@@ -142,7 +143,7 @@ struct InputDeps {
     MouseState&   mouse_;
     TouchMoveState& touch_;       // SHIP_1 — the stick's analog vector (zero on native)
     PlayerState&  player_;        // fpv — the anchor toggle (v3 §9 Act III)
-    WorldState&   world_state_;   // active_radius — the radius command
+    WorldState&   world_state_;   // the world's facts, read by the doors
     RibbonState&  ribbon_state_;  // the rider fixture: possess() stages the RIBBON release here
     GPUState&     gpuState_;      // the freeze toggle + the fpv wire
     wgpu::Device& device_;        // the queue fetch (the S5-style declared handle)
@@ -181,8 +182,6 @@ void clear_input_deltas(InputDeps* c);
 // Camera / view commands
 void toggle_fpv_mode(InputDeps* c);
 void possess(InputDeps* c, PointHost next);   // THE ONE TRANSACTION — capture the edge, flip the host both rooms, start the ease
-void set_render_radius(InputDeps* c, uint32_t r);
-void toggle_veil_dither(InputDeps* c);   // THE RIM knob (key V): icing tint <-> dither-dissolve
 void nudge_look_sensitivity(InputDeps* c, bool up);   // KP_+ / KP_- — multiplicative, clamped
 
 
@@ -253,9 +252,13 @@ inline void on_key_down(InputDeps* c, int key,
     case GLFW_KEY_2: toggle_aura_height(pawn_state, &pawn_deps);  break;  // pawn command door
     case GLFW_KEY_3: toggle_aura(pawn_state, &pawn_deps);          break;  // pawn command door
     case GLFW_KEY_0:              cycle_orb_palette(orbs_state, &orbs_deps, q);          break;
-    case GLFW_KEY_LEFT_BRACKET:   set_render_radius(c, c->world_state_.active_radius - 1); break;
-    case GLFW_KEY_RIGHT_BRACKET:  set_render_radius(c, c->world_state_.active_radius + 1); break;
-    case GLFW_KEY_V:              toggle_veil_dither(c);                                   break;  // THE RIM: icing tint <-> dither-dissolve
+    // [ and ] drove set_render_radius and left at ONE_SURFACE-I U2. They
+    // moved the STREAMING window, which a finite world pinned to its own
+    // radius anyway — the keys had not been able to change a visible thing
+    // since the pin. A radius change is a REBIRTH now (the handoff's 1.4),
+    // and the rebirth's caller is THE PANEL's to build.
+    // V drove toggle_veil_dither — THE RIM knob — and left at
+    // ONE_SURFACE-I U4 with the icing whose two arms it chose between.
 
     // ── Look dial (numpad) ───────────────────────────────────────
     case GLFW_KEY_KP_ADD:      nudge_look_sensitivity(c, true);   break;
@@ -510,27 +513,14 @@ inline void possess(InputDeps* c, PointHost next) {
             : "PAWN (the kite)") << "\n";
 }
 
-inline void set_render_radius(InputDeps* c, uint32_t r) {
-    r = std::max(r, Dim::PATCH_GRID_RADIUS);
-    r = std::min(r, Dim::PATCH_PREGEN_RADIUS);
-    if (r == c->world_state_.active_radius) return;
-    c->world_state_.active_radius = r;
-    uint32_t side = 2 * r + 1;
-    std::cout << "[the_board] Render radius: " << r
-        << " (" << side << "x" << side << " = " << side * side << " patches)" << std::endl;
-    // Force full re-evaluation on next frame — through the owner's door
-    request_recenter(c->world_state_);
-}
+// `set_render_radius` stood here. It clamped a streaming window to
+// [PATCH_GRID_RADIUS, PATCH_PREGEN_RADIUS] and re-armed the conductor
+// through request_recenter. Both its subject and its door left at
+// ONE_SURFACE-I U2.
 
-// THE RIM knob (key V): flip the veil's icing between TINT (fade to fog,
-// default) and DITHER-DISSOLVE (geometry condenses). Reads the current
-// config value and flips it — the dirty-gated setter rides the next U8
-// config drain (no queue needed here).
-inline void toggle_veil_dither(InputDeps* c) {
-    bool on = c->gpuState_.config().veil_dither > 0.5f;
-    c->gpuState_.set_veil_dither(on ? 0.0f : 1.0f);
-    std::cout << "[the_board] Veil rim: " << (on ? "TINT (fade to fog)" : "DITHER-DISSOLVE") << std::endl;
-}
+// `toggle_veil_dither` stood here — the RIM knob's door. Its subject was
+// the icing's tint/dither fork, and both arms had returned the same colour
+// since the pin (ONE_SURFACE-I U4).
 
 } // namespace the_board
 } // namespace t7

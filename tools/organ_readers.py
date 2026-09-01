@@ -82,7 +82,7 @@ READERS = {
         ("src/cartridges/the_board/cartridge.hpp", "phase_motion_drivers"),
         ("src/cartridges/the_board/bodies/pawn.hpp", "tick_pawn_couplings"),
         ("src/cartridges/the_board/bodies/pawn.hpp", "toggle_aura"),
-        ("src/cartridges/the_board/bodies/pawn.hpp", "apply_aura_mood_policy"),
+        ("src/cartridges/the_board/bodies/pawn.hpp", "apply_aura_policy"),
         ("src/cartridges/the_board/bodies/ribbon.hpp", "ribbon_frame_tick"),
     ]),
     "PAWN": ("PAWN_AURA_LIVE", "PawnAuraProfile", [
@@ -111,18 +111,11 @@ READERS = {
         ("src/cartridges/the_board/cartridge.hpp", "phase_fill_signal"),
         ("src/cartridges/the_board/bodies/ribbon.hpp", "ribbon_frame_tick"),
     ]),
-    "INDOOR": ("INDOOR_LIVE", "IndoorSurface", [
-        ("src/cartridges/the_board/direction/mood.hpp", "apply_mood_lighting"),
-        ("src/cartridges/the_board/bodies/ribbon.hpp", "select_ribbon_for_patch"),
-        ("src/cartridges/the_board/bodies/cube_behaviors.hpp", "cube_apply_indoor_rescale"),
-        ("src/cartridges/the_board/bodies/spheres.hpp", "sphere_apply_indoor_rescale"),
-        ("src/cartridges/the_board/machine/entity_pipeline.hpp", "pyramid_apply_indoor_rescale"),
-    ]),
+    # INDOOR (INDOOR_LIVE / IndoorSurface) stood here with five readers, and
+    # WORLD (WORLD_DRAW_LIVE) with one. Both families left with the rooms at
+    # ONE_WORLD-II U4; the sweep takes their rows at U7.
     "CANVAS": ("CANVAS_LIVE", "CanvasSurface", [
         ("src/coupling/visual_canvas.hpp", "tick"),
-    ]),
-    "WORLD": ("WORLD_DRAW_LIVE", "WorldDrawSurface", [
-        ("src/cartridges/the_board/direction/mood.hpp", "derive_indoor_lights"),
     ]),
     "RIBBON_SPAWN": ("RIBBON_SPAWN_LIVE", "RibbonSpawnSurface", [
         ("src/cartridges/the_board/bodies/ribbon.hpp", "select_ribbon_for_patch"),
@@ -133,24 +126,41 @@ READERS = {
         # dismount is a reader of the draw's four dials in its own right.
         ("src/cartridges/the_board/bodies/ribbon.hpp", "ribbon_on_dismount"),
     ]),
-    # ── the definition kinds: a definition's reader is its APPLIER ────
-    # Two handles: the regime law is MoodProfile's own field (read by
-    # apply_mood_regime through `m`), the rest is atmos.* (read by
-    # draw_atmosphere through `a`).
-    "MOOD": ("MOOD_LIVE", ("MoodProfile", "Atmosphere"), [
-        ("src/cartridges/the_board/direction/mood.hpp", "apply_mood_regime"),
-        ("src/cartridges/the_board/direction/mood.hpp", "draw_atmosphere"),
-        ("src/cartridges/the_board/direction/mood.hpp", "apply_mood_lighting"),
+    # THE ATMOSPHERE BANK (ONE_WORLD-II U1). An INSTANCE family, not a
+    # definition one: the twelve sky rows address ATMOS_LIVE, and its
+    # applier is the draw that reads it through `a`. It was MOOD's second
+    # handle — `atmos.*` on MoodProfile, across four regimes — until the
+    # roll left and the bank took the fact.
+    # THE AGENTS' BANK (ONE_WORLD-II U6b). Two readers, two cadences: the
+    # world's birth fills the population, and the per-frame respawn refills
+    # what the eviction took. Both read the bank live — U1c reversed OIL_1's
+    # constexpr sum for exactly that reason.
+    "AGENTS": ("AGENTS_LIVE", "AgentPopulationBank", [
+        ("src/cartridges/the_board/bodies/agents.hpp", "spawn_population"),
+        ("src/cartridges/the_board/bodies/agents.hpp", "respawn_evicted_agents"),
+        # The annulus and the weights are read one level down, in the slot
+        # populator both spawners hand the bank to — blind spot 1's exact
+        # shape (a helper taking the value by parameter).
+        ("src/cartridges/the_board/bodies/agents.hpp", "populate_agent_slot_"),
+        ("src/cartridges/the_board/contracts/agent_surface.hpp", "agents_behavior_sum"),
+        ("src/cartridges/the_board/contracts/agent_surface.hpp", "agents_tier_sum"),
     ]),
+    "ATMOS": ("ATMOS_LIVE", "AtmosphereBank", [
+        ("src/cartridges/the_board/direction/sky.hpp", "draw_atmosphere"),
+    ]),
+    # ── the definition kinds: a definition's reader is its APPLIER ────
+    # MOOD (MOOD_LIVE / MoodProfile) was the third, and the last of the
+    # SELECTING kinds. It left with the moods at ONE_WORLD-II U2; the two
+    # below are the world's single banks, so a target has nothing to pick.
     "TIER": ("TIER_LIVE", "AgentTierBank", [
         ("src/cartridges/the_board/bodies/agents.hpp", "upload_agent_registries_to_gpu"),
     ]),
     "BEHAVIOR": ("BEHAVIOR_LIVE", "AgentBehaviorBank", [
         ("src/cartridges/the_board/bodies/agents.hpp", "upload_agent_registries_to_gpu"),
     ]),
-    "ORB_MOOD": ("ORB_MOOD_LIVE", "OrbMoodConfig", [
+    "ORB_BANK": ("ORB_LIVE", "OrbConfig", [
         ("src/cartridges/the_board/bodies/orbs.hpp", "configure_orbs"),
-        ("src/cartridges/the_board/bodies/orbs.hpp", "apply_mood_first_run_defaults_"),
+        ("src/cartridges/the_board/bodies/orbs.hpp", "apply_first_run_defaults_"),
         ("src/cartridges/the_board/bodies/orbs.hpp", "pack_palette_"),
         ("src/cartridges/the_board/bodies/orbs.hpp", "pack_tiers_"),
         ("src/cartridges/the_board/bodies/orbs.hpp", "pack_flocking_"),

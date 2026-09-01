@@ -1,6 +1,5 @@
 #pragma once
 #include <cstdint>
-#include "cartridges/the_board/contracts/mood_constants.hpp"   // MOOD_COUNT — sizes ORB_MOOD_TABLE / ORB_MOOD_LIVE
 
 // ─── contracts/orb_surface.hpp ─────────────────────────────────────
 //
@@ -19,11 +18,9 @@
 // cannot be turned is the exact condition this campaign exists to end.
 //
 // NOT HERE, deliberately: the nine ORB_DEFAULT_* fallbacks (every
-// live path overrides them from the mood config — a dial on a default
-// nothing reads would never be seen to move), the palettes, the tier
-// sets and the three gesture registries (D5 tables, priced in the
-// ledger), and ORB_MOOD_TABLE, whose disposition is a DEFINITION and
-// not a bank (ORGAN_3 w3).
+// live path overrides them from the bank — a dial on a default nothing
+// reads would never be seen to move), the palettes, the tier sets and
+// the three gesture registries (D5 tables, priced in the ledger).
 // ────────────────────────────────────────────────────────────────────
 
 namespace t7 {
@@ -63,21 +60,19 @@ static_assert(sizeof(OrbConsole) == 4 * sizeof(float),
     "added to one is added to the other by construction");
 
 
-// ═══ THE ORB MOOD VOCABULARY, GRADUATED (ORGAN_3b P3) ═════════════
+// ═══ THE ORB VOCABULARY, GRADUATED (ORGAN_3b P3) ═════════════════
 // The agent_tiers precedent, for the same reason stated the same way:
 // the organ needs to name the definition, and THE ORGAN MAY NOT INCLUDE
-// A BODY. So OrbMoodConfig, its table, and the id constants its default
-// initialisers name move here; bodies/orbs.hpp keeps its registries, its
+// A BODY. So OrbConfig, its table, and the id constants its default
+// initialisers name live here; bodies/orbs.hpp keeps its registries, its
 // gestures and its impl, and includes this header as it already did.
 //
-// ORB_MOOD_TABLE is the DESIGN — the authored rows, two jobs only:
-// seeding ORB_MOOD_LIVE and standing under its assert. ORB_MOOD_LIVE is
-// the world's per-mood definition, and it is MOOD-SELECTED: unlike TIER
-// and BEHAVIOR, which are one bank the target ignores, this one has a row
-// per mood exactly as MoodProfile does, and the write's target picks it.
-//
-// The rows are POSITIONAL in mood-id order and carry no id field, so they
-// move with the ids or not at all — the MOOD_TABLE pattern, kept.
+// IT WAS OrbMoodConfig (ONE_SURFACE-I U0 housekeeping, Jean's word). Its
+// rows stopped being seven at ONE_WORLD-II U1b and there is one world now,
+// so the moods' name outlived the moods. The rename is WIRE-SAFE by
+// construction: an organ row's id is `#BLOCK "." #FIELD` (the enrollment
+// macro, src/console/organ_registry.hpp), so the block name ORB_BANK is
+// what a stored preset key carries and no struct name ever reaches one.
 
 // ── Rule-critical parameter floors ───────────────────────────────
 inline constexpr float ORB_DEFAULT_DRAG = 0.5f;
@@ -101,7 +96,7 @@ inline constexpr uint32_t ORB_TIERSET_RES = 1;
 inline constexpr uint32_t ORB_TIERSET_COUNT = 2;
 inline constexpr uint32_t ORB_TIERSET_NONE = 0xFFFFFFFFu;  // → uniform population
 
-struct OrbMoodConfig {
+struct OrbConfig {
     // Population
     uint32_t enabled = 0u;     // ORGAN_3b P3 (D2): widened from C++ bool.
                                // A bool is one byte and the ABI's BOOL write
@@ -141,45 +136,28 @@ struct OrbMoodConfig {
     float    rule_drag_flocking = 0.0f;
 };
 
-// ─── Orb Mood Table ─────────────────────────────────────────────
+// ─── THE ORB BANK (ONE_WORLD-II U1b) ────────────────────────────
+// ORB_MOOD_LIVE was seven rows, one per mood, and the sky wore the live
+// one. There is one sky now, so there is one row: ORB_TABLE the design,
+// ORB_LIVE the bank, the tree's ORGAN_3 shape.
 //
-// Rows are POSITIONAL in mood-id order (the MOOD_TABLE pattern) and
-//   carry no id field, so they move with the ids or not at all.
-//
-//                                              en     n    hueB   hueV   bri    drg   rul  rotS    rotAxis                  orbS  pal  hct    anc    trs           sepR   alnR    cohR    sepW   alnW   cohW   maxS   gst  drgB  drgO  drgF  drgK
-inline constexpr OrbMoodConfig ORB_MOOD_TABLE[MOOD_COUNT] = {
-    /* 0 open_sunset         */ {  true,  128, 0.08f, 0.06f, 0.85f, 0.4f,  3u,  0.012f, {0.15f, 0.97f, 0.10f},  0.0f, 0u,  0.08f, 0u,           50.0f, 120.0f, 200.0f, 30.0f, 8.0f,  15.0f, 60.0f, 0u,  0.0f, 0.0f, 0.0f, 0.0f },
-    /* 1 indoor_flat         */ {  false, 0,   0.08f, 0.05f, 0.80f, 0.5f,  0u,  0.000f, {0.00f, 1.00f, 0.00f},  0.0f, 0u,  0.12f, 0xFFFFFFFFu,  50.0f, 120.0f, 200.0f, 30.0f, 8.0f,  15.0f, 60.0f, 0u,  0.0f, 0.0f, 0.0f, 0.0f },
-    /* 2 indoor_vault        */ {  false, 0,   0.08f, 0.05f, 0.80f, 0.5f,  0u,  0.000f, {0.00f, 1.00f, 0.00f},  0.0f, 0u,  0.12f, 0xFFFFFFFFu,  50.0f, 120.0f, 200.0f, 30.0f, 8.0f,  15.0f, 60.0f, 0u,  0.0f, 0.0f, 0.0f, 0.0f },
-    /* 3 finite_outdoor      */ {  true,  128, 0.08f, 0.06f, 0.85f, 0.4f,  0u,  0.012f, {0.15f, 0.97f, 0.10f},  0.0f, 0u,  0.12f, 0u,           50.0f, 120.0f, 200.0f, 30.0f, 8.0f,  15.0f, 60.0f, 0u,  0.0f, 0.0f, 0.0f, 0.0f },
-    // ATMOS_1 — the night is the sunset's field, fuller, brighter and slower
-    // (256 stars, bri 0.95, a slow near-axial turn); the noon is the
-    // indoor disabled row verbatim — no stars by day.
-    // THE NIGHT'S MOTION ROW, TUNED. Two of the four per-rule drags carry
-    // real multipliers now — BROWNIAN 1.22 and ORBITAL 1.64, both ABOVE 1,
-    // so those two rules damp HARDER than the row's own drag asks. FROZEN
-    // and FLOCKING keep the SENTINEL 0, which configure_orbs reads as
-    // pass-through (×1.0), and orbital_base_speed keeps its own sentinel,
-    // which falls back to ORB_DEFAULT_ORBITAL_SPEED (0.15 rad/s). A desk
-    // cannot dial a sentinel back — organ_params.inc floors these five one
-    // step off it on purpose — so a sentinel surviving in this row is a
-    // value the TABLE holds and the panel can only leave alone.
-    /* 4 open_night          */ {  true,  256, 0.08f, 0.06f, 0.605f, 0.4f, 3u,  0.007010115f, {0.15f, 0.59f, 0.05f},  0.0f, 0u,  0.08f, 0u,     50.0f, 120.0f, 200.0f, 30.0f, 8.0f,  15.0f, 60.0f, 0u,  1.22f, 1.64f, 0.0f, 0.0f },
-    /* 5 open_noon           */ {  false, 0,   0.08f, 0.05f, 0.80f, 0.5f,  0u,  0.000f, {0.00f, 1.00f, 0.00f},  0.0f, 0u,  0.12f, 0xFFFFFFFFu,  50.0f, 120.0f, 200.0f, 30.0f, 8.0f,  15.0f, 60.0f, 0u,  0.0f, 0.0f, 0.0f, 0.0f },
-    /* MOOD_ATRIUM — the flat room's sky (ATRIUM_1) */
-    /* 6 atrium              */ {  false, 0,   0.08f, 0.05f, 0.80f, 0.5f,  0u,  0.000f, {0.00f, 1.00f, 0.00f},  0.0f, 0u,  0.12f, 0xFFFFFFFFu,  50.0f, 120.0f, 200.0f, 30.0f, 8.0f,  15.0f, 60.0f, 0u,  0.0f, 0.0f, 0.0f, 0.0f },
-};
+// TRANSCRIBED, NOT DERIVED (the canonized pattern). The literal below is
+// the old per-mood table's sunset row copied verbatim — positional, in
+// field order — because a `= ORB_MOOD_TABLE[MOOD_OPEN_SUNSET]` initializer
+// would die with the table at U2 and leave twenty-five values to be typed
+// at the one moment nothing could check them. The witness pins every
+// field while the source still stands; it does its whole job in this
+// commit and leaves with ORB_MOOD_TABLE.
+//                          en     n    hueB   hueV   bri    drg   rul  rotS    rotAxis                  orbS  pal  hct    trs   sepR   alnR    cohR    sepW   alnW   cohW   maxS   gst  drgB  drgO  drgF  drgK
+inline constexpr OrbConfig ORB_TABLE =
+    {  true,  128, 0.08f, 0.06f, 0.85f, 0.4f,  3u,  0.012f, {0.15f, 0.97f, 0.10f},  0.0f, 0u,  0.08f, 0u,   50.0f, 120.0f, 200.0f, 30.0f, 8.0f,  15.0f, 60.0f, 0u,  0.0f, 0.0f, 0.0f, 0.0f };
 
-// The live surface — the panel's definition bank. Seeded row by row, so
-// behavior is byte-stable at boot and every row below is the one the
-// module carried before this commit.
-inline OrbMoodConfig ORB_MOOD_LIVE[MOOD_COUNT] = {
-    ORB_MOOD_TABLE[0], ORB_MOOD_TABLE[1], ORB_MOOD_TABLE[2], ORB_MOOD_TABLE[3],
-    ORB_MOOD_TABLE[4], ORB_MOOD_TABLE[5], ORB_MOOD_TABLE[6],
-};
-static_assert(MOOD_COUNT == 7,
-    "ORB_MOOD_LIVE is seeded row by row (constexpr copy, one per mood): "
-    "a new mood needs its row here as well as in ORB_MOOD_TABLE");
+// ORB_MOOD_TABLE stood here — seven rows, one per mood — with the
+// four-part witness that proved ORB_TABLE's twenty-five transcribed
+// values against its sunset row. Both left at ONE_WORLD-II U2; the
+// witness spent itself in U1b, as designed.
+
+inline OrbConfig ORB_LIVE = ORB_TABLE;
 
 } // namespace the_board
 } // namespace t7

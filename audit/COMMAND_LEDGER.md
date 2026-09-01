@@ -5,20 +5,20 @@ Read-only: a census of the program's pass and submit surface.
 
 ## Provenance
 
-Last commit touching any scanned file: `74a744d8d6837bb69ac13425a50607fd557f26c7`
-(ONE_WORLD-I U5: the sweep — the proximity subsystem, and what the campaign left behind)
+Last commit touching any scanned file: `c9b284213ae8945f539644fcc52e466c42dbd62c`
+(ONE_SURFACE-I U6: the sweep, and most of what it swept was older than the campaign)
 
 | file scanned | sha256 |
 |---|---|
-| `src/cartridges/the_board/realization/render_passes.hpp` | `sha256:951833669b61e2c60b334d216e34df63d0d4fcb9225db1fb4bcd68e5f33d7135` |
-| `src/cartridges/the_board/realization/renderer.hpp` | `sha256:5f6c8b39ef462b960b5674b81523342abc131456553b6b908c44492e6b7d26a3` |
-| `src/cartridges/the_board/cartridge.hpp` | `sha256:f50fe3345947360389bf65337b86297eb4842d11993586274b78f2e020a0c947` |
-| `src/cartridges/the_board/surface/patch_system.hpp` | `sha256:f448ff115f91c0d9ebbd9f3db29625ac590bbddc912727624db6722f274fee3e` |
-| `src/cartridges/the_board/bodies/gol_zones.hpp` | `sha256:a1ad031e3cd45f75881f180e843b4c3da4114a8816da759ad1d82b677868afc4` |
-| `src/cartridges/the_board/bodies/pawn.hpp` | `sha256:bac566779a35e46048585b51426d4bfe7b971093ea5e38e9b0219150774b3fbf` |
-| `src/cartridges/the_board/bodies/orbs.hpp` | `sha256:a3bde8f506af81f67844572f51e88f2f0cb9336b9cfbddbc946883faef8d4a0c` |
-| `src/the_board.cpp` | `sha256:98f6d39ea0c27c5c11c339b091492fa6a58cdfdd8f284f418702317d25b46f4c` |
-| `src/console/console.hpp` | `sha256:de4577d58c8e6e1d73c3e814db79aa08b99c895190ea717f2fed06047cf17d29` |
+| `src/cartridges/the_board/realization/render_passes.hpp` | `sha256:5b6285b2d3a4b377829d01821f8a16141173707ef5f65766b39b2b392296b85c` |
+| `src/cartridges/the_board/realization/renderer.hpp` | `sha256:6d20d67bd53745eb70e14d05f324b4d12b45df9a2bb087cd62547777467bac1d` |
+| `src/cartridges/the_board/cartridge.hpp` | `sha256:2007423d45cc697561ffa4148b3f2ee61381c09a60b06cdd0203033649fd0c99` |
+| `src/cartridges/the_board/surface/patch_system.hpp` | `sha256:7f4f335b182cc1c2ebc0ad3ecfd56062502b415b0383ccbfce0cf7d9d2ab8a0a` |
+| `src/cartridges/the_board/bodies/gol_zones.hpp` | `sha256:40df3f6531d37752bede4eba9f6173ea24907f3e3537b9c53c7f59158cc99f7b` |
+| `src/cartridges/the_board/bodies/pawn.hpp` | `sha256:7915ec242a2a3094537882c50a2980c9494e4f1460a3a2f786232b67ec6ead12` |
+| `src/cartridges/the_board/bodies/orbs.hpp` | `sha256:475d3de82ddd4d979d55ad146039937cd3316a0148466ed5c1db5566bde9a8b1` |
+| `src/the_board.cpp` | `sha256:321cf8eef63dd7f991405e893c57914a11a1ec2edfe1e7f28de170663de8acc5` |
+| `src/console/console.hpp` | `sha256:9b65d2d25a3057757e4e828a262bf115945914a2e0f6a38a905d4bb3ed191555` |
 
 The handoff named `render_passes.hpp` and `renderer.hpp`; the
 tree places pass encoders more widely, so the census scans the
@@ -32,32 +32,32 @@ in `console.hpp`.
 
 | # | label | kind | encoded by | site | color (load/store) | depth (load/store, readOnly) | stencil |
 |---|---|---|---|---|---|---|---|
-| 1 | Compute Phase | compute | `dispatch_compute` | `src/cartridges/the_board/realization/render_passes.hpp:138` | — | — | — |
-| 2 | Frustum Cull Patches | compute | `dispatch_frustum_cull` | `src/cartridges/the_board/realization/render_passes.hpp:226` | — | — | — |
-| 3 | Shadow Atlas | render | `render_shadow_pass` | `src/cartridges/the_board/realization/render_passes.hpp:299` | (none: depth-only) | Clear/Store, readOnly (absent) → `(tex == 0) ? c->gpuState_.shadow_map_view() : c->gpuState_.spot_shadow_map_view()` | (no stencil aspect) |
-| 4 | Shadow Pass | render | `render_shadow_pass` | `src/cartridges/the_board/realization/render_passes.hpp:343` | (none: depth-only) | Clear/Store, readOnly (absent) → `c->gpuState_.shadow_map_view()` | (no stencil aspect) |
-| 5 | Rasterized Scene | render | `render_main_pass` | `src/cartridges/the_board/realization/render_passes.hpp:615` | Clear/Store or Discard → `backbuffer or msaaColor` resolve → `backbuffer` | Clear/Discard, readOnly (absent) → `depth` | (no stencil aspect) |
-| 6 | Entity Mesh Gen | compute | `phase_entity_mesh_gen` | `src/cartridges/the_board/cartridge.hpp:1967` | — | — | — |
-| 7 | Patch Bake (fused) | compute | `generate_patch_batch` | `src/cartridges/the_board/surface/patch_system.hpp:184` | — | — | — |
-| 8 | Zone Derive Params | compute | `flush_zone_derive_requests` | `src/cartridges/the_board/bodies/gol_zones.hpp:822` | — | — | — |
-| 9 | GoL Zone Sync | compute | `dispatch_zone_sync` | `src/cartridges/the_board/bodies/gol_zones.hpp:910` | — | — | — |
-| 10 | GoL Zone Evolve | compute | `dispatch_zone_evolve` | `src/cartridges/the_board/bodies/gol_zones.hpp:923` | — | — | — |
-| 11 | Pawn Aura | compute | `dispatch_pawn_aura` | `src/cartridges/the_board/bodies/pawn.hpp:168` | — | — | — |
-| 12 | Orb Init | compute | `dispatch_orb_init` | `src/cartridges/the_board/bodies/orbs.hpp:744` | — | — | — |
-| 13 | Orb Recolor | compute | `dispatch_orb_recolor` | `src/cartridges/the_board/bodies/orbs.hpp:765` | — | — | — |
-| 14 | Orb Copy Prev | compute | `dispatch_orb_copy_prev` | `src/cartridges/the_board/bodies/orbs.hpp:780` | — | — | — |
-| 15 | Orb Dynamics | compute | `dispatch_orb_dynamics` | `src/cartridges/the_board/bodies/orbs.hpp:799` | — | — | — |
+| 1 | Compute Phase | compute | `dispatch_compute` | `src/cartridges/the_board/realization/render_passes.hpp:132` | — | — | — |
+| 2 | Frustum Cull Patches | compute | `dispatch_frustum_cull` | `src/cartridges/the_board/realization/render_passes.hpp:219` | — | — | — |
+| 3 | Shadow Pass | render | `render_shadow_pass` | `src/cartridges/the_board/realization/render_passes.hpp:261` | (none: depth-only) | Clear/Store, readOnly (absent) → `c->gpuState_.shadow_map_view()` | (no stencil aspect) |
+| 4 | Rasterized Scene | render | `render_main_pass` | `src/cartridges/the_board/realization/render_passes.hpp:530` | Clear/Store or Discard → `backbuffer or msaaColor` resolve → `backbuffer` | Clear/Discard, readOnly (absent) → `depth` | (no stencil aspect) |
+| 5 | Entity Mesh Gen | compute | `phase_entity_mesh_gen` | `src/cartridges/the_board/cartridge.hpp:1985` | — | — | — |
+| 6 | Patch Bake (fused) | compute | `generate_patch_batch` | `src/cartridges/the_board/surface/patch_system.hpp:154` | — | — | — |
+| 7 | Zone Derive Params | compute | `flush_zone_derive_requests` | `src/cartridges/the_board/bodies/gol_zones.hpp:824` | — | — | — |
+| 8 | GoL Zone Sync | compute | `dispatch_zone_sync` | `src/cartridges/the_board/bodies/gol_zones.hpp:905` | — | — | — |
+| 9 | GoL Zone Evolve | compute | `dispatch_zone_evolve` | `src/cartridges/the_board/bodies/gol_zones.hpp:918` | — | — | — |
+| 10 | Pawn Aura | compute | `dispatch_pawn_aura` | `src/cartridges/the_board/bodies/pawn.hpp:168` | — | — | — |
+| 11 | Orb Init | compute | `dispatch_orb_init` | `src/cartridges/the_board/bodies/orbs.hpp:741` | — | — | — |
+| 12 | Orb Recolor | compute | `dispatch_orb_recolor` | `src/cartridges/the_board/bodies/orbs.hpp:762` | — | — | — |
+| 13 | Orb Copy Prev | compute | `dispatch_orb_copy_prev` | `src/cartridges/the_board/bodies/orbs.hpp:777` | — | — | — |
+| 14 | Orb Dynamics | compute | `dispatch_orb_dynamics` | `src/cartridges/the_board/bodies/orbs.hpp:796` | — | — | — |
 
-15 passes: 3 render, 12 compute.
+14 passes: 2 render, 12 compute.
 
 ## §2 — submit sites
 
 | # | receiver | enclosing function | site |
 |---|---|---|---|
-| 1 | `queue.Submit` | `flush_zone_derive_requests` | `src/cartridges/the_board/bodies/gol_zones.hpp:839` |
-| 2 | `app->queue.Submit` | `frame` | `src/the_board.cpp:337` |
+| 1 | `queue.Submit` | `build_world` | `src/cartridges/the_board/surface/patch_system.hpp:564` |
+| 2 | `queue.Submit` | `flush_zone_derive_requests` | `src/cartridges/the_board/bodies/gol_zones.hpp:841` |
+| 3 | `app->queue.Submit` | `frame` | `src/the_board.cpp:337` |
 
-2 submit sites. The frame's one submit rides the pawn's
+3 submit sites. The frame's one submit rides the pawn's
 render tick; the GoL derive flush issues its own (the cartridge
 phase table marks it `F_SUBMIT`, cartridge.hpp).
 
@@ -72,8 +72,8 @@ console.hpp's depth buffer, neither of which this census reads.
 
 | # | label | colour | depth | samples | recorded in | site |
 |---|---|---|---|---|---|---|
-| 1 | `"Main Bundle"` | 1 x `&colorFormat_` | `depthFormat_` | `effective_msaa()` | `make_main_bundle_encoder` | `src/cartridges/the_board/realization/renderer.hpp:271` |
-| 2 | `"Shadow Sun Bundle"` | 0 x `nullptr` | `kShadowDepthFormat` | `1` | `make_shadow_sun_bundle_encoder` | `src/cartridges/the_board/realization/renderer.hpp:280` |
+| 1 | `"Main Bundle"` | 1 x `&colorFormat_` | `depthFormat_` | `effective_msaa()` | `make_main_bundle_encoder` | `src/cartridges/the_board/realization/renderer.hpp:262` |
+| 2 | `"Shadow Sun Bundle"` | 0 x `nullptr` | `kShadowDepthFormat` | `1` | `make_shadow_sun_bundle_encoder` | `src/cartridges/the_board/realization/renderer.hpp:271` |
 
 ### Encoder-creation sites (the label law, DOMESDAY_1 A9)
 
@@ -83,8 +83,9 @@ every landing.
 
 | # | label | enclosing function | site |
 |---|---|---|---|
-| 1 | `"flush_zone_derive_requests"` | `flush_zone_derive_requests` | `src/cartridges/the_board/bodies/gol_zones.hpp:815` |
-| 2 | `"frame"` | `frame` | `src/the_board.cpp:328` |
+| 1 | `"build_world"` | `build_world` | `src/cartridges/the_board/surface/patch_system.hpp:558` |
+| 2 | `"flush_zone_derive_requests"` | `flush_zone_derive_requests` | `src/cartridges/the_board/bodies/gol_zones.hpp:817` |
+| 3 | `"frame"` | `frame` | `src/the_board.cpp:328` |
 
 ## §3 — the swapchain reconfigure trigger
 
@@ -121,11 +122,10 @@ For the main scene pass (`render_main_pass`, "Rasterized Scene") depth attachmen
   on the same depth texture? **No.** No depth attachment in the
   program opens with `LoadOp::Load` (0 found), and no other
   pass's depth view names the main depth texture — the other
-  depth views are: `(tex == 0) ? c->gpuState_.shadow_map_view() : c->gpuState_.spot_shadow_map_view()`, `c->gpuState_.shadow_map_view()`.
+  depth views are: `c->gpuState_.shadow_map_view()`.
 - **(b)** is that texture bound anywhere in BINDING_LEDGER
   Table A? **No.** Table A's only depth bindings are:
   - `shadow_map`
-  - `spot_shadow_map`
 
   and the main depth's backing (`console.hpp`
   `createDepthBuffer`) is created with usage `wgpu::TextureUsage::RenderAttachment` alone —
@@ -143,12 +143,12 @@ PRUNE_1. Unit B4 has no token left to edit.
 
 | witness | verdict | detail |
 |---|---|---|
-| `C-1` | **PASS** | every storeOp token attributed to exactly one pass row: 5 tokens over 15 rows |
-| `C-2` | **PASS** | every pass row names its encoding function (15 rows) |
+| `C-1` | **PASS** | every storeOp token attributed to exactly one pass row: 4 tokens over 14 rows |
+| `C-2` | **PASS** | every pass row names its encoding function (14 rows) |
 | `C-3` | **PASS** | the begin_frame reconfigure branch is captured verbatim |
 | `C-4` | **PASS** | renderer.hpp encodes no pass of its own (Begin*Pass sites: 0) |
 | `C-5` | **PASS** | exactly one main scene pass row (label 'Rasterized Scene'): found 1 |
-| `C-6` | **PASS** | (a) no depth LoadOp::Load anywhere (0), no other pass names the main depth view (none); (b) Table A depth bindings are shadow_map/spot_shadow_map and the console depth usage is wgpu::TextureUsage::RenderAttachment |
-| `C-7` | **PASS** | label law: every encoder-creation site (2) and pass-begin site (15) carries a label |
+| `C-6` | **PASS** | (a) no depth LoadOp::Load anywhere (0), no other pass names the main depth view (none); (b) Table A depth bindings are shadow_map and the console depth usage is wgpu::TextureUsage::RenderAttachment |
+| `C-7` | **PASS** | label law: every encoder-creation site (3) and pass-begin site (14) carries a label |
 | `C-8a` | **PASS** | every render-bundle encoder states colorFormatCount, depthStencilFormat and sampleCount, and carries a label (2 site(s)) |
 | `C-8b` | **PASS** | every bundle's colour declaration is internally consistent (2 site(s); the pass-format equality is textual — a pass names views, whose formats this census cannot resolve) |

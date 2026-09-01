@@ -49,7 +49,9 @@ inline void clear_spheres(SphereState& ss, GPUState& gpu, wgpu::Queue& queue) {
     }
 }
 
-void evict_sphere(MachineCtx* self, uint32_t slot, wgpu::Queue& queue);
+// `evict_sphere` stood here — the SPHERE family's patch-death evictor. Its one
+// reach was FamilyDispatch::evict_slot, which left at ONE_SURFACE-I U3
+// with the patch-death sweep that was its only caller.
 void reconcile_sphere_mirror(SphereState& ss, SphereDeps* c, const GPUFloatingEntityState* data);
 // Dispatch funnels (table-shaped; defined below beside the recipe)
 bool dispatch_select_sphere_generic(MachineCtx* self, int32_t gx, int32_t gz, EntityQueueEntry& e);
@@ -57,19 +59,13 @@ bool dispatch_place_sphere_generic(MachineCtx* self, EntityQueueEntry& e, Placem
 void dispatch_commit_sphere_generic(MachineCtx* self, PlacementEntry& pe, wgpu::Queue& queue);
 
 // ═══ IMPL: the row
-// bodies deref sphere_state_ + world/mood/gpu/time via MachineCtx;
+// bodies deref sphere_state_ + world/sky/gpu/time via MachineCtx;
 // reconcile via SphereDeps. COHORT PROOF: sits AFTER
 // contracts/spawn_services.hpp (generic_select/place/commit +
 // run_spawn_preamble + negotiate_position DECLS — the machine bodies
-// ride the cohort tail); WorldState/MoodState complete upstream.
+// ride the cohort tail); WorldState/SkyState complete upstream.
 // clear_spheres keeps its deps-form GPUState& (the stamped precedent). ═════════
 
-inline void evict_sphere(MachineCtx* self,
-    uint32_t slot, wgpu::Queue& queue) {
-    self->sphere_state_.activeSpheres_[slot].active = false;  // sphere state owned by SphereState
-    GPUFloatingEntityState empty{};
-    self->gpuState_.upload_sphere_entity_slot(queue, slot, empty);
-}
 
 // ═══ THE SPHERE RECIPE ════════════════════════════════════════════
 //
@@ -133,7 +129,7 @@ inline constexpr EntityFamilyTraits SPHERE_TRAITS = {
     PopFamily::SPHERE, Dim::MAX_SPHERE_INSTANCES,
     false,                // NOT grounded — orbits an anchor; claims no ground (ruling 21)
     SphereProp::SPAWN_ROLL, SphereConfig::SPAWN_CHANCE,
-    mood_mult_for(PopFamily::SPHERE), SphereConfig::POSITION_JITTER,
+    SphereConfig::POSITION_JITTER,
     SPHERE_TIER_COUNT, SphereProp::TIER,
     SPHERE_PARAM_DEFS, SPHERE_PARAM_COUNT,
     SphereProp::ANCHOR_X, SphereProp::ANCHOR_Z, SphereProp::ROTATION,
@@ -195,25 +191,13 @@ inline void sphere_write_gpu(MachineCtx* c, const EntityInstance& inst, wgpu::Qu
     c->gpuState_.upload_sphere_entity_slot(queue, inst.slot, fe);
 }
 
-inline constexpr uint32_t SPHERE_INDOOR_RESCALE_PARAMS[] = {
-    SphIdx::BODY_RADIUS, SphIdx::ORBIT_RADIUS, SphIdx::ORBIT_HEIGHT,
-    SphIdx::INFLUENCE_RADIUS,
-    // ORBIT_SPEED (a rate) intentionally not scaled.
-};
-
-// Sphere policy: CAP (INDOOR_TREATMENT). Vertical extent =
-// orbit_height + body_radius (the orbit ring is horizontal at
-// orbit_height; the body's top adds its radius). Every length param
-// rides the one ratio — a miniature, not a squash.
-inline void sphere_apply_indoor_rescale(EntityInstance& inst, float ceiling_h) {
-    cap_to_ceiling(inst, ceiling_h, INDOOR_LIVE.height_cap_fraction,
-        /*current_h*/ inst.params[SphIdx::ORBIT_HEIGHT] + inst.params[SphIdx::BODY_RADIUS],
-        SPHERE_INDOOR_RESCALE_PARAMS);
-}
+// SPHERE_INDOOR_RESCALE_PARAMS and its CAP policy note stood here. Both
+// were sphere_apply_indoor_rescale's, and that slot left EntityFamilyAdapter
+// at ONE_WORLD-II U4 — U4 took the function and missed the table it read, so
+// U7's orphan sweep takes it (reader-less, subject dead, L30).
 
 inline constexpr EntityFamilyAdapter SPHERE_ADAPTER = {
     sphere_run_gate,
-    sphere_apply_indoor_rescale,          // CAP (INDOOR_TREATMENT): the floaters joined the module
     sphere_compute_solid_half, sphere_compute_colors,
     sphere_write_active, sphere_write_gpu, nullptr,
     sphere_get_tier_profile,
@@ -233,11 +217,11 @@ inline void dispatch_commit_sphere_generic(MachineCtx* self, PlacementEntry& pe,
     auto* host = find_patch(self, pe.generic.host_gx, pe.generic.host_gz);
     if (host) {
         generic_commit(self, SPHERE_TRAITS, SPHERE_ADAPTER, pe.generic, queue);
-        // Lifecycle Phase 2: sphere lifetime is no longer tied to its
-        // host patch. We don't call host->record_entity() here, so
-        // evict_patch_entities will never evict_sphere on this
-        // slot — the GPU-side pawn-distance test in update_sphere is
-        // the sole eviction path. The find_patch() lookup is retained
+        // Lifecycle Phase 2: sphere lifetime is not tied to its host
+        // patch. It never recorded itself in the patch-death registry, so
+        // that sweep could never take it — and the registry itself left at
+        // ONE_SURFACE-I U3. The GPU-side pawn-distance test in
+        // update_sphere is the sole eviction path, as it always was. The find_patch() lookup is retained
         // because a missing host still means "spawn was invalid"; we
         // just don't link the sphere into the patch's eviction list.
     }
