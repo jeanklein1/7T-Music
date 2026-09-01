@@ -1062,6 +1062,23 @@ Also settled there, for PANEL-I U4: **`reveal_zoetrope` is a DOOR, not a
 death** — the ears are bound 7 of 7 and the rows are struck every tick,
 so it is an honest lever on live machinery.
 
+## THE GoL VOCABULARY OUTLIVED THE GoL (open, named at THE_PANEL I U5)
+
+The family left at ONE_SURFACE-II U2 and the ground took its place. Three
+of its NAMES are still load-bearing, and each is a rename with a mirror on
+the other side of it — so they are priced here rather than taken in a
+sweep that was not commissioned to name things (naming is Jean's gate).
+
+| what | where | what it actually is | cost |
+|---|---|---|---|
+| `mode_gol_tick_scale`, `mode_gol_height_scale` | `GPUDesignConfig` + `world.wgsl`, and two enrolled organ rows | the two per-frame COUPLING multipliers over the automaton's drawn tick period and alive height. Live cadence, GPU-read. | both rooms, one commit, plus two row ids. **Wire-checked: `baseline.json` names neither** — its 16 `CONFIG` keys are all `ribbon_*` — so nothing stored breaks, exactly as the veil pair turned out. |
+| `gol_composite_cell_color` | `world.wgsl` | a TERRAIN-COLOUR PROBE. Its one caller is `compute_pawn_aura`; it is NOT the tint funnel, and ONE_SURFACE-II U3's addendum exists because a sweep once said it was. | WGSL only — G-LAW 2 is the whole verification |
+| `AUTO_SEED_BAND`, `AutoProp::*` | already native | no debt; listed so the reader can see where the line was drawn |
+
+The organ GROUP was renamed at U3b (`Terrain · GoL` → `Terrain · Automaton
+couplings`) because a group string is prose and costs nothing. The FIELD
+names were not, and the difference is the mirror.
+
 ## THE ABLETON SEAM (held, after N)
 
 > **THE MAP FOR THIS SEAM IS `docs/COUPLING_ATLAS.md`** — five tables,

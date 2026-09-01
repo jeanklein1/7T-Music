@@ -14,8 +14,8 @@ merge rows the API charges separately.
 | field | value |
 |---|---|
 | demo column censused | `full` |
-| source commit | `72f51ffdae69f80e8fac16e80fce5c3713e9cc67` |
-| | THE_PANEL I U4: THE ORPHAN VERBS, DISPOSED — three doors, 29 cuts, every lead claimed |
+| source commit | `8b9762cdf1b7b77017f1029945ab712ab25ec667` |
+| | THE_PANEL I U5a: THE MOSAIC RETIRES — the default fired unspoken (PROBE-PENDING) |
 | `src/cartridges/the_board/realization/state.hpp` | `sha256:35c107a3ecd28a450c1b32251c29021794184399c9241983d61b901a09521e92` |
 | `src/cartridges/the_board/realization/binding_surface.gen.inc` | `sha256:10e301844bd75099919b6e0aa5b0fde9d3e723f0c59b11072bc821a4ca97e682` |
 | `src/cartridges/the_board/realization/binding_registry.hpp` | `sha256:351eccaedd6902900df3b13a57c7a818ff10cf4280debbfb9034b0ffabcfcc73` |

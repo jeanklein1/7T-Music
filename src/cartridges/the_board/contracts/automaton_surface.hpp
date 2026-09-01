@@ -31,10 +31,17 @@
 // TRANSCRIBED, NOT DERIVED, ON PURPOSE — ATMOS_TABLE's precedent, kept
 // verbatim: a `= GOL_TIERS[6]` initializer would read well and then die
 // with the table at U2, leaving the literals to be typed at the one
-// moment nothing could check them. So they are typed HERE, while the
-// source still stands, and pinned field by field by the witness at the
-// bottom of bodies/gol_zones.hpp — which is where the source is, so the
-// assert dies with what it proves.
+// moment nothing could check them. So they were typed HERE while the
+// source still stood, and pinned field by field by a witness at the
+// bottom of bodies/gol_zones.hpp.
+//
+// THAT WITNESS HAS DONE ITS JOB AND GONE (probated at THE_PANEL I U5).
+// It died with the file at U2, exactly as designed — an assert that
+// proves a transcription has nothing to prove once the source is gone —
+// but this paragraph went on describing it in the present tense for
+// three units. The numbers below stood under it for one commit, which
+// is the whole window in which they could be checked, and that is the
+// claim the idiom actually makes.
 
 #include <cstdint>
 

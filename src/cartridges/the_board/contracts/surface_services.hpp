@@ -21,7 +21,10 @@
 // SEAM[spine:active-patch-system] the ActivePatch struct, the patches_
 //   registry, and find_patch. Cross-module readers: the occupier commits
 //   (a body commits iff find_patch resolves its host — machine/
-//   entity_pipeline.hpp, bodies/gol_zones.hpp, bodies/ribbon.hpp).
+//   entity_pipeline.hpp and bodies/ribbon.hpp). It named
+//   bodies/gol_zones.hpp as a third until THE_PANEL I U5: that file left
+//   whole at ONE_SURFACE-II U2 and the ground commits nothing — the
+//   automaton IS the ground and has no host to resolve.
 //
 //   IT NAMED THINGS THAT WERE NOT THERE, and the sweep says so rather
 //   than quietly fixing it: `evict_patch` / `evict_patch_entities` and
