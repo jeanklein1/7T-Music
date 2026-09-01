@@ -5,8 +5,8 @@ Read-only: a census of the program's pass and submit surface.
 
 ## Provenance
 
-Last commit touching any scanned file: `8b792ad08513ce5c42e234c030f1062e8fba9e90`
-(ONE_SURFACE-II U3: the sweep, and the census tool comes back from the dead with an answer)
+Last commit touching any scanned file: `9aa6f1978fc3756b3c6e4d38589878eac60670a2`
+(THE_PANEL I U1: THE SEED DOOR — the P8 seam's cue comes true (PROBE-PENDING))
 
 | file scanned | sha256 |
 |---|---|

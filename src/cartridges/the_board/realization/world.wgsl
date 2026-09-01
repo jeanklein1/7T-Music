@@ -1645,6 +1645,22 @@ fn discrete_cell_color_at_tier(
 // handshake. Comments here carry sentinels/semantics; VALUES rest in
 // the ROW blocks (§2.2) or the CPU boot pins — never as kernel
 // literals.
+//
+// Mirrors GPUDesignConfig in state.hpp BYTE-FOR-BYTE (688 B).
+//
+// THE MARKER IS THE ENROLLMENT, AND IT WAS MISSING (THE_PANEL I U2).
+// The binding ledger's witness 0b-4 runs a WGSL layout calculator over
+// every struct a `BYTE-FOR-BYTE (N B` marker registers and checks the
+// number the module states. Six structs carried the marker; the largest
+// mirror in the tree, and the one every campaign since PRUNING_1 has
+// relayouted, did not — so the C++ sizeof assert pinned this struct in
+// ONE room, and nothing in the battery ever computed the other room's
+// answer to compare it with. Both numbers now read 688, and they are
+// derived by two independent instruments from two different files.
+//
+// WHAT THIS CLOSES, precisely: a pad removed HERE and not there, or
+// there and not here. The C++ assert catches the C++ half; this catches
+// the WGSL half; neither catches it alone.
 struct DesignConfig {
     mute_dynamics_0d: u32,
     mute_signal: u32,
@@ -1669,13 +1685,9 @@ struct DesignConfig {
     world_bound_min: vec2<f32>,   // XZ min clamp (0,0 = infinite)
     world_bound_max: vec2<f32>,   // XZ max clamp (0,0 = infinite)
     placement_patch_count: u32,   // active patches for entity Y-correction
-    _pad_terrain_amp_ceiling_retired: f32,   // ONE_WORLD-II U4 — the rooms'
-    _pad_ceiling_height_retired: f32,        // amp clamp and their camera
-                                             // ceiling. RETIRED TO PADS, not
-                                             // deleted: this block's offsets
-                                             // are pinned in both rooms and a
-                                             // 12-byte hole upstream would
-                                             // move every field behind them.
+    // The rooms' amplitude clamp and their camera ceiling stood here as
+    // named pads from ONE_WORLD-II U4 to THE_PANEL I U2. The deliberate
+    // relayout took them, in this room and the C++ one, in one commit.
     terrain_time: f32,            // t_beats for terrain evaluation (0 = frozen)
     // ─── Polyphony-driven band motion ────────────────────────────
     // Per-band blend: -1 = inactive sentinel (the evaluators skip the band); [0,1] = activation.
@@ -1707,8 +1719,13 @@ struct DesignConfig {
     // agent_state[]. Piggybacks on the radial-pulse pad triple (no
     // struct size delta). Order matches GPUDesignConfig in state.hpp.
     possessed_slot: u32,
-    _pad_veil_dither_retired: f32,   // ONE_SURFACE-I U4 — THE RIM knob. Both its arms read `veil`, which the pin held at 0, so it had not moved a pixel since. Mirror of GPUDesignConfig.
-    _pad_indoor_height_cap_retired: f32,  // ONE_WORLD-II U4 — the GoL lift cap. A pad twice over: it was the last pulse pad before the indoor module repurposed it, and it is one again.
+    // THE RIM knob (ONE_SURFACE-I U4) and the GoL lift cap (ONE_WORLD-II
+    // U4) stood here, both repurposed pulse-pad floats, both retired to
+    // named holes. Gone at THE_PANEL I U2 with the two above — and the
+    // FOUR went together because pulse_data below aligns to 16: they are
+    // exactly one stride between placement_patch_count and it, so taking
+    // all four moves this array by one stride and leaves it on its
+    // boundary. Taking two would have parted the mirror silently.
     pulse_data: array<vec4<f32>, 8>,  // each: (origin_x, origin_z, onset_seconds, amplitude)
     // CPU-banded POINT position for LOD0/LOD1 partition (renamed
     // lod_pawn -> lod_point -> cull_point (ONE_SURFACE-I U5): the value
@@ -1767,9 +1784,12 @@ struct DesignConfig {
     point_bubble_radius: f32,   // CONTACT_2 C3a: the point's bounded awareness (rest 80 = contracts/point.hpp)
     cube_plasticity: f32,       // CONTACT_3 K2c: global λ master (rest 1.0 = Idle::CUBE_PLASTICITY_DEFAULT, raised at CONTACT_5 P2b)
     // CLOSURE_PAWN [6] — possessed body's terrain-tilt lag, seconds (0 =
-    // instant). Sits at offset 556 in BOTH rooms. (It WAS the struct's last
-    // 4 bytes at 588 when written; MOSAIC_0a appended the mosaic tail behind
-    // it and 588 is now _pad592_2. Size stays 592.) It reads as an Interaction knob and is grouped with them
+    // instant). It WAS the struct's last 4 bytes when written; MOSAIC_0a
+    // appended the mosaic tail behind it. (The literal offsets this note
+    // used to quote went at THE_PANEL I U2 with the C++ room's inline
+    // ones: an offset is what the compiler computes, and a hand-written
+    // copy of it drifts — this one was stale by 32 when it was cut.)
+    // It reads as an Interaction knob and is grouped with them
     // in spirit, but it cannot sit there: this room aligns vec3<f32> to 16 and
     // the C++ room aligns float[3] to 4, so a field inserted above
     // sun_direction shifts the two mirrors by different amounts. Grow at the
@@ -1851,29 +1871,38 @@ struct DesignConfig {
     ribbon_hands_tau: f32,
     // RIBBON_2 — the wander brain's dials, GROWTH LAW: _pad672_0 consumed,
     // three appended, one fresh pad: 672 -> 688 (state.hpp carries the witness).
-    ribbon_wander_soft: f32,        // 668  rad of heading error at which the brain asks full yaw
-    ribbon_wander_yaw_max: f32,     // 672  the brain's share of the hands' cap, [0, 1]
-    ribbon_wander_arrive: f32,      // 676  wu — a target is reached here; the next is drawn
-    ribbon_roam_radius: f32,        // 680  wu — the anchor's disc the targets are drawn on
+    //
+    // THE INLINE OFFSET NUMBERS ARE GONE FROM THIS TAIL (THE_PANEL I U2),
+    // as they are from the C++ room's. They were hand copies of what a
+    // compiler computes, stale by 16 before that unit and by 32 after it.
+    // The witnesses that hold this mirror are machine-checked and live in
+    // state.hpp: the sizeof pin, the 16-byte alignment triple, and the
+    // cull-point adjacency net.
+    ribbon_wander_soft: f32,  // rad of heading error at which the brain asks full yaw
+    ribbon_wander_yaw_max: f32,  // the brain's share of the hands' cap, [0, 1]
+    ribbon_wander_arrive: f32,  // wu — a target is reached here; the next is drawn
+    ribbon_roam_radius: f32,  // wu — the anchor's disc the targets are drawn on
     // KITE_1 — THE CHASE'S FEED-FORWARD. Mirror of GPUDesignConfig
     // (state.hpp) — GROWTH LAW, same commit, same position, same type.
     // THE PANEL (contracts/point.hpp CAMERA_CHASE_FF) authors the rest and
     // the boot pins it here. Reuses the tail pad in place: sizeof 688 is
     // UNMOVED, so no size pin nor offsetof witness changes. Read by
     // update_camera_vp, RIBBON host only.
-    camera_chase_ff: f32,           // 684  [0,1] — 1 cancels the aim ease's trail; 0 restores it
+    camera_chase_ff: f32,  // [0,1] — 1 cancels the aim ease's trail; 0 restores it
     // KITE_1 — THE WITNESS'S PRESENCE. Mirror of GPUDesignConfig, GROWTH
     // LAW, same commit, same order. THE PANEL (contracts/point.hpp
     // CAMERA_PUSH_GAIN / _RADIUS) authors the rests. The tail pad was spent
     // by camera_chase_ff, so these two append and two fresh pads carry the
-    // struct back to its 16-byte boundary: sizeof 688 -> 704 (state.hpp
+    // struct back to its 16-byte boundary: sizeof 688 -> 704 at the time
+    // (THE_PANEL I U2 later took four pads UPSTREAM and the struct is 688
+    // again, by a different route — state.hpp
     // carries the witness). Read by cube_force_witness.
-    camera_push_gain: f32,          // 688  wu/s² of shove at the shell's center
-    camera_push_radius: f32,        // 692  wu — the shell; 0 shuts the term off
+    camera_push_gain: f32,  // wu/s² of shove at the shell's center
+    camera_push_radius: f32,  // wu — the shell; 0 shuts the term off
     // _pad_arch_slack_retired: field_arch_slack's slot (ATRIUM_7, an
     // arch leg's own shell). Reader and author both left at
     // ONE_WORLD-I U3/U5; the slot stays a named pad so no offset moves.
-    _pad_arch_slack_retired: u32,   // 696
+    _pad_arch_slack_retired: u32,
     // ─── The subtraction dials (PANORAMA_1) ──────────────────────────────
     // Mirror of GPUDesignConfig (state.hpp) — GROWTH LAW, same commit, same
     // order, same types. DECLARED HERE AND READ BY NOTHING IN THIS ROOM: the
@@ -1881,15 +1910,15 @@ struct DesignConfig {
     // that is the point — a shader-side cull would still pay the pass's
     // vertex work and the meter would read no difference. The mirror is the
     // GROWTH LAW's, not a reader's. Was _pad704_1, consumed in place.
-    draw_mask: u32,                 // 700
-    shadow_mask: u32,               // 704
+    draw_mask: u32,
+    shadow_mask: u32,
     // THE TAP COUNT (PANORAMA_1). 16 = the 4x4 kernel; 4 = its inner 2x2.
     // Mirror of GPUDesignConfig — GROWTH LAW, same commit, same order, same
     // type. Read by sample_shadow_pcf, and the ONE mask field this room
     // actually reads. Was _pad720_0.
-    shadow_pcf_taps: u32,           // 708
-    _pad720_1: f32,                 // 712
-    _pad720_2: f32,                 // 716
+    shadow_pcf_taps: u32,
+    _pad720_1: f32,
+    _pad720_2: f32,
 }
 
 // §2.2 — THE TERRAIN_LOOKS PANEL (WGSL room)

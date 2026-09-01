@@ -602,18 +602,13 @@ namespace t7 {
             float world_bound_min[2];         // XZ min clamp (0,0 = infinite)
             float world_bound_max[2];         // XZ max clamp (0,0 = infinite)
             uint32_t placement_patch_count;   // active patches for entity Y-correction
-            // RETIRED TO NAMED PADS (ONE_WORLD-II U4), not deleted: the
-            // rooms' amplitude clamp and their ceiling. Twelve bytes
-            // of hole UPSTREAM of cull_point_x (336) and checker_resultant
-            // would move every offset behind them and part a mirror no
-            // instrument reconciles. The house idiom is two fields below
-            // (_pad_pier_retired) and one above 696 (_pad_arch_slack_retired);
-            // the three real witnesses — sizeof 704, offsetof(cull_point_x)
-            // 336, and the 16-byte alignment triple — are what the pads keep
-            // true, NOT the inline offset comments in this struct's tail,
-            // which are stale by 16 and are probated in this commit.
-            float _pad_terrain_amp_ceiling_retired;
-            float _pad_ceiling_height_retired;
+            // THE ROOMS' AMPLITUDE CLAMP AND THEIR CEILING stood here as
+            // named pads from ONE_WORLD-II U4 to THE_PANEL I U2 — 8 bytes
+            // of hole kept declared because retiring them mid-struct would
+            // have moved every offset behind them in a campaign that had
+            // not budgeted for both rooms. U2 IS that budget: the eight
+            // bytes are gone, and every offset from terrain_time down has
+            // moved by 8 in BOTH rooms in this one commit.
             float terrain_time;               // t_beats for terrain evaluation (0 = frozen, >0 = animated)
 
             // ─── Polyphony-driven band motion ────────────────────────────
@@ -649,18 +644,22 @@ namespace t7 {
             // Slot index of the player's current body in agent_state[].
             // Piggybacks on the existing _pulse_pad triple (size witnessed by the sizeof static_assert below — 560).
             uint32_t possessed_slot;          // slot 0 at session start
-            // THE RIM taste knob stood here (ONE_SURFACE-I U4): 0 = the
-            // icing tinted to fog, >0.5 = it DITHER-dissolved. Both arms
-            // read `veil` — which is `veil_t * veil_strength * veil_scale`,
-            // and a finite world stages strength 0 — so the knob had not
-            // been able to move a pixel since the pin. A PAD, and the
-            // repurposed pulse-pad float it always was.
-            float _pad_veil_dither_retired;
-            // The GoL lift cap: it bounded each new zone's alive_height so
-            // the MAXIMUM realised cell lift equalled it exactly. A PAD TWICE
-            // OVER (ONE_WORLD-II U4): it was the last pulse pad before the
-            // rooms' module repurposed it, and it is one again.
-            float _pad_indoor_height_cap_retired;
+            // TWO MORE PADS STOOD HERE, both repurposed pulse-pad floats
+            // and both retired to named holes rather than removed: THE RIM
+            // taste knob (ONE_SURFACE-I U4 — its two arms both read `veil`,
+            // which the pin held at 0, so it had not moved a pixel since)
+            // and the GoL lift cap (ONE_WORLD-II U4 — it bounded each new
+            // zone's alive_height, and the zones left). Gone at THE_PANEL
+            // I U2, with the two above.
+            //
+            // THESE FOUR WENT TOGETHER AND THE ARITHMETIC IS WHY. pulse_data
+            // is array<vec4<f32>,8> in the WGSL room, so it must sit on a
+            // 16-byte boundary; the four pads are 16 bytes between
+            // placement_patch_count and it, so removing ALL FOUR moves
+            // pulse_data by exactly one stride and leaves it aligned.
+            // Removing two would have parted the mirror silently. The
+            // other five named pads survive for reasons of the same kind,
+            // each stated at its own line.
             float pulse_data[32];             // 8 × {origin_x, origin_z, onset_seconds, amplitude}
             // ─── LOD-band point position ────────────────────────────────
             // (renamed lod_pawn -> lod_point -> cull_point at ONE_SURFACE-I
@@ -714,9 +713,12 @@ namespace t7 {
             // `veil_strength` stood between icing and lod0. It was 1 in an
             // open world and 0 in a finite one, and the pin made it a
             // constant 0 — so every reader of it was a multiply by zero.
-            // A PAD: this struct's layout is pinned by sizeof 704 and
-            // offsetof(cull_point_x) 336, and a hole upstream would move
-            // every field behind it and part the WGSL mirror.
+            // A PAD, and one of the five that SURVIVED the deliberate
+            // relayout: these eight bytes sit between pulse_data and
+            // palette_center, and palette_center is array<vec4<f32>,4> in
+            // the WGSL room. Take them and it lands at 8 mod 16. The four
+            // pads that could go went at THE_PANEL I U2; the sizeof
+            // witness carries the whole arithmetic.
             float veil_ring;
             float veil_icing;
             float _pad_veil_strength_retired;
@@ -828,45 +830,57 @@ namespace t7 {
             // through this transport and the rooms cannot drift.
             // _pad624_1 consumed, eleven appended, one fresh pad to the
             // boundary: sizeof 624 -> 672.
-            float ribbon_max_speed;        // 620
-            float ribbon_yaw_rate;         // 624
-            float ribbon_r_min;            // 628
-            float ribbon_floor_margin;     // 632
-            float ribbon_alt_smooth_dist;  // 636
-            float ribbon_alt_stiff;        // 640
-            float ribbon_climb_rate;       // 644
-            float ribbon_mount_setback;    // 648
-            float ribbon_lookahead;        // 652
-            float ribbon_clear_head;       // 656
-            float ribbon_clear_body;       // 660
+            //
+            // THE INLINE OFFSET NUMBERS ARE GONE FROM THIS TAIL (THE_PANEL
+            // I U2). Every field from here down carried a hand-written
+            // byte offset in a trailing comment. They were stale by 16
+            // before this unit — the struct itself said so and promised a
+            // probate that never came — and U2's relayout would have made
+            // them stale by 32. An offset is what offsetof computes; a
+            // second copy of it in a comment is a fact with two homes, and
+            // the copy is the one that drifts (L46). The witnesses that
+            // MATTER are three and they are all machine-checked: the
+            // sizeof pin, the 16-byte alignment triple, and the cull-point
+            // adjacency net.
+            float ribbon_max_speed;
+            float ribbon_yaw_rate;
+            float ribbon_r_min;
+            float ribbon_floor_margin;
+            float ribbon_alt_smooth_dist;
+            float ribbon_alt_stiff;
+            float ribbon_climb_rate;
+            float ribbon_mount_setback;
+            float ribbon_lookahead;
+            float ribbon_clear_head;
+            float ribbon_clear_body;
             // THE HANDS' TAU. It was RIBBON_LIVE.sky_yaw_tau, read by the CPU
             // head's eased yaw; RIBBON_1 moved the easing into the head kernel
             // and would have left the dial writing nothing. It rides here
             // instead, so the panel's word still reaches the hand it names —
             // and now eases the throttle beside the yaw.
-            float ribbon_hands_tau;        // 664
+            float ribbon_hands_tau;
             // ─── THE WANDER BRAIN'S DIALS (RIBBON_2) — GROWTH LAW, same
             // commit, same order, same types as the WGSL twin. The brain
             // lives in the head kernel now, so its dials travel the same road
             // the flight's do: _pad672_0 consumed, three appended, one fresh
             // pad to the boundary; sizeof 672 -> 688.
-            float ribbon_wander_soft;      // 668
-            float ribbon_wander_yaw_max;   // 672
-            float ribbon_wander_arrive;    // 676
-            float ribbon_roam_radius;      // 680
+            float ribbon_wander_soft;
+            float ribbon_wander_yaw_max;
+            float ribbon_wander_arrive;
+            float ribbon_roam_radius;
             // KITE_1 — THE CHASE'S FEED-FORWARD. Mirror of the WGSL twin —
             // GROWTH LAW, same commit, same position, same type. Rest
             // authored at contracts/point.hpp (CAMERA_CHASE_FF); the boot
             // pins it. The tail pad is consumed IN PLACE, so sizeof 688 is
             // unmoved and no witness below moves either.
-            float camera_chase_ff;         // 684
+            float camera_chase_ff;
             // KITE_1 — THE WITNESS'S PRESENCE. Mirror of the WGSL twin,
             // GROWTH LAW, same commit, same order, same types. Rests
             // authored at contracts/point.hpp; the boot pins them. The tail
             // pad went to camera_chase_ff, so these two append and two fresh
             // pads carry the struct back to its boundary: 688 -> 704.
-            float camera_push_gain;        // 688
-            float camera_push_radius;      // 692
+            float camera_push_gain;
+            float camera_push_radius;
             // ATRIUM_7 — THE DOORWAY'S OWN SHELL. Mirror of the WGSL twin —
             // GROWTH LAW, same commit, same position, same type. Rest
             // _pad_arch_slack_retired: field_arch_slack's slot. The dial
@@ -875,7 +889,7 @@ namespace t7 {
             // Kept as a NAMED PAD rather than removed — the pier_count
             // precedent: retiring the slot would shift every offset after
             // it and re-pad four vec3 boundaries for four bytes.
-            uint32_t _pad_arch_slack_retired;   // 696
+            uint32_t _pad_arch_slack_retired;
             // ─── The subtraction dials (PANORAMA_1) ──────────────────────
             // THE INSTRUMENT THE METER LACKS. `[METER]` brackets a PASS; it
             // cannot say which draw inside the pass spent the milliseconds,
@@ -902,20 +916,20 @@ namespace t7 {
             //   bit6 the orbs   bit7 the fade
             // Mirror of the WGSL twin — GROWTH LAW, same commit, same
             // position, same type. Was _pad704_1, consumed IN PLACE.
-            uint32_t draw_mask;            // 700
+            uint32_t draw_mask;
             // shadow_mask: bit0 terrain, bit1 the entity table.
             // Appended past the boundary, so three fresh pads carry the struct
             // back to it: 704 -> 720.
-            uint32_t shadow_mask;          // 704
+            uint32_t shadow_mask;
             // THE TAP COUNT (PANORAMA_1). 16 (today's 4x4) or 4 (the inner
             // 2x2). PANORAMA_0 priced the taps at 1-2 ms of main pass and
             // could not read them; this is the A/B that does. Mirror of the
             // WGSL twin — GROWTH LAW, same commit, same position, same type.
             // A pad is consumed IN PLACE, so sizeof 720 is unmoved.
             // Was _pad720_0.
-            uint32_t shadow_pcf_taps;      // 708
-            float _pad720_1;               // 712
-            float _pad720_2;               // 716
+            uint32_t shadow_pcf_taps;
+            float _pad720_1;
+            float _pad720_2;
         };
 
         struct alignas(16) GPUTileGridEntry {
@@ -1797,40 +1811,62 @@ namespace t7 {
         static_assert(offsetof(GPUFrameSignal, mount_phase) == 48,
             "RIBBON_1: the mount block took the sky block's trailing 32 bytes, "
             "same total, same boundary — the WGSL twin mirrors it field for field");
-        // FIELD_2b: the field's eight dials graduated from WGSL consts to
-        // this struct (the panel authors their rests). Eight floats where
-        // two tail pads stood, plus two fresh pads to land the 16-byte
-        // boundary: 592 - 8 + 32 + 8 = 624. Both rooms, same commit.
-        // RIBBON_1: the ribbon's eleven dials land at that same tail — one pad
-        // consumed, ten floats appended, two fresh pads to the boundary;
-        // 624 -> 672. Both rooms, same commit.
-        // RIBBON_2: the wander brain's four join them — one pad consumed,
-        // three appended, one fresh pad; 672 -> 688. Both rooms, same commit.
-        static_assert(sizeof(GPUDesignConfig) == 704,
-            "GPUDesignConfig must be 720 bytes. PRUNING_1 P3 removed nine "
-            "zero-read fields (44 B) and added 12 B of DECLARED PAD: WGSL "
-            "aligns vec3 to 16 while C++ packs float[3] at 4, and dropping "
-            "44 B moved all four vec3 members off their boundaries. "
-            "592 - 44 + 12 = 560. The pads ARE the mirror, not waste — the "
-            "offsetof asserts below are what prove it. "
-            "(MOSAIC_0: +8 floats, 560 -> 592 — Jean OK'd at handoff. "
-            "MOSAIC_2 re-cut that tail from six dials + two pads to FIVE + "
-            "THREE — still 8 floats, so 592 is unmoved. FIELD_2b: the "
-            "field's eight dials land at the tail — two pads consumed, six "
-            "floats appended, two fresh pads to the boundary; 592 -> 624. "
-            "RIBBON_1: the ribbon's twelve dials at the same tail — one pad "
-            "consumed, eleven appended, one fresh pad; 624 -> 672. RIBBON_2: "
-            "the wander brain's four at the same tail — one pad consumed, "
-            "three appended, one fresh pad; 672 -> 688. KITE_1: the chase's "
-            "feed-forward consumes that last pad IN PLACE — 688 is unmoved, "
-            "and the trailing pad is spent. The witness's two presence dials "
-            "met that: no pad to reuse, two appended, two fresh pads to the "
-            "boundary; 688 -> 704. PANORAMA_1: the two subtraction masks — one pad consumed IN PLACE, one appended, three fresh pads to the "
-            "boundary; 704 -> 720. PANORAMA_1: the PCF tap count consumes one of those three pads IN PLACE — 720 unmoved. "
-            "ONE_WORLD-I: the transition veil's two knobs LEFT — fade_alpha "
-            "(4 B) and fade_color (12 B) were one contiguous 16 B spanning "
-            "two mirror rows, so every offset after them drops exactly 16 "
-            "and every vec3 keeps its boundary; 720 -> 704.)");
+        // THE SIZE HISTORY LIVES IN THE ASSERT'S OWN MESSAGE, and it used
+        // to live here too — three campaigns of it, restated above the
+        // witness that already carried them. A rule with two homes drifts
+        // in the copy (L46), and this one had: the comment block stopped at
+        // RIBBON_2's 688 while the message ran on through KITE_1,
+        // PANORAMA_1 and ONE_WORLD-I. One home now, and it is the message
+        // a failing build prints.
+        static_assert(sizeof(GPUDesignConfig) == 688,
+            "GPUDesignConfig is 688 bytes, and this witness is the L3 "
+            "handshake with world.wgsl's DesignConfig — the two rooms grow "
+            "and shrink in one commit or not at all.\n"
+            "\n"
+            "THE DELIBERATE RELAYOUT (THE_PANEL I U2). The number stood at "
+            "704 and the struct carried nine named pads; four of them left "
+            "here and the arithmetic decided which four. Every campaign "
+            "before this one retired a dead field TO A NAMED PAD rather "
+            "than removing it, because a hole closed mid-struct moves every "
+            "offset behind it and parts a mirror no instrument reconciles. "
+            "That was the right call each time and it accumulated a debt; "
+            "this unit is the budget for it, and the only unit that had "
+            "both rooms, the WGSL gate, the binding surface and the extent "
+            "witness in one commit.\n"
+            "\n"
+            "WHICH FOUR, AND WHY NOT THE OTHER FIVE. The four are "
+            "_pad_terrain_amp_ceiling_retired and _pad_ceiling_height_retired "
+            "(ONE_WORLD-II U4) and _pad_veil_dither_retired and "
+            "_pad_indoor_height_cap_retired (ONE_SURFACE-I U4 / "
+            "ONE_WORLD-II U4). They are 16 CONTIGUOUS BYTES between "
+            "placement_patch_count and pulse_data, which is array<vec4<f32>,8> "
+            "in the WGSL room and therefore 16-aligned: taking all four "
+            "moves that array by exactly one stride and every 16-byte "
+            "boundary in the struct survives. Taking two would have moved "
+            "it by 8 and parted the rooms silently. The other five stay, "
+            "each for a reason at its own line: _pad_sun, _pad_fog[2] and "
+            "_pad_pier_retired ARE the WGSL room's implicit vec3/vec2 "
+            "padding written down, so removing them would part the mirror "
+            "outright; _pad_veil_strength_retired and _pad_lod0_radius_retired "
+            "are 8 bytes between pulse_data and palette_center, so taking "
+            "them would push palette_center to 8 mod 16; and the tail's "
+            "_pad_arch_slack_retired + _pad720_1/2 cannot shrink the struct "
+            "at all, because alignas(16) would round whatever is left back "
+            "up and the declared pads would become invisible ones.\n"
+            "\n"
+            "THE HISTORY, KEPT. 592 - 44 + 12 = 560 (PRUNING_1 P3 removed "
+            "nine zero-read fields and added 12 B of DECLARED PAD, because "
+            "WGSL aligns vec3 to 16 while C++ packs float[3] at 4). "
+            "MOSAIC_0: +8 floats, 560 -> 592. MOSAIC_2 re-cut that tail "
+            "from six dials + two pads to FIVE + THREE — still 8 floats, "
+            "592 unmoved. FIELD_2b: 592 -> 624. RIBBON_1: 624 -> 672. "
+            "RIBBON_2: 672 -> 688. KITE_1's feed-forward consumed the last "
+            "pad IN PLACE; its two presence dials met a spent tail, so "
+            "688 -> 704. PANORAMA_1: 704 -> 720, then the PCF tap count "
+            "consumed a pad in place. ONE_WORLD-I: the transition veil's "
+            "fade_alpha + fade_color were one contiguous 16 B spanning two "
+            "mirror rows, so 720 -> 704 with every vec3 keeping its "
+            "boundary. THE_PANEL I U2: 704 -> 688, the four pads above.");
         // THE ALIGNMENT LAW (L4, docs/LAWS.md). These four are the only
         // offsets where the two rooms can disagree, and no witness here fires
         // when they do — grow at the TAIL (after checker_resultant's group) or
@@ -2477,8 +2513,36 @@ namespace t7 {
             // frame so the GPU frustum-cull shader uses the same POINT position as the
             // CPU's LOD banding (eliminates LOD0/LOD1 boundary flicker).
             void upload_cull_point(wgpu::Queue& queue) {
-                static_assert(offsetof(GPUDesignConfig, cull_point_x) == 336,
-                    "cull_point_x offset must be 336 for targeted upload");
+                // THE NET NOW GUARDS WHAT THE WRITE ACTUALLY DEPENDS ON
+                // (THE_PANEL I U2, Amendment A). It read
+                // `offsetof(cull_point_x) == 336` with the reason
+                // "cull_point_x offset must be 336 for targeted upload" —
+                // and that reason was NOT TRUE. The destination offset is
+                // taken by offsetof on the line below, so it follows the
+                // field wherever it goes; 336 pinned nothing this call
+                // needed and would have fired on any relayout as a false
+                // alarm, training a successor to bump the number.
+                //
+                // WHAT THE CALL REALLY ASSUMES is ADJACENCY: it writes
+                // EIGHT bytes from the address of cull_point_x, so
+                // cull_point_z must be the next float. Nothing asserted
+                // that. Separate the two fields and the old net stayed
+                // green while the second four bytes landed on whatever
+                // followed x — the frustum cull reading a Z that was
+                // never written, every frame, and Dawn silent because the
+                // write is in range and correctly sized.
+                //
+                // So the pin is re-derived as the RELATION, not the
+                // address. It survives any relayout that keeps the pair
+                // together, which is exactly the condition the write
+                // needs, and it fails the build the instant one does not.
+                static_assert(offsetof(GPUDesignConfig, cull_point_z)
+                           == offsetof(GPUDesignConfig, cull_point_x)
+                              + sizeof(float),
+                    "upload_cull_point writes 8 bytes from &cull_point_x, so "
+                    "cull_point_z must be the float immediately after it — "
+                    "an 8-byte write over a split pair ships a Z the GPU "
+                    "never received and no runtime witness would say so");
                 queue.WriteBuffer(configBuffer_,
                     offsetof(GPUDesignConfig, cull_point_x),
                     &config_.cull_point_x, sizeof(float) * 2);
@@ -4501,7 +4565,10 @@ namespace t7 {
                 config_.veil_icing  = Dim::VEIL_ICING_DEFAULT;
                 config_._pad_veil_strength_retired = 0.0f;
                 config_._pad_lod0_radius_retired = 0.0f;
-                config_._pad_veil_dither_retired = 0.0f;
+                // config_._pad_veil_dither_retired stood here — a boot pin
+                // zeroing a hole. The hole is gone at THE_PANEL I U2 and the
+                // line with it; the two above survive because their eight
+                // bytes are what keep palette_center on its 16-byte boundary.
                 // THE MOSAIC (MOSAIC_0/1) — trencadís dials, pinned at rest.
                 // THE MOSAIC IS ON (MOSAIC_2). The probe's reason for a
                 // runtime gate is discharged — the walk compiles on the

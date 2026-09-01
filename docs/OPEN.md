@@ -1113,17 +1113,71 @@ vocabulary.** Enrolling it is U3's largest single item.
 correctly absent (state, not knobs; INTENT mirrors; arrays the manifest
 has no row shape for).
 
-**4. THE DESIGNCONFIG PAD MAP — 704 bytes, at least nine retired pads**:
+**4. THE DESIGNCONFIG PAD MAP — COLLECTED AND STRUCK AT U2.** The recon
+read it as "704 bytes, at least nine retired pads" and listed them:
 `_pad_pier_retired`, `_pad_terrain_amp_ceiling_retired`,
 `_pad_ceiling_height_retired`, `_pad_veil_dither_retired`,
 `_pad_indoor_height_cap_retired`, `_pad_veil_strength_retired`,
 `_pad_lod0_radius_retired`, `_pad_arch_slack_retired`, `_pad720_1/2`.
-The witnesses U2 must re-pin: `sizeof == 704`, the three 16-alignment
-offsetofs (sun_direction, fog_color, checker_resultant), and the
-`cull_point_x == 336` pin that a partial WriteBuffer addresses
-positionally. **That last one is the trap**: a relayout that moves
-`cull_point_x` and does not move its assert writes the wrong four bytes
-every frame the point moves.
+
+**FOUR COULD GO, AND THE ARITHMETIC — NOT TASTE — PICKED THEM.**
+`704 -> 688`, both rooms, one commit. The four are the two ONE_WORLD-II
+U4 pads and the two repurposed pulse-pad floats: they are 16 CONTIGUOUS
+bytes between `placement_patch_count` and `pulse_data`, which is
+`array<vec4<f32>,8>` in the WGSL room and therefore 16-aligned, so
+removing all four moves it by exactly one stride and every 16-byte
+boundary in the struct survives. Removing two would have moved it by 8
+and parted the mirror silently.
+
+**THE OTHER FIVE ARE NOT DEBT, and the recon's "at least nine" was
+optimistic about how much headroom the alignment allows.** Three of them
+— `_pad_sun`, `_pad_fog[2]`, `_pad_pier_retired` — ARE the WGSL room's
+implicit vec3/vec2 padding written down; removing them parts the mirror
+outright, and `_pad_pier_retired`'s name is the only thing about it that
+reads as a retirement. `_pad_veil_strength_retired` and
+`_pad_lod0_radius_retired` are 8 bytes between `pulse_data` and
+`palette_center`, so taking them pushes `palette_center` to 8 mod 16.
+And the tail's `_pad_arch_slack_retired` + `_pad720_1/2` cannot shrink
+the struct at all: `alignas(16)` rounds whatever is left back up, so the
+declared pads would simply become invisible ones.
+
+**THE NAMED HAZARD WAS REAL AND WORSE THAN NAMED.** The pin read
+`offsetof(cull_point_x) == 336`, with the reason "cull_point_x offset
+must be 336 for targeted upload" — and that reason was FALSE: the
+destination offset is taken by `offsetof` on the next line, so 336
+pinned nothing the call needed and would have fired on any relayout as a
+false alarm. What `upload_cull_point` actually assumes is ADJACENCY — it
+writes EIGHT bytes from `&cull_point_x` — and NOTHING asserted that. The
+pin is re-derived as the relation, and **proven to bite**: splitting the
+pair fails the build with the adjacency message while an absolute pin on
+`cull_point_x`, injected beside it as the control, stays green.
+
+**AND THE MIRROR GAINED A WITNESS IT NEVER HAD.** The binding ledger's
+`0b-4` runs a WGSL layout calculator over every struct a `BYTE-FOR-BYTE
+(N B` marker registers. Six structs carried the marker; **DesignConfig
+— the largest mirror in the tree and the one every campaign since
+PRUNING_1 has relayouted — did not**, so the `sizeof` assert pinned it
+in ONE room and nothing in the battery computed the other room's answer.
+The marker is written now: both numbers read 688, derived by two
+instruments from two files.
+
+### AND WHAT 0b-4 STILL CANNOT SEE (found by injecting against it, U2)
+
+Three WGSL-only injections, run against the new marker:
+
+| injection | verdict | why |
+|---|---|---|
+| append a field | **FIRES** — "prose says 688, calculator says 704" | the growth case, which is what the GROWTH LAW is about |
+| drop a TRAILING pad | blind, and correctly so | WGSL rounds the struct up to its 16-byte alignment and `alignas(16)` does the same, so both rooms absorb it identically and no divergence exists |
+| drop a MID-STRUCT pad before a 16-aligned member | **blind, and this one is a real break** | WGSL re-pads implicitly to put `palette_center` back on 16, so the SIZE is unchanged while every offset from `veil_ring` to `palette_center` differs between the rooms |
+
+**The third row is the open finding.** A size witness cannot see an
+offset-only divergence, in either room — legal C++, legal WGSL, and
+wrong ACROSS the two, which is L48's own class and the class
+ONE_SURFACE-I U5 was bitten by. What would close it is a PER-FIELD
+OFFSET witness across the mirrored structs, the same move S-8 made for
+fixed array extents. That is a new instrument, not a relayout, so it is
+recorded here rather than improvised into U2.
 
 **5. THE PRESET PATH** stands with NO READER: `presets/index.json` and
 `presets/baseline.json`, kept against L30's letter by the Phase W ruling
@@ -1209,7 +1263,9 @@ this.**
 > **I — THE DIALS** finishes the parametric surface: the seed door (**U1
 > LANDED**, PROBE-PENDING — the P8 seam's first caller; the transcript
 > witness awaits Jean's run, not a caller), the deliberate DesignConfig
-> relayout (U2), enrollment
+> relayout (**U2 LANDED**, PROBE-PENDING — 704 -> 688, four pads, both
+> rooms; the cull-point net re-derived and bite-proven; DesignConfig
+> enrolled in the mirror's byte-count witness at last), enrollment
 > completion + the preset migration (U3, where the two parked
 > preset-wire breakers below finally move), the orphan verbs disposed
 > (U4), ORGAN.md rewritten native (U5), instruments + battery + probe
