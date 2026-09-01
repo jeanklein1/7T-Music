@@ -5,8 +5,8 @@ Read-only: a census of the program's pass and submit surface.
 
 ## Provenance
 
-Last commit touching any scanned file: `70ad302139fd6380ba7a6d1ac3e8b83ebbef2600`
-(ONE_SURFACE-II U2: the GOL family falls, and it is a TAIL CUT)
+Last commit touching any scanned file: `8b792ad08513ce5c42e234c030f1062e8fba9e90`
+(ONE_SURFACE-II U3: the sweep, and the census tool comes back from the dead with an answer)
 
 | file scanned | sha256 |
 |---|---|

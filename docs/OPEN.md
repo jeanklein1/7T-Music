@@ -455,16 +455,42 @@ Three things the first runs settle, in order:
    the switch is a dead letter and should be retired with a tombstone
    saying so, rather than left as an option nobody can take.
 
-### A SECOND, STATIC HALF OF THE SAME CLASS — **COMMISSIONED**
+### A SECOND, STATIC HALF OF THE SAME CLASS — **BUILT AND BITING**
 
-> **RULED at the UNBLOCK RIDER.** The witness is commissioned in exactly
-> the measured shape below: a relation row inside `binding_gen --check`
-> (not a tenth gate) comparing every WGSL fixed array extent to its C++
-> count, exact via the recorded reduction, proven by the recorded
-> injection. **It rides ONE_SURFACE-II's U4 instrument commit** — sooner
-> is better, because the automaton reshapes bind groups and should land
-> under this witness rather than before it. The measurement below stands
-> as written; it is the specification.
+> **COMMISSIONED at the UNBLOCK RIDER, LANDED at ONE_SURFACE-II U4** —
+> `binding_gen --check`'s **S-8**, in exactly the measured shape: a
+> relation row inside an existing gate, not a tenth gate.
+>
+> **IT CHECKS ELEVEN SEATS AND COVERS EVERYTHING.** The measurement below
+> feared partial coverage; the reduction turned out to reach every case
+> that occurs — six declarations across eleven group entries, with
+> `nothing uncovered` in its own verdict line. A case it could not judge
+> would be REPORTED BY NAME rather than skipped, which is the discipline
+> the hole itself argued for.
+>
+> **PROVEN TO BITE** (Amendment A), by the injection the commission
+> named — `fc_indirect`'s store type set back to `2905ed68`'s
+> `array<atomic<u32>, 15>` against today's `FC_ARGS_BYTES`:
+>
+>     [FAIL] S-8 ... fc_indirect@cullStateGroup_[3]:
+>                    WGSL extent 15 x 4 B = 60 B vs C++ 40 B (FC_ARGS_BYTES)
+>
+> **That is Dawn's own sentence, in arithmetic, from text.** The device
+> said "bound with size 40 ... requires at least 60 bytes"; the gate now
+> says 60 vs 40 before the shader is ever compiled.
+>
+> **The control holds too**: under that same injection `mirror_census`
+> still reports zero failures, which is the hole reproduced on demand and
+> the proof that S-8 is the only thing that closes it.
+>
+> **WHAT IT DOES NOT CLOSE**, so nobody mistakes its scope: only FIXED
+> extents. A wrong size behind a runtime-sized `array<T>` has no extent to
+> compare, and neither has a rejected layout, an overrunning copy, or an
+> index past the end of a map. Those stay the probe's, and L48 says so.
+>
+> The measurement below is kept as written — it is what the witness was
+> built from, and the record of how a device error, read carefully after
+> the fact, turned into a text gate.
 
 A sweep after the hotfix asked whether `fc_indirect` was alone. It measured
 this, at this commit:

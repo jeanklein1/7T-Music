@@ -75,6 +75,12 @@ not hypothetical: ONE_SURFACE-I U5 shrank a buffer in one room and left the
 other at its old size, the full battery was green, and every frame of the
 first native boot failed validation. THE PROBE IS THE ROW THAT RUNS.
 
+**ONE SLICE OF THAT CLASS IS NOW TEXT AFTER ALL** — binding_gen's S-8,
+which compares a WGSL declaration's fixed array EXTENT to its C++ seat's
+element COUNT and would have caught that exact bug by name. It closes
+fixed extents and nothing wider: a wrong size behind a runtime-sized
+`array<T>` is still the device's to find.
+
 | gate | the invocation | what it asserts | verdict |
 | --- | --- | --- | --- |
 | G-LAW 1 | `sh tools/gates/glaw1/run.sh` | the real cartridge TU compiles against the pinned emdawnwebgpu surface | GREEN |
@@ -83,7 +89,7 @@ first native boot failed validation. THE PROBE IS THE ROW THAT RUNS.
 | TU gate | `python3 tools/gates/console_gate/run.py` | two tiers, each named in its own verdict line: CARTRIDGE — `cartridge.hpp` against the pinned emdawnwebgpu surface; CONSOLE — `console.hpp` and `the_board.cpp` against `third_party/dawn_native_headers`. Native TUs, zero diagnostics | PASS |
 | score census | `python3 tools/gates/score/run.py` | roster ↔ frame-spine bijection | GREEN |
 | WGSL gate | `python3 tools/wgsl_gate.py` | naga parses, scopes and validates the raw module | PASS |
-| binding surface | `python3 tools/binding_gen.py --check` | schema ↔ tree ↔ emitters agree; S-6 also wants a clean tree at the pushed tip | PASS |
+| binding surface | `python3 tools/binding_gen.py --check` | schema ↔ tree ↔ emitters agree; **S-8 holds every fixed WGSL array extent to its C++ seat's element count** (the one static half of the device gate's class); S-6 also wants a clean tree at the pushed tip | PASS |
 | organ gap | `python3 tools/organ_gap.py --gate` | no graduated pair kept a surviving runtime reader | PASS |
 | organ ledger | `python3 tools/organ_ledger.py --check` | every enrolled dial's field is named by a declared reader | PASS |
 | mirror census | `python3 tools/mirror_census.py` | the C++↔WGSL mirror and the binding idioms hold | GREEN |

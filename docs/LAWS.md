@@ -1216,6 +1216,23 @@ and could not draw.
 40-byte mapped range in the meter's callback — a second live defect in the
 same buffer, one file over, which the battery also could not see.
 
+**AND PART OF THE CLASS TURNED OUT TO BE TEXT AFTER ALL** (ONE_SURFACE-II
+U4). The measurement that closed the hotfix round found why nine gates
+missed it: `mirror_census` held the schema against the shader — at
+`2905ed68` both said 15, in perfect agreement and both wrong — while
+`binding_gen` held the seat's size expression against the C++. Each held
+one half of the fact and nothing held the pair. The missing comparison,
+WGSL EXTENT against C++ COUNT, is static, and `binding_gen`'s S-8 makes
+it now. Its injection prints the device's own sentence in arithmetic:
+`fc_indirect: WGSL extent 15 x 4 B = 60 B vs C++ 40 B`.
+
+That does not soften this law, it sharpens it. **A text gate can close a
+slice of the class as soon as someone names the slice** — and the way the
+slice got named was a device error, read carefully, after the fact. What
+S-8 cannot reach stays exactly where this law puts it: a wrong size behind
+a runtime-sized `array<T>`, a layout the pipeline rejects, a copy that
+overruns, an index past the end of a map. Those are the probe's.
+
 ## THE PERSISTENCE LADDER (relocated ONE_WORLD-II U0, 2026-09-01)
 
 Every parameter stands on one rung, and the rung says who takes it back and

@@ -2020,6 +2020,199 @@ def check(args):
     if not ok:
         problems.append("S-7 unresolved expression identifier(s)")
 
+    # ─── S-8 (ONE_SURFACE-II U4): THE EXTENT WITNESS ────────────────
+    #
+    #     COMMISSIONED AT THE ONE_SURFACE-II UNBLOCK RIDER, after the
+    #     hotfix round measured the hole and did not close it. Here is
+    #     the hole, exactly:
+    #
+    #       ONE_SURFACE-I U5 shrank the frustum arg buffers to 40 bytes
+    #       in state.hpp and left world.wgsl declaring
+    #       `fc_indirect: array<atomic<u32>, 15>` — 60 bytes, and that
+    #       literal is what Dawn computes the pipeline's minimum binding
+    #       size from. Every frame of the first native boot failed
+    #       validation. NINE TEXT-READING GATES WERE GREEN.
+    #
+    #     They were green because each held one HALF of the fact and
+    #     nothing held the pair. mirror_census pins the SCHEMA's
+    #     store-type spelling against the WGSL declaration — at
+    #     2905ed68 both said 15, in perfect agreement and both wrong.
+    #     binding_gen pins the seat's size_expr against the C++ tree —
+    #     it said FC_ARGS_BYTES, which was correct C++ for 40 bytes.
+    #     The comparison nobody made is the WGSL EXTENT against the C++
+    #     COUNT, and it is STATIC: a fact about two files.
+    #
+    #     THE REDUCTION THAT MAKES IT EXACT RATHER THAN HEURISTIC. A
+    #     seat's size is BYTES and a declaration's extent is ELEMENTS,
+    #     so the naive form needs WGSL struct layout arithmetic. It does
+    #     not, in either case that occurs:
+    #
+    #       (A) the C++ spells `<count> * sizeof(GPUFoo)` and GPUFoo is
+    #           the declared C++ mirror of the WGSL `Foo` — mirror_census
+    #           M5-0 already resolves those twins and proves them
+    #           byte-identical, so the byte equation DIVIDES THROUGH and
+    #           reduces to `count == N`, with no layout arithmetic at
+    #           all. The twin is checked here by name (the tree's
+    #           standing convention: Foo <-> GPUFoo), so a size_expr that
+    #           multiplies a count by the WRONG struct is not silently
+    #           accepted.
+    #
+    #       (B) the element is a scalar or a vector of 4-byte scalars,
+    #           whose byte size is known without layout rules, so the
+    #           equation resolves numerically: bytes == N * elem_bytes.
+    #
+    #     ANYTHING ELSE IS REPORTED AS NOT COVERED, BY NAME. A witness
+    #     that silently skips what it cannot judge is how the hole got
+    #     here in the first place; this one says what it did not check.
+    #
+    #     PROVEN TO BITE (Amendment A), by the injection the commission
+    #     named: setting DECLS['fc_indirect']['store_type'] back to
+    #     `array<atomic<u32>, 15>` — 2905ed68's own value, against
+    #     today's FC_ARGS_BYTES — fails this witness with
+    #     "fc_indirect: WGSL extent 15 vs C++ count 10". Reverted.
+    #
+    #     WHAT IT DOES NOT CLOSE, stated so nobody mistakes its scope:
+    #     only fixed extents. `array<f32>` and friends are runtime-sized
+    #     and have no extent to compare; a wrong SIZE behind one of those
+    #     is still the device's to find, which is what --probe is for.
+    S8_SCALAR_BYTES = {"f32": 4, "u32": 4, "i32": 4, "atomic<u32>": 4,
+                       "atomic<i32>": 4,
+                       "float": 4, "uint32_t": 4, "int32_t": 4,
+                       "unsigned": 4, "int": 4}
+
+    def s8_elem_bytes(t):
+        """WGSL element size, ONLY where it needs no layout rules."""
+        t = t.strip()
+        if t in S8_SCALAR_BYTES:
+            return S8_SCALAR_BYTES[t]
+        m = re.fullmatch(r"vec([234])<(\w+)>", t)
+        if m and m.group(2) in S8_SCALAR_BYTES:
+            return int(m.group(1)) * S8_SCALAR_BYTES[m.group(2)]
+        return None
+
+    # The C++ constants, by VALUE, over the same include closure S-7
+    # walks for names. Fixpoint because a constexpr may name another.
+    s8_rhs = {}
+    for _pth in [STATE_HPP] + [os.path.join(BL.REPO, "src", r_)
+                               for r_ in sorted(seen_inc)]:
+        if not os.path.exists(_pth):
+            continue
+        _t = BL.strip_cpp_comments(BL.read_raw(_pth))
+        for dm in re.finditer(
+                r"\b(?:static\s+)?(?:inline\s+)?constexpr\s+[\w:]+\s+(\w+)\s*=\s*([^;]+);",
+                _t):
+            s8_rhs.setdefault(dm.group(1), dm.group(2))
+    s8_val = {}
+    for _ in range(12):
+        moved = False
+        for nm_, rhs_ in s8_rhs.items():
+            if nm_ in s8_val:
+                continue
+            e_ = rhs_.replace("Dim::", "").replace("f", "f")
+            e_ = re.sub(r"\(\s*float\s*\)", " ", e_)
+            e_ = re.sub(r"\bsizeof\s*\(\s*([\w:]+)\s*\)",
+                        lambda m: str(S8_SCALAR_BYTES.get(m.group(1), "?")), e_)
+            e_ = re.sub(r"(\d)[fFuU]\b", r"\1", e_)
+            e_ = re.sub(r"\b([A-Za-z_]\w*)\b",
+                        lambda m: str(s8_val[m.group(1)])
+                        if m.group(1) in s8_val else "?", e_)
+            if "?" in e_:
+                continue
+            try:
+                s8_val[nm_] = eval(e_, {"__builtins__": {}}, {})
+                moved = True
+            except Exception:
+                pass
+        if not moved:
+            break
+
+    def s8_resolve(expr):
+        """A size expression as (numeric_product, [symbolic sizeof types])."""
+        num, syms = 1.0, []
+        for fac in expr.split("*"):
+            fac = fac.strip()
+            m = re.fullmatch(r"sizeof\s*\(\s*([\w:]+)\s*\)", fac)
+            if m:
+                t = m.group(1)
+                if t in S8_SCALAR_BYTES:
+                    num *= S8_SCALAR_BYTES[t]
+                else:
+                    syms.append(t)
+                continue
+            f2 = re.sub(r"^Dim::", "", fac)
+            f2 = re.sub(r"(\d)[fFuU]\b", r"\1", f2)
+            if re.fullmatch(r"\d+", f2):
+                num *= int(f2)
+            elif f2 in s8_val:
+                num *= s8_val[f2]
+            else:
+                return None, None
+        return num, syms
+
+    s8_bad, s8_covered, s8_uncovered = [], [], []
+    for sym, d in sorted(schema.DECLS.items()):
+        m = re.fullmatch(r"array<(.+),\s*(\d+)\s*>", d["store_type"].strip())
+        if not m:
+            continue                      # no fixed extent — nothing to compare
+        elem, N = m.group(1).strip(), int(m.group(2))
+        seats_ = [(g, i, e) for g, row in schema.GROUPS.items()
+                  for i, e in row["entries"].items() if e["decl"] == sym]
+        if not seats_:
+            s8_uncovered.append("%s: no group entry backs it" % sym)
+            continue
+        for gname, idx, e in seats_:
+            expr = e.get("size_expr")
+            if not expr:
+                s8_uncovered.append("%s@%s[%d]: entry states no size"
+                                    % (sym, gname, idx))
+                continue
+            num, syms = s8_resolve(expr)
+            if num is None:
+                s8_uncovered.append("%s@%s[%d]: %r has an unresolvable factor"
+                                    % (sym, gname, idx, expr))
+                continue
+            if len(syms) == 1:
+                # (A) count * sizeof(twin) — divides through
+                twin = syms[0]
+                if elem not in twin:
+                    s8_bad.append("%s@%s[%d]: element %s but the size multiplies "
+                                  "sizeof(%s) — not its declared C++ twin"
+                                  % (sym, gname, idx, elem, twin))
+                    continue
+                if int(num) != N:
+                    s8_bad.append("%s@%s[%d]: WGSL extent %d vs C++ count %d "
+                                  "(%s)" % (sym, gname, idx, N, int(num), expr))
+                else:
+                    s8_covered.append("%s %d=%s" % (sym, N, twin))
+            elif not syms:
+                # (B) all numeric — the element must be layout-free
+                eb = s8_elem_bytes(elem)
+                if eb is None:
+                    s8_uncovered.append("%s@%s[%d]: element %s needs WGSL layout "
+                                        "rules and the size names no twin"
+                                        % (sym, gname, idx, elem))
+                    continue
+                if int(num) != N * eb:
+                    s8_bad.append("%s@%s[%d]: WGSL extent %d x %d B = %d B vs "
+                                  "C++ %d B (%s)"
+                                  % (sym, gname, idx, N, eb, N * eb,
+                                     int(num), expr))
+                else:
+                    s8_covered.append("%s %dx%dB" % (sym, N, eb))
+            else:
+                s8_uncovered.append("%s@%s[%d]: %r multiplies %d struct sizes"
+                                    % (sym, gname, idx, expr, len(syms)))
+    ok = not s8_bad
+    print("  [%s] S-8  every FIXED WGSL array extent equals its C++ seat's "
+          "element count (%d checked: %s)%s%s"
+          % ("PASS" if ok else "FAIL", len(s8_covered),
+             ", ".join(sorted(set(s8_covered))),
+             ("; NOT COVERED: " + "; ".join(sorted(set(s8_uncovered))))
+             if s8_uncovered else "; nothing uncovered",
+             "" if ok else " — " + "; ".join(s8_bad)))
+    if not ok:
+        problems.append("S-8 extent/count mismatch")
+
     # ─── P-seq (U3): encode-order. Per pass span (compute AND render),
     #     simulate the encoder: walk the span in text order, inlining
     #     called helpers with per-call argument substitution and the

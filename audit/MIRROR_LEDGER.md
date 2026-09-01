@@ -15,15 +15,15 @@ carry those facts, or leave them in place and patch around them.
 
 | field | value |
 |---|---|
-| source commit | `5fe8ea5f332896c2af2928d11dc531dfa8737784` |
-| | ONE_SURFACE-II: the ledgers' stamps settle after U1 and U2 |
+| source commit | `8b792ad08513ce5c42e234c030f1062e8fba9e90` |
+| | ONE_SURFACE-II U3: the sweep, and the census tool comes back from the dead with an answer |
 | `src/cartridges/the_board/realization/binding_registry.hpp` | `sha256:351eccaedd6902900df3b13a57c7a818ff10cf4280debbfb9034b0ffabcfcc73` |
 | `src/cartridges/the_board/realization/world.wgsl` | `sha256:43f720db613b6c5f37c058fb5d3369b55c1219d968e0febeaf7cb7bfcb40ecef` |
 | `src/cartridges/the_board/realization/state.hpp` | `sha256:3dfc4cf35f8c3411c01a94827ed703480cf483ee7b52a04f4e15ad3b0965b622` |
 | `src/cartridges/the_board/realization/binding_surface.gen.inc` | `sha256:10e301844bd75099919b6e0aa5b0fde9d3e723f0c59b11072bc821a4ca97e682` |
 | `src/cartridges/the_board/realization/renderer.hpp` | `sha256:06607597f8dc50c80f2dd99c042ba8b1d12f3caaec25640cc9e65f6755fbe84a` |
 | `tools/binding_ledger.py` | `sha256:a3c75bab894774eb0302686e5efd52275b280e14abfcf4e8753b28d5b5086692` |
-| `audit/BINDING_LEDGER.md` | `sha256:574947cada1b2dab34a008dec6230f61b4afc057eca6bd25daa0cca374732771` |
+| `audit/BINDING_LEDGER.md` | `sha256:c7202c3c4b0e96e90260856021da96527baa4499d4aa20da19cff5ccc6c9908a` |
 
 `tools/binding_ledger.py` is an input because its parsers are IMPORTED,
 not copied — one parse, two artifacts, no drift between instruments.

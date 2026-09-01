@@ -14,8 +14,8 @@ merge rows the API charges separately.
 | field | value |
 |---|---|
 | demo column censused | `full` |
-| source commit | `70ad302139fd6380ba7a6d1ac3e8b83ebbef2600` |
-| | ONE_SURFACE-II U2: the GOL family falls, and it is a TAIL CUT |
+| source commit | `8b792ad08513ce5c42e234c030f1062e8fba9e90` |
+| | ONE_SURFACE-II U3: the sweep, and the census tool comes back from the dead with an answer |
 | `src/cartridges/the_board/realization/state.hpp` | `sha256:3dfc4cf35f8c3411c01a94827ed703480cf483ee7b52a04f4e15ad3b0965b622` |
 | `src/cartridges/the_board/realization/binding_surface.gen.inc` | `sha256:10e301844bd75099919b6e0aa5b0fde9d3e723f0c59b11072bc821a4ca97e682` |
 | `src/cartridges/the_board/realization/binding_registry.hpp` | `sha256:351eccaedd6902900df3b13a57c7a818ff10cf4280debbfb9034b0ffabcfcc73` |
