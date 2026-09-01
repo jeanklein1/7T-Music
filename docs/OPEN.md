@@ -435,6 +435,58 @@ Three things the first runs settle, in order:
    the switch is a dead letter and should be retired with a tombstone
    saying so, rather than left as an option nobody can take.
 
+### A SECOND, STATIC HALF OF THE SAME CLASS (commission — not CC's to take)
+
+A sweep after the hotfix asked whether `fc_indirect` was alone. It measured
+this, at this commit:
+
+**Six declarations in `world.wgsl` carry a FIXED array extent** —
+`agent_state` and `render_agents` (`array<AgentState, 32>`), `ring_xforms`
+and `render_ring_xforms` (`array<RibbonRingTransform, 400>`),
+`ribbon_spine` (`array<vec4<f32>, 402>`), and `fc_indirect`
+(`array<atomic<u32>, 10>`). **Every one of them agrees with the C++
+constant behind its seat**: `Dim::MAX_AGENTS` is 32,
+`Dim::RIBBON_MAX_RINGS` is 400, `Dim::RIBBON_SPINE_SLOTS` is 402, and
+`FC_ARGS_SLOTS` is 10. The tree is clean; `fc_indirect` was the only one
+that had drifted.
+
+**But nothing checks that, and here is exactly why it slipped.** Two gates
+each hold one half and neither holds the pair:
+
+- `mirror_census` pins the SCHEMA's store-type spelling against the WGSL
+  declaration. At `2905ed68` both said `array<atomic<u32>, 15>` — in
+  perfect agreement, and both wrong.
+- `binding_gen --check` pins the seat's `size_expr` against the C++ tree.
+  It said `FC_ARGS_BYTES`, which was correct C++ for 40 bytes.
+
+So the schema agreed with the shader, the C++ agreed with itself, and the
+one comparison nobody makes — the WGSL EXTENT against the C++ COUNT — was
+the whole defect. It is a static fact about two files, and a text-reading
+gate can hold it.
+
+**The shape it should take**, if it is ruled in: a witness inside
+`binding_gen --check` (which already owns schema-vs-tree agreement, so this
+is a row in an existing gate rather than a tenth gate). For every
+declaration whose store type is `array<T, N>` with N literal, resolve the
+backing seat's `size_expr` and assert it equals N elements. The reduction
+that makes it exact rather than heuristic: where the C++ spells
+`<count> * sizeof(GPUFoo)` and `GPUFoo` is the declared C++ mirror of the
+WGSL `Foo`, `mirror_census` already proves those two are byte-identical, so
+the byte equation reduces to `count == N` with no WGSL layout arithmetic at
+all. Scalar and vector elements resolve numerically. All six declarations
+above are inside that reduction.
+
+**And it can be proven to bite before it is trusted** (Amendment A), with
+no injection to invent: run it against `2905ed68`, where the schema said 15
+and `FC_ARGS_BYTES` said 40. It must go red there and green here.
+
+**Left as a commission rather than built.** Adding a witness changes the
+battery, and the battery is not CC's to change on its own reading — the
+triangle puts rulings with Claude. The measurement above is the whole of
+what CC owes the decision: the gap is named, its two halves are named, the
+tree is proven clean at this commit, the implementation shape is worked
+out, and the injection that would prove it exists in history.
+
 **The headless half of the commission is NOT built, and deliberately.**
 §3 asked for a headless boot; this console boots GLFW and configures a real
 window surface, and a headless path would be a second boot path through the
