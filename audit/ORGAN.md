@@ -376,9 +376,9 @@ reader — the class of defect this witness exists to catch.
   CANVAS_TABLE         definition=1 seed=1 comment=1              
   DRIVER_TABLE         definition=1 seed=1 comment=1              
   INDOOR_TABLE         (no mention anywhere)                      
-  MOOD_TABLE           definition=1 seed=7 static_assert=24 comment=30 
+  MOOD_TABLE           comment=25                                 
   ORB_CONSOLE          definition=1 seed=1 comment=2              
-  ORB_MOOD_TABLE       definition=1 static_assert=27 comment=8    
+  ORB_MOOD_TABLE       comment=7                                  
   PANEL_TABLE          definition=1 seed=1 static_assert=6 comment=2 
   PAWN_AURA_DEFAULT    definition=1 seed=1 static_assert=1 comment=3 
   RIBBON_SPAWN_TABLE   definition=1 seed=1 static_assert=2        

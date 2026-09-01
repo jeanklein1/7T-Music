@@ -5,18 +5,18 @@ Read-only: a census of the program's pass and submit surface.
 
 ## Provenance
 
-Last commit touching any scanned file: `a8d151cedd1d45dca6efd2900d2a4c66ae1fc87b`
-(ONE_WORLD-II U3: the theme engine falls, and the population panel is what is left)
+Last commit touching any scanned file: `b051763a4b95e69f9e222aade1ffac0b310774f3`
+(ONE_WORLD-II U4: the indoor organs fall, whole — and the light collapses to the sun)
 
 | file scanned | sha256 |
 |---|---|
-| `src/cartridges/the_board/realization/render_passes.hpp` | `sha256:5d876a9eaef2891557ae59b1898c4e9e70df7ba8338586c7869de6f97e2d1069` |
+| `src/cartridges/the_board/realization/render_passes.hpp` | `sha256:1a512e928a9e65050b872e502781c697ff09821aae058e61841e23e8d233a9b1` |
 | `src/cartridges/the_board/realization/renderer.hpp` | `sha256:777971a3c789db740b763dd37b7acb9e2d3bd4c33c255fbef4fc3f15dfa7797d` |
-| `src/cartridges/the_board/cartridge.hpp` | `sha256:1938d8fe1957fe1cee3c997928b6d94422d2db4d2eda51aa497e48dfe8c096fd` |
-| `src/cartridges/the_board/surface/patch_system.hpp` | `sha256:8fe557aa3e3458c14518e1aba39c57c90db8a506dfc5da4351254657e701c755` |
-| `src/cartridges/the_board/bodies/gol_zones.hpp` | `sha256:b78733e8baf14cd49984d3168bf2ce87c40a541ace369b84fb995ecdd08e8c48` |
+| `src/cartridges/the_board/cartridge.hpp` | `sha256:6761a11d2d77d8ee4e603f17bab94c47373bf2519dee207ed4a702c288ed7cd1` |
+| `src/cartridges/the_board/surface/patch_system.hpp` | `sha256:186b027ae6869c5c996aa2d21ad426eeadb6c72c92610f2c4fbd920059b6d05d` |
+| `src/cartridges/the_board/bodies/gol_zones.hpp` | `sha256:bcc79598a28c23d87d840eeaa8a56def087567fcaefbba257fc687019ab101d8` |
 | `src/cartridges/the_board/bodies/pawn.hpp` | `sha256:bac566779a35e46048585b51426d4bfe7b971093ea5e38e9b0219150774b3fbf` |
-| `src/cartridges/the_board/bodies/orbs.hpp` | `sha256:a3bde8f506af81f67844572f51e88f2f0cb9336b9cfbddbc946883faef8d4a0c` |
+| `src/cartridges/the_board/bodies/orbs.hpp` | `sha256:2b98e51ba1ee455a56608dee6d57e931d7b0269901f4da5aa4b7c803fea36d40` |
 | `src/the_board.cpp` | `sha256:98f6d39ea0c27c5c11c339b091492fa6a58cdfdd8f284f418702317d25b46f4c` |
 | `src/console/console.hpp` | `sha256:de4577d58c8e6e1d73c3e814db79aa08b99c895190ea717f2fed06047cf17d29` |
 
@@ -36,16 +36,16 @@ in `console.hpp`.
 | 2 | Frustum Cull Patches | compute | `dispatch_frustum_cull` | `src/cartridges/the_board/realization/render_passes.hpp:220` | — | — | — |
 | 3 | Shadow Pass | render | `render_shadow_pass` | `src/cartridges/the_board/realization/render_passes.hpp:262` | (none: depth-only) | Clear/Store, readOnly (absent) → `c->gpuState_.shadow_map_view()` | (no stencil aspect) |
 | 4 | Rasterized Scene | render | `render_main_pass` | `src/cartridges/the_board/realization/render_passes.hpp:534` | Clear/Store or Discard → `backbuffer or msaaColor` resolve → `backbuffer` | Clear/Discard, readOnly (absent) → `depth` | (no stencil aspect) |
-| 5 | Entity Mesh Gen | compute | `phase_entity_mesh_gen` | `src/cartridges/the_board/cartridge.hpp:1959` | — | — | — |
+| 5 | Entity Mesh Gen | compute | `phase_entity_mesh_gen` | `src/cartridges/the_board/cartridge.hpp:1942` | — | — | — |
 | 6 | Patch Bake (fused) | compute | `generate_patch_batch` | `src/cartridges/the_board/surface/patch_system.hpp:180` | — | — | — |
-| 7 | Zone Derive Params | compute | `flush_zone_derive_requests` | `src/cartridges/the_board/bodies/gol_zones.hpp:823` | — | — | — |
-| 8 | GoL Zone Sync | compute | `dispatch_zone_sync` | `src/cartridges/the_board/bodies/gol_zones.hpp:911` | — | — | — |
-| 9 | GoL Zone Evolve | compute | `dispatch_zone_evolve` | `src/cartridges/the_board/bodies/gol_zones.hpp:924` | — | — | — |
+| 7 | Zone Derive Params | compute | `flush_zone_derive_requests` | `src/cartridges/the_board/bodies/gol_zones.hpp:822` | — | — | — |
+| 8 | GoL Zone Sync | compute | `dispatch_zone_sync` | `src/cartridges/the_board/bodies/gol_zones.hpp:910` | — | — | — |
+| 9 | GoL Zone Evolve | compute | `dispatch_zone_evolve` | `src/cartridges/the_board/bodies/gol_zones.hpp:923` | — | — | — |
 | 10 | Pawn Aura | compute | `dispatch_pawn_aura` | `src/cartridges/the_board/bodies/pawn.hpp:168` | — | — | — |
-| 11 | Orb Init | compute | `dispatch_orb_init` | `src/cartridges/the_board/bodies/orbs.hpp:744` | — | — | — |
-| 12 | Orb Recolor | compute | `dispatch_orb_recolor` | `src/cartridges/the_board/bodies/orbs.hpp:765` | — | — | — |
-| 13 | Orb Copy Prev | compute | `dispatch_orb_copy_prev` | `src/cartridges/the_board/bodies/orbs.hpp:780` | — | — | — |
-| 14 | Orb Dynamics | compute | `dispatch_orb_dynamics` | `src/cartridges/the_board/bodies/orbs.hpp:799` | — | — | — |
+| 11 | Orb Init | compute | `dispatch_orb_init` | `src/cartridges/the_board/bodies/orbs.hpp:743` | — | — | — |
+| 12 | Orb Recolor | compute | `dispatch_orb_recolor` | `src/cartridges/the_board/bodies/orbs.hpp:764` | — | — | — |
+| 13 | Orb Copy Prev | compute | `dispatch_orb_copy_prev` | `src/cartridges/the_board/bodies/orbs.hpp:779` | — | — | — |
+| 14 | Orb Dynamics | compute | `dispatch_orb_dynamics` | `src/cartridges/the_board/bodies/orbs.hpp:798` | — | — | — |
 
 14 passes: 2 render, 12 compute.
 
@@ -53,7 +53,7 @@ in `console.hpp`.
 
 | # | receiver | enclosing function | site |
 |---|---|---|---|
-| 1 | `queue.Submit` | `flush_zone_derive_requests` | `src/cartridges/the_board/bodies/gol_zones.hpp:840` |
+| 1 | `queue.Submit` | `flush_zone_derive_requests` | `src/cartridges/the_board/bodies/gol_zones.hpp:839` |
 | 2 | `app->queue.Submit` | `frame` | `src/the_board.cpp:337` |
 
 2 submit sites. The frame's one submit rides the pawn's
@@ -82,7 +82,7 @@ every landing.
 
 | # | label | enclosing function | site |
 |---|---|---|---|
-| 1 | `"flush_zone_derive_requests"` | `flush_zone_derive_requests` | `src/cartridges/the_board/bodies/gol_zones.hpp:816` |
+| 1 | `"flush_zone_derive_requests"` | `flush_zone_derive_requests` | `src/cartridges/the_board/bodies/gol_zones.hpp:815` |
 | 2 | `"frame"` | `frame` | `src/the_board.cpp:328` |
 
 ## §3 — the swapchain reconfigure trigger

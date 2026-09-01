@@ -1,7 +1,6 @@
 #pragma once
 #include <cstdint>
 #include "cartridges/the_board/realization/state.hpp"                    // Dim::*, GPURibbonState, wgpu
-#include "cartridges/the_board/contracts/mood_constants.hpp"   // MOOD_COUNT (sizes the mood gate)
 #include "cartridges/the_board/contracts/wgpu_fwd.hpp"   // wgpu handle fwds (lockstep insurance)
 #include "cartridges/the_board/contracts/entity_types.hpp"     // RibbonSelection/RibbonPlacement (the boundary DTOs) + queue types
 #include "cartridges/the_board/contracts/control_panel.hpp"    // FIELD_SLACK/K/FMAX + the two emitter mutes — the one home
@@ -76,7 +75,7 @@ struct RibbonDeps {
     const PointState&    point_;    // the point's house (position mirror — nearest-active adoption)
     const InputState&    inputState_;
     const WorldState&    world_state_;
-    const MoodState&     mood_state_;
+    const SkyState&     sky_state_;
     const VisualCanvas&  visual_canvas_;
     const TargetBinding& ribbon_amp_lat_dst_;
     const TargetBinding& ribbon_amp_vert_dst_;
@@ -1075,7 +1074,7 @@ inline void teardown_ribbon(RibbonState& rs, RibbonDeps* c, wgpu::Queue& queue) 
 
 // ─── Finite-mode release (owner verb) ─
 // deactivate ribbons in finite mode. ORDER (O-3): must run AFTER
-// apply_mood set mood_state_.active.
+// apply_mood set sky_state_.active.
 inline void release_finite_ribbons(RibbonState& rs, RibbonDeps* c, wgpu::Queue& queue) {
     if (c->world_state_.finite_mode && rs.active_count > 0) {
         for (uint32_t i = 0; i < MAX_RIBBON_INSTANCES; i++) {

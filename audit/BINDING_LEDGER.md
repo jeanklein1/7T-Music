@@ -14,13 +14,13 @@ merge rows the API charges separately.
 | field | value |
 |---|---|
 | demo column censused | `full` |
-| source commit | `74a744d8d6837bb69ac13425a50607fd557f26c7` |
-| | ONE_WORLD-I U5: the sweep — the proximity subsystem, and what the campaign left behind |
-| `src/cartridges/the_board/realization/state.hpp` | `sha256:2e8e9a14f941f34e43c81f71fedd941f4360b448feb00549e0dea51daa7e5513` |
+| source commit | `b051763a4b95e69f9e222aade1ffac0b310774f3` |
+| | ONE_WORLD-II U4: the indoor organs fall, whole — and the light collapses to the sun |
+| `src/cartridges/the_board/realization/state.hpp` | `sha256:2663b0b7b0601ee2e1325776af186dd80b1a87e8c7d4cc7d23f4e01040ec9737` |
 | `src/cartridges/the_board/realization/binding_surface.gen.inc` | `sha256:a11be1f7421b6771b20a3e8325a177a3e1070625e10af0959ade6663214f4397` |
 | `src/cartridges/the_board/realization/binding_registry.hpp` | `sha256:bd8c83ad2f09175a33a534682e7a888d147e357e256343e765a0e284ba11690f` |
 | `src/cartridges/the_board/realization/renderer.hpp` | `sha256:777971a3c789db740b763dd37b7acb9e2d3bd4c33c255fbef4fc3f15dfa7797d` |
-| `src/cartridges/the_board/realization/world.wgsl` | `sha256:d74a4f3b7e6b39917473209c1f5087d740969dba7361950066364ea9bbab581f` |
+| `src/cartridges/the_board/realization/world.wgsl` | `sha256:347c4b677f238ac968c2daa26f18362640e2703c53695016a2391fe024aae467` |
 
 
 BUDGET_0f's call-shape census reads further files, for INVOCATION SITES
@@ -29,14 +29,13 @@ only — `draw_orbs` is called from `bodies/orbs.hpp`, not from
 
 | caller file scanned | sha256 |
 |---|---|
-| `src/cartridges/the_board/bodies/gol_zones.hpp` | `b78733e8baf14cd49984d3168bf2ce87c40a541ace369b84fb995ecdd08e8c48` |
-| `src/cartridges/the_board/bodies/orbs.hpp` | `a3bde8f506af81f67844572f51e88f2f0cb9336b9cfbddbc946883faef8d4a0c` |
+| `src/cartridges/the_board/bodies/gol_zones.hpp` | `bcc79598a28c23d87d840eeaa8a56def087567fcaefbba257fc687019ab101d8` |
+| `src/cartridges/the_board/bodies/orbs.hpp` | `2b98e51ba1ee455a56608dee6d57e931d7b0269901f4da5aa4b7c803fea36d40` |
 | `src/cartridges/the_board/bodies/pawn.hpp` | `bac566779a35e46048585b51426d4bfe7b971093ea5e38e9b0219150774b3fbf` |
-| `src/cartridges/the_board/cartridge.hpp` | `1938d8fe1957fe1cee3c997928b6d94422d2db4d2eda51aa497e48dfe8c096fd` |
-| `src/cartridges/the_board/contracts/spine_state.hpp` | `d532c52784ea79d7d5d0a827242451f95a2399549fbb3855aba4235543fba5d3` |
-| `src/cartridges/the_board/direction/mood.hpp` | `711bf392b64c1d329b538db36f560b804aaf841a85d2aba5451c889d0dd1dc7c` |
-| `src/cartridges/the_board/realization/render_passes.hpp` | `5d876a9eaef2891557ae59b1898c4e9e70df7ba8338586c7869de6f97e2d1069` |
-| `src/cartridges/the_board/surface/patch_system.hpp` | `8fe557aa3e3458c14518e1aba39c57c90db8a506dfc5da4351254657e701c755` |
+| `src/cartridges/the_board/cartridge.hpp` | `6761a11d2d77d8ee4e603f17bab94c47373bf2519dee207ed4a702c288ed7cd1` |
+| `src/cartridges/the_board/direction/mood.hpp` | `f20eff811a897bc4be2b8fdecc339c7b50b1f406b6ad56f52537a97462924723` |
+| `src/cartridges/the_board/realization/render_passes.hpp` | `1a512e928a9e65050b872e502781c697ff09821aae058e61841e23e8d233a9b1` |
+| `src/cartridges/the_board/surface/patch_system.hpp` | `186b027ae6869c5c996aa2d21ad426eeadb6c72c92610f2c4fbd920059b6d05d` |
 
 The source commit is the last commit touching any of the four primary
 inputs — not `HEAD`, which moves when this file is committed. The content
@@ -102,7 +101,7 @@ matters only where a binding is a window onto a shared buffer.
 | `W2-3` | **PASS** | positive control: patch_terrain_vs reads patch_instances[actual_id] as other(vertex attribute @location(0)) (direct-path sequential joined with the B3 vertex-attribute input) |
 | `W3-0` | **PASS** | renderer.hpp: 29 Draw*/DispatchWorkgroups call sites, all inside a parsed function |
 | `W3-1` | **PASS** | 32 pipelines: 31 with exactly one call shape, 0 with several (all listed), 1 never invoked — Patch Terrain (instanced) |
-| `W3-3` | **PASS** | every render pipeline's instanceCount resolves to a literal, a named constant or a call-site expression — none is left as a parameter name (8 caller files scanned) |
+| `W3-3` | **PASS** | every render pipeline's instanceCount resolves to a literal, a named constant or a call-site expression — none is left as a parameter name (7 caller files scanned) |
 | `W3-2` | **PASS** | @workgroup_size(1) entry points: 5 (ribbon_head, update_camera_vp, update_player_agent, update_sphere, zone_derive_params). Dispatches issuing ONE workgroup: 4 (ribbon_head, update_camera_vp, update_player_agent, update_sphere). The 1 that differ: zone_derive_params (wg1=True, single-dispatch=False). |
 | `W4-1` | **PASS** | 12 trigger tokens, emitted verbatim into the artifact: time-cost, FXC, law-ref, measured, witness, hangs, compile-time, landed-at, regressed, budget, per-stage, slot-cap |
 | `W4-3` | **PASS** | no trigger is overfitted to the control — site counts: time-cost 6 (sole trigger at 0), FXC 19 (sole trigger at 4), law-ref 57 (sole trigger at 25), measured 15 (sole trigger at 2), witness 29 (sole trigger at 7), hangs 0 (sole trigger at 0), compile-time 15 (sole trigger at 0), landed-at 0 (sole trigger at 0), regressed 0 (sole trigger at 0), budget 14 (sole trigger at 0), per-stage 5 (sole trigger at 0), slot-cap 3 (sole trigger at 0) |
@@ -899,14 +898,14 @@ one column that can.
 | `shadowPatchTerrainPipeline_` | pipeline | `src/cartridges/the_board/realization/renderer.hpp` | 1837 | `measured` | A:proximity |
 | `shadowPawnPipeline_` | pipeline | `src/cartridges/the_board/realization/renderer.hpp` | 1840 | `measured` | A:proximity |
 | `(file banner)` | file | `src/cartridges/the_board/realization/state.hpp` | 1 | `law-ref` | banner |
-| `Frame R Layout` | layout | `src/cartridges/the_board/realization/state.hpp` | 4338 | `law-ref` | A:proximity, B:named |
-| `Agents State Layout entries[7]` | layout entry | `src/cartridges/the_board/realization/state.hpp` | 4428 | `law-ref` | A:proximity |
-| `Cull State Layout entries[4]` | layout entry | `src/cartridges/the_board/realization/state.hpp` | 4540 | `witness` | A:proximity |
-| `Frame K State Layout entries[5]` | layout entry | `src/cartridges/the_board/realization/state.hpp` | 4587 | `law-ref` | A:proximity |
-| `Orbs A State Layout entries[0]` | layout entry | `src/cartridges/the_board/realization/state.hpp` | 4638 | `law-ref` | A:proximity |
-| `Orbs A State Layout` | layout | `src/cartridges/the_board/realization/state.hpp` | 4651 | `law-ref` | A:proximity, B:named |
-| `Scene State Layout entries[5]` | layout entry | `src/cartridges/the_board/realization/state.hpp` | 4872 | `budget`, `per-stage`, `slot-cap` | A:proximity |
-| `Shadow State Layout entries[4]` | layout entry | `src/cartridges/the_board/realization/state.hpp` | 4967 | `budget`, `per-stage`, `slot-cap` | A:proximity |
+| `Frame R Layout` | layout | `src/cartridges/the_board/realization/state.hpp` | 4342 | `law-ref` | A:proximity, B:named |
+| `Agents State Layout entries[7]` | layout entry | `src/cartridges/the_board/realization/state.hpp` | 4432 | `law-ref` | A:proximity |
+| `Cull State Layout entries[4]` | layout entry | `src/cartridges/the_board/realization/state.hpp` | 4544 | `witness` | A:proximity |
+| `Frame K State Layout entries[5]` | layout entry | `src/cartridges/the_board/realization/state.hpp` | 4591 | `law-ref` | A:proximity |
+| `Orbs A State Layout entries[0]` | layout entry | `src/cartridges/the_board/realization/state.hpp` | 4642 | `law-ref` | A:proximity |
+| `Orbs A State Layout` | layout | `src/cartridges/the_board/realization/state.hpp` | 4655 | `law-ref` | A:proximity, B:named |
+| `Scene State Layout entries[5]` | layout entry | `src/cartridges/the_board/realization/state.hpp` | 4876 | `budget`, `per-stage`, `slot-cap` | A:proximity |
+| `Shadow State Layout entries[4]` | layout entry | `src/cartridges/the_board/realization/state.hpp` | 4971 | `budget`, `per-stage`, `slot-cap` | A:proximity |
 | `(file banner)` | file | `src/cartridges/the_board/realization/world.wgsl` | 1 | `FXC`, `budget`, `compile-time`, `law-ref`, `per-stage`, `witness` | banner |
 | `cell_address` | wgsl function | `src/cartridges/the_board/realization/world.wgsl` | 271 | `law-ref` | A:proximity, B:named |
 | `hash_property` | wgsl function | `src/cartridges/the_board/realization/world.wgsl` | 418 | `law-ref` | A:proximity, B:named |

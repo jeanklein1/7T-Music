@@ -1,7 +1,6 @@
 #pragma once
 #include <iostream>   // ATTIC_ATRIUM — mood_def refuses an out-of-range id, loudly
 #include <cstdint>
-#include "cartridges/the_board/contracts/mood_constants.hpp"   // MOOD_COUNT (sizes MOOD_TABLE) + the Mood IDs
 
 // ─── spine_state.hpp (CONTRACT: the spine's organ types) ─────────
 //
@@ -9,7 +8,7 @@
 // can name the types without the complete Cartridge. The
 // INSTANCES (time_state_, player_) stay at the composition root;
 // the residency rulings (SEAM[spine:P8]) are unchanged — this is a
-// type move, not an ownership move. MoodState — the spine-resident
+// type move, not an ownership move. SkyState — the spine-resident
 // organ TYPE — lives here beside InputState, along with the
 // atmosphere vocabulary its early readers need (CeilingType /
 // MoodProfile / MOOD_TABLE).
@@ -99,15 +98,18 @@ struct InputState {
 };
 
 
-// ═══ MOOD STATE (the spine's mood organ; instance at the root) ════
-// Type at the contract tier; the instance is spine-resident (K4). The
-// boot value is authored at the composition root — no include-order
-// cable.
-struct MoodState {
-    // ── Currently active mood ──
-    uint32_t active = 0;  // authored at the composition root (Cartridge ctor) from DEMO.boot_mood
-
-    // ── Mood-applied values (authored by apply_mood, boot included) ──
+// ═══ SKY STATE (the world's drawn sky; instance at the root) ═════
+// Type at the contract tier; the instance is spine-resident (K4).
+//
+// IT WAS MoodState (ONE_WORLD-II U2), and its first field was the live
+// mood id — the fact the whole system turned on. The id is gone and a
+// struct named for it would be a lying name, which is the class of
+// defect this campaign exists to remove. What the struct actually holds,
+// and always held, is the world's DRAWN SKY: rung 3 of the persistence
+// ladder, the environment's instance that rung 5 composes over every
+// frame.
+struct SkyState {
+    // ── Drawn values (authored by apply_mood_lighting, boot included) ──
     // 0 is deliberate: if apply_mood ever failed to run, the sun goes out and
     // the failure is visible on frame 1 rather than hiding behind mood 0's
     // values. Fails loud.
@@ -131,123 +133,33 @@ struct MoodState {
     bool lights_dirty = true;
 };
 
-// ═══ MOOD SYSTEM (vocabulary) ════════════════════════════════════
+// ═══ THE MOOD SYSTEM STOOD HERE ═════════════════════════════════
 //
-// A MOOD IS A SHAPE WEARING AN ATMOSPHERE (ATMOS_1). The shape is what
-// a world IS — read by generation, torn down with the world, never
-// re-spoken. The atmosphere is what it WEARS — a DISTRIBUTION, not a
-// point: centres and spreads, and a light regime drawn from weighted
-// tiers. At every apply the world's seed draws ONE atmosphere from it
-// (draw_atmosphere, direction/mood.hpp); the same seed draws the same
-// sky, so the back portal's promise holds. The panel writes the
-// distribution, and the draw moves WITH the dial rather than re-rolling.
+// Six declared symbols, taken by ENUMERATION and not as a span
+// (Amendment B clause 3): WorldShape, shape_is_open, Regime,
+// REGIME_COUNT, Atmosphere, MoodProfile — each death-verified against
+// the whole tree before the cut, and the region re-read afterwards to
+// prove nothing else lived between the banners. With them: MOOD_TABLE,
+// MOOD_LIVE, mood_def, the five SHAPE_* rows, the seven ATMOS_* rows,
+// mood_carries_point, and seventeen column-drift and carry witnesses
+// whose subject was one of those.
 //
-// THE PERSISTENCE LADDER lives at docs/LAWS.md, "THE PERSISTENCE LADDER"
-// — six rungs, and the rung says who takes a parameter back and when.
-// It stood HERE, inside the mood vocabulary, until ONE_WORLD-II U0 moved
-// it out of a region that campaign deletes. Not restated here: one rule,
-// one home (L46). The rungs this file's own types stand on are named at
-// each type.
-
-
-
-
-// THE SHAPE — what a world IS. Structural by the eligibility rule
-// (stated beside MOOD_LIVE below): no field here may take a definition
-// target, because world GENERATION reads it, and rewriting it without
-// regenerating the world would mean nothing at best and disagree at
-// worst.
-// SIX INDOOR COLUMNS LEFT AT ONE_WORLD-II U4 — indoor, ceiling_type,
-// wall_height, terrain_amp_ceiling, light_scheme and palette. THE ROWS
-// BELOW ARE POSITIONAL BRACE-INIT WITH NO DESIGNATORS, so every one was
-// re-columned in this same commit: removing a middle column shifts every
-// later value one slot left, and `finite` and `indoor` are both bool.
-// The column-drift asserts that watched them left with them.
-struct WorldShape {
-    bool        finite;              // true = a walled world with a finite radius
-    uint32_t    finite_radius_min;   // min patch radius (when finite)
-    uint32_t    finite_radius_max;   // max patch radius (when finite)
-    bool        allow_gol_zones;     // GoL zone spawning + visualization
-    bool        allow_pawn_aura;     // toroidal spring grid tinting + height boost
-    bool        allow_frustum_cull;  // STATUS: LATENT[mood_cull_opt_out] — INERT.
-                                     // Reaches renderer_.set_frustum_cull_active
-                                     // and stops: the flag's reader was retired
-                                     // when the draw plan took every mood, so
-                                     // indoor terrain IS culled despite the two
-                                     // `false` rows below. See renderer.hpp for
-                                     // the full note and the cut (OPT_1 O0-f).
-};
-// The open field, by property. It asked two flags — neither walled nor
-// roofed — and the roof left at ONE_WORLD-II U4, so `finite` is the whole
-// question now: an open world is one without a wall.
-inline constexpr bool shape_is_open(const WorldShape& s) {
-    return !s.finite;
-}
-
-// A REGIME (ATMOS_2) — one of up to four weighted rows a world may be
-// drawn into, and a WHOLE SKY: every parameter the draw reads, except
-// the sun's bearing, has its centre and its spread here. Regimes make a
-// sky MULTIMODAL: a moonless-and-clear night and a moonlit-and-thick one
-// are two regimes, not two ends of one smear — and because the light and
-// the fog sit in one row, "the light according to this fog" is authored
-// by writing the row, not by coupling two tables. The weights are the
-// MOOD's (MoodProfile::regime_weight — REGIME_1): a regime row is what a
-// world wears; how often the mood draws it is what the mood is. Weight 0
-// there is an absent regime. A parameter the operator wants the same in
-// every regime is set
-// equal in every regime (a per-parameter "mood-wide" flag is priced in
-// OPEN.md, not built).
+// The clause exists because this region had already taken something
+// once: the PERSISTENCE LADDER sat between these banners and had to be
+// relocated out (U0) before the cut could be lawful. Two units later a
+// banner-anchored span in world.wgsl took veil_dither_noise and veil_t,
+// and one in orb_surface.hpp took ORB_TABLE. Three strikes, one law.
 //
-// A colour's spread is a ± on BRIGHTNESS over the whole triple, hue
-// kept (0.2 = ±20%): a darker or lighter draw of the same thing.
-struct Regime {
-    float sun_color[3];          // sun RGB — the centre
-    float sun_color_spread;      // ± brightness
-    float intensity;             // diffuse strength — the centre
-    float intensity_spread;      // ± around it, uniform
-    float ambient;               // ambient fill strength — the centre
-    float ambient_spread;        // ± around it, uniform
-    float fog_density;           // the REST the drivers' seam composes over — the centre
-    float fog_density_spread;    // ± around it, uniform
-    float fog_color[3];          // the rest colour — the centre
-    float fog_color_spread;      // ± brightness
-    float clear_color[3];        // sky or dark ceiling RGB — the centre
-    float clear_color_spread;    // ± brightness
-};
-inline constexpr uint32_t REGIME_COUNT = 4;
-
-// THE ATMOSPHERE — what a world WEARS, as a distribution. Every "spread"
-// is a uniform ± around its centre; spread 0 draws the centre EXACTLY
-// (no hash is taken), which is what keeps a carried row bit-identical
-// to the point value it replaced. A colour's spread is a ± on
-// brightness, and spread 0 multiplies by exactly 1.0f.
-struct Atmosphere {
-    // ─── The sun's bearing — the mood's, not a regime's ───────
-    float  sun_direction[3];        // the light vector's CENTRE — the direction light
-                                    // travels; its readers normalize it
-    float  sun_az_spread_deg;       // ± azimuth turn about +Y, degrees (180 = any bearing)
-    float  sun_el_spread_deg;       // ± elevation, degrees; the draw clamps elevation to [5°, 88°]
-    // ─── The regimes — the seed picks one; it is the whole sky ──
-    Regime regime[REGIME_COUNT];
-    // wall/ceiling colors: INDOOR_PALETTES (mood.hpp) is the authority —
-    // seed-picked per world; the profile never authored them in effect.
-};
-
-struct MoodProfile {
-    WorldShape shape;                      // what the world is
-    Atmosphere atmos;                      // what it wears
-    float      regime_weight[REGIME_COUNT];// how often it wears each regime (REGIME_1) —
-                                           // the world's roll; 0 = that regime is absent
-};
+// What survives the moods lives where it belongs now: the atmosphere is
+// ATMOS_LIVE (contracts/atmosphere_surface.hpp), the sky's per-world
+// instance is below, and the two facts WorldShape carried that outlive
+// it — the finite pin and its radius dials — are beside WorldState
+// (contracts/surface_services.hpp).
 
 // ═══ THE SHAPES ══════════════════════════════════════════════════
 // One authored home per shape. Three moods wear SHAPE_OPEN, and that
 // they are one stage is stated by this constant, not by three copies.
 //                                              fin    r_min r_max  zones aura  cull
-inline constexpr WorldShape SHAPE_OPEN       = { false, 2,    2,    true,  true, true  };
-inline constexpr WorldShape SHAPE_ROOM_FLAT  = { true,  1,    4,    true,  true, false };
-inline constexpr WorldShape SHAPE_ROOM_VAULT = { true,  1,    4,    true,  true, false };
-inline constexpr WorldShape SHAPE_FINITE     = { true,  1,    4,    true,  true, true  };
 // THE ATRIUM'S SHAPE (ATRIUM_1). Radius pinned (min == max, no roll): every
 // visitor's first room is the same room. No GoL — the floor is for the images
 // and the passers. Flat ceiling, the flat room's wall. The roster is the ARC
@@ -296,7 +208,6 @@ inline constexpr WorldShape SHAPE_FINITE     = { true,  1,    4,    true,  true,
 // bounds are asymmetric by their own formula, [-r*PE, (r+1)*PE] = [-50, 100],
 // so the pawn at the origin has 50 wu of room behind it and 100 ahead on each
 // axis — the wall behind, the arc ahead, and the long side is +X +Z.
-inline constexpr WorldShape SHAPE_ATRIUM     = { true,  1,    1,    false, true, false };
 
 // ═══ THE ATMOSPHERES ═════════════════════════════════════════════
 // The carried rows are the pre-ATMOS_1 MOOD_TABLE values exactly: one
@@ -311,12 +222,6 @@ inline constexpr WorldShape SHAPE_ATRIUM     = { true,  1,    1,    false, true,
 //                       fog density, density± · fog colour, colour± ·
 //                       clear colour, clear± }   — {} is absent
 //             weights: MOOD_TABLE, per mood
-inline constexpr Atmosphere ATMOS_SUNSET = {
-    { 0.94f, -0.29f, -0.13f }, 0.0f, 0.0f,
-    { { { 1.0f, 0.75f, 0.45f }, 0.0f, 0.90f, 0.0f, 0.20f, 0.0f,
-        0.0030f, 0.0f, { 0.85f, 0.78f, 0.72f }, 0.0f, { 0.95f, 0.70f, 0.45f }, 0.0f },   // today's sky, exactly
-      {}, {}, {} },
-};
 // THE TWO ROOMS STOPPED BEING ONE SKY. ATMOS_ROOM was one home for both
 // because both wore the same numbers; the desk gave them different ones,
 // so one home became two. Neither is a point row any more either — the
@@ -329,24 +234,6 @@ inline constexpr Atmosphere ATMOS_SUNSET = {
 // and already near the ceiling — and green and blue come about a third
 // of the way up to it, so the light DESATURATES rather than brightening.
 // The fog colours are untouched: the note was about the light.
-inline constexpr Atmosphere ATMOS_ROOM_FLAT = {
-    { 0.34f, -0.10f, 0.06f }, 14.0f, 0.0f,          // low, ~16° up; ±14° of bearing, no elevation spread
-    { { { 0.9843137f, 0.850f, 0.720f }, 0.0f, 1.15f, 0.0f, 0.11f, 0.0f,
-        0.0024f, 0.0019f, { 0.85882354f, 0.58431375f, 0.36078432f }, 0.0f, { 0.15f, 0.12f, 0.10f }, 0.0f },
-      {}, {}, {} },
-};
-inline constexpr Atmosphere ATMOS_ROOM_VAULT = {
-    { -0.15f, -0.67f, -0.37f }, 0.0f, 0.0f,         // steep, ~59° up; one bearing, no spread
-    { { { 0.91764706f, 0.780f, 0.650f }, 0.0f, 0.69f, 0.16f, 0.115f, 0.0f,
-        0.0012f, 0.0009f, { 0.99607843f, 0.7490196f, 0.54509807f }, 0.0f, { 0.15f, 0.12f, 0.10f }, 0.0f },
-      {}, {}, {} },
-};
-inline constexpr Atmosphere ATMOS_FINITE_DAY = {
-    { 0.56f, -0.82f, -0.11f }, 0.0f, 0.0f,
-    { { { 1.0f, 0.95f, 0.90f }, 0.0f, 0.80f, 0.0f, 0.25f, 0.0f,
-        0.0030f, 0.0f, { 0.85f, 0.78f, 0.72f }, 0.0f, { 0.85f, 0.78f, 0.72f }, 0.0f },
-      {}, {}, {} },
-};
 
 // ═══ THE TWO NEW SKIES (ATMOS_1, regimes at ATMOS_2) ═════════════
 // BOTH SKIES ARE TUNED NOW — no number below is a sketch any more; each
@@ -366,25 +253,6 @@ inline constexpr Atmosphere ATMOS_FINITE_DAY = {
 // centre at 0 it is the whole of what "how thick can this night get"
 // means, which is why halving the thickest night was halving this one
 // number (0.0022 -> 0.0011) and nothing else.
-inline constexpr Atmosphere ATMOS_NIGHT = {
-    { 0.38f, -0.44f, 0.15f }, 3.0f, 3.0f,          // moon centre ~47° up; ±3° of bearing; ±3°
-    { { { 0.76f, 0.80f, 0.79f }, 0.66f, 0.85f, 0.12f, 0.05f, 0.02f,          // THE DRAWN ROW — a hard moon over
-        0.0f,    0.0011f, { 0.11f, 0.12f, 0.15f }, 0.0f,  { 0.02f, 0.03f, 0.06f }, 0.25f },  // air that is clear by default
-      { { 0.72f, 0.80f, 1.00f }, 0.05f, 1.12f, 0.32f, 0.055f, 0.03f,         // moonlit & hazy — weight 0
-        0.0048f, 0.0010f, { 0.05f, 0.06f, 0.10f }, 0.15f, { 0.03f, 0.04f, 0.08f }, 0.15f },
-      { { 0.80f, 0.86f, 1.00f }, 0.05f, 0.55f, 0.10f, 0.14f, 0.03f,          // bright moon & clear — weight 0
-        0.0020f, 0.0005f, { 0.04f, 0.05f, 0.09f }, 0.10f, { 0.04f, 0.05f, 0.10f }, 0.10f },
-      { { 0.72f, 0.80f, 1.00f }, 0.05f, 1.81f, 0.00f, 0.135f, 0.02f,         // moonless & thick — weight 0
-        0.0168f, 0.0020f, { 0.09f, 0.09f, 0.12f }, 0.10f, { 0.02f, 0.02f, 0.04f }, 0.10f } },
-};
-inline constexpr Atmosphere ATMOS_NOON = {
-    { 0.24f, -0.88f, -0.20f }, 40.0f, 8.0f,        // sun centre ~70° up; ±40° bearing; ±8°
-    { { { 1.00f, 0.98f, 0.92f }, 0.05f, 1.15f, 0.10f, 0.19f, 0.03f,          // THE DRAWN ROW — clear
-        0.0004f, 0.0004f, { 0.78f, 0.86f, 0.97f }, 0.05f, { 0.45f, 0.68f, 0.95f }, 0.08f },
-      { { 1.00f, 0.98f, 0.92f }, 0.0f, 1.00f, 0.10f, 0.38f, 0.05f,           // hazy — weight 0
-        0.0036f, 0.0008f, { 0.86f, 0.90f, 0.96f }, 0.05f, { 0.62f, 0.76f, 0.94f }, 0.08f },
-      {}, {} },
-};
 
 // ═══ THE ATRIUM'S SKY (ATRIUM_1) ═════════════════════════════════
 // A POINT, ON PURPOSE — the atrium draws the same sky for everyone; Jean
@@ -411,12 +279,6 @@ inline constexpr Atmosphere ATMOS_NOON = {
 // THE FOG COLOUR STAYS AUTHORED. At density 0 nothing reads it, and a rest
 // of black would be a second, invisible decision to unpick the day a hand or
 // the music lifts the density off the floor.
-inline constexpr Atmosphere ATMOS_ATRIUM = {
-    { 0.34f, -0.10f, 0.06f }, 0.0f, 0.0f,           // the flat room's bearing; no spread, either axis
-    { { { 0.9843137f, 0.850f, 0.720f }, 0.0f, 0.575f, 0.0f, 0.055f, 0.0f,
-        0.0f, 0.0f, { 0.85882354f, 0.58431375f, 0.36078432f }, 0.0f, { 0.075f, 0.06f, 0.05f }, 0.0f },
-      {}, {}, {} },
-};
 
 // ═══ MOOD DEFINITIONS ════════════════════════════════════════════
 //
@@ -426,28 +288,11 @@ inline constexpr Atmosphere ATMOS_ATRIUM = {
 //   — correct for today but worth re-examining when finite_outdoor
 //   design lands.
 //                                      shape             atmosphere
-inline constexpr MoodProfile MOOD_TABLE[MOOD_COUNT] = {
-    //                                shape             atmosphere        regime weights (REGIME_1)
-    /* MOOD_OPEN_SUNSET        */  { SHAPE_OPEN,       ATMOS_SUNSET,     { 1.0f, 0.0f,  0.0f,  0.0f  } },
-    /* MOOD_INDOOR_FLAT        */  { SHAPE_ROOM_FLAT,  ATMOS_ROOM_FLAT,  { 1.0f, 0.0f,  0.0f,  0.0f  } },
-    /* MOOD_INDOOR_VAULT       */  { SHAPE_ROOM_VAULT, ATMOS_ROOM_VAULT, { 1.0f, 0.0f,  0.0f,  0.0f  } },
-    /* MOOD_FINITE_OUTDOOR     */  { SHAPE_FINITE,     ATMOS_FINITE_DAY, { 1.0f, 0.0f,  0.0f,  0.0f  } },
-    /* MOOD_OPEN_NIGHT         */  { SHAPE_OPEN,       ATMOS_NIGHT,      { 1.0f, 0.0f,  0.0f,  0.0f  } },
-    /* MOOD_OPEN_NOON          */  { SHAPE_OPEN,       ATMOS_NOON,       { 1.0f, 0.0f,  0.0f,  0.0f  } },
-    /* MOOD_ATRIUM             */  { SHAPE_ATRIUM,     ATMOS_ATRIUM,     { 1.0f, 0.0f,  0.0f,  0.0f  } },
-};
 
 // F-3: MOOD_TABLE rows are POSITIONAL in
 // mood-id order and carry no id field (the CUBE_POPULATIONS-style
 // per-row assert is impossible here) — so pin the ids AT the table:
 // drift in mood_constants.hpp fails HERE, where the rows live.
-static_assert(MOOD_OPEN_SUNSET  == 0 && MOOD_INDOOR_FLAT    == 1
-           && MOOD_INDOOR_VAULT == 2 && MOOD_FINITE_OUTDOOR == 3
-           && MOOD_OPEN_NIGHT   == 4 && MOOD_OPEN_NOON      == 5
-           && MOOD_ATRIUM       == 6
-           && MOOD_COUNT == 7,
-    "MOOD_TABLE rows are positional in mood-id order (F-3): "
-    "reorder the table together with the ids");
 
 // COLUMN WITNESSES. F-3 pins ROW order; these pin COLUMN offsets. The
 // shapes and the atmospheres are positionally brace-initialised, so a
@@ -457,66 +302,10 @@ static_assert(MOOD_OPEN_SUNSET  == 0 && MOOD_INDOOR_FLAT    == 1
 // two fields and take the tail probe (ATRIUM_5); allow_frustum_cull, the
 // field they displaced, keeps a probe of its own one step in, and no two
 // of the three agree at the same rows, so none names what another does.
-static_assert(MOOD_TABLE[MOOD_OPEN_SUNSET].shape.finite         == false, "WorldShape column drift: finite (head)");
-static_assert(MOOD_TABLE[MOOD_FINITE_OUTDOOR].shape.finite      == true,  "WorldShape column drift: finite (head)");
-static_assert(MOOD_TABLE[MOOD_OPEN_SUNSET].shape.allow_frustum_cull == true,  "WorldShape column drift: allow_frustum_cull (tail)");
-static_assert(MOOD_TABLE[MOOD_INDOOR_FLAT].shape.allow_frustum_cull == false, "WorldShape column drift: allow_frustum_cull (tail)");
-static_assert(MOOD_TABLE[MOOD_ATRIUM].shape.finite_radius_min == MOOD_TABLE[MOOD_ATRIUM].shape.finite_radius_max,
-    "WorldShape: the atrium's radius is pinned (ATRIUM_1)");
-static_assert(MOOD_TABLE[MOOD_OPEN_SUNSET].atmos.sun_direction[0]            == 0.94f,   "Atmosphere column drift: sun_direction (head)");
-static_assert(MOOD_TABLE[MOOD_OPEN_SUNSET].atmos.regime[0].sun_color[0]      == 1.0f,    "Atmosphere column drift: regime[0].sun_color");
-static_assert(MOOD_TABLE[MOOD_OPEN_SUNSET].atmos.regime[0].intensity         == 0.90f,   "Atmosphere column drift: regime[0].intensity (middle)");
-static_assert(MOOD_TABLE[MOOD_FINITE_OUTDOOR].atmos.regime[0].ambient        == 0.25f,   "Atmosphere column drift: regime[0].ambient (middle)");
-static_assert(MOOD_TABLE[MOOD_OPEN_SUNSET].atmos.regime[0].fog_density       == 0.0030f, "Atmosphere column drift: regime[0].fog_density");
-static_assert(MOOD_TABLE[MOOD_INDOOR_FLAT].atmos.regime[0].clear_color[2]    == 0.10f,   "Atmosphere column drift: regime[0].clear_color");
-static_assert(MOOD_TABLE[MOOD_OPEN_NIGHT].atmos.regime[3].fog_density        == 0.0168f, "Atmosphere column drift: regime[3].fog_density");
-static_assert(MOOD_TABLE[MOOD_OPEN_NIGHT].atmos.regime[3].clear_color_spread == 0.10f,   "Atmosphere column drift: regime[3].clear_color_spread (tail)");
-static_assert(MOOD_TABLE[MOOD_OPEN_SUNSET].regime_weight[0]                == 1.0f,    "MoodProfile column drift: regime_weight (sunset, one regime)");
-// EVERY MOOD WEIGHTS ONE REGIME TODAY, so no lane anywhere carries a
-// distinctive value and a probe on lane 1, 2 or 3 could only expect 0.
-// The head probe above still pins lane 0, the probe below still READS
-// lane 3, and the per-lane work is done by mood_carries_point, which
-// checks all four lanes on the rows that must carry a point.
-static_assert(MOOD_TABLE[MOOD_OPEN_NIGHT].regime_weight[3]                 == 0.0f,    "MoodProfile column drift: regime_weight (night, tail)");
-
-// The open family is one stage: three moods, one SHAPE_OPEN, stated once.
-static_assert(shape_is_open(MOOD_TABLE[MOOD_OPEN_SUNSET].shape)
-           && shape_is_open(MOOD_TABLE[MOOD_OPEN_NIGHT].shape)
-           && shape_is_open(MOOD_TABLE[MOOD_OPEN_NOON].shape)
-           && !shape_is_open(MOOD_TABLE[MOOD_FINITE_OUTDOOR].shape)
-           && !shape_is_open(MOOD_TABLE[MOOD_INDOOR_FLAT].shape),
-    "ATMOS_1: sunset, night and noon wear the open shape; the walled rows do not");
-
-// THE CARRY WITNESS (ATMOS_1). A carried row draws its old point value
-// exactly only if every spread is 0 and regime 0 holds the whole weight;
-// draw_atmosphere short-circuits on exactly those conditions. A spread
-// or a second regime on one of the rows named below is a design change,
-// not a carry — make it on purpose and take the row off this list.
-// The predicate takes the mood BY PARAMETER and the four rows are
-// NAMED at the assert: MOOD_TABLE is mentioned only inside the
-// static_assert, which is what keeps the design table's reader census
-// (tools/organ_gap.py) reading this proof as the proof it is.
-inline constexpr bool mood_carries_point(const MoodProfile& m) {
-    const Atmosphere& a = m.atmos;
-    return a.sun_az_spread_deg == 0.0f && a.sun_el_spread_deg == 0.0f
-        && a.regime[0].sun_color_spread == 0.0f
-        && a.regime[0].intensity_spread == 0.0f && a.regime[0].ambient_spread == 0.0f
-        && a.regime[0].fog_density_spread == 0.0f && a.regime[0].fog_color_spread == 0.0f
-        && a.regime[0].clear_color_spread == 0.0f
-        && m.regime_weight[0] == 1.0f
-        && m.regime_weight[1] == 0.0f && m.regime_weight[2] == 0.0f && m.regime_weight[3] == 0.0f;
-}
-// TWO OF THE FOUR STOPPED CARRYING, ON PURPOSE. The desk gave both rooms
-// distributions — the flat a bearing spread and a fog spread, the vault a
-// light spread and a fog spread — so they no longer draw a point and the
-// witness cannot name them without failing. It still names the two rows
-// nobody has tuned, which is the whole of what it was ever proving: a row
-// that was a point before ATMOS_1 draws that point still.
-static_assert(mood_carries_point(MOOD_TABLE[MOOD_OPEN_SUNSET])
-           && mood_carries_point(MOOD_TABLE[MOOD_FINITE_OUTDOOR])
-           && mood_carries_point(MOOD_TABLE[MOOD_ATRIUM]),
-    "ATMOS_1 carry witness: the untuned pre-ATMOS_1 rows must draw their old "
-    "point values exactly; the atrium draws a point by design");
+// The last two witnesses over MOOD_TABLE stood here — the open-family
+// assert and ATMOS_1's carry witness, which proved the untuned rows
+// still drew their old point values exactly. Both named a table that no
+// longer exists; both did their whole job before it left.
 
 // ═══ THE MOOD DEFINITION IN FORCE (O1b) ══════════════════════════
 // MOOD_TABLE above is the DESIGNED definition: constexpr, asserted,
@@ -541,13 +330,6 @@ static_assert(mood_carries_point(MOOD_TABLE[MOOD_OPEN_SUNSET])
 // whole of `shape` does not: it is read all over world GENERATION, and
 // rewriting it without regenerating the world would mean nothing at
 // best and disagree at worst.
-inline MoodProfile MOOD_LIVE[MOOD_COUNT] = {
-    MOOD_TABLE[0], MOOD_TABLE[1], MOOD_TABLE[2], MOOD_TABLE[3],
-    MOOD_TABLE[4], MOOD_TABLE[5], MOOD_TABLE[6],
-};
-static_assert(MOOD_COUNT == 7,
-    "MOOD_LIVE is seeded row by row (constexpr copy, one per mood): "
-    "a new mood needs its row here as well as in MOOD_TABLE");
 
 // The one runtime door onto a mood's fields. Non-const because the
 // panel writes through it; every reader takes it by const reference.
@@ -560,20 +342,6 @@ static_assert(MOOD_COUNT == 7,
 // mood's rows onto the sunset's without a word. It still returns a
 // reference, so the refusal is a clamp and a line, not a throw — but the
 // line names the id, once per id, and the value it lands on.
-inline MoodProfile& mood_def(uint32_t mood) {
-    if (mood >= MOOD_COUNT) {
-        static bool warned[64]{};
-        const uint32_t slot = mood & 63u;
-        if (!warned[slot]) {
-            warned[slot] = true;
-            std::cout << "[Mood] REFUSED an out-of-range mood id " << mood
-                      << " (MOOD_COUNT is " << MOOD_COUNT
-                      << "); reading mood 0 instead — a stale preset or URL\n";
-        }
-        return MOOD_LIVE[0];
-    }
-    return MOOD_LIVE[mood];
-}
 
 } // namespace the_board
 } // namespace t7

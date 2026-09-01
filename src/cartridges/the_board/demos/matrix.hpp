@@ -1,7 +1,6 @@
 #pragma once
 #include <cstdint>
 #include "cartridges/the_board/contracts/demo_config.hpp"       // DemoConfig, Roster
-#include "cartridges/the_board/contracts/mood_constants.hpp"    // MOOD_OPEN_SUNSET
 
 // ─── matrix.hpp (THE DEMO MATRIX: pieces × demos, cells booleans) ──
 // Jean's ratified grid.
@@ -89,10 +88,6 @@ inline constexpr uint32_t DEMO_SEED[static_cast<uint32_t>(DemoCol::COUNT)] = {
     /* full    */ 42,
     /* minimal */ 42,
 };
-inline constexpr uint32_t DEMO_BOOT_MOOD[static_cast<uint32_t>(DemoCol::COUNT)] = {
-    /* full    */ MOOD_OPEN_SUNSET,
-    /* minimal */ MOOD_OPEN_SUNSET,
-};
 
 // ═══ THE COLUMN READ (a demo column → a constexpr Roster) ══════════
 // Aggregate-inits Roster in field order from the selected column. The
@@ -112,7 +107,6 @@ constexpr DemoConfig demo_config(DemoCol d) {
     return DemoConfig{
         column_to_roster(d),
         DEMO_SEED[static_cast<uint32_t>(d)],
-        DEMO_BOOT_MOOD[static_cast<uint32_t>(d)],
     };
 }
 
@@ -128,22 +122,19 @@ static_assert(Piece::COUNT == 8,
 //     so the retirement is provably lossless — now and forever (the
 //     old full.hpp / minimal.hpp are gone; these asserts are what keep
 //     their sentences honest).
-//     ONE field is deliberately no longer byte-equal: boot_mood. The
-//     old headers booted into open_default, and the mood cut retired
-//     that mood; the two columns then booted into open_sunset, the
-//     surviving open outdoor world. Both columns boot into the atrium
-//     now (ATRIUM_1) — the entrance is the visitor's first room — and
-//     the golden pins the new value.
+//     boot_mood was the one field that stopped being byte-equal — it
+//     walked from open_default to open_sunset to the atrium as the moods
+//     were cut and re-cut. ONE_WORLD-II U2 retired the field itself, so
+//     the golden is byte-equal again in every surviving column: a world
+//     has no mood to wake in, only a seed.
 static_assert(demo_config(DemoCol::full).roster.all_enabled(),
     "GOLDEN: demo=full must equal old full.hpp — every tickable bit ON");
-static_assert(demo_config(DemoCol::full).seed == 42 &&
-              demo_config(DemoCol::full).boot_mood == MOOD_OPEN_SUNSET,
-    "GOLDEN: demo=full seed must equal old full.hpp; boot_mood is the open field (ATTIC_ATRIUM)");
+static_assert(demo_config(DemoCol::full).seed == 42,
+    "GOLDEN: demo=full seed must equal old full.hpp");
 static_assert(demo_config(DemoCol::minimal).roster.none_enabled(),
     "GOLDEN: demo=minimal must equal old minimal.hpp — every tickable bit OFF");
-static_assert(demo_config(DemoCol::minimal).seed == 42 &&
-              demo_config(DemoCol::minimal).boot_mood == MOOD_OPEN_SUNSET,
-    "GOLDEN: demo=minimal seed must equal old minimal.hpp; boot_mood is the open field (ATTIC_ATRIUM)");
+static_assert(demo_config(DemoCol::minimal).seed == 42,
+    "GOLDEN: demo=minimal seed must equal old minimal.hpp");
 
 } // namespace the_board
 } // namespace t7

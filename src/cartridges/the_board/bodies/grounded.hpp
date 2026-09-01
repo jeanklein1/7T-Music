@@ -1,7 +1,6 @@
 #pragma once
 #include <cstdint>
 #include "cartridges/the_board/realization/state.hpp"                    // Dim::*, GPUPyramidArray, wgpu
-#include "cartridges/the_board/contracts/mood_constants.hpp"   // MOOD_COUNT, WORLD_DRAW_LIVE
 #include "cartridges/the_board/contracts/wgpu_fwd.hpp"   // wgpu handle fwds (lockstep insurance)
 #include "cartridges/the_board/contracts/entity_types.hpp"     // queue types (the dispatch funnels' signatures)
 

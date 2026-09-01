@@ -210,7 +210,7 @@ void tile_apply_spawn_mult(const TileWorldState& tw, int32_t gx, int32_t gz,
 bool tile_archetype(const TileWorldState& tw, int32_t gx, int32_t gz, uint32_t& out);
 
 // ═══ IMPL: the
-// bodies deref WorldState/MoodState/GPUState via TileWorldDeps (no
+// bodies deref WorldState/SkyState/GPUState via TileWorldDeps (no
 // Cartridge). COHORT PROOF: the merged file sits AFTER patch_system.hpp
 // (WorldState complete + Dim::PATCH_EXTENT/Dim::PATCH_PREGEN_RADIUS) and after
 // population_themes.hpp (THEMES) and mood.hpp (MOOD_TABLE); the S2

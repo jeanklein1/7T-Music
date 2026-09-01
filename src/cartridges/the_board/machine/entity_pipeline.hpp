@@ -65,7 +65,7 @@ namespace the_board {
 // The three-phase verbs and the welded family block (pyramid —
 // the families that weld to the ground/regen services). Each block
 // keeps the same 10-element template. Reaches
-// the machine face for c->mood_state_ / c->world_state_ /
+// the machine face for c->sky_state_ / c->world_state_ /
 // c->entities_state_ and the GPU wire (c->gpuState_); routes through
 // the spawn services (run_spawn_preamble / negotiate_position /
 // mark_patches_for_regen) as free calls.

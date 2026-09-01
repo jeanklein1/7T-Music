@@ -61,7 +61,7 @@ void dispatch_commit_sphere_generic(MachineCtx* self, PlacementEntry& pe, wgpu::
 // reconcile via SphereDeps. COHORT PROOF: sits AFTER
 // contracts/spawn_services.hpp (generic_select/place/commit +
 // run_spawn_preamble + negotiate_position DECLS — the machine bodies
-// ride the cohort tail); WorldState/MoodState complete upstream.
+// ride the cohort tail); WorldState/SkyState complete upstream.
 // clear_spheres keeps its deps-form GPUState& (the stamped precedent). ═════════
 
 inline void evict_sphere(MachineCtx* self,

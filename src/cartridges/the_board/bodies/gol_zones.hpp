@@ -1,7 +1,6 @@
 #pragma once
 #include <cstdint>
 #include "cartridges/the_board/realization/state.hpp"                    // Dim::*, GPUZoneDeriveRequestArray, wgpu
-#include "cartridges/the_board/contracts/mood_constants.hpp"   // MOOD_COUNT (sizes the mood gate)
 #include "cartridges/the_board/contracts/wgpu_fwd.hpp"   // wgpu handle fwds (lockstep insurance)
 #include "cartridges/the_board/contracts/entity_types.hpp"     // GoLSelection/GoLPlacement (the boundary DTOs) + queue types
 
@@ -445,7 +444,7 @@ struct GoLState {
     uint32_t     zone_count = 0;
     uint32_t     active_slot_count = 0;     // highest active slot + 1 (for dispatch sizing)
 
-    bool         mood_allowed = true;
+    bool         zones_allowed = true;
 
     // Derive request queue: accumulated during patch gen, flushed once
     // per frame as a single GPU compute dispatch (zone_derive_params).
@@ -846,7 +845,7 @@ inline void flush_zone_derive_requests(GoLState& gs, GolDeps* c, wgpu::Queue& qu
 
 inline bool dispatch_select_gol(MachineCtx* self,
     int32_t gx, int32_t gz, EntityQueueEntry& e) {
-    if (!self->gol_state_.mood_allowed) { return false; }   // mood gate — no new zones
+    if (!self->gol_state_.zones_allowed) { return false; }   // mood gate — no new zones
     return select_gol_for_patch(self->gol_state_, self, gx, gz, e.gol);
 }
 

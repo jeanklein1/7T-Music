@@ -26,7 +26,6 @@
 #include "cartridges/the_board/contracts/orb_surface.hpp"     // ORB_CONSOLE_LIVE (block 5)
 #include "cartridges/the_board/contracts/control_panel.hpp"   // PANEL_LIVE (block 6)
 #include "cartridges/the_board/contracts/ribbon_surface.hpp"  // RIBBON_LIVE (block 7)
-#include "cartridges/the_board/contracts/mood_constants.hpp"  // WORLD_DRAW_LIVE (block 10, destructive)
 #include "coupling/canvas_surface.hpp"                        // CANVAS_LIVE (block 9, t7::canvas)
 #include "cartridges/the_board/contracts/driver_surface.hpp"  // the drivers' room (block 3)
 #include "cartridges/the_board/contracts/atmosphere_surface.hpp" // ATMOS_LIVE (block 12)
@@ -299,7 +298,6 @@ inline void note_reject(const char* id, const char* why) {
 // a mood
 // the program has left. One pointer answers WHICH MOOD and WHICH REGIME
 // the world was drawn into — two windows, one home, no copy.
-inline const the_board::MoodState* g_mood = nullptr;
 
 // The live HOST, borrowed the same way and for the same reason (RIBBON_1):
 // the control surface's host row must never name a host the program has left.
@@ -308,9 +306,7 @@ inline const the_board::MoodState* g_mood = nullptr;
 inline const the_board::PointState* g_point = nullptr;
 
 inline void bind_home(the_board::GPUState* s) { g_home = s; }
-inline void bind_mood(const the_board::MoodState* ms) { g_mood = ms; }
 inline void bind_point(const the_board::PointState* p) { g_point = p; }
-inline uint32_t current_mood()       { return g_mood ? g_mood->active     : 0u; }
 inline uint32_t current_host()       { return g_point ? (uint32_t)g_point->host : 0u; }
 
 inline void* block_base(uint8_t block) {
@@ -886,9 +882,6 @@ EMSCRIPTEN_KEEPALIVE inline const char* organ_build_stamp(void) {
 // The mood the program is in. The control surface needs it to address a
 // definition
 // and to key an export, and it keeps no copy of its own.
-EMSCRIPTEN_KEEPALIVE inline int organ_mood(void) {
-    return (int)t7::organ::current_mood();
-}
 
 // The sky's live motion rule, packed with the ACTIVE rule's gesture index,
 // whether the dome is lit and how many motes it carries. set_orb_rule_view
@@ -925,21 +918,6 @@ EMSCRIPTEN_KEEPALIVE inline void organ_go_host(int host) {
     if (host >= 0 && host <= 2) g_go_host_pending = (uint32_t)host;
 }
 
-// The names, positional by id: a JSON array the control surface builds its mood
-// select from, so a new mood appears there with no JS edit.
-EMSCRIPTEN_KEEPALIVE inline const char* organ_mood_names(void) {
-    static std::string json;
-    json.clear();
-    json.push_back('[');
-    for (uint32_t m = 0; m < t7::the_board::MOOD_COUNT; ++m) {
-        if (m) json.push_back(',');
-        json.push_back('"');
-        json += t7::the_board::MOOD_NAMES[m];
-        json.push_back('"');
-    }
-    json.push_back(']');
-    return json.c_str();
-}
 
 // One lane of one dial's DEFINITION for one mood. Zero for a dial with no
 // definition target; a consumer asks the manifest's "def" before this.

@@ -1,9 +1,8 @@
 #pragma once
 #include <cstdint>
 #include "cartridges/the_board/realization/state.hpp"                    // wgpu, GPUState
-#include "cartridges/the_board/contracts/mood_constants.hpp"   // MOOD_COUNT, the Mood IDs, WORLD_DRAW_LIVE
 #include "cartridges/the_board/contracts/agent_tiers.hpp"      // TIER_LIVE — the doorway witness reads a walker's contact_radius (ATRIUM_7)
-#include "cartridges/the_board/contracts/spine_state.hpp"      // MoodState + the atmosphere vocabulary (CeilingType / MoodProfile / MOOD_TABLE)
+#include "cartridges/the_board/contracts/spine_state.hpp"      // SkyState + the atmosphere vocabulary (CeilingType / MoodProfile / MOOD_TABLE)
 #include "cartridges/the_board/contracts/atmosphere_surface.hpp"   // ATMOS_LIVE — the atmosphere panel; draw_atmosphere's bank (ONE_WORLD-II U1)
 #include "cartridges/the_board/contracts/wgpu_fwd.hpp"   // wgpu handle fwds (lockstep insurance)
 #include <algorithm>   // std::max, std::min, std::clamp   // (impl, merged)
@@ -20,18 +19,18 @@
 // the indoor wall palettes (the indoor treatment — sizes,
 // bounds, dials — graduated to contracts/indoor_module.hpp) — and
 // the DECLARATIONS of the three doors
-// (apply_mood, upload_lights, mood_name) plus the appliers and
+// (stage_world_birth, upload_lights) plus the appliers and
 // derivers. The Mood IDs are file-scope vocabulary
 // (mood_constants.hpp), consumed here. MOOD OWNS NO INSTANCE: struct
-// MoodState's TYPE lives in contracts/spine_state.hpp; the instance
+// SkyState's TYPE lives in contracts/spine_state.hpp; the instance
 // mood_state is SPINE-OWNED orchestration (L38 — assembly only, K4 as
 // amended). The force-spawn channel mood once computed values for left
 // with the doors (ONE_WORLD-I U2).
 // MERGED at the cohort tail:
-// MoodState / CeilingType / MoodProfile / MOOD_TABLE + the request
+// SkyState / CeilingType / MoodProfile / MOOD_TABLE + the request
 // door decl live in contracts/spine_state.hpp (the spine's organ
 // contract — the demo sentence includes mood_constants, so the
-// DEMO-reading MoodState rides the spine tier; tile_world/ribbon/the
+// DEMO-reading SkyState rides the spine tier; tile_world/ribbon/the
 // config tables read them early);
 // this file keeps MoodDeps, the
 // decls, and every definition. COHORT: after ribbon/input
@@ -68,7 +67,7 @@ struct OrbsState;   struct OrbsDeps;
 struct PawnState;
 
 // ═══ MOOD STATE + PROFILE VOCABULARY — GRADUATED ═════════════════
-// MoodState / CeilingType / MoodProfile / MOOD_TABLE live in
+// SkyState / CeilingType / MoodProfile / MOOD_TABLE live in
 // contracts/spine_state.hpp: the early consumers read the
 // contract; the instance stays at the root.
 
@@ -95,11 +94,11 @@ struct PawnState;
 // parameters — the spine addresses the fan's bodies at the call site,
 // through the owner command doors.
 struct MoodDeps {
-    MoodState&           mood_state_;
+    SkyState&           sky_state_;
     const WorldState&    world_state_;
     GPUState&            gpuState_;
     Renderer&            renderer_;          // set_frustum_cull_active (per-mood realization poke)
-    GoLState&            gol_state_;         // mood_allowed — the flag channel [mood -> gol]
+    GoLState&            gol_state_;         // zones_allowed — the flag channel [mood -> gol]
     float (&sunDirection_)[3];
     float (&sunColor_)[3];
     float (&clearColor_)[3];
@@ -109,7 +108,7 @@ struct MoodDeps {
 
 // Mood lifecycle (doors). The fan's targets ride apply_mood's tail
 // parameters — organ-named, addressed by the spine at the call site.
-void apply_mood(MoodDeps* c, uint32_t mood, wgpu::Queue& queue,
+void stage_world_birth(MoodDeps* c, wgpu::Queue& queue,
     MachineCtx& machine_ctx,
     OrbsState& orbs_state, OrbsDeps& orbs_deps,
     PawnState& pawn_state);
@@ -117,18 +116,17 @@ void apply_mood(MoodDeps* c, uint32_t mood, wgpu::Queue& queue,
 // deriver and the shell generator with the indoor organs, and
 // apply_mood_arrival — declared with no body and no caller since before
 // this campaign — with them.
-void apply_mood_lighting(MoodDeps* c, const MoodProfile& m, wgpu::Queue& queue);
+void apply_mood_lighting(MoodDeps* c, wgpu::Queue& queue);
 // Per-frame uploads (door)
 void upload_lights(MoodDeps* c, wgpu::Queue& queue);
 // Derivers (door)
-const char* mood_name(uint32_t mood);
-uint32_t derive_finite_radius(uint32_t seed, const MoodProfile& mood);
+uint32_t derive_finite_radius(uint32_t seed);
 
 
 // ═══ MODULE IMPLEMENTATION ════════════════════════════════════════
 //
 // The doors + appliers + derivers. The bodies reach the deps face
-// (c->mood_state_ / c->world_state_ / c->gpuState_ / c->renderer_ /
+// (c->sky_state_ / c->world_state_ / c->gpuState_ / c->renderer_ /
 // c->gol_state_ / c->entities_state_ / the sun + clear channel / the
 // CPU light array), the fan's
 // TARGET organs (parameters — orbs/pawn + the machine
@@ -241,7 +239,7 @@ inline AtmosphereInstance draw_atmosphere(uint32_t seed, const AtmosphereBank& a
 //    The seed is the world's, so a panel edit moves the instance WITH the
 //    dial (same seed, shifted centre, same offset) rather than re-rolling
 //    it. Touches GPU directly + a few member fields.
-inline void apply_mood_lighting(MoodDeps* c, const MoodProfile& m, wgpu::Queue& /*queue*/) {
+inline void apply_mood_lighting(MoodDeps* c, wgpu::Queue& /*queue*/) {
     const AtmosphereInstance ai = draw_atmosphere(c->world_state_.active_seed, ATMOS_LIVE);
     const float len = std::sqrt(ai.sun_direction[0] * ai.sun_direction[0] +
                                 ai.sun_direction[1] * ai.sun_direction[1] +
@@ -259,16 +257,16 @@ inline void apply_mood_lighting(MoodDeps* c, const MoodProfile& m, wgpu::Queue& 
     c->sunColor_[0] = ai.sun_color[0];
     c->sunColor_[1] = ai.sun_color[1];
     c->sunColor_[2] = ai.sun_color[2];
-    c->mood_state_.sun_intensity = ai.sun_intensity;
-    c->mood_state_.sun_ambient   = ai.sun_ambient;
+    c->sky_state_.sun_intensity = ai.sun_intensity;
+    c->sky_state_.sun_ambient   = ai.sun_ambient;
 
     // The fog's REST — the mood's since ATMOS_1. The U4 seam
     // (phase_motion_drivers) composes the canvas's deviation over it
     // every frame; this is the rung-3 instance that seam reads.
-    c->mood_state_.fog_rest_density  = ai.fog_density;
-    c->mood_state_.fog_rest_color[0] = ai.fog_color[0];
-    c->mood_state_.fog_rest_color[1] = ai.fog_color[1];
-    c->mood_state_.fog_rest_color[2] = ai.fog_color[2];
+    c->sky_state_.fog_rest_density  = ai.fog_density;
+    c->sky_state_.fog_rest_color[0] = ai.fog_color[0];
+    c->sky_state_.fog_rest_color[1] = ai.fog_color[1];
+    c->sky_state_.fog_rest_color[2] = ai.fog_color[2];
 
     c->clearColor_[0] = ai.clear_color[0];
     c->clearColor_[1] = ai.clear_color[1];
@@ -276,12 +274,12 @@ inline void apply_mood_lighting(MoodDeps* c, const MoodProfile& m, wgpu::Queue& 
 
     // THE THREE INDOOR STRUCTURALS LEFT HERE (ONE_WORLD-II U4). This
     // applier authored all three — the terrain amplitude ceiling, its
-    // MoodState mirror, and the GoL lift cap composed from the module's
+    // SkyState mirror, and the GoL lift cap composed from the module's
     // fraction of the wall — and each reached a GPUDesignConfig field
     // that is a named pad now. The three metered organ rows that watched
     // them died in the same commit, because a witness whose author is
     // gone meters a permanent zero.
-    c->mood_state_.lights_dirty = true;
+    c->sky_state_.lights_dirty = true;
 
     // THE WITNESS. One line per (mood, seed), not per draw (ATMOS_1b): a
     // line prints when that PAIR changes — which is every entry, and
@@ -302,17 +300,19 @@ inline void apply_mood_lighting(MoodDeps* c, const MoodProfile& m, wgpu::Queue& 
     // Function-local statics: the checker's [FLUSH] one-shot in
     // cartridge.hpp is the precedent.
     {
-        static uint32_t last_mood = MOOD_COUNT, last_seed = 0u;
-        const bool world_changed = c->mood_state_.active != last_mood
-                                || c->world_state_.active_seed != last_seed;
+        // ONE TERM LEFT (ONE_WORLD-II U2). It was (mood, seed, regime);
+        // U1 took the regime with the roll and U2 takes the mood with the
+        // moods. The SEED is what a world is now, so the line prints once
+        // per world — which is what "every entry, and nothing else" always
+        // meant.
+        static uint32_t last_seed = 0xFFFFFFFFu;
+        const bool world_changed = c->world_state_.active_seed != last_seed;
         if (world_changed) {
-            last_mood   = c->mood_state_.active;
             last_seed   = c->world_state_.active_seed;
             constexpr float RAD2DEG = 180.0f / 3.14159265359f;
             const float el = std::asin(std::clamp(-ai.sun_direction[1] / len, -1.0f, 1.0f)) * RAD2DEG;
             const float az = std::atan2(-ai.sun_direction[2], -ai.sun_direction[0]) * RAD2DEG;
-            std::cout << "[Atmos] " << mood_name(c->mood_state_.active)
-                      << " seed=" << c->world_state_.active_seed
+            std::cout << "[Atmos] seed=" << c->world_state_.active_seed
                       << " int=" << ai.sun_intensity << " amb=" << ai.sun_ambient
                       << " sun el=" << el << " az=" << az
                       << " fog=" << ai.fog_density << "\n";
@@ -321,33 +321,33 @@ inline void apply_mood_lighting(MoodDeps* c, const MoodProfile& m, wgpu::Queue& 
 }
 // ── apply_mood (orchestrator) ──
 //
-inline void apply_mood(MoodDeps* c, uint32_t mood, wgpu::Queue& queue,
+// THE WORLD'S BIRTH (ONE_WORLD-II U2). It was apply_mood: it took a mood
+// id, clamped it, stored it, read that mood's definition and fanned the
+// definition's columns out to the frustum cull, the GoL gate, the aura
+// policy, the light and the sky. There is one world now, so there is no
+// id to take and no definition to look up — the banks ARE the definition
+// and each applier reads its own. What is left is the SEQUENCE, which is
+// what the verb was always for.
+//
+// The three feature gates were per-mood columns and are now the world's,
+// stated once here rather than authored in a table nobody can turn.
+inline void stage_world_birth(MoodDeps* c, wgpu::Queue& queue,
     MachineCtx& machine_ctx,
     OrbsState& orbs_state, OrbsDeps& orbs_deps,
     PawnState& pawn_state) {
-    mood = std::min(mood, MOOD_COUNT - 1);
-    c->mood_state_.active = mood;
-    const auto& m = mood_def(mood);   // O1b — the definition IN FORCE
+    c->renderer_.set_frustum_cull_active(true);
+    c->gol_state_.zones_allowed = true;
+    apply_aura_mood_policy(pawn_state, true);   // the pawn door; byte-identical semantics
 
-    // Frustum cull is mood-driven (not tied to indoor/outdoor).
-    c->renderer_.set_frustum_cull_active(m.shape.allow_frustum_cull);
-
-    // Per-mood feature gates: GoL zones, aura.
-    // Aura policy: respect player preference when permitted, force off when forbidden.
-    c->gol_state_.mood_allowed     = m.shape.allow_gol_zones;
-    apply_aura_mood_policy(pawn_state, m.shape.allow_pawn_aura);  // the pawn door; byte-identical semantics
-
-    apply_mood_lighting(c, m, queue);          // sun + ambient — the whole of the light now
-    if constexpr (ROSTER.orbs)                 // ROSTER-GATE orbs (b) — sky dome never configured
-        // ORGAN_3b P3 — the world's definition, not the design table.
-        // ORGAN_5 P1b — reseed TRUE: a mood change is a new world's sky,
-        // so the init kernel re-runs and every orb is re-drawn. This is
-        // the heavy path, and it is the one path that should be.
+    apply_mood_lighting(c, queue);              // sun + ambient — the whole of the light now
+    if constexpr (ROSTER.orbs)                  // ROSTER-GATE orbs (b) — sky dome never configured
+        // ORGAN_5 P1b — reseed TRUE: a world's birth is a new sky, so the
+        // init kernel re-runs and every orb is re-drawn. This is the heavy
+        // path, and it is the one path that should be.
         configure_orbs(orbs_state, &orbs_deps, ORB_LIVE, queue,
             /*reseed=*/true);
 
-    std::cout << "[Mood] Applied: " << mood_name(mood)
-        << " (mood=" << mood << ")\n";
+    std::cout << "[World] Staged\n";
 }
 
 // ═══ PER-FRAME UPLOAD ════════════════════════════════════════════
@@ -355,8 +355,8 @@ inline void apply_mood(MoodDeps* c, uint32_t mood, wgpu::Queue& queue,
 // ── upload_lights ──
 // (Must precede compute for shadow VP.)
 inline void upload_lights(MoodDeps* c, wgpu::Queue& queue) {
-    if (!c->mood_state_.lights_dirty) return;
-    c->mood_state_.lights_dirty = false;
+    if (!c->sky_state_.lights_dirty) return;
+    c->sky_state_.lights_dirty = false;
 
     // WALLET_1revA: the sun, the point array and the spot array are one
     // uniform block now (GPULighting / world.wgsl `Lighting`). They were
@@ -373,24 +373,25 @@ inline void upload_lights(MoodDeps* c, wgpu::Queue& queue) {
     sun.color[0] = c->sunColor_[0];
     sun.color[1] = c->sunColor_[1];
     sun.color[2] = c->sunColor_[2];
-    sun.intensity = c->mood_state_.sun_intensity;
-    sun.ambient = c->mood_state_.sun_ambient;
+    sun.intensity = c->sky_state_.sun_intensity;
+    sun.ambient = c->sky_state_.sun_ambient;
 
     c->gpuState_.upload_lighting(queue, lighting);
 }
 
 // ═══ DERIVERS ════════════════════════════════════════════════════
 
-inline const char* mood_name(uint32_t mood) {
-    return (mood < MOOD_COUNT) ? MOOD_NAMES[mood] : "unknown";
-}
 
 // Derive finite world radius from seed within mood-defined bounds.
-inline uint32_t derive_finite_radius(uint32_t seed, const MoodProfile& mood) {
-    const WorldShape& s = mood.shape;
-    if (s.finite_radius_min >= s.finite_radius_max) return s.finite_radius_min;
-    uint32_t range = s.finite_radius_max - s.finite_radius_min + 1;
-    return s.finite_radius_min + cpu_hash(seed, 77u) % range;
+// The world's radius, drawn from the dials. It read a WorldShape's own
+// min/max until ONE_WORLD-II U2 rehomed the pair beside finite_mode; the
+// SALT IS UNCHANGED at 77u, so a given seed draws the radius it always
+// drew. The min >= max guard stays: a pinned range is still a legal
+// range, and it is how a future dial pins one.
+inline uint32_t derive_finite_radius(uint32_t seed) {
+    if (FINITE_RADIUS_MIN >= FINITE_RADIUS_MAX) return FINITE_RADIUS_MIN;
+    constexpr uint32_t range = FINITE_RADIUS_MAX - FINITE_RADIUS_MIN + 1;
+    return FINITE_RADIUS_MIN + cpu_hash(seed, 77u) % range;
 }
 
 } // namespace the_board

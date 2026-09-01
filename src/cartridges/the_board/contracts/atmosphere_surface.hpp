@@ -34,7 +34,6 @@
 // but nothing in the program does, and a four-slot array for a
 // one-slot fact is the shape ONE_WORLD-II exists to remove.
 
-#include "cartridges/the_board/contracts/spine_state.hpp"   // ATMOS_SUNSET — the row this bank is seeded FROM, and the asserts that prove it
 
 namespace t7 {
 namespace the_board {
@@ -82,37 +81,12 @@ inline constexpr AtmosphereBank ATMOS_TABLE = {
     { 0.95f, 0.70f, 0.45f }, 0.0f,         // clear colour, ±
 };
 
-// THE SEEDING WITNESS (Amendment A — a net that bites). Every field of
-// the bank against the row it was transcribed from, so a typo in the
-// transcription is a COMPILE ERROR rather than a sky nobody can name as
-// wrong. It reaches ATMOS_SUNSET's regime 0 because that is the regime
-// every mood wore; the other three are the slots this campaign removes.
-static_assert(ATMOS_TABLE.sun_direction[0] == ATMOS_SUNSET.sun_direction[0]
-           && ATMOS_TABLE.sun_direction[1] == ATMOS_SUNSET.sun_direction[1]
-           && ATMOS_TABLE.sun_direction[2] == ATMOS_SUNSET.sun_direction[2]
-           && ATMOS_TABLE.sun_az_spread_deg == ATMOS_SUNSET.sun_az_spread_deg
-           && ATMOS_TABLE.sun_el_spread_deg == ATMOS_SUNSET.sun_el_spread_deg,
-    "ATMOS_TABLE's bearing is ATMOS_SUNSET's, transcribed (ONE_WORLD-II U1)");
-static_assert(ATMOS_TABLE.sun_color[0] == ATMOS_SUNSET.regime[0].sun_color[0]
-           && ATMOS_TABLE.sun_color[1] == ATMOS_SUNSET.regime[0].sun_color[1]
-           && ATMOS_TABLE.sun_color[2] == ATMOS_SUNSET.regime[0].sun_color[2]
-           && ATMOS_TABLE.sun_color_spread == ATMOS_SUNSET.regime[0].sun_color_spread
-           && ATMOS_TABLE.intensity        == ATMOS_SUNSET.regime[0].intensity
-           && ATMOS_TABLE.intensity_spread == ATMOS_SUNSET.regime[0].intensity_spread
-           && ATMOS_TABLE.ambient          == ATMOS_SUNSET.regime[0].ambient
-           && ATMOS_TABLE.ambient_spread   == ATMOS_SUNSET.regime[0].ambient_spread,
-    "ATMOS_TABLE's sun and fill are ATMOS_SUNSET regime 0's, transcribed (ONE_WORLD-II U1)");
-static_assert(ATMOS_TABLE.fog_density        == ATMOS_SUNSET.regime[0].fog_density
-           && ATMOS_TABLE.fog_density_spread == ATMOS_SUNSET.regime[0].fog_density_spread
-           && ATMOS_TABLE.fog_color[0]       == ATMOS_SUNSET.regime[0].fog_color[0]
-           && ATMOS_TABLE.fog_color[1]       == ATMOS_SUNSET.regime[0].fog_color[1]
-           && ATMOS_TABLE.fog_color[2]       == ATMOS_SUNSET.regime[0].fog_color[2]
-           && ATMOS_TABLE.fog_color_spread   == ATMOS_SUNSET.regime[0].fog_color_spread
-           && ATMOS_TABLE.clear_color[0]     == ATMOS_SUNSET.regime[0].clear_color[0]
-           && ATMOS_TABLE.clear_color[1]     == ATMOS_SUNSET.regime[0].clear_color[1]
-           && ATMOS_TABLE.clear_color[2]     == ATMOS_SUNSET.regime[0].clear_color[2]
-           && ATMOS_TABLE.clear_color_spread == ATMOS_SUNSET.regime[0].clear_color_spread,
-    "ATMOS_TABLE's fog and sky are ATMOS_SUNSET regime 0's, transcribed (ONE_WORLD-II U1)");
+// THE SEEDING WITNESS IS SPENT (ONE_WORLD-II U2). Four asserts pinned
+// every field of ATMOS_TABLE against ATMOS_SUNSET while that row still
+// stood, and one injection (intensity 0.90 -> 0.91) proved they bit. The
+// row left with the moods; the numbers it proved are the literals above,
+// and the POINT-ROW witness below still guards the property that made
+// them safe to transcribe.
 
 // THE POINT-ROW WITNESS. The seeded bank draws its centres exactly —
 // every spread 0 — which is what makes the boot sky bit-identical to the

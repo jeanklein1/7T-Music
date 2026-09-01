@@ -1,6 +1,5 @@
 #pragma once
 #include <cstdint>
-#include "cartridges/the_board/contracts/mood_constants.hpp"   // MOOD_COUNT (sizes ORB_MOOD_TABLE)
 #include "cartridges/the_board/contracts/orb_surface.hpp"      // ORGAN_3 w2 — ORB_CONSOLE_LIVE: dome / base size / noise floor
 #include "cartridges/the_board/contracts/wgpu_fwd.hpp"   // wgpu handle fwds (lockstep insurance)
 

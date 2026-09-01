@@ -1,6 +1,5 @@
 #pragma once
 #include <cstdint>
-#include "cartridges/the_board/contracts/mood_constants.hpp"   // MOOD_COUNT — sizes ORB_MOOD_TABLE / ORB_MOOD_LIVE
 
 // ─── contracts/orb_surface.hpp ─────────────────────────────────────
 //
@@ -141,35 +140,6 @@ struct OrbMoodConfig {
     float    rule_drag_flocking = 0.0f;
 };
 
-// ─── Orb Mood Table ─────────────────────────────────────────────
-//
-// Rows are POSITIONAL in mood-id order (the MOOD_TABLE pattern) and
-//   carry no id field, so they move with the ids or not at all.
-//
-//                                              en     n    hueB   hueV   bri    drg   rul  rotS    rotAxis                  orbS  pal  hct    anc    trs           sepR   alnR    cohR    sepW   alnW   cohW   maxS   gst  drgB  drgO  drgF  drgK
-inline constexpr OrbMoodConfig ORB_MOOD_TABLE[MOOD_COUNT] = {
-    /* 0 open_sunset         */ {  true,  128, 0.08f, 0.06f, 0.85f, 0.4f,  3u,  0.012f, {0.15f, 0.97f, 0.10f},  0.0f, 0u,  0.08f, 0u,           50.0f, 120.0f, 200.0f, 30.0f, 8.0f,  15.0f, 60.0f, 0u,  0.0f, 0.0f, 0.0f, 0.0f },
-    /* 1 indoor_flat         */ {  false, 0,   0.08f, 0.05f, 0.80f, 0.5f,  0u,  0.000f, {0.00f, 1.00f, 0.00f},  0.0f, 0u,  0.12f, 0xFFFFFFFFu,  50.0f, 120.0f, 200.0f, 30.0f, 8.0f,  15.0f, 60.0f, 0u,  0.0f, 0.0f, 0.0f, 0.0f },
-    /* 2 indoor_vault        */ {  false, 0,   0.08f, 0.05f, 0.80f, 0.5f,  0u,  0.000f, {0.00f, 1.00f, 0.00f},  0.0f, 0u,  0.12f, 0xFFFFFFFFu,  50.0f, 120.0f, 200.0f, 30.0f, 8.0f,  15.0f, 60.0f, 0u,  0.0f, 0.0f, 0.0f, 0.0f },
-    /* 3 finite_outdoor      */ {  true,  128, 0.08f, 0.06f, 0.85f, 0.4f,  0u,  0.012f, {0.15f, 0.97f, 0.10f},  0.0f, 0u,  0.12f, 0u,           50.0f, 120.0f, 200.0f, 30.0f, 8.0f,  15.0f, 60.0f, 0u,  0.0f, 0.0f, 0.0f, 0.0f },
-    // ATMOS_1 — the night is the sunset's field, fuller, brighter and slower
-    // (256 stars, bri 0.95, a slow near-axial turn); the noon is the
-    // indoor disabled row verbatim — no stars by day.
-    // THE NIGHT'S MOTION ROW, TUNED. Two of the four per-rule drags carry
-    // real multipliers now — BROWNIAN 1.22 and ORBITAL 1.64, both ABOVE 1,
-    // so those two rules damp HARDER than the row's own drag asks. FROZEN
-    // and FLOCKING keep the SENTINEL 0, which configure_orbs reads as
-    // pass-through (×1.0), and orbital_base_speed keeps its own sentinel,
-    // which falls back to ORB_DEFAULT_ORBITAL_SPEED (0.15 rad/s). A desk
-    // cannot dial a sentinel back — organ_params.inc floors these five one
-    // step off it on purpose — so a sentinel surviving in this row is a
-    // value the TABLE holds and the panel can only leave alone.
-    /* 4 open_night          */ {  true,  256, 0.08f, 0.06f, 0.605f, 0.4f, 3u,  0.007010115f, {0.15f, 0.59f, 0.05f},  0.0f, 0u,  0.08f, 0u,     50.0f, 120.0f, 200.0f, 30.0f, 8.0f,  15.0f, 60.0f, 0u,  1.22f, 1.64f, 0.0f, 0.0f },
-    /* 5 open_noon           */ {  false, 0,   0.08f, 0.05f, 0.80f, 0.5f,  0u,  0.000f, {0.00f, 1.00f, 0.00f},  0.0f, 0u,  0.12f, 0xFFFFFFFFu,  50.0f, 120.0f, 200.0f, 30.0f, 8.0f,  15.0f, 60.0f, 0u,  0.0f, 0.0f, 0.0f, 0.0f },
-    /* MOOD_ATRIUM — the flat room's sky (ATRIUM_1) */
-    /* 6 atrium              */ {  false, 0,   0.08f, 0.05f, 0.80f, 0.5f,  0u,  0.000f, {0.00f, 1.00f, 0.00f},  0.0f, 0u,  0.12f, 0xFFFFFFFFu,  50.0f, 120.0f, 200.0f, 30.0f, 8.0f,  15.0f, 60.0f, 0u,  0.0f, 0.0f, 0.0f, 0.0f },
-};
-
 // ─── THE ORB BANK (ONE_WORLD-II U1b) ────────────────────────────
 // ORB_MOOD_LIVE was seven rows, one per mood, and the sky wore the live
 // one. There is one sky now, so there is one row: ORB_TABLE the design,
@@ -186,41 +156,10 @@ inline constexpr OrbMoodConfig ORB_MOOD_TABLE[MOOD_COUNT] = {
 inline constexpr OrbMoodConfig ORB_TABLE =
     {  true,  128, 0.08f, 0.06f, 0.85f, 0.4f,  3u,  0.012f, {0.15f, 0.97f, 0.10f},  0.0f, 0u,  0.08f, 0u,   50.0f, 120.0f, 200.0f, 30.0f, 8.0f,  15.0f, 60.0f, 0u,  0.0f, 0.0f, 0.0f, 0.0f };
 
-// THE SEEDING WITNESS (Amendment A). Every field against the row it was
-// transcribed from — a slip in a twenty-five-value positional literal is
-// a COMPILE ERROR rather than a sky that is subtly wrong and blamed on
-// the seed.
-static_assert(ORB_TABLE.enabled             == ORB_MOOD_TABLE[MOOD_OPEN_SUNSET].enabled
-           && ORB_TABLE.count               == ORB_MOOD_TABLE[MOOD_OPEN_SUNSET].count
-           && ORB_TABLE.base_hue            == ORB_MOOD_TABLE[MOOD_OPEN_SUNSET].base_hue
-           && ORB_TABLE.hue_variance        == ORB_MOOD_TABLE[MOOD_OPEN_SUNSET].hue_variance
-           && ORB_TABLE.brightness          == ORB_MOOD_TABLE[MOOD_OPEN_SUNSET].brightness
-           && ORB_TABLE.drag                == ORB_MOOD_TABLE[MOOD_OPEN_SUNSET].drag
-           && ORB_TABLE.motion_rule         == ORB_MOOD_TABLE[MOOD_OPEN_SUNSET].motion_rule
-           && ORB_TABLE.rotation_speed      == ORB_MOOD_TABLE[MOOD_OPEN_SUNSET].rotation_speed,
-    "ORB_TABLE's population and motion head is the sunset row's, transcribed (ONE_WORLD-II U1b)");
-static_assert(ORB_TABLE.rotation_axis[0]    == ORB_MOOD_TABLE[MOOD_OPEN_SUNSET].rotation_axis[0]
-           && ORB_TABLE.rotation_axis[1]    == ORB_MOOD_TABLE[MOOD_OPEN_SUNSET].rotation_axis[1]
-           && ORB_TABLE.rotation_axis[2]    == ORB_MOOD_TABLE[MOOD_OPEN_SUNSET].rotation_axis[2]
-           && ORB_TABLE.orbital_base_speed  == ORB_MOOD_TABLE[MOOD_OPEN_SUNSET].orbital_base_speed
-           && ORB_TABLE.palette_id          == ORB_MOOD_TABLE[MOOD_OPEN_SUNSET].palette_id
-           && ORB_TABLE.hue_converge_target == ORB_MOOD_TABLE[MOOD_OPEN_SUNSET].hue_converge_target
-           && ORB_TABLE.tierset_id          == ORB_MOOD_TABLE[MOOD_OPEN_SUNSET].tierset_id,
-    "ORB_TABLE's axis, palette and tierset are the sunset row's, transcribed (ONE_WORLD-II U1b)");
-static_assert(ORB_TABLE.flock_sep_radius     == ORB_MOOD_TABLE[MOOD_OPEN_SUNSET].flock_sep_radius
-           && ORB_TABLE.flock_align_radius   == ORB_MOOD_TABLE[MOOD_OPEN_SUNSET].flock_align_radius
-           && ORB_TABLE.flock_coh_radius     == ORB_MOOD_TABLE[MOOD_OPEN_SUNSET].flock_coh_radius
-           && ORB_TABLE.flock_sep_weight     == ORB_MOOD_TABLE[MOOD_OPEN_SUNSET].flock_sep_weight
-           && ORB_TABLE.flock_align_weight   == ORB_MOOD_TABLE[MOOD_OPEN_SUNSET].flock_align_weight
-           && ORB_TABLE.flock_coh_weight     == ORB_MOOD_TABLE[MOOD_OPEN_SUNSET].flock_coh_weight
-           && ORB_TABLE.flock_max_speed      == ORB_MOOD_TABLE[MOOD_OPEN_SUNSET].flock_max_speed
-           && ORB_TABLE.flock_gesture_default == ORB_MOOD_TABLE[MOOD_OPEN_SUNSET].flock_gesture_default,
-    "ORB_TABLE's flock is the sunset row's, transcribed (ONE_WORLD-II U1b)");
-static_assert(ORB_TABLE.rule_drag_brownian  == ORB_MOOD_TABLE[MOOD_OPEN_SUNSET].rule_drag_brownian
-           && ORB_TABLE.rule_drag_orbital   == ORB_MOOD_TABLE[MOOD_OPEN_SUNSET].rule_drag_orbital
-           && ORB_TABLE.rule_drag_frozen    == ORB_MOOD_TABLE[MOOD_OPEN_SUNSET].rule_drag_frozen
-           && ORB_TABLE.rule_drag_flocking  == ORB_MOOD_TABLE[MOOD_OPEN_SUNSET].rule_drag_flocking,
-    "ORB_TABLE's per-rule drags are the sunset row's, transcribed (ONE_WORLD-II U1b)");
+// ORB_MOOD_TABLE stood here — seven rows, one per mood — with the
+// four-part witness that proved ORB_TABLE's twenty-five transcribed
+// values against its sunset row. Both left at ONE_WORLD-II U2; the
+// witness spent itself in U1b, as designed.
 
 inline OrbMoodConfig ORB_LIVE = ORB_TABLE;
 

@@ -200,7 +200,7 @@ SpawnGateOutput gate_from_traits(MachineCtx* c, int32_t gx, int32_t gz,
 // ═══ PIPELINE VERBS — DECLARATIONS (entity_pipeline) ══════════════
 //
 // DEFINED in machine/entity_pipeline.hpp (merged, cohort tail): the
-// verbs reach the machine face for c->mood_state_ / c->world_state_
+// verbs reach the machine face for c->sky_state_ / c->world_state_
 // and route through the spawn services; the family adapters write
 // c->entities_state_ and the GPU wire.
 

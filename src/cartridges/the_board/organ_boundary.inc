@@ -13,8 +13,6 @@
                 // but not immediate, and this is that round trip.
                 const uint32_t doors = t7::organ::take_doors_pending();
                 if (doors & (1u << t7::organ::ORGAN_DOOR_RESPEAK)) {
-                    t7::organ::g_def_dirty      = true;
-                    t7::organ::g_def_dirty_mood = mood_state_.active;
                     t7::organ::g_tier_def_dirty = true;
                     t7::organ::raise_orb_definition();
                 }
@@ -36,21 +34,16 @@
                         possess(&input_deps_, static_cast<PointHost>(host));
                 }
 
-                uint32_t def_mood = 0;
-                if (t7::organ::take_definition_dirty(def_mood)
-                    && def_mood == mood_state_.active) {
-                    // The sky, re-drawn: a mood definition write lands on
-                    // this world under the same seed.
-                    apply_mood_lighting(&mood_deps_, mood_def(def_mood), queue);
-                }
-                // THE ATMOSPHERE BANK'S OWN FLAG (ONE_WORLD-II U1). The
-                // twelve sky rows address ATMOS_LIVE directly now, so they
-                // raise no mood-definition flag and are not a mood's to
-                // guard: there is one sky and it is always this world's.
-                // Same applier, same re-draw, same seed — the dial moves
-                // the instance rather than re-rolling it.
+                // THE ATMOSPHERE BANK'S FLAG. The twelve sky rows address
+                // ATMOS_LIVE directly, so they raise no mood-definition
+                // flag and are not a mood's to guard: there is one sky and
+                // it is always this world's. A second arm stood above this
+                // one until ONE_WORLD-II U2 — it took a mood-definition
+                // flag and dropped the write unless the target mood was the
+                // live one, a guard whose whole subject was the six other
+                // moods.
                 if (t7::organ::take_atmos_dirty()) {
-                    apply_mood_lighting(&mood_deps_, mood_def(mood_state_.active), queue);
+                    apply_mood_lighting(&mood_deps_, queue);
                 }
                 // The tier bank changed, so its author re-speaks the whole
                 // registry in its own voice — idempotent by construction.

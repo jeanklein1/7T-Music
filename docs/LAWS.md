@@ -1171,14 +1171,14 @@ against.
 ```
 1 the instrument's registration — the LIVE banks; held through all
 2 the player's preferences — seeded once, then the player's; held
-3 the environment's instance — authored by apply_mood at entry;
-  re-spoken at the boundary when rung 1 is edited
-4 the world's draw — (seed, tables) → terrain, spawns, THIS SKY;
+3 the environment's instance — DRAWN from the banks at world birth;
+  re-spoken at the boundary when a rung-1 dial is edited
+4 the world's draw — (seed, banks) → terrain, spawns, THIS SKY;
   reborn at teardown, the same seed the same world
 5 the drivers' output — rest (3) + gain (1) · deviation, per frame
 6 the live simulation — advances per frame; a discrete command
   changes the LAW, not the state; reborn only at teardown
-A transition holds 1-2, re-speaks 3, reborns 4 and 6; 5 continues over
+A rebirth holds 1-2, re-speaks 3, reborns 4 and 6; 5 continues over
 the new rest. "Held regardless" is rungs 1 and 2; "a custom
 environment" is a rung-1 row plus its rung-4 draw.
 ```
@@ -1193,10 +1193,15 @@ true, and the next author still walks into the same trap.
 
 It moved **before** the amendment that ONE_WORLD-II owes it, and unedited —
 so the relocation is provably lossless and the amendment is a separate,
-visible act. Rung 3's author changes when the banks arrive (U2 amends this
-block in the same commit that takes `apply_mood`); rung 3 itself does not
-collapse, because rung 5 reads it every frame and neither a constexpr bank
-nor a teardown-scoped draw can be a per-frame rest.
+visible act. **That amendment is made, at ONE_WORLD-II U2**, in the same
+commit that took `apply_mood`: rung 3's AUTHOR changed (the banks are
+drawn from at world birth, where a mood definition used to be applied at
+entry) and rung 4's source with it (`(seed, banks)`, not `(seed, tables)`).
+The tail's "transition" is a "rebirth" — the transition machine left at
+ONE_WORLD-I. Rung 3 itself did NOT collapse: rung 5 reads it every frame,
+and neither a constexpr bank nor a teardown-scoped draw can be a per-frame
+rest. Six rungs stand, and the two sentences that define "held regardless"
+and "a custom environment" stand with them.
 
 **The citation it carried was already dangling.** The block cited
 `docs/ORGAN.md, "The persistence ladder"` — a section deleted at `f294a9fe`

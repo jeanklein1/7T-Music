@@ -41,7 +41,7 @@ namespace the_board {
 // the machine reads the surface only through the m3b faces, reads
 // the clock, reads the witness — and can write none of them.
 struct WorldState;            struct TileWorldState;
-struct MoodState;
+struct SkyState;
 struct PatchSystemState;      struct SpawnEngineState;
 struct EntitiesState;         struct SphereState;
 struct CubeBehaviorsState;    struct RibbonState;
@@ -54,7 +54,7 @@ struct MachineCtx {
     // S1/S2 — the surface the machine stands on
     WorldState&              world_state_;
     const TileWorldState&    tile_world_state_;    // const: only the m3b faces consume it
-    MoodState&               mood_state_;          // active R; portals_dirty W (the arch channel)
+    SkyState&               sky_state_;          // active R; portals_dirty W (the arch channel)
     PatchSystemState&        patch_system_state_;
     SpawnEngineState&        spawn_engine_state_;
     // the family organs the rows own

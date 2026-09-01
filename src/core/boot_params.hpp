@@ -4,18 +4,17 @@
 // Measurement first. LANTERN_CENSUS §L2 recorded the gap this fills:
 // the four moods were diegetically reachable but not addressable — a
 // soak walk could not drive the twin deterministically to a named arm,
-// so no capture could be known repeatable. The values, read ONCE at
-// boot before the device request, never reread, never mutated mid-run,
-// invisible to ordinary visitors:
+// so no capture could be known repeatable. The MOODS themselves left at
+// ONE_WORLD-II U2 and `--mood=` went with them: there is one world, and
+// its seed is the whole of what a walk needs to name. The values, read
+// ONCE at boot before the device request, never reread, never mutated
+// mid-run, invisible to ordinary visitors:
 //
 //   seed — u32, overrides the drawn boot seed (the [World] line then
 //          says "(param)" instead of "(drawn)")
-//   mood — index into MOOD_TABLE, forces the boot mood at the one
-//          site that authors it (the Cartridge ctor; range-checked
-//          there against MOOD_COUNT, which this header must not know)
 //   msaa — {1, 4}, the multisample count the pipelines are created with
 //
-// Channel: `--seed= --mood= --msaa=` on argv, read ONCE at boot before
+// Channel: `--seed= --msaa=` on argv, read ONCE at boot before
 // the device request, never reread, never mutated mid-run. Absent or
 // malformed values are silently ignored; anything accepted prints one
 // [Params] line (P6 — a switch that fired is visible). The URL channel
@@ -31,7 +30,6 @@ namespace t7 {
 
     struct BootParams {
         bool has_seed = false; uint32_t seed = 0;
-        bool has_mood = false; uint32_t mood = 0;
         bool has_msaa = false; uint32_t msaa = 1;   // DOMESDAY_2 B10: 1 or 4; anything else -> 1
     };
 
@@ -57,10 +55,9 @@ namespace t7 {
         if (p.has_msaa && p.msaa != 4u) {
             p.msaa = 1u;   // B10: {1, 4} only; anything else -> 1
         }
-        if (p.has_seed || p.has_mood || p.has_msaa) {
+        if (p.has_seed || p.has_msaa) {
             std::cout << "[Params]";
             if (p.has_seed) std::cout << " seed=" << p.seed;
-            if (p.has_mood) std::cout << " mood=" << p.mood;
             if (p.has_msaa) std::cout << " msaa=" << p.msaa;
             std::cout << "\n";
         }
@@ -75,11 +72,6 @@ namespace t7 {
                 unsigned long long v = std::strtoull(a + 7, &end, 10);
                 if (end && *end == '\0' && end != a + 7 && v <= 0xFFFFFFFFull) {
                     p.has_seed = true; p.seed = static_cast<uint32_t>(v);
-                }
-            } else if (std::strncmp(a, "--mood=", 7) == 0) {
-                unsigned long long v = std::strtoull(a + 7, &end, 10);
-                if (end && *end == '\0' && end != a + 7 && v <= 0xFFFFFFFFull) {
-                    p.has_mood = true; p.mood = static_cast<uint32_t>(v);
                 }
             } else if (std::strncmp(a, "--msaa=", 7) == 0) {
                 unsigned long long v = std::strtoull(a + 7, &end, 10);

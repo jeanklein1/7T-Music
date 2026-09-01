@@ -237,7 +237,7 @@ inline SpawnGateOutput gate_from_traits(MachineCtx* c, int32_t gx, int32_t gz,
 // mesh-param rebuilds + distance culling, the census, gate
 // evaluation, and the select → place → commit
 // dispatch loops. Reaches the machine face for the root organs
-// (c->world_state_ / c->time_state_ / c->mood_state_ /
+// (c->world_state_ / c->time_state_ / c->sky_state_ /
 // c->tile_world_state_ / c->entities_state_ /
 // c->player_) and the GPU wire (c->gpuState_); the loops route
 // through FAMILY_DISPATCH with the machine face as the row argument.

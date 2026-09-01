@@ -51,7 +51,7 @@ void render_main_pass(MachineCtx* c, wgpu::CommandEncoder& encoder,
 // bodies reach the machine face (c->gpuState_ / c->renderer_ /
 // c->entities_state_ /
 // c->world_state_ / c->gol_state_ / c->ribbon_state_ /
-// c->mood_state_) and the call-site extras
+// c->sky_state_) and the call-site extras
 // (clearColor_ / the orbs pair).
 
 

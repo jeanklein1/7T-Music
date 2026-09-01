@@ -106,7 +106,7 @@ inline void reset_surface(MachineCtx* c, wgpu::Queue& queue,
     // Indoor shell
 
     // Lights need re-upload with potentially new config
-    c->mood_state_.lights_dirty = true;
+    c->sky_state_.lights_dirty = true;
 
     // New world decides its own upload frequency policy
     c->gpuState_.set_config_dynamic(false);

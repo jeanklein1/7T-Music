@@ -27,7 +27,6 @@ namespace the_board {
 struct DemoConfig {
     Roster   roster;      // D1 — which pieces exist
     uint32_t seed;        // D2 — the world master seed (WorldState boot)
-    uint32_t boot_mood;   // D2 — the mood the world wakes in
 };
 
 } // namespace the_board

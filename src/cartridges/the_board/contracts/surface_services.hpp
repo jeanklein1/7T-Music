@@ -35,12 +35,35 @@ namespace the_board {
 
 // ROOT ORGAN: the struct's home is here; the
 // instance (world_state_) stays at the composition root.
+// THE PIN (ONE_WORLD-II U2, flipped at U5). WorldShape carried `finite`
+// per mood — SHAPE_OPEN false, the rooms and the finite field true — and
+// boot wore the sunset's open row. The shape died with the moods, so the
+// fact becomes ONE constant the world is born with. It boots FALSE here,
+// which is exactly what the sunset row said: U2 changes where the fact
+// lives, not what it is, and U5 is the unit that changes it.
+inline constexpr bool WORLD_FINITE = false;
+
+// THE PIN'S DIALS (ONE_WORLD-II U2). The radius range every world draws
+// from — WorldShape's finite_radius_min/max, rehomed whole. The atrium's
+// pinned radius (min == max, no roll) died with the atrium; these are
+// SHAPE_FINITE's, the row the campaign keeps. New enrollment when the
+// panel wants them, which is U6's and not this unit's.
+inline constexpr uint32_t FINITE_RADIUS_MIN = 1;
+inline constexpr uint32_t FINITE_RADIUS_MAX = 4;
+
 struct WorldState {
     // ── Seed + dimensions ──
     uint32_t active_seed   = 0;  // world master seed — authored at the composition root from DEMO.seed; mutable for world transitions
     uint32_t active_radius = Dim::PATCH_PREGEN_RADIUS;
+    // THE FINITE FACTS, REHOMED (ONE_WORLD-II U2, §1.7). They were
+    // WorldShape's — finite, finite_radius_min, finite_radius_max — and
+    // the shape died with the moods. TWO of the three survive it: the
+    // MODE (a pin, flipped at U5) and the RANGE the world's seed draws a
+    // radius from. The range is the pin's DIALS: a radius per world is
+    // what the parametric spirit wants, and a pinned world still draws.
     bool     finite_mode   = false;
-    uint32_t finite_radius = 2;      // 2 → 5×5 = 25 patches
+    uint32_t finite_radius = 2;      // 2 → 5×5 = 25 patches — drawn per world
+
     uint32_t world_gen     = 0;
 
     // ── Recenter cursor ──
