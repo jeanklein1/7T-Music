@@ -16,9 +16,7 @@
                     t7::organ::g_def_dirty      = true;
                     t7::organ::g_def_dirty_mood = mood_state_.active;
                     t7::organ::g_tier_def_dirty = true;
-                    // The door promises the LIVE definitions, so it names
-                    // the live mood.
-                    t7::organ::raise_orb_definition(mood_state_.active);
+                    t7::organ::raise_orb_definition();
                 }
                 // THE SKY'S TWO PLAYER-OWNED FACTS, reached as doors: each
                 // calls the function its key calls — the same KP_8 / KP_7
@@ -84,39 +82,35 @@
                     // A console edit is about the sky we are looking at,
                     // so the live mood is the honest answer.
                     if (cm & 2u) {
-                        t7::organ::raise_orb_definition(mood_state_.active);
+                        t7::organ::raise_orb_definition();
                         console_reseed = true;
                     }
                 }
-                // The orb mood bank changed, so its applier re-speaks — for
-                // the LIVE mood only, because applying another mood's orb
-                // definition would populate this sky from a world we are
-                // not in. The call mirrors the mood fan's own site.
-                uint32_t orb_mood = 0;
-                if (t7::organ::take_orb_definition_dirty(orb_mood)) {
+                // The orb bank changed, so its applier re-speaks. ONE SKY
+                // (ONE_WORLD-II U1b): the bank was seven rows and the
+                // boundary had to prove the edit was THIS world's before
+                // applying it — a guard whose whole subject was the six
+                // other moods. It is one row now, always this world's, so
+                // the guard, the target id it compared, and the modulo that
+                // aliased an out-of-range one all go.
+                if (t7::organ::take_orb_definition_dirty()) {
                     // AN AUTHOR RE-SPEAKS NO MORE THAN THE EDIT REQUIRES.
-                    // Four of the nineteen orb-mood facts are baked into
+                    // Four of the nineteen orb facts are baked into
                     // orb_state at init, so touching any of them re-seeds;
                     // the other fifteen ride the uniform upload.
-
+                    //
                     // A RAISE WITH NO TOUCHED BITS MEANS EVERYTHING — the
-                    // RESPEAK door, or a caller that did not say. AND ONLY
-                    // WHEN THIS WORLD'S: the mask is taken either way, so a
-                    // dormant mood's bits cannot reach the live reseed.
+                    // RESPEAK door, or a caller that did not say.
                     const uint32_t tm = t7::organ::take_orb_def_touched();
-                    if (orb_mood == mood_state_.active) {
-                        const bool reseed = console_reseed
-                            || (tm == 0u)
-                            || ((tm & t7::organ::ORB_RESEED_BITS) != 0u);
-                        // THE MASK DRAINS EITHER WAY — take_orb_def_touched
-                        // above is unconditional, so a dormant mood's bits
-                        // cannot outlive a disabled piece; only the applier
-                        // is gated.
-                        if constexpr (ROSTER.orbs)  // ROSTER-GATE orbs (b) — sky dome never configured
-                            configure_orbs(orbs_state_, &orbs_deps_,
-                                ORB_MOOD_LIVE[orb_mood % MOOD_COUNT], queue,
-                                reseed);
-                    }
+                    const bool reseed = console_reseed
+                        || (tm == 0u)
+                        || ((tm & t7::organ::ORB_RESEED_BITS) != 0u);
+                    // THE MASK DRAINS EITHER WAY — take_orb_def_touched
+                    // above is unconditional, so a disabled piece cannot
+                    // leave bits behind; only the applier is gated.
+                    if constexpr (ROSTER.orbs)  // ROSTER-GATE orbs (b) — sky dome never configured
+                        configure_orbs(orbs_state_, &orbs_deps_,
+                            ORB_LIVE, queue, reseed);
                 }
                 // THE RULE WINDOW, refreshed here and nowhere else. The
                 // sky's rule and gesture are player-owned and live in

@@ -170,16 +170,59 @@ inline constexpr OrbMoodConfig ORB_MOOD_TABLE[MOOD_COUNT] = {
     /* 6 atrium              */ {  false, 0,   0.08f, 0.05f, 0.80f, 0.5f,  0u,  0.000f, {0.00f, 1.00f, 0.00f},  0.0f, 0u,  0.12f, 0xFFFFFFFFu,  50.0f, 120.0f, 200.0f, 30.0f, 8.0f,  15.0f, 60.0f, 0u,  0.0f, 0.0f, 0.0f, 0.0f },
 };
 
-// The live surface — the panel's definition bank. Seeded row by row, so
-// behavior is byte-stable at boot and every row below is the one the
-// module carried before this commit.
-inline OrbMoodConfig ORB_MOOD_LIVE[MOOD_COUNT] = {
-    ORB_MOOD_TABLE[0], ORB_MOOD_TABLE[1], ORB_MOOD_TABLE[2], ORB_MOOD_TABLE[3],
-    ORB_MOOD_TABLE[4], ORB_MOOD_TABLE[5], ORB_MOOD_TABLE[6],
-};
-static_assert(MOOD_COUNT == 7,
-    "ORB_MOOD_LIVE is seeded row by row (constexpr copy, one per mood): "
-    "a new mood needs its row here as well as in ORB_MOOD_TABLE");
+// ─── THE ORB BANK (ONE_WORLD-II U1b) ────────────────────────────
+// ORB_MOOD_LIVE was seven rows, one per mood, and the sky wore the live
+// one. There is one sky now, so there is one row: ORB_TABLE the design,
+// ORB_LIVE the bank, the tree's ORGAN_3 shape.
+//
+// TRANSCRIBED, NOT DERIVED (the canonized pattern). The literal below is
+// ORB_MOOD_TABLE's sunset row copied verbatim — positional, in field
+// order — because a `= ORB_MOOD_TABLE[MOOD_OPEN_SUNSET]` initializer
+// would die with the table at U2 and leave twenty-five values to be typed
+// at the one moment nothing could check them. The witness pins every
+// field while the source still stands; it does its whole job in this
+// commit and leaves with ORB_MOOD_TABLE.
+//                          en     n    hueB   hueV   bri    drg   rul  rotS    rotAxis                  orbS  pal  hct    trs   sepR   alnR    cohR    sepW   alnW   cohW   maxS   gst  drgB  drgO  drgF  drgK
+inline constexpr OrbMoodConfig ORB_TABLE =
+    {  true,  128, 0.08f, 0.06f, 0.85f, 0.4f,  3u,  0.012f, {0.15f, 0.97f, 0.10f},  0.0f, 0u,  0.08f, 0u,   50.0f, 120.0f, 200.0f, 30.0f, 8.0f,  15.0f, 60.0f, 0u,  0.0f, 0.0f, 0.0f, 0.0f };
+
+// THE SEEDING WITNESS (Amendment A). Every field against the row it was
+// transcribed from — a slip in a twenty-five-value positional literal is
+// a COMPILE ERROR rather than a sky that is subtly wrong and blamed on
+// the seed.
+static_assert(ORB_TABLE.enabled             == ORB_MOOD_TABLE[MOOD_OPEN_SUNSET].enabled
+           && ORB_TABLE.count               == ORB_MOOD_TABLE[MOOD_OPEN_SUNSET].count
+           && ORB_TABLE.base_hue            == ORB_MOOD_TABLE[MOOD_OPEN_SUNSET].base_hue
+           && ORB_TABLE.hue_variance        == ORB_MOOD_TABLE[MOOD_OPEN_SUNSET].hue_variance
+           && ORB_TABLE.brightness          == ORB_MOOD_TABLE[MOOD_OPEN_SUNSET].brightness
+           && ORB_TABLE.drag                == ORB_MOOD_TABLE[MOOD_OPEN_SUNSET].drag
+           && ORB_TABLE.motion_rule         == ORB_MOOD_TABLE[MOOD_OPEN_SUNSET].motion_rule
+           && ORB_TABLE.rotation_speed      == ORB_MOOD_TABLE[MOOD_OPEN_SUNSET].rotation_speed,
+    "ORB_TABLE's population and motion head is the sunset row's, transcribed (ONE_WORLD-II U1b)");
+static_assert(ORB_TABLE.rotation_axis[0]    == ORB_MOOD_TABLE[MOOD_OPEN_SUNSET].rotation_axis[0]
+           && ORB_TABLE.rotation_axis[1]    == ORB_MOOD_TABLE[MOOD_OPEN_SUNSET].rotation_axis[1]
+           && ORB_TABLE.rotation_axis[2]    == ORB_MOOD_TABLE[MOOD_OPEN_SUNSET].rotation_axis[2]
+           && ORB_TABLE.orbital_base_speed  == ORB_MOOD_TABLE[MOOD_OPEN_SUNSET].orbital_base_speed
+           && ORB_TABLE.palette_id          == ORB_MOOD_TABLE[MOOD_OPEN_SUNSET].palette_id
+           && ORB_TABLE.hue_converge_target == ORB_MOOD_TABLE[MOOD_OPEN_SUNSET].hue_converge_target
+           && ORB_TABLE.tierset_id          == ORB_MOOD_TABLE[MOOD_OPEN_SUNSET].tierset_id,
+    "ORB_TABLE's axis, palette and tierset are the sunset row's, transcribed (ONE_WORLD-II U1b)");
+static_assert(ORB_TABLE.flock_sep_radius     == ORB_MOOD_TABLE[MOOD_OPEN_SUNSET].flock_sep_radius
+           && ORB_TABLE.flock_align_radius   == ORB_MOOD_TABLE[MOOD_OPEN_SUNSET].flock_align_radius
+           && ORB_TABLE.flock_coh_radius     == ORB_MOOD_TABLE[MOOD_OPEN_SUNSET].flock_coh_radius
+           && ORB_TABLE.flock_sep_weight     == ORB_MOOD_TABLE[MOOD_OPEN_SUNSET].flock_sep_weight
+           && ORB_TABLE.flock_align_weight   == ORB_MOOD_TABLE[MOOD_OPEN_SUNSET].flock_align_weight
+           && ORB_TABLE.flock_coh_weight     == ORB_MOOD_TABLE[MOOD_OPEN_SUNSET].flock_coh_weight
+           && ORB_TABLE.flock_max_speed      == ORB_MOOD_TABLE[MOOD_OPEN_SUNSET].flock_max_speed
+           && ORB_TABLE.flock_gesture_default == ORB_MOOD_TABLE[MOOD_OPEN_SUNSET].flock_gesture_default,
+    "ORB_TABLE's flock is the sunset row's, transcribed (ONE_WORLD-II U1b)");
+static_assert(ORB_TABLE.rule_drag_brownian  == ORB_MOOD_TABLE[MOOD_OPEN_SUNSET].rule_drag_brownian
+           && ORB_TABLE.rule_drag_orbital   == ORB_MOOD_TABLE[MOOD_OPEN_SUNSET].rule_drag_orbital
+           && ORB_TABLE.rule_drag_frozen    == ORB_MOOD_TABLE[MOOD_OPEN_SUNSET].rule_drag_frozen
+           && ORB_TABLE.rule_drag_flocking  == ORB_MOOD_TABLE[MOOD_OPEN_SUNSET].rule_drag_flocking,
+    "ORB_TABLE's per-rule drags are the sunset row's, transcribed (ONE_WORLD-II U1b)");
+
+inline OrbMoodConfig ORB_LIVE = ORB_TABLE;
 
 } // namespace the_board
 } // namespace t7

@@ -108,7 +108,14 @@ enum : uint8_t {
     // re-rolling". Its rows were fifty-two definition-only rows against four
     // regimes of MoodProfile until the roll left.
     ORGAN_BLOCK_ATMOS        = 12,  // AtmosphereBank     — ATMOS_LIVE
-    ORGAN_BLOCK_COUNT        = 13,
+    // THE ORB BANK (ONE_WORLD-II U1b). OrbMoodConfig — ORB_LIVE, the sky's
+    // one row. Nineteen definition-only rows against ORB_MOOD_LIVE[mood]
+    // until the moods stopped being seven; the applier is unchanged, so the
+    // block keeps the orb console's BOUNDARY cadence and its per-field
+    // touched mask (four of the twenty-five facts are baked at init and
+    // re-seed; the rest ride the uniform upload).
+    ORGAN_BLOCK_ORB_BANK     = 13,  // OrbMoodConfig      — ORB_LIVE
+    ORGAN_BLOCK_COUNT        = 14,
 };
 
 // A definition-only entry has no instance anywhere: block_base answers
@@ -124,7 +131,10 @@ enum : uint8_t {
 // explicit list rather than a range test.
 enum : uint8_t {
     ORGAN_BLOCK_NONE     = 255,   // the_board::MoodProfile family
-    ORGAN_BLOCK_NONE_ORB = 254,   // the_board::OrbMoodConfig family
+    // 254 stood here for the OrbMoodConfig family until ONE_WORLD-II U1b
+    // gave that struct an instance (ORB_LIVE, block 13) and its rows
+    // stopped being definition-only. The convention still descends: the
+    // next family takes 254 again.
 };
 
 // ─── Definition targets ───────────────────────────────────────────────
@@ -149,8 +159,6 @@ enum : uint8_t {
     ORGAN_DEF_MOOD = 1,   // the_board::MoodProfile — per-mood, target selects
     ORGAN_DEF_TIER = 2,   // the_board::AgentTierBank — the world's, one bank
     ORGAN_DEF_BEHAVIOR = 3,  // AgentBehaviorBank — the world's; raises TIER's flag
-    ORGAN_DEF_ORB_MOOD = 4,  // ORB_MOOD_LIVE[mood] — per-mood; applier
-                          // configure_orbs, own flag g_orb_def_dirty
 };
 
 // ─── Cadence ──────────────────────────────────────────────────────────
@@ -232,7 +240,6 @@ struct OrganParam {
 // THE SENTINEL IS DERIVED FROM THE KIND, not written at the call site: one
 // mapping line per family, here, and a further family adds one #define.
 #define ORGAN_DEFONLY_BLOCK_MOOD     ORGAN_BLOCK_NONE
-#define ORGAN_DEFONLY_BLOCK_ORB_MOOD ORGAN_BLOCK_NONE_ORB
 
 #define ORGAN_PARAM_DEFONLY_NS(NS, TYPE, MIN, MAX, STEP, GROUP, LABEL,               \
                             DEFKIND, DEFSTRUCT, DEFFIELD)                     \
@@ -340,6 +347,7 @@ inline void* block_base(uint8_t block) {
     case ORGAN_BLOCK_WORLD:      return &the_board::WORLD_DRAW_LIVE;
     case ORGAN_BLOCK_RIBBON_SPAWN: return &the_board::RIBBON_SPAWN_LIVE;
     case ORGAN_BLOCK_ATMOS:      return &the_board::ATMOS_LIVE;
+    case ORGAN_BLOCK_ORB_BANK:   return &the_board::ORB_LIVE;
     default:                     return nullptr;
     }
 }
@@ -348,7 +356,7 @@ inline void* block_base(uint8_t block) {
 // three call sites: the convention descends from 255 (see the block enum),
 // so a further family adds one name here and none at a call site.
 inline bool is_defonly(uint8_t block) {
-    return block == ORGAN_BLOCK_NONE || block == ORGAN_BLOCK_NONE_ORB;
+    return block == ORGAN_BLOCK_NONE;
 }
 
 // DOES A WRITE TO THIS BLOCK RAISE A RE-SPEAK FLAG? A bank whose author is
@@ -366,7 +374,8 @@ inline bool block_has_boundary(uint8_t block) {
     // apply_mood_lighting — one author, one re-draw, consumed at the
     // boundary for the same reason: a colour drag is many events and the
     // world's sky is drawn once per frame at most.
-    return block == ORGAN_BLOCK_ORBS || block == ORGAN_BLOCK_ATMOS;
+    return block == ORGAN_BLOCK_ORBS || block == ORGAN_BLOCK_ATMOS
+        || block == ORGAN_BLOCK_ORB_BANK;
 }
 
 // THE ONE PLACE THE CADENCE RULE LIVES. Every reader of a row's cadence
@@ -406,7 +415,6 @@ enum : uint8_t {
 inline uint8_t derived_scope(const OrganParam& e) {
     switch (e.def_kind) {
     case ORGAN_DEF_MOOD:
-    case ORGAN_DEF_ORB_MOOD: return ORGAN_SCOPE_MOOD;
     case ORGAN_DEF_TIER:
     case ORGAN_DEF_BEHAVIOR: return ORGAN_SCOPE_WORLD;
     default:                 return ORGAN_SCOPE_NONE;
@@ -478,10 +486,8 @@ inline bool     g_orb_def_dirty  = false;   // the orb mood bank changed
 // PLAINLY: two moods written between one boundary and the next leave the
 // last one's id here — reachable through a multi-mood preset import, where
 // the guard makes the case SAFE (dropped) rather than wrong.
-inline uint32_t g_orb_def_dirty_mood = 0;
-inline void raise_orb_definition(uint32_t mood) {
+inline void raise_orb_definition() {
     g_orb_def_dirty = true;
-    g_orb_def_dirty_mood = mood;
 }
 
 // ─── THE TOUCHED MASK ─────────────────────────────────────────────
@@ -544,9 +550,6 @@ inline char* definition_base(const OrganParam& e, uint32_t mood) {
     case ORGAN_DEF_MOOD: return reinterpret_cast<char*>(&the_board::mood_def(mood));
     case ORGAN_DEF_TIER: return reinterpret_cast<char*>(&the_board::TIER_LIVE);
     case ORGAN_DEF_BEHAVIOR: return reinterpret_cast<char*>(&the_board::BEHAVIOR_LIVE);
-    case ORGAN_DEF_ORB_MOOD:
-        return reinterpret_cast<char*>(
-            &the_board::ORB_MOOD_LIVE[mood % the_board::MOOD_COUNT]);
     default:             return nullptr;
     }
 }
@@ -580,16 +583,6 @@ inline bool write_definition(const OrganParam& e, uint32_t mood, const float* in
     // a second flag would be a second name for one occasion.
     if (e.def_kind == ORGAN_DEF_TIER || e.def_kind == ORGAN_DEF_BEHAVIOR) {
         g_tier_def_dirty = true;
-    } else if (e.def_kind == ORGAN_DEF_ORB_MOOD) {
-        // Its own author, so its own flag — the converse of BEHAVIOR's
-        // case, and the same rule: the flag names the occasion.
-        raise_orb_definition(mood);
-        // And WHICH field, so the boundary re-speaks no more than the
-        // edit requires. `def_offset` and not `offset`: the write above
-        // lands at `p + e.def_offset`, so the bit names the same word. The
-        // two are equal for a definition-only row and differ for a
-        // ORGAN_PARAM_DEF row whose instance lives elsewhere.
-        g_orb_def_touched |= (1u << (e.def_offset / 4u));
     } else {
         g_def_dirty = true; g_def_dirty_mood = mood;
     }
@@ -691,10 +684,9 @@ inline bool take_tier_definition_dirty() {
 // The orb mood bank's re-apply, taken once by the frame boundary. Its
 // applier is configure_orbs, which the cartridge can reach and this file
 // cannot.
-inline bool take_orb_definition_dirty(uint32_t& mood) {
+inline bool take_orb_definition_dirty() {
     if (!g_orb_def_dirty) return false;
     g_orb_def_dirty = false;
-    mood = g_orb_def_dirty_mood;
     return true;
 }
 
@@ -851,6 +843,13 @@ EMSCRIPTEN_KEEPALIVE inline void organ_set(int block, int offset, int type,
         g_orb_console_dirty |= (1u << (e->offset / 4u));
     if (block == ORGAN_BLOCK_ATMOS)
         g_atmos_dirty = true;
+    // The orb bank keeps the per-field mask it had as a definition family:
+    // its offsets are OrbMoodConfig's either way, so ORB_RESEED_BITS still
+    // reads them, and the boundary still decides what each field costs.
+    if (block == ORGAN_BLOCK_ORB_BANK) {
+        g_orb_def_touched |= (1u << (e->offset / 4u));
+        g_orb_def_dirty = true;
+    }
 }
 
 // BY INDEX, LIKE ITS SIBLINGS. The manifest index IS the index in

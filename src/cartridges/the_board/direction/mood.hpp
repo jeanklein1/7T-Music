@@ -881,7 +881,7 @@ inline void apply_mood(MoodDeps* c, uint32_t mood, wgpu::Queue& queue,
         // ORGAN_5 P1b — reseed TRUE: a mood change is a new world's sky,
         // so the init kernel re-runs and every orb is re-drawn. This is
         // the heavy path, and it is the one path that should be.
-        configure_orbs(orbs_state, &orbs_deps, ORB_MOOD_LIVE[mood], queue,
+        configure_orbs(orbs_state, &orbs_deps, ORB_LIVE, queue,
             /*reseed=*/true);
 
     std::cout << "[Mood] Applied: " << mood_name(mood)

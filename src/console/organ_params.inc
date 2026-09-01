@@ -84,39 +84,39 @@ ORGAN_PARAM(ORBS, OrbConsole, base_size,   F32, 0.0f, 12.0f,   0.05f,  "Sky & Li
 // ─── Sky & Light · Orbs ─────────────────────────────────────────────
 // ORB_MOOD_LIVE (contracts/orb_surface.hpp), definition-only and
 // mood-selected. Four of these five re-seed the sky; brightness rides.
-ORGAN_PARAM_DEFONLY(BOOL, 0.0f,   1.0f,     1.0f,    "Sky & Light · Orbs", "enabled", ORB_MOOD, OrbMoodConfig, enabled)
-ORGAN_PARAM_DEFONLY(U32,  0.0f,   256.0f,   1.0f,    "Sky & Light · Orbs", "count", ORB_MOOD, OrbMoodConfig, count)
-ORGAN_PARAM_DEFONLY(U32,  0.0f,   3.0f,     1.0f,    "Sky & Light · Orbs", "palette id", ORB_MOOD, OrbMoodConfig, palette_id)
-ORGAN_PARAM_DEFONLY(F32,  0.01f,  2.0f,     0.01f,   "Sky & Light · Orbs", "drag", ORB_MOOD, OrbMoodConfig, drag)
-ORGAN_PARAM_DEFONLY(F32,  0.0f,   1.0f,     0.005f,  "Sky & Light · Orbs", "brightness", ORB_MOOD, OrbMoodConfig, brightness)
+ORGAN_PARAM(ORB_BANK, OrbMoodConfig, enabled, BOOL, 0.0f,   1.0f,     1.0f,    "Sky & Light · Orbs", "enabled")
+ORGAN_PARAM(ORB_BANK, OrbMoodConfig, count, U32,  0.0f,   256.0f,   1.0f,    "Sky & Light · Orbs", "count")
+ORGAN_PARAM(ORB_BANK, OrbMoodConfig, palette_id, U32,  0.0f,   3.0f,     1.0f,    "Sky & Light · Orbs", "palette id")
+ORGAN_PARAM(ORB_BANK, OrbMoodConfig, drag, F32,  0.01f,  2.0f,     0.01f,   "Sky & Light · Orbs", "drag")
+ORGAN_PARAM(ORB_BANK, OrbMoodConfig, brightness, F32,  0.0f,   1.0f,     0.005f,  "Sky & Light · Orbs", "brightness")
 
 // ─── Sky & Light · Motion — all rules ───────────────────────────────
 // Every row here acts under every rule, so the group carries no live-rule
 // line. The four rule drags floor one step off configure_orbs' sentinel.
 ORGAN_PARAM(ORBS, OrbConsole, speed_mult,  F32, 0.0f, 4.0f, 0.01f,  "Sky & Light · Motion — all rules", "speed mult")
 ORGAN_PARAM(ORBS, OrbConsole, noise_floor, F32, 0.0f, 3.0f, 0.005f, "Sky & Light · Motion — all rules", "noise floor")
-ORGAN_PARAM_DEFONLY(F32,  -2.0f,  2.0f,     0.005f,  "Sky & Light · Motion — all rules", "rotation speed (rad/s)", ORB_MOOD, OrbMoodConfig, rotation_speed)
-ORGAN_PARAM_DEFONLY(VEC3, -1.0f,  1.0f,     0.01f,   "Sky & Light · Motion — all rules", "rotation axis", ORB_MOOD, OrbMoodConfig, rotation_axis)
-ORGAN_PARAM_DEFONLY(F32,  0.02f,  4.0f,     0.02f,   "Sky & Light · Motion — all rules", "drag × brownian rule", ORB_MOOD, OrbMoodConfig, rule_drag_brownian)
-ORGAN_PARAM_DEFONLY(F32,  0.02f,  4.0f,     0.02f,   "Sky & Light · Motion — all rules", "drag × orbital rule", ORB_MOOD, OrbMoodConfig, rule_drag_orbital)
-ORGAN_PARAM_DEFONLY(F32,  0.02f,  4.0f,     0.02f,   "Sky & Light · Motion — all rules", "drag × frozen rule", ORB_MOOD, OrbMoodConfig, rule_drag_frozen)
-ORGAN_PARAM_DEFONLY(F32,  0.02f,  4.0f,     0.02f,   "Sky & Light · Motion — all rules", "drag × flocking rule", ORB_MOOD, OrbMoodConfig, rule_drag_flocking)
+ORGAN_PARAM(ORB_BANK, OrbMoodConfig, rotation_speed, F32,  -2.0f,  2.0f,     0.005f,  "Sky & Light · Motion — all rules", "rotation speed (rad/s)")
+ORGAN_PARAM(ORB_BANK, OrbMoodConfig, rotation_axis, VEC3, -1.0f,  1.0f,     0.01f,   "Sky & Light · Motion — all rules", "rotation axis")
+ORGAN_PARAM(ORB_BANK, OrbMoodConfig, rule_drag_brownian, F32,  0.02f,  4.0f,     0.02f,   "Sky & Light · Motion — all rules", "drag × brownian rule")
+ORGAN_PARAM(ORB_BANK, OrbMoodConfig, rule_drag_orbital, F32,  0.02f,  4.0f,     0.02f,   "Sky & Light · Motion — all rules", "drag × orbital rule")
+ORGAN_PARAM(ORB_BANK, OrbMoodConfig, rule_drag_frozen, F32,  0.02f,  4.0f,     0.02f,   "Sky & Light · Motion — all rules", "drag × frozen rule")
+ORGAN_PARAM(ORB_BANK, OrbMoodConfig, rule_drag_flocking, F32,  0.02f,  4.0f,     0.02f,   "Sky & Light · Motion — all rules", "drag × flocking rule")
 
 // ─── Sky & Light · Orbital rule ─────────────────────────────────────
 // One row, and the group's name is what tells the control surface to print the
 // live-rule line: it acts under ORBITAL and under no other rule.
-ORGAN_PARAM_DEFONLY(F32,  0.005f, 1.0f,     0.005f,  "Sky & Light · Orbital rule", "orbital speed (rad/s)", ORB_MOOD, OrbMoodConfig, orbital_base_speed)
+ORGAN_PARAM(ORB_BANK, OrbMoodConfig, orbital_base_speed, F32,  0.005f, 1.0f,     0.005f,  "Sky & Light · Orbital rule", "orbital speed (rad/s)")
 
 // ─── Sky & Light · Flocking rule ────────────────────────────────────
 // The seven boids rows, acting under FLOCKING alone; the header carries
 // the live-rule line. Floors sit one step off the same sentinel.
-ORGAN_PARAM_DEFONLY(F32,  1.0f,   200.0f,   1.0f,    "Sky & Light · Flocking rule", "separation radius", ORB_MOOD, OrbMoodConfig, flock_sep_radius)
-ORGAN_PARAM_DEFONLY(F32,  2.0f,   480.0f,   2.0f,    "Sky & Light · Flocking rule", "alignment radius", ORB_MOOD, OrbMoodConfig, flock_align_radius)
-ORGAN_PARAM_DEFONLY(F32,  4.0f,   800.0f,   4.0f,    "Sky & Light · Flocking rule", "cohesion radius", ORB_MOOD, OrbMoodConfig, flock_coh_radius)
-ORGAN_PARAM_DEFONLY(F32,  0.5f,   120.0f,   0.5f,    "Sky & Light · Flocking rule", "separation weight", ORB_MOOD, OrbMoodConfig, flock_sep_weight)
-ORGAN_PARAM_DEFONLY(F32,  0.2f,   32.0f,    0.2f,    "Sky & Light · Flocking rule", "alignment weight", ORB_MOOD, OrbMoodConfig, flock_align_weight)
-ORGAN_PARAM_DEFONLY(F32,  0.25f,  60.0f,    0.25f,   "Sky & Light · Flocking rule", "cohesion weight", ORB_MOOD, OrbMoodConfig, flock_coh_weight)
-ORGAN_PARAM_DEFONLY(F32,  1.0f,   240.0f,   1.0f,    "Sky & Light · Flocking rule", "max speed", ORB_MOOD, OrbMoodConfig, flock_max_speed)
+ORGAN_PARAM(ORB_BANK, OrbMoodConfig, flock_sep_radius, F32,  1.0f,   200.0f,   1.0f,    "Sky & Light · Flocking rule", "separation radius")
+ORGAN_PARAM(ORB_BANK, OrbMoodConfig, flock_align_radius, F32,  2.0f,   480.0f,   2.0f,    "Sky & Light · Flocking rule", "alignment radius")
+ORGAN_PARAM(ORB_BANK, OrbMoodConfig, flock_coh_radius, F32,  4.0f,   800.0f,   4.0f,    "Sky & Light · Flocking rule", "cohesion radius")
+ORGAN_PARAM(ORB_BANK, OrbMoodConfig, flock_sep_weight, F32,  0.5f,   120.0f,   0.5f,    "Sky & Light · Flocking rule", "separation weight")
+ORGAN_PARAM(ORB_BANK, OrbMoodConfig, flock_align_weight, F32,  0.2f,   32.0f,    0.2f,    "Sky & Light · Flocking rule", "alignment weight")
+ORGAN_PARAM(ORB_BANK, OrbMoodConfig, flock_coh_weight, F32,  0.25f,  60.0f,    0.25f,   "Sky & Light · Flocking rule", "cohesion weight")
+ORGAN_PARAM(ORB_BANK, OrbMoodConfig, flock_max_speed, F32,  1.0f,   240.0f,   1.0f,    "Sky & Light · Flocking rule", "max speed")
 
 // ─── Sky & Light · Schemes — EDITS THE NEXT DRAW ────────────────
 // WORLD_DRAW_LIVE (contracts/mood_constants.hpp), rolled once as a room is

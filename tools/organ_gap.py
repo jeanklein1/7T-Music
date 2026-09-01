@@ -88,7 +88,7 @@ PAIRS = {
     "AgentBehaviorBank": ("AGENT_BEHAVIORS",   "BEHAVIOR_LIVE"),
     "PawnAuraProfile":   ("PAWN_AURA_DEFAULT", "PAWN_AURA_LIVE"),
     "OrbConsole":        ("ORB_CONSOLE",       "ORB_CONSOLE_LIVE"),
-    "OrbMoodConfig":     ("ORB_MOOD_TABLE",    "ORB_MOOD_LIVE"),
+    "OrbMoodConfig":     ("ORB_MOOD_TABLE",    "ORB_LIVE"),
     "PanelSurface":      ("PANEL_TABLE",       "PANEL_LIVE"),
     "RibbonSurface":     ("RIBBON_TABLE",      "RIBBON_LIVE"),
     "IndoorSurface":     ("INDOOR_TABLE",      "INDOOR_LIVE"),

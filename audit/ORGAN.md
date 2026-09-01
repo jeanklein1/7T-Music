@@ -32,27 +32,27 @@ generator, so the book and the manifest cannot disagree. `driven` is an
 | Sky & Light · Sun | ambient (drawn) | `LIGHTING.sun.ambient` | LIGHTING | F32 | — | — | driven | none | • |
 | Sky & Light · Dome | dome radius | `ORBS.dome_radius` | ORBS | F32 | 0 … 2000 | 5 | boundary | none |  |
 | Sky & Light · Dome | base size | `ORBS.base_size` | ORBS | F32 | 0 … 12 | 0.05 | boundary | none |  |
-| Sky & Light · Orbs | enabled | `OrbMoodConfig.enabled` | NONE_ORB (254) | BOOL | 0 … 1 | 1 | boundary | orb_mood |  |
-| Sky & Light · Orbs | count | `OrbMoodConfig.count` | NONE_ORB (254) | U32 | 0 … 256 | 1 | boundary | orb_mood |  |
-| Sky & Light · Orbs | palette id | `OrbMoodConfig.palette_id` | NONE_ORB (254) | U32 | 0 … 3 | 1 | boundary | orb_mood |  |
-| Sky & Light · Orbs | drag | `OrbMoodConfig.drag` | NONE_ORB (254) | F32 | 0.01 … 2 | 0.01 | boundary | orb_mood |  |
-| Sky & Light · Orbs | brightness | `OrbMoodConfig.brightness` | NONE_ORB (254) | F32 | 0 … 1 | 0.005 | boundary | orb_mood |  |
+| Sky & Light · Orbs | enabled | `ORB_BANK.enabled` | ORB_BANK | BOOL | 0 … 1 | 1 | live | none |  |
+| Sky & Light · Orbs | count | `ORB_BANK.count` | ORB_BANK | U32 | 0 … 256 | 1 | live | none |  |
+| Sky & Light · Orbs | palette id | `ORB_BANK.palette_id` | ORB_BANK | U32 | 0 … 3 | 1 | live | none |  |
+| Sky & Light · Orbs | drag | `ORB_BANK.drag` | ORB_BANK | F32 | 0.01 … 2 | 0.01 | live | none |  |
+| Sky & Light · Orbs | brightness | `ORB_BANK.brightness` | ORB_BANK | F32 | 0 … 1 | 0.005 | live | none |  |
 | Sky & Light · Motion — all rules | speed mult | `ORBS.speed_mult` | ORBS | F32 | 0 … 4 | 0.01 | boundary | none |  |
 | Sky & Light · Motion — all rules | noise floor | `ORBS.noise_floor` | ORBS | F32 | 0 … 3 | 0.005 | boundary | none |  |
-| Sky & Light · Motion — all rules | rotation speed (rad/s) | `OrbMoodConfig.rotation_speed` | NONE_ORB (254) | F32 | -2 … 2 | 0.005 | boundary | orb_mood |  |
-| Sky & Light · Motion — all rules | rotation axis | `OrbMoodConfig.rotation_axis` | NONE_ORB (254) | VEC3 | -1 … 1 | 0.01 | boundary | orb_mood |  |
-| Sky & Light · Motion — all rules | drag × brownian rule | `OrbMoodConfig.rule_drag_brownian` | NONE_ORB (254) | F32 | 0.02 … 4 | 0.02 | boundary | orb_mood |  |
-| Sky & Light · Motion — all rules | drag × orbital rule | `OrbMoodConfig.rule_drag_orbital` | NONE_ORB (254) | F32 | 0.02 … 4 | 0.02 | boundary | orb_mood |  |
-| Sky & Light · Motion — all rules | drag × frozen rule | `OrbMoodConfig.rule_drag_frozen` | NONE_ORB (254) | F32 | 0.02 … 4 | 0.02 | boundary | orb_mood |  |
-| Sky & Light · Motion — all rules | drag × flocking rule | `OrbMoodConfig.rule_drag_flocking` | NONE_ORB (254) | F32 | 0.02 … 4 | 0.02 | boundary | orb_mood |  |
-| Sky & Light · Orbital rule | orbital speed (rad/s) | `OrbMoodConfig.orbital_base_speed` | NONE_ORB (254) | F32 | 0.005 … 1 | 0.005 | boundary | orb_mood |  |
-| Sky & Light · Flocking rule | separation radius | `OrbMoodConfig.flock_sep_radius` | NONE_ORB (254) | F32 | 1 … 200 | 1 | boundary | orb_mood |  |
-| Sky & Light · Flocking rule | alignment radius | `OrbMoodConfig.flock_align_radius` | NONE_ORB (254) | F32 | 2 … 480 | 2 | boundary | orb_mood |  |
-| Sky & Light · Flocking rule | cohesion radius | `OrbMoodConfig.flock_coh_radius` | NONE_ORB (254) | F32 | 4 … 800 | 4 | boundary | orb_mood |  |
-| Sky & Light · Flocking rule | separation weight | `OrbMoodConfig.flock_sep_weight` | NONE_ORB (254) | F32 | 0.5 … 120 | 0.5 | boundary | orb_mood |  |
-| Sky & Light · Flocking rule | alignment weight | `OrbMoodConfig.flock_align_weight` | NONE_ORB (254) | F32 | 0.2 … 32 | 0.2 | boundary | orb_mood |  |
-| Sky & Light · Flocking rule | cohesion weight | `OrbMoodConfig.flock_coh_weight` | NONE_ORB (254) | F32 | 0.25 … 60 | 0.25 | boundary | orb_mood |  |
-| Sky & Light · Flocking rule | max speed | `OrbMoodConfig.flock_max_speed` | NONE_ORB (254) | F32 | 1 … 240 | 1 | boundary | orb_mood |  |
+| Sky & Light · Motion — all rules | rotation speed (rad/s) | `ORB_BANK.rotation_speed` | ORB_BANK | F32 | -2 … 2 | 0.005 | live | none |  |
+| Sky & Light · Motion — all rules | rotation axis | `ORB_BANK.rotation_axis` | ORB_BANK | VEC3 | -1 … 1 | 0.01 | live | none |  |
+| Sky & Light · Motion — all rules | drag × brownian rule | `ORB_BANK.rule_drag_brownian` | ORB_BANK | F32 | 0.02 … 4 | 0.02 | live | none |  |
+| Sky & Light · Motion — all rules | drag × orbital rule | `ORB_BANK.rule_drag_orbital` | ORB_BANK | F32 | 0.02 … 4 | 0.02 | live | none |  |
+| Sky & Light · Motion — all rules | drag × frozen rule | `ORB_BANK.rule_drag_frozen` | ORB_BANK | F32 | 0.02 … 4 | 0.02 | live | none |  |
+| Sky & Light · Motion — all rules | drag × flocking rule | `ORB_BANK.rule_drag_flocking` | ORB_BANK | F32 | 0.02 … 4 | 0.02 | live | none |  |
+| Sky & Light · Orbital rule | orbital speed (rad/s) | `ORB_BANK.orbital_base_speed` | ORB_BANK | F32 | 0.005 … 1 | 0.005 | live | none |  |
+| Sky & Light · Flocking rule | separation radius | `ORB_BANK.flock_sep_radius` | ORB_BANK | F32 | 1 … 200 | 1 | live | none |  |
+| Sky & Light · Flocking rule | alignment radius | `ORB_BANK.flock_align_radius` | ORB_BANK | F32 | 2 … 480 | 2 | live | none |  |
+| Sky & Light · Flocking rule | cohesion radius | `ORB_BANK.flock_coh_radius` | ORB_BANK | F32 | 4 … 800 | 4 | live | none |  |
+| Sky & Light · Flocking rule | separation weight | `ORB_BANK.flock_sep_weight` | ORB_BANK | F32 | 0.5 … 120 | 0.5 | live | none |  |
+| Sky & Light · Flocking rule | alignment weight | `ORB_BANK.flock_align_weight` | ORB_BANK | F32 | 0.2 … 32 | 0.2 | live | none |  |
+| Sky & Light · Flocking rule | cohesion weight | `ORB_BANK.flock_coh_weight` | ORB_BANK | F32 | 0.25 … 60 | 0.25 | live | none |  |
+| Sky & Light · Flocking rule | max speed | `ORB_BANK.flock_max_speed` | ORB_BANK | F32 | 1 … 240 | 1 | live | none |  |
 | Sky & Light · Schemes | cathedral | `WORLD.scheme_weights[0]` | WORLD | F32 | 0 … 1 | 0.005 | gen | none |  |
 | Sky & Light · Schemes | quartet | `WORLD.scheme_weights[1]` | WORLD | F32 | 0 … 1 | 0.005 | gen | none |  |
 | Sky & Light · Schemes | gallery | `WORLD.scheme_weights[2]` | WORLD | F32 | 0 … 1 | 0.005 | gen | none |  |
@@ -344,11 +344,11 @@ generator, so the book and the manifest cannot disagree. `driven` is an
 | --- | --- |
 | entries | **314** |
 | by section | Agents 102 · Ribbon 55 · Terrain 42 · Sky & Light 34 · Atmosphere 31 · Interaction 22 · Pawn 18 · Debug 4 · Camera 3 · Measure 3 |
-| by cadence | boundary 125 · driven 18 · gen 26 · live 145 |
-| by macro form | PARAM 149 · PARAM_DEF 102 · PARAM_DEFONLY 19 · PARAM_GEN 26 · PARAM_RO 18 |
-| definition kinds | BEHAVIOR 70 · NONE 193 · ORB_MOOD 19 · TIER 32 |
+| by cadence | boundary 106 · driven 18 · gen 26 · live 164 |
+| by macro form | PARAM 168 · PARAM_DEF 102 · PARAM_GEN 26 · PARAM_RO 18 |
+| definition kinds | BEHAVIOR 70 · NONE 212 · TIER 32 |
 | witnesses (`ro`) | 18 |
-| blocks and sentinels used | AGENT_ROOM, ATMOS, CANVAS, CONFIG, DRIVERS, INDOOR, LIGHTING, NONE_ORB (254), ORBS, PANEL, PAWN, RIBBON, RIBBON_SPAWN, WORLD |
+| blocks and sentinels used | AGENT_ROOM, ATMOS, CANVAS, CONFIG, DRIVERS, INDOOR, LIGHTING, ORBS, ORB_BANK, PANEL, PAWN, RIBBON, RIBBON_SPAWN, WORLD |
 | namespaces | canvas 15 · the_board 299 |
 
 ### Doors
@@ -387,7 +387,7 @@ reader — the class of defect this witness exists to catch.
   INDOOR_TABLE         definition=1 seed=1 static_assert=2 comment=1 
   MOOD_TABLE           definition=1 seed=7 static_assert=31 comment=30 
   ORB_CONSOLE          definition=1 seed=1 comment=2              
-  ORB_MOOD_TABLE       definition=1 seed=7 comment=6              
+  ORB_MOOD_TABLE       definition=1 static_assert=27 comment=8    
   PANEL_TABLE          definition=1 seed=1 static_assert=6 comment=2 
   PAWN_AURA_DEFAULT    definition=1 seed=1 static_assert=1 comment=3 
   RIBBON_SPAWN_TABLE   definition=1 seed=1 static_assert=2        
