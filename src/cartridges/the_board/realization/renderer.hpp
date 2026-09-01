@@ -34,7 +34,7 @@ namespace t7 {
             constexpr const char* RIBBON_BODY = "ribbon_body";                                // 1D -- per ring: rest, gesture, tension, frame, motor
             constexpr const char* COMPUTE_PAWN_AURA = "compute_pawn_aura";                  // 2D -- toroidal grid
             constexpr const char* WRITE_LIVE_CARD = "write_live_card";                      // 2D -- the card, one fused pass (LATTICE_4)
-            constexpr const char* ZONE_SEED_MASK = "zone_seed_mask";                        // 2D -- the vocabulary mask (UNIFIED_GROUND_1)
+            constexpr const char* AUTOMATON_SEED = "automaton_seed";                        // 2D -- the automaton's whole birth (ONE_SURFACE-II U1)
 
             // Render
             constexpr const char* PATCH_TERRAIN_VS = "patch_terrain_vs";
@@ -58,9 +58,8 @@ namespace t7 {
             constexpr const char* FRUSTUM_CULL_PATCHES = "frustum_cull_patches";
 
             // GoL zone compute (zone-local automaton)
-            constexpr const char* ZONE_GOL_SYNC = "zone_gol_sync";
-            constexpr const char* ZONE_GOL_EVOLVE = "zone_gol_evolve";
-            constexpr const char* ZONE_DERIVE_PARAMS = "zone_derive_params";
+            constexpr const char* AUTOMATON_SYNC = "automaton_sync";
+            constexpr const char* AUTOMATON_EVOLVE = "automaton_evolve";
 
             // Orb sky layer (luminous points on a dome)
             constexpr const char* ORB_INIT           = "orb_init";             // 1D compute
@@ -98,8 +97,8 @@ namespace t7 {
             wgpu::BindGroupLayout shadowStateLayout_;
             wgpu::BindGroupLayout shadowTexturesLayout_;
             wgpu::BindGroupLayout worldLayout_;
-            wgpu::BindGroupLayout zonesStateLayout_;
-            wgpu::BindGroupLayout zonesTexturesLayout_;
+            wgpu::BindGroupLayout automatonStateLayout_;
+            wgpu::BindGroupLayout automatonTexturesLayout_;
             wgpu::TextureFormat colorFormat_;
             wgpu::TextureFormat depthFormat_;
 
@@ -199,7 +198,7 @@ namespace t7 {
             wgpu::ComputePipeline frustumCullPipeline_;
             wgpu::ComputePipeline pawnAuraPipeline_;
             wgpu::ComputePipeline liveCardPipeline_;         // TRUEBAND_CONTACT_1, fused at LATTICE_4
-            wgpu::ComputePipeline zoneSeedMaskPipeline_;     // UNIFIED_GROUND_1 U5
+            wgpu::ComputePipeline automatonSeedPipeline_;    // ONE_SURFACE-II U1 — the whole birth
 
             // Orb sky layer pipelines
             wgpu::ComputePipeline orbInitPipeline_;
@@ -208,19 +207,23 @@ namespace t7 {
             wgpu::ComputePipeline orbCopyPrevPipeline_;
             wgpu::RenderPipeline  orbRenderPipeline_;
 
-            // GoL zone compute pipelines (dedicated layout, z-dispatched per zone)
-            // ZONE_GRID_WG: workgroups per axis for the three 8×8 zone kernels
-            // (zone_gol_sync / zone_gol_evolve / zone_seed_mask). DERIVED from
-            // the capacity constant — the one-spelling law. Kernel-side the
-            // bound is the zone's own grid_size, so this over-dispatches a
-            // sub-32 tier and the guard retires the excess threads.
-            static constexpr uint32_t ZONE_GRID_WG = (Dim::GOL_ZONE_GRID + 7u) / 8u;
-            wgpu::ComputePipeline zoneGolSyncPipeline_;
-            wgpu::ComputePipeline zoneGolEvolvePipeline_;
-
-            // Zone parameter derivation (shares the GoL compute layout; one
-            // workgroup per pending derive request)
-            wgpu::ComputePipeline zoneDeriveParamsPipeline_;
+            // The automaton's compute pipelines (dedicated layout).
+            // AUTO_GRID_WG: workgroups per axis for the three 8×8 kernels
+            // (automaton_seed / _sync / _evolve). DERIVED from the CAPACITY
+            // constant — the one-spelling law. The Z axis is gone with the
+            // zones: it was one layer per zone.
+            //
+            // CAPACITY-SHAPED DISPATCH, SIZE-BOUNDED KERNEL, and it is the
+            // same trade the zones made one level down. Every kernel
+            // early-outs on cell >= auto_config.grid_size, so dispatching to
+            // the widest grid the pin allows is correct for every world and
+            // only the guard costs. A radius-2 world spends 18x18 workgroups
+            // to retire the 144-cell tail of an 80-cell grid; the alternative
+            // is a dispatch size that moves at rebirth, which is a second
+            // fact about the same number.
+            static constexpr uint32_t AUTO_GRID_WG = (Dim::AUTO_GRID_MAX + 7u) / 8u;
+            wgpu::ComputePipeline automatonSyncPipeline_;
+            wgpu::ComputePipeline automatonEvolvePipeline_;
 
         public:
             // ═══ THE BUNDLES (BUNDLE_1) ═══════════════════════════════════
@@ -307,8 +310,8 @@ namespace t7 {
                 shadowStateLayout_ = gpuState.shadow_state_layout();
                 shadowTexturesLayout_ = gpuState.shadow_textures_layout();
                 worldLayout_ = gpuState.world_layout();
-                zonesStateLayout_ = gpuState.zones_state_layout();
-                zonesTexturesLayout_ = gpuState.zones_textures_layout();
+                automatonStateLayout_ = gpuState.automaton_state_layout();
+                automatonTexturesLayout_ = gpuState.automaton_textures_layout();
                 colorFormat_ = colorFormat;
                 depthFormat_ = depthFormat;
 
@@ -569,66 +572,53 @@ namespace t7 {
                 pass.DrawIndexedIndirect(ledger, ledgerOffset);
             }
 
-            void dispatch_zone_gol_sync(
+            // ═══ THE AUTOMATON'S THREE DISPATCHES ════════════════════
+            //
+            // No ROSTER gate. The zones' four helpers each opened with
+            // `if constexpr (!(ROSTER.gol)) return;` because the Game of
+            // Life was a FAMILY and a family can be switched off. The
+            // automaton is the GROUND: a world without it is a world with
+            // no ground vocabulary, which is not a configuration this
+            // program has. The gate went with the family.
+            //
+            // No count argument either. Each took a zone or request count
+            // and returned early at zero; there is one automaton and it is
+            // always there.
+            void dispatch_automaton_sync(
                 wgpu::ComputePassEncoder& pass,
                 wgpu::BindGroup stateGroup,
-                wgpu::BindGroup texGroup,
-                uint32_t zone_count
+                wgpu::BindGroup texGroup
             ) {
-                if constexpr (!(ROSTER.gol)) return;  // ROSTER-GATE gol (a') — pipeline never created; the holder tolerates
-                if (zone_count == 0) return;
-                pass.SetPipeline(zoneGolSyncPipeline_);
+                pass.SetPipeline(automatonSyncPipeline_);
                 pass.SetBindGroup(2, stateGroup);
                 pass.SetBindGroup(3, texGroup);
-                // CAPACITY-shaped dispatch, SIZE-bounded kernel: the grid is
-                // derived from Dim::GOL_ZONE_GRID over the 8×8 workgroup (was
-                // a hard 4 with a "32/8=4" comment — the one-spelling law).
-                // The kernel early-outs on cell >= z.grid_size, so dispatching
-                // to capacity is correct for every tier; only the guard costs.
-                pass.DispatchWorkgroups(ZONE_GRID_WG, ZONE_GRID_WG, zone_count);
+                pass.DispatchWorkgroups(AUTO_GRID_WG, AUTO_GRID_WG, 1);
             }
 
-            void dispatch_zone_gol_evolve(
+            void dispatch_automaton_evolve(
                 wgpu::ComputePassEncoder& pass,
                 wgpu::BindGroup stateGroup,
-                wgpu::BindGroup texGroup,
-                uint32_t zone_count
+                wgpu::BindGroup texGroup
             ) {
-                if constexpr (!(ROSTER.gol)) return;  // ROSTER-GATE gol (a') — pipeline never created; the holder tolerates
-                if (zone_count == 0) return;
-                pass.SetPipeline(zoneGolEvolvePipeline_);
+                pass.SetPipeline(automatonEvolvePipeline_);
                 pass.SetBindGroup(2, stateGroup);
                 pass.SetBindGroup(3, texGroup);
-                pass.DispatchWorkgroups(ZONE_GRID_WG, ZONE_GRID_WG, zone_count);
+                pass.DispatchWorkgroups(AUTO_GRID_WG, AUTO_GRID_WG, 1);
             }
 
-            // Zone parameter derivation (GPU-authoritative tier selection + Gaussian sampling)
-            void dispatch_zone_derive_params(
+            // THE BIRTH. One dispatch, once per world, on the birth
+            // encoder. It draws all five life planes from the world seed —
+            // the CPU generate-and-upload it replaced moved 414,720 bytes
+            // across the bus at world scale and now moves none.
+            void dispatch_automaton_seed(
                 wgpu::ComputePassEncoder& pass,
                 wgpu::BindGroup stateGroup,
-                wgpu::BindGroup texGroup,
-                uint32_t request_count
+                wgpu::BindGroup texGroup
             ) {
-                if constexpr (!(ROSTER.gol)) return;  // ROSTER-GATE gol (a') — pipeline never created; the holder tolerates
-                if (request_count == 0) return;
-                pass.SetPipeline(zoneDeriveParamsPipeline_);
+                pass.SetPipeline(automatonSeedPipeline_);
                 pass.SetBindGroup(2, stateGroup);
                 pass.SetBindGroup(3, texGroup);
-                pass.DispatchWorkgroups(request_count, 1, 1);
-            }
-
-            void dispatch_zone_seed_mask(
-                wgpu::ComputePassEncoder& pass,
-                wgpu::BindGroup stateGroup,
-                wgpu::BindGroup texGroup,
-                uint32_t request_count
-            ) {
-                if constexpr (!(ROSTER.gol)) return;  // ROSTER-GATE gol (a') — pipeline never created; the holder tolerates
-                if (request_count == 0) return;
-                pass.SetPipeline(zoneSeedMaskPipeline_);
-                pass.SetBindGroup(2, stateGroup);
-                pass.SetBindGroup(3, texGroup);
-                pass.DispatchWorkgroups(ZONE_GRID_WG, ZONE_GRID_WG, request_count);
+                pass.DispatchWorkgroups(AUTO_GRID_WG, AUTO_GRID_WG, 1);
             }
 
             // dispatch_pyramid_mesh_gen CUT — mesh never drawn;
@@ -1163,7 +1153,7 @@ namespace t7 {
                 // The live card writer — ONE pipeline since LATTICE_4 fused
                 // the pair (the patch-gen fusion, at card size)
                 {
-                    wgpu::PipelineLayout pl = strataLayoutFor("zonesComputeLayout", frameCLayout_, zonesStateLayout_, zonesTexturesLayout_);
+                    wgpu::PipelineLayout pl = strataLayoutFor("automatonComputeLayout", frameCLayout_, automatonStateLayout_, automatonTexturesLayout_);
                     if (!pl) return false;
                     if (!makeComputePipeline("write_live_card", "Live Card Write (2D, fused)",
                         pl, Entry::WRITE_LIVE_CARD, liveCardPipeline_)) return false;
@@ -1188,27 +1178,15 @@ namespace t7 {
                         pl, Entry::ORB_STATE_PREV_COPY, orbCopyPrevPipeline_)) return false;
                 }
 
-                // GoL zone compute pipelines (dedicated layout, z-dispatched)
-                if constexpr (ROSTER.gol) {  // ROSTER-GATE gol (a') — shader compile skipped when disabled
-                    wgpu::PipelineLayout pl = strataLayoutFor("zonesComputeLayout", frameCLayout_, zonesStateLayout_, zonesTexturesLayout_);
+                // The automaton's three compute pipelines, on one layout.
+                // UNGATED: the ground is not a roster family.
+                {
+                    wgpu::PipelineLayout pl = strataLayoutFor("automatonComputeLayout", frameCLayout_, automatonStateLayout_, automatonTexturesLayout_);
                     if (!pl) return false;
-                    if (!makeComputePipeline("zone_gol_sync", "GoL Zone Sync", pl, Entry::ZONE_GOL_SYNC, zoneGolSyncPipeline_)) return false;
-                    if (!makeComputePipeline("zone_gol_evolve", "GoL Zone Evolve", pl, Entry::ZONE_GOL_EVOLVE, zoneGolEvolvePipeline_)) return false;
-                }
-
-                // Zone derive pipeline (shared GoL layout)
-                if constexpr (ROSTER.gol) {  // ROSTER-GATE gol (a') — shader compile skipped when disabled
-                    wgpu::PipelineLayout pl = strataLayoutFor("zonesComputeLayout", frameCLayout_, zonesStateLayout_, zonesTexturesLayout_);
-                    if (!pl) return false;
-                    if (!makeComputePipeline("zone_derive_params", "Zone Derive Params", pl, Entry::ZONE_DERIVE_PARAMS, zoneDeriveParamsPipeline_)) return false;
-                }
-
-                // Zone mask pipeline (dedicated layout — UNIFIED_GROUND_1 U5)
-                if constexpr (ROSTER.gol) {  // ROSTER-GATE gol (a') — shader compile skipped when disabled
-                    wgpu::PipelineLayout pl = strataLayoutFor("zonesComputeLayout", frameCLayout_, zonesStateLayout_, zonesTexturesLayout_);
-                    if (!pl) return false;
-                    if (!makeComputePipeline("zone_seed_mask", "Zone Seed Mask (2D)",
-                        pl, Entry::ZONE_SEED_MASK, zoneSeedMaskPipeline_)) return false;
+                    if (!makeComputePipeline("automaton_sync", "Automaton Sync", pl, Entry::AUTOMATON_SYNC, automatonSyncPipeline_)) return false;
+                    if (!makeComputePipeline("automaton_evolve", "Automaton Evolve", pl, Entry::AUTOMATON_EVOLVE, automatonEvolvePipeline_)) return false;
+                    if (!makeComputePipeline("automaton_seed", "Automaton Seed (2D)",
+                        pl, Entry::AUTOMATON_SEED, automatonSeedPipeline_)) return false;
                 }
 
                 // NO MESH-GEN COMPUTE PIPELINES REMAIN. The pyramid's was cut

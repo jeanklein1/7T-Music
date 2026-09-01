@@ -347,8 +347,9 @@ namespace t7 {
             // read. Both readers and the writer were the arch's, and the whole
             // channel left with the family (ONE_WORLD-I U3).
 
-            // GoL zone system — per-zone automaton grids
-            constexpr uint32_t MAX_GOL_ZONES = 8;
+            // THE AUTOMATON'S GRID — see below, beside the capacity it
+            // replaced. MAX_GOL_ZONES stood here: eight islands, each its
+            // own grid. There is one automaton and it is the ground.
 
             // Floating entity system — split into sphere (orbital) + cube (hover-bob)
             constexpr uint32_t MAX_SPHERE_INSTANCES = 8;
@@ -358,13 +359,40 @@ namespace t7 {
             constexpr uint32_t MAX_CUBE_INSTANCES = 256;
             constexpr uint32_t CUBE_SLOT_OFFSET = MAX_SPHERE_INSTANCES;
             constexpr uint32_t TOTAL_FLOATING_SLOTS = MAX_SPHERE_INSTANCES + MAX_CUBE_INSTANCES;  // 264
-            // CAPACITY — the MAXIMUM cells per zone side, and the side of the
-            // life-buffer plane and the life texture. A zone's ACTUAL side is
-            // its tier's grid_cells ∈ {8,16,24,32} (bodies/gol_zones.hpp), and
-            // every index and bound is derived from THAT. Never mix the two.
-            constexpr uint32_t GOL_ZONE_GRID = 32;
-            constexpr uint32_t GOL_ZONE_CELLS = GOL_ZONE_GRID * GOL_ZONE_GRID;  // 1024
-            constexpr uint32_t GOL_ZONE_LIFE_STRIDE = GOL_ZONE_CELLS * 5;  // 5 slots: visual, velocity, target, next, height_factor
+            // ═══ THE AUTOMATON'S GRID (ONE_SURFACE-II U1) ════════════
+            //
+            // CAPACITY, NOT EXTENT — the same distinction the zones' own
+            // banner drew and for the same reason. AUTO_GRID_MAX is the
+            // side of the widest world the pin allows; the automaton's
+            // ACTUAL side is (2 * finite_radius + 1) * PATCH_CELL_N for
+            // the world that was actually born, and every index and
+            // bound derives from THAT. Never mix the two.
+            //
+            // THE ARITHMETIC, AND IT IS THE GROUND'S OWN. A finite world
+            // at radius R holds patches gx, gz in [-R, R] — (2R+1) per
+            // side — and each patch is PATCH_CELL_N cells. So the
+            // automaton's grid IS the ground's cell grid, and a cell's
+            // address in it is the ground's own cell address offset by
+            // the world's corner. That is the ONE-ADDRESS LAW (charter
+            // C8) finally paid off: the zones had to snap a corner and
+            // carry an origin because they were islands; the automaton
+            // has no corner of its own to snap.
+            //
+            //   AUTO_GRID_MAX = (2 * FINITE_RADIUS_MAX + 1) * PATCH_CELL_N
+            //                 = 9 * 16 = 144  cells per side
+            //
+            // FINITE_RADIUS_MAX lives DOWNSTREAM of this header in the
+            // cohort (contracts/surface_services.hpp), so the literal is
+            // spelled here and the identity is asserted THERE, beside
+            // the three ONE_SURFACE-I U5a asserts that stand for exactly
+            // the same reason.
+            constexpr uint32_t AUTO_GRID_MAX = 144;
+            constexpr uint32_t AUTO_CELLS_MAX = AUTO_GRID_MAX * AUTO_GRID_MAX;   // 20736
+            // 5 slots: visual, velocity, target, next, height_factor.
+            // 20736 * 5 * 4 B = 414,720 B — the whole automaton, in one
+            // buffer, for less than half a megabyte.
+            constexpr uint32_t AUTO_SLOT_COUNT = 5;
+            constexpr uint32_t AUTO_LIFE_STRIDE = AUTO_CELLS_MAX * AUTO_SLOT_COUNT;
 
             // Orb sky layer — luminous points on a dome above the world
             constexpr uint32_t MAX_ORBS = 256;
@@ -1307,67 +1335,101 @@ namespace t7 {
             "GPUPyramidArray must match WGSL layout");
 
 
+        // ═══ THE AUTOMATON'S CONFIG (ONE_SURFACE-II U1) ══════════════
         //
-        // GoL zone config — per-zone parameters for compute + fragment shader
-        struct alignas(16) GPUGoLZoneConfig {
-            float origin[2];
-            float extent;
-            uint32_t grid_size;
-            float tick_period;
-            float spring_stiffness;
-            float alive_height;
-            float transition_fraction;
-            uint32_t color_mode;
-            float target_r;
-            float target_g;
-            float target_b;
+        // ONE STRUCT WHERE THREE STOOD: GPUGoLZoneConfig (80 B x 8),
+        // GPUGoLZoneArray (its four-word header over them), and
+        // GPUZoneDeriveRequest / ...Array (the queue that fed the GPU
+        // derive kernel). All three existed to describe EIGHT islands
+        // born at eight different moments. There is one automaton, born
+        // once with the world, so there is one struct and no queue.
+        //
+        // L3 MIRROR: world.wgsl `AutomatonConfig`;
+        // contracts/automaton_surface.hpp `AutomatonBank` (the dials this
+        // is drawn FROM). THREE ROOMS, ONE FACT (Amendment D) — a commit
+        // that moves any of them moves all three.
+        //
+        // A UNIFORM, NOT A STORAGE BUFFER, and that is why the field
+        // order below ends in explicit padding. Two storage seats
+        // collapsed into one uniform seat when the derive kernel died:
+        // nothing on the GPU writes this any more, and a uniform is legal
+        // in the vertex stage where a read_write storage binding is not —
+        // which is the whole reason the retired binding 104 existed.
+        struct alignas(16) GPUAutomatonConfig {
+            // ── Per-frame header (was GPUGoLZoneArray's) ──
+            float    t_beats;
+            float    dt;
+            uint32_t should_tick;        // one bit, not a mask of eight
+            uint32_t grid_size;          // THIS world's cells per side
+
+            // ── The world's SW corner in the ground's cell address space ──
+            int32_t  cell_origin_x;
+            int32_t  cell_origin_z;
+
+            // ── Drawn once per world from AUTO_LIVE + the world seed ──
             uint32_t algorithm;
-            float wander_radius;
-            float phase_randomness;
-            uint32_t boundary_mode;
-            float tempo_randomness;    // per-cell frequency scatter [0,1]
-            float spring_variance;     // per-cell spring speed scatter [0,1]
-            // GOL_RULES_1: the two trailing pad words, renamed in place.
-            // Same offsets, same 80 bytes — the static_assert below is the
-            // witness that nothing grew. Each slot carries exactly one
-            // meaning: rule_mask is the Conway rows', field_fn the Pulse
-            // rows', and each is 0 on the other algorithm's rows.
-            uint32_t rule_mask;        // Conway B/S bitset: bit n birth, bit 9+n survival
-            uint32_t field_fn;         // Pulse field function id (PulseField::)
-        };
-        static_assert(sizeof(GPUGoLZoneConfig) == 80, "GPUGoLZoneConfig must be 80 bytes");
+            uint32_t rule_mask;
+            uint32_t field_fn;
+            uint32_t color_mode;
+            uint32_t boundary_mode;      // the SPRING's overshoot law
+            float    tick_period;        // beats
+            float    transition_fraction;
+            float    alive_height;
+            float    spring_variance;
+            float    phase_randomness;
+            float    tempo_randomness;
+            float    target_r;
+            float    target_g;
+            float    target_b;
 
-        struct alignas(16) GPUGoLZoneArray {
-            uint32_t count;            // number of active zones
-            float t_beats;             // current musical time
-            float dt;                  // frame delta time
-            uint32_t tick_mask;        // bit N = zone N should tick Conway this frame
-            GPUGoLZoneConfig zones[Dim::MAX_GOL_ZONES];
-        };
-        static_assert(sizeof(GPUGoLZoneArray) == 16 + Dim::MAX_GOL_ZONES * 80,
-            "GPUGoLZoneArray must match WGSL layout");
+            // ── The birth kernel's own dials ──
+            float    density;
+            float    height_factor_mean;
+            float    height_factor_sigma;
+            float    height_factor_lo;
+            float    height_factor_hi;
 
-        struct alignas(16) GPUZoneDeriveRequest {
-            uint32_t slot;             // zone_config.zones[slot] to write
-            int32_t nx;                // lattice node X
-            int32_t nz;                // lattice node Z
-            uint32_t algorithm;        // 0=Conway, 1=Pulse
-            uint32_t height_enabled;   // 0 or 1
-            uint32_t world_seed;       // master seed
-            uint32_t _pad0;
-            uint32_t _pad1;
+            // `mode_threshold` is NOT here: it is baked into the cell tag
+            // at patch generation, whose pipeline binds no automaton
+            // stratum, so it is a HARDWARE MIRROR (world.wgsl
+            // AUTO_MODE_THRESHOLD) rather than a transported field.
+            // binding_gen's S-5 witness is what established that.
+            float    _pad0;
+            float    _pad1;
+            float    _pad2;
         };
-        static_assert(sizeof(GPUZoneDeriveRequest) == 32, "GPUZoneDeriveRequest must be 32 bytes");
+        // 25 scalars is 100 B; a uniform struct rounds to 16, so the three
+        // pad words are SPELLED rather than inferred and this is the
+        // witness that both rooms agree on 112.
+        static_assert(sizeof(GPUAutomatonConfig) == 112,
+            "GPUAutomatonConfig must be 112 bytes — mirror of WGSL AutomatonConfig, "
+            "uniform-legal (25 scalars + 3 explicit pad words)");
+        static_assert(offsetof(GPUAutomatonConfig, cell_origin_x) == 16,
+            "the per-frame header is the first four words; the world's corner follows it");
+        static_assert(offsetof(GPUAutomatonConfig, density) == 80,
+            "the birth dials follow the colour target");
 
-        struct alignas(16) GPUZoneDeriveRequestArray {
-            uint32_t count;
-            uint32_t _pad0;
-            uint32_t _pad1;
-            uint32_t _pad2;
-            GPUZoneDeriveRequest requests[Dim::MAX_GOL_ZONES];
-        };
-        static_assert(sizeof(GPUZoneDeriveRequestArray) == 16 + Dim::MAX_GOL_ZONES * 32,
-            "GPUZoneDeriveRequestArray must match WGSL layout");
+        // THE LIFE BUFFER'S PLANE OFFSETS, derived from the capacity so
+        // the five constants cannot drift apart. WGSL spells them as
+        // literals (20736 / 41472 / 62208 / 82944) because a shader
+        // constant cannot be computed from a C++ one; these are the
+        // witnesses that the literals are right.
+        namespace AutoPlane {
+            inline constexpr uint32_t VISUAL        = 0u;
+            inline constexpr uint32_t VELOCITY      = Dim::AUTO_CELLS_MAX * 1u;
+            inline constexpr uint32_t TARGET        = Dim::AUTO_CELLS_MAX * 2u;
+            inline constexpr uint32_t NEXT          = Dim::AUTO_CELLS_MAX * 3u;
+            inline constexpr uint32_t HEIGHT_FACTOR = Dim::AUTO_CELLS_MAX * 4u;
+        }
+        static_assert(AutoPlane::VELOCITY      == 20736u
+                   && AutoPlane::TARGET        == 41472u
+                   && AutoPlane::NEXT          == 62208u
+                   && AutoPlane::HEIGHT_FACTOR == 82944u,
+            "the life buffer's five planes: world.wgsl spells these literals "
+            "(AUTO_CELL_*) because WGSL cannot compute them from Dim. Change the "
+            "capacity and BOTH rooms move — the device is the only other witness");
+        static_assert(Dim::AUTO_LIFE_STRIDE == Dim::AUTO_CELLS_MAX * Dim::AUTO_SLOT_COUNT,
+            "and the buffer holds exactly the five planes");
 
         // ── Pawn Aura: toroidal spring grid for persistent terrain influence ──
         static constexpr uint32_t PAWN_AURA_N = 64;
@@ -1969,13 +2031,20 @@ namespace t7 {
             inline constexpr uint32_t SurfaceVisibility   = 1;
             inline constexpr uint32_t EntityMeshGen       = 5;
             inline constexpr uint32_t DispatchCompute     = 8;
-            inline constexpr uint32_t GolDeriveFlush      = 10;
-            inline constexpr uint32_t GolZoneCompute      = 11;
-            inline constexpr uint32_t PawnAura            = 12;
-            inline constexpr uint32_t OrbSky              = 13;
-            inline constexpr uint32_t FrustumCull         = 14;
-            inline constexpr uint32_t ShadowPass          = 15;
-            inline constexpr uint32_t MainPass            = 16;
+            // TWO ROWS BECAME ONE (ONE_SURFACE-II U1). GolDeriveFlush sat at
+            // 10 and GolZoneCompute at 11; the derive flush died with the
+            // seam it served, and every id below dropped one — the same
+            // shape ONE_WORLD-I's PortalTrigger removal made. The automaton's
+            // sync and evolve passes both arm THIS row, as the zones' two
+            // passes both armed GolZoneCompute: the second pair overwrites
+            // the first, so the reading is the evolve, which is the one that
+            // costs.
+            inline constexpr uint32_t AutomatonStep       = 10;
+            inline constexpr uint32_t PawnAura            = 11;
+            inline constexpr uint32_t OrbSky              = 12;
+            inline constexpr uint32_t FrustumCull         = 13;
+            inline constexpr uint32_t ShadowPass          = 14;
+            inline constexpr uint32_t MainPass            = 15;
         }
 
         // GROUP 1 CARRIED A DYNAMIC SEAT (shadow_slot) and `kFrameSlotZero`
@@ -2191,8 +2260,8 @@ namespace t7 {
             wgpu::BindGroupLayout sceneTexturesLayout_;
             wgpu::BindGroupLayout shadowStateLayout_;
             wgpu::BindGroupLayout shadowTexturesLayout_;
-            wgpu::BindGroupLayout zonesStateLayout_;
-            wgpu::BindGroupLayout zonesTexturesLayout_;
+            wgpu::BindGroupLayout automatonStateLayout_;
+            wgpu::BindGroupLayout automatonTexturesLayout_;
             wgpu::BindGroupLayout emptyLayout_;
             wgpu::BindGroup worldGroup_;
             wgpu::BindGroup frameRGroup_;
@@ -2218,17 +2287,18 @@ namespace t7 {
             wgpu::BindGroup sceneTexturesGroup_;
             wgpu::BindGroup shadowStateGroup_;
             wgpu::BindGroup shadowTexturesGroup_;
-            wgpu::BindGroup zonesStateGroup_;
-            wgpu::BindGroup zonesTexturesGroup_;
+            wgpu::BindGroup automatonStateGroup_;
+            wgpu::BindGroup automatonTexturesGroup_;
             wgpu::BindGroup emptyGroup_;
 
-            // GoL zone system buffers
-            wgpu::Buffer zoneConfigBuffer_;        // GPUGoLZoneArray storage (read_write)
-            wgpu::Buffer zoneDeriveRequestBuffer_; // GPUZoneDeriveRequestArray uniform
-            wgpu::Buffer zoneLifeBuffer_;          // life state: MAX_ZONES × GOL_ZONE_LIFE_STRIDE (5120) floats
-            wgpu::Texture zoneLifeTexture_;        // 32×32 × MAX_ZONES R32Float texture array
-            wgpu::TextureView zoneLifeWriteView_;  // storage texture write (compute)
-            wgpu::TextureView zoneLifeReadView_;   // sampled texture read (fragment)
+            // The automaton's buffers. Three where five stood: the derive
+            // request queue died with its kernel, and the config's
+            // read-only render alias died when the config became a uniform.
+            wgpu::Buffer automatonConfigBuffer_;   // GPUAutomatonConfig uniform
+            wgpu::Buffer automatonLifeBuffer_;     // AUTO_LIFE_STRIDE floats — five planes
+            wgpu::Texture automatonLifeTexture_;   // AUTO_GRID_MAX² R32Float — ONE plane
+            wgpu::TextureView automatonLifeWriteView_;  // storage texture write (compute)
+            wgpu::TextureView automatonLifeReadView_;   // sampled texture read (fragment)
 
             // Pawn aura system
             wgpu::Buffer pawnAuraConfigBuffer_;    // GPUPawnAuraConfig uniform
@@ -2637,8 +2707,8 @@ namespace t7 {
             wgpu::BindGroupLayout scene_textures_layout() const { return sceneTexturesLayout_; }
             wgpu::BindGroupLayout shadow_state_layout() const { return shadowStateLayout_; }
             wgpu::BindGroupLayout shadow_textures_layout() const { return shadowTexturesLayout_; }
-            wgpu::BindGroupLayout zones_state_layout() const { return zonesStateLayout_; }
-            wgpu::BindGroupLayout zones_textures_layout() const { return zonesTexturesLayout_; }
+            wgpu::BindGroupLayout automaton_state_layout() const { return automatonStateLayout_; }
+            wgpu::BindGroupLayout automaton_textures_layout() const { return automatonTexturesLayout_; }
             wgpu::BindGroupLayout empty_layout() const { return emptyLayout_; }
             wgpu::BindGroup world_group() const { return worldGroup_; }
             wgpu::BindGroup frame_r_group() const { return frameRGroup_; }
@@ -2661,8 +2731,8 @@ namespace t7 {
             wgpu::BindGroup scene_textures_group() const { return sceneTexturesGroup_; }
             wgpu::BindGroup shadow_state_group() const { return shadowStateGroup_; }
             wgpu::BindGroup shadow_textures_group() const { return shadowTexturesGroup_; }
-            wgpu::BindGroup zones_state_group() const { return zonesStateGroup_; }
-            wgpu::BindGroup zones_textures_group() const { return zonesTexturesGroup_; }
+            wgpu::BindGroup automaton_state_group() const { return automatonStateGroup_; }
+            wgpu::BindGroup automaton_textures_group() const { return automatonTexturesGroup_; }
             wgpu::BindGroup empty_group() const { return emptyGroup_; }
 
             // Muting
@@ -3280,53 +3350,41 @@ namespace t7 {
                     &packed, sizeof(packed));
             }
 
-            void upload_zone_config(wgpu::Queue& queue, const GPUGoLZoneArray& config) {
-                writeStruct(queue, zoneConfigBuffer_, config);
+            // THE WHOLE CONFIG, ONE WRITE. The zones needed three doors —
+            // a full upload, a header-only upload that must not clobber
+            // the GPU-derived per-zone rows, and a single-float poke to
+            // deactivate one slot — because the GPU owned part of the
+            // struct and the CPU owned the rest. The CPU owns all of it
+            // now (draw_automaton authors it at birth; the header three
+            // move per frame), so there is one door.
+            void upload_automaton_config(wgpu::Queue& queue, const GPUAutomatonConfig& config) {
+                writeStruct(queue, automatonConfigBuffer_, config);
             }
 
-            // Header-only upload: count, t_beats, dt, tick_mask.
-            // Does NOT overwrite per-zone configs (GPU-derived via zone_derive_params).
-            void upload_zone_config_header(wgpu::Queue& queue, uint32_t count,
-                float t_beats, float dt, uint32_t tick_mask) {
-                struct { uint32_t count; float t_beats; float dt; uint32_t tick_mask; } header;
-                header.count = count;
+            // The per-frame header — the only part that moves after birth.
+            // Its three words sit at offset 0 by construction (the
+            // offsetof witness beside the struct holds that).
+            void upload_automaton_header(wgpu::Queue& queue,
+                float t_beats, float dt, bool should_tick) {
+                struct { float t_beats; float dt; uint32_t should_tick; } header;
                 header.t_beats = t_beats;
                 header.dt = dt;
-                header.tick_mask = tick_mask;
-                queue.WriteBuffer(zoneConfigBuffer_, 0, &header, 16);
+                header.should_tick = should_tick ? 1u : 0u;
+                static_assert(offsetof(GPUAutomatonConfig, t_beats) == 0
+                           && offsetof(GPUAutomatonConfig, dt) == 4
+                           && offsetof(GPUAutomatonConfig, should_tick) == 8,
+                    "the header is the struct's first three words and this write "
+                    "addresses them positionally");
+                queue.WriteBuffer(automatonConfigBuffer_, 0, &header, sizeof(header));
             }
 
-            // Deactivate a single zone slot by zeroing its transition_fraction.
-            // Safe to call on slots whose config was GPU-derived.
-            void deactivate_zone_slot(wgpu::Queue& queue, uint32_t slot) {
-                float zero = 0.0f;
-                size_t offset = 16 + slot * sizeof(GPUGoLZoneConfig)
-                    + offsetof(GPUGoLZoneConfig, transition_fraction);
-                queue.WriteBuffer(zoneConfigBuffer_, offset, &zero, sizeof(float));
-            }
-
-            void upload_zone_derive_requests(wgpu::Queue& queue, const GPUZoneDeriveRequestArray& requests) {
-                writeStruct(queue, zoneDeriveRequestBuffer_, requests);
-            }
-
-            void upload_zone_life(wgpu::Queue& queue, uint32_t slot,
-                const float* life_data, const float* height_factors,
-                uint32_t cell_count) {
-                size_t base = slot * Dim::GOL_ZONE_LIFE_STRIDE * sizeof(float);
-                size_t cells_bytes = cell_count * sizeof(float);
-                size_t slot_stride = Dim::GOL_ZONE_CELLS * sizeof(float);
-                std::vector<float> zeros(cell_count, 0.0f);
-                // Slot 0: visual (initial = target)
-                queue.WriteBuffer(zoneLifeBuffer_, base + slot_stride * 0, life_data, cells_bytes);
-                // Slot 1: velocity (zero)
-                queue.WriteBuffer(zoneLifeBuffer_, base + slot_stride * 1, zeros.data(), cells_bytes);
-                // Slot 2: target (initial alive/dead)
-                queue.WriteBuffer(zoneLifeBuffer_, base + slot_stride * 2, life_data, cells_bytes);
-                // Slot 3: next_target (same as target)
-                queue.WriteBuffer(zoneLifeBuffer_, base + slot_stride * 3, life_data, cells_bytes);
-                // Slot 4: per-cell height factor (persistent)
-                queue.WriteBuffer(zoneLifeBuffer_, base + slot_stride * 4, height_factors, cells_bytes);
-            }
+            // THE LIFE BUFFER HAS NO CPU UPLOAD, and that is the change.
+            // upload_zone_life stood here: five WriteBuffers per zone, the
+            // CPU having generated the alive/dead pattern and the per-cell
+            // height factors itself. The automaton's birth is a DISPATCH
+            // (automaton_seed) — the GPU draws all five planes from the
+            // world seed — so nothing is uploaded but the config, and
+            // 414,720 bytes never cross the bus.
 
             // --- Dispatch dimensions ---
             // Rounds UP: 65 is not a multiple of the 16x16 tile, so the
@@ -3970,7 +4028,7 @@ namespace t7 {
                     q.WriteBuffer(patchIndexBufferLOD1_, 0, idx.data(), ib_bytes_u16(patchIndexCountRingZoned_));
                 }
 
-                return createSphereMesh() && createMonolithMesh() && createPyramidMesh() && createGoLZoneBuffers();
+                return createSphereMesh() && createMonolithMesh() && createPyramidMesh() && createAutomatonBuffers();
             }
 
             bool createSphereMesh() {
@@ -4098,52 +4156,60 @@ namespace t7 {
             }
 
 
-            bool createGoLZoneBuffers() {
-                // LATENT[gate-a-shared] gol (SH·mb): zone-mesh buffers + zoneLifeTexture_ + GoL Zone group + 5 gol pipelines droppable, but zoneConfigBuffer_/zoneLifeBuffer_ are exclusive-in-Compute-Entity + Entity-Placement. Retire = re-section both groups. (Residue recipe stays the Phase-I pristine form — gol is SH, not SEP.)
+            bool createAutomatonBuffers() {
+                // LATENT[gate-a-shared] gol (SH·mb): the automaton's texture,
+                // its bind groups and its pipelines are droppable, but
+                // automatonConfigBuffer_/automatonLifeBuffer_ are
+                // exclusive-in-Compute-Entity + Entity-Placement. Retire =
+                // re-section both groups.
                 // NOTE: this function also creates the pawn-aura and orb buffers below (each its own LATENT tag).
-                zoneConfigBuffer_ = makeBuffer("GoL Zone Config",
-                    sizeof(GPUGoLZoneArray),
-                    wgpu::BufferUsage::Storage | wgpu::BufferUsage::CopyDst);
-
-                zoneDeriveRequestBuffer_ = makeBuffer("Zone Derive Requests",
-                    sizeof(GPUZoneDeriveRequestArray),
+                automatonConfigBuffer_ = makeBuffer("Automaton Config",
+                    sizeof(GPUAutomatonConfig),
                     wgpu::BufferUsage::Uniform | wgpu::BufferUsage::CopyDst);
 
-                zoneLifeBuffer_ = makeBuffer("GoL Zone Life State",
-                    Dim::MAX_GOL_ZONES * Dim::GOL_ZONE_LIFE_STRIDE * sizeof(float),
+                automatonLifeBuffer_ = makeBuffer("Automaton Life State",
+                    Dim::AUTO_LIFE_STRIDE * sizeof(float),
                     wgpu::BufferUsage::Storage | wgpu::BufferUsage::CopyDst);
 
-                if (!zoneConfigBuffer_ || !zoneLifeBuffer_) return false;
+                if (!automatonConfigBuffer_ || !automatonLifeBuffer_) return false;
 
-                // Zone life texture: 32×32 × MAX_ZONES, R32Float (R = the cell's spring visual)
+                // The life texture: AUTO_GRID_MAX² R32Float, ONE PLANE
+                // (R = the cell's spring visual). It is created at
+                // CAPACITY, not at the born world's grid, for the reason
+                // every other capacity here is: a rebirth may draw a wider
+                // radius and a texture cannot be resized without
+                // re-sectioning the group it sits in. The fetch normalizes
+                // by auto_config.grid_size, so a smaller world simply
+                // leaves the tail unwritten and unread.
                 {
                     wgpu::TextureDescriptor desc{};
-                    desc.size = { Dim::GOL_ZONE_GRID, Dim::GOL_ZONE_GRID, Dim::MAX_GOL_ZONES };
+                    desc.size = { Dim::AUTO_GRID_MAX, Dim::AUTO_GRID_MAX, 1 };
                     desc.format = wgpu::TextureFormat::R32Float;
                     desc.usage = wgpu::TextureUsage::StorageBinding | wgpu::TextureUsage::TextureBinding;
                     desc.dimension = wgpu::TextureDimension::e2D;
-                    zoneLifeTexture_ = makeTexture("GoL Zone Life Texture Array", desc);
-                    if (!zoneLifeTexture_) return false;
+                    automatonLifeTexture_ = makeTexture("Automaton Life Texture", desc);
+                    if (!automatonLifeTexture_) return false;
 
                     // Write view (compute, storage texture)
                     wgpu::TextureViewDescriptor wvd{};
-                    wvd.dimension = wgpu::TextureViewDimension::e2DArray;
-                    wvd.arrayLayerCount = Dim::MAX_GOL_ZONES;
-                    zoneLifeWriteView_ = zoneLifeTexture_.CreateView(&wvd);
+                    wvd.dimension = wgpu::TextureViewDimension::e2D;
+                    wvd.arrayLayerCount = 1;
+                    automatonLifeWriteView_ = automatonLifeTexture_.CreateView(&wvd);
 
                     // Read view (fragment, sampled texture)
                     wgpu::TextureViewDescriptor rvd{};
-                    rvd.dimension = wgpu::TextureViewDimension::e2DArray;
-                    rvd.arrayLayerCount = Dim::MAX_GOL_ZONES;
-                    zoneLifeReadView_ = zoneLifeTexture_.CreateView(&rvd);
+                    rvd.dimension = wgpu::TextureViewDimension::e2D;
+                    rvd.arrayLayerCount = 1;
+                    automatonLifeReadView_ = automatonLifeTexture_.CreateView(&rvd);
                 }
 
                 // Zero-init the config buffer
-                GPUGoLZoneArray empty{};
-                device_.GetQueue().WriteBuffer(zoneConfigBuffer_, 0, &empty, sizeof(GPUGoLZoneArray));
+                GPUAutomatonConfig empty{};
+                device_.GetQueue().WriteBuffer(automatonConfigBuffer_, 0, &empty, sizeof(GPUAutomatonConfig));
 
-                std::cout << "[GPUState] GoL zone buffers: " << Dim::MAX_GOL_ZONES
-                    << " zones × " << Dim::GOL_ZONE_GRID << "×" << Dim::GOL_ZONE_GRID << " grid\n";
+                std::cout << "[GPUState] Automaton buffers: capacity "
+                    << Dim::AUTO_GRID_MAX << "x" << Dim::AUTO_GRID_MAX << " cells, "
+                    << (Dim::AUTO_LIFE_STRIDE * sizeof(float) / 1024) << " KB life state\n";
 
                 // Pawn aura buffers
                 // LATENT[gate-a-shared] pawn_aura (SH·mb): config/cells buffers + Pawn Aura group + pawnAura pipeline droppable, but pawnAuraTexture_ (created in createTextures) is sampled by the terrain FS → bound in Render Texture + Compute Texture groups. Retire = re-section those two groups.

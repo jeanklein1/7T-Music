@@ -22,11 +22,11 @@ enum ContributorId : uint32_t {
     CONTRIB_TILE_MODIFIERS    = 1,   // fused into contrib_static_base_at
     CONTRIB_SOLIDS            = 2,   // retired tag (the pier bake left in BATCH G); pyramids carry the solid ground
     CONTRIB_PYRAMIDS          = 3,
-    CONTRIB_GOL_ZONES         = 4,   // slow_dynamic
+    CONTRIB_AUTOMATON         = 4,   // slow_dynamic
     CONTRIB_TERRAIN_WAVES     = 5,   // deformation_field, global
     CONTRIB_RADIAL_PULSES     = 6,   // deformation_field, global
     CONTRIB_PAWN_AURA         = 7,   // deformation_field, global pawn-centered (two consumer forms: _at_self scalar peak / _at_external grid — see world.wgsl's contributor notes)
-    CONTRIB_GOL_SUPPRESSION   = 8,  // deformation_field, consumer-local (subtractive)
+    CONTRIB_AUTOMATON_SUPPRESSION   = 8,  // deformation_field, consumer-local (subtractive)
     CONTRIB_COUNT             = 9,
 };
 
@@ -104,7 +104,7 @@ inline constexpr PolicyDef POLICIES[] = {
     { POLICY_FLYER, "flyer",
       GROUND_STATIC_BASE_MASK
         | (1u << CONTRIB_PYRAMIDS)
-        | (1u << CONTRIB_GOL_ZONES)
+        | (1u << CONTRIB_AUTOMATON)
         | (1u << CONTRIB_TERRAIN_WAVES)
         | (1u << CONTRIB_RADIAL_PULSES)
         | (1u << CONTRIB_PAWN_AURA) },
@@ -117,11 +117,11 @@ inline constexpr PolicyDef POLICIES[] = {
     { POLICY_WALKER, "walker",
       GROUND_STATIC_BASE_MASK
         | (1u << CONTRIB_PYRAMIDS)
-        | (1u << CONTRIB_GOL_ZONES)
+        | (1u << CONTRIB_AUTOMATON)
         | (1u << CONTRIB_TERRAIN_WAVES)
         | (1u << CONTRIB_RADIAL_PULSES)
         | (1u << CONTRIB_PAWN_AURA)
-        | (1u << CONTRIB_GOL_SUPPRESSION) },
+        | (1u << CONTRIB_AUTOMATON_SUPPRESSION) },
 
     // Walker-tilt — walker minus the self aura, used for tilt/normal
     // computation and step-climb decisions. Excludes CONTRIB_PAWN_AURA
@@ -137,17 +137,17 @@ inline constexpr PolicyDef POLICIES[] = {
     { POLICY_WALKER_TILT, "walker_tilt",
       GROUND_STATIC_BASE_MASK
         | (1u << CONTRIB_PYRAMIDS)
-        | (1u << CONTRIB_GOL_ZONES)
+        | (1u << CONTRIB_AUTOMATON)
         | (1u << CONTRIB_TERRAIN_WAVES)
         | (1u << CONTRIB_RADIAL_PULSES)
-        | (1u << CONTRIB_GOL_SUPPRESSION) },  // pawn-centered; same suppression walker applies
+        | (1u << CONTRIB_AUTOMATON_SUPPRESSION) },  // pawn-centered; same suppression walker applies
 
     // Walker-agent — agents feel the full GoL lift (no suppression).
     // STATUS: REALIZED — agent_post_step ground snap (scalar only).
     { POLICY_WALKER_AGENT, "walker_agent",
       GROUND_STATIC_BASE_MASK
         | (1u << CONTRIB_PYRAMIDS)
-        | (1u << CONTRIB_GOL_ZONES)
+        | (1u << CONTRIB_AUTOMATON)
         | (1u << CONTRIB_TERRAIN_WAVES)
         | (1u << CONTRIB_RADIAL_PULSES)
         | (1u << CONTRIB_PAWN_AURA) },
@@ -174,7 +174,7 @@ inline constexpr PolicyDef POLICIES[] = {
         | (1u << CONTRIB_PYRAMIDS)
         | (1u << CONTRIB_TERRAIN_WAVES)
         | (1u << CONTRIB_RADIAL_PULSES)
-        | (1u << CONTRIB_GOL_ZONES)   // realized as the card's .a, cell-nearest, suppressed under the pawn AND the eye — UNIFIED_GROUND_1 + KITE_1 (DAG: GoL has no ancestors)
+        | (1u << CONTRIB_AUTOMATON)   // realized as the card's .a, cell-nearest, suppressed under the pawn AND the eye — UNIFIED_GROUND_1 + KITE_1 (DAG: GoL has no ancestors)
         | (1u << CONTRIB_PAWN_AURA) },                  // realized in the fused VS (texture .yz + analytic wave gradient)
 
     // Walker-witness — THE CAMERA'S FLOOR. Contributor for contributor this
@@ -188,7 +188,7 @@ inline constexpr PolicyDef POLICIES[] = {
     //                            makes the aura a FLOOR exactly as terrain
     //                            is (Jean's ruling): the camera rides the
     //                            visual skin, never under it.
-    //   CONTRIB_GOL_SUPPRESSION  centered on the EYE (qi.consumer_pos), not
+    //   CONTRIB_AUTOMATON_SUPPRESSION  centered on the EYE (qi.consumer_pos), not
     //                            on the pawn, and multiplied by the same
     //                            height fade the render carve applies — so
     //                            the floor and the picture flatten the same
@@ -203,11 +203,11 @@ inline constexpr PolicyDef POLICIES[] = {
     { POLICY_WALKER_WITNESS, "walker_witness",
       GROUND_STATIC_BASE_MASK
         | (1u << CONTRIB_PYRAMIDS)
-        | (1u << CONTRIB_GOL_ZONES)
+        | (1u << CONTRIB_AUTOMATON)
         | (1u << CONTRIB_TERRAIN_WAVES)
         | (1u << CONTRIB_RADIAL_PULSES)
         | (1u << CONTRIB_PAWN_AURA)          // external form — the witness is not the pawn
-        | (1u << CONTRIB_GOL_SUPPRESSION) }, // eye-centered, height-faded
+        | (1u << CONTRIB_AUTOMATON_SUPPRESSION) }, // eye-centered, height-faded
 };
 inline constexpr uint32_t POLICY_COUNT_IN_TABLE =
     sizeof(POLICIES) / sizeof(POLICIES[0]);

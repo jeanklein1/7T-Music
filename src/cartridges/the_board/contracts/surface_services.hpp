@@ -69,12 +69,20 @@ inline constexpr uint32_t FINITE_RADIUS_MAX = 4;
 // THE WIDEST WORLD THE PIN ALLOWS MUST FIT WHAT DRAWS IT (ONE_SURFACE-I
 // U5a). Every patch is one band since U5, so the frustum cull classifies
 // the whole draw set into segment A or B by ZONE OVERLAP — and in the
-// worst case every patch lands in one of them: a world entirely covered
-// by GoL zones fills A, a world with none fills B. 128 entries each
-// against (2*4+1)^2 = 81. Stated rather than trusted: the idiom is
+// worst case every patch lands in one of them. 128 entries each against
+// (2*4+1)^2 = 81. Stated rather than trusted: the idiom is
 // tile_world.hpp's, where upload_tile_grid_now binds the same constant to
 // the GPUTileGrid DTO, and the reason is the same — raising the pin
 // should fail the BUILD, not the kernel.
+//
+// (The A/B split's WORDING moved at ONE_SURFACE-II U1 and its ARITHMETIC
+// did not. "A world entirely covered by GoL zones fills A, a world with
+// none fills B" described the two extremes when overlap was a property
+// of eight islands. The automaton is the ground, so every patch that
+// carries discrete cells overlaps it and A is the common case rather
+// than an extreme — which is a load question for the walk, not a
+// capacity one. Both segments still hold 128 and the world still holds
+// 81.)
 static_assert((2 * FINITE_RADIUS_MAX + 1) * (2 * FINITE_RADIUS_MAX + 1)
               <= FC_SEG_A_BYTES / sizeof(uint32_t),
     "the widest world the pin allows must fit frustum-cull segment A");
@@ -84,6 +92,25 @@ static_assert((2 * FINITE_RADIUS_MAX + 1) * (2 * FINITE_RADIUS_MAX + 1)
 static_assert((2 * FINITE_RADIUS_MAX + 1) * (2 * FINITE_RADIUS_MAX + 1)
               <= Dim::MAX_ACTIVE_PATCHES,
     "and the layer pool build_world draws (2R+1)^2 layers from");
+
+// AND THE AUTOMATON'S GRID IS THE GROUND'S, EXACTLY (ONE_SURFACE-II U1).
+// Dim::AUTO_GRID_MAX is spelled as a literal because state.hpp stands
+// UPSTREAM of this header in the cohort and cannot see FINITE_RADIUS_MAX
+// — the same reason the three asserts above live here rather than there.
+// This is the identity that makes the literal safe: raise the radius pin
+// and the automaton's buffer must grow with it, and the BUILD is where
+// that must be discovered.
+//
+// EQUALITY, NOT `<=`, and the difference matters. The three asserts above
+// ask whether the world FITS a capacity; this one asks whether two
+// spellings of the SAME NUMBER agree. A grid one cell too large wastes
+// memory silently; a grid one cell too small indexes past the end of the
+// life buffer on the world's last row, every frame, and Dawn would be
+// the only witness. So: equal, or the build stops.
+static_assert(Dim::AUTO_GRID_MAX == (2 * FINITE_RADIUS_MAX + 1) * Dim::PATCH_CELL_N,
+    "the automaton's grid capacity IS the widest world's cell grid: "
+    "(2 * FINITE_RADIUS_MAX + 1) patches per side, PATCH_CELL_N cells per "
+    "patch. Raise the radius pin and this literal moves with it");
 
 struct WorldState {
     // ── Seed + dimensions ──

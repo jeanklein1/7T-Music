@@ -14,7 +14,7 @@
 // four, and ONE_WORLD-I U3 took the arch — the trio's last
 // occupant. Slots 180/181/182 are unallocated now, not reserved.
 //
-// The WGSL @binding literals in world.wgsl (57 declarations over 54 slots;
+// The WGSL @binding literals in world.wgsl (55 declarations over 52 slots;
 // aliases: fc_config, fc_patches, fc_vp)
 // are a MIRROR of this file, kept in lockstep by boot-time
 // validation and by binding_gen.py --check. The render = compute
@@ -81,11 +81,9 @@ namespace t7 {
                 inline constexpr uint32_t fc_visible                  = 63;
                 inline constexpr uint32_t fc_indirect                 = 64;
 
-                // ZONES (100–119)
-                inline constexpr uint32_t zone_config                 = 101;
-                inline constexpr uint32_t zone_life                   = 102;
-                inline constexpr uint32_t zone_derive_requests        = 103;
-                inline constexpr uint32_t zone_params                 = 104;
+                // AUTOMATON (100–119)
+                inline constexpr uint32_t auto_config                 = 101;
+                inline constexpr uint32_t auto_life                   = 102;
 
                 // ORBS (120–139)
                 inline constexpr uint32_t orb_state                   = 120;
@@ -127,10 +125,10 @@ namespace t7 {
                 inline constexpr uint32_t patch_heightfield_array_read = 44;
                 inline constexpr uint32_t patch_cell_color_array_read = 45;
 
-                // ZONES (100–119)
+                // AUTOMATON (100–119)
                 inline constexpr uint32_t live_card_write             = 100;  // GROUND_CARD_1: the live card (storage-tex write; writer kernel)
-                inline constexpr uint32_t zone_life_tex_write         = 101;
-                inline constexpr uint32_t zone_life_read              = 102;
+                inline constexpr uint32_t auto_life_tex_write         = 101;
+                inline constexpr uint32_t auto_life_read              = 102;
                 inline constexpr uint32_t live_card_read              = 103;  // GROUND_CARD_1: the live card (sampled read; render + compute)
 
                 // SCENE (200–219)

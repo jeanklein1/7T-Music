@@ -592,10 +592,17 @@
                     entries[2].visibility = wgpu::ShaderStage::Vertex;
                     entries[2].buffer.type = wgpu::BufferBindingType::ReadOnlyStorage;
 
-                    // GoL zone config (fragment reads zone origins for lookup)
-                    entries[3].binding = bind::g2::zone_params;
+                    // The automaton (fragment reads the grid origin and size for the
+                    // tint lookup). ONE SEAT WHERE TWO STOOD: zone_params at g2:104 was
+                    // a READ-ONLY STORAGE ALIAS of zone_config, and it existed only
+                    // because WebGPU forbids a read_write storage binding in the vertex
+                    // stage. The config is a uniform now — nothing on the GPU writes it
+                    // since the derive kernel left — and a uniform is legal in every
+                    // stage, so the alias and its binding number retired together
+                    // (ONE_SURFACE-II U1).
+                    entries[3].binding = bind::g2::auto_config;
                     entries[3].visibility = wgpu::ShaderStage::Fragment;
-                    entries[3].buffer.type = wgpu::BufferBindingType::ReadOnlyStorage;
+                    entries[3].buffer.type = wgpu::BufferBindingType::Uniform;
 
                     entries[4].binding = bind::g2::render_ring_xforms;
                     entries[4].visibility = wgpu::ShaderStage::Vertex;
@@ -641,11 +648,12 @@
                     entries[2].texture.sampleType = wgpu::TextureSampleType::Float;
                     entries[2].texture.viewDimension = wgpu::TextureViewDimension::e2DArray;
 
-                    // GoL zone life texture (fragment reads alive/dead per zone)
-                    entries[3].binding = bind::g3::zone_life_read;
+                    // The automaton life texture (fragment reads the cell spring visual).
+                    // ONE PLANE, not an array of eight: the layer index was the zone index.
+                    entries[3].binding = bind::g3::auto_life_read;
                     entries[3].visibility = wgpu::ShaderStage::Fragment;
                     entries[3].texture.sampleType = wgpu::TextureSampleType::UnfilterableFloat;
-                    entries[3].texture.viewDimension = wgpu::TextureViewDimension::e2DArray;
+                    entries[3].texture.viewDimension = wgpu::TextureViewDimension::e2D;
 
                     // The live card (GROUND_CARD_1) — VS height/gradient + FS debug eye
                     entries[4].binding = bind::g3::live_card_read;
@@ -739,32 +747,31 @@
                     if (!shadowTexturesLayout_) return false;
                 }
 
-                // Zones State Layout — stratum 2 (Zones family) of the LOOM_2 recut.
+                // Automaton State Layout — stratum 2 of the LOOM_2 recut. It was the
+                // ZONES family band; the automaton is ground, not a family, and keeps
+                // the band because a band is a numbering, not a claim.
                 {
-                    std::array<wgpu::BindGroupLayoutEntry, 3> entries{};
+                    std::array<wgpu::BindGroupLayoutEntry, 2> entries{};
 
-                    // Zone state (storage — derive_params writes, sync/evolve/mesh read-write)
-                    entries[0].binding = bind::g2::zone_config;  // zone_config (storage, rw)
+                    // The automaton config (uniform — the CPU authors all of it: drawn
+                    // once per world at birth, header three words per frame)
+                    entries[0].binding = bind::g2::auto_config;  // auto_config (uniform, 112 B)
                     entries[0].visibility = wgpu::ShaderStage::Compute;
-                    entries[0].buffer.type = wgpu::BufferBindingType::Storage;
+                    entries[0].buffer.type = wgpu::BufferBindingType::Uniform;
 
-                    entries[1].binding = bind::g2::zone_life;  // zone_life (storage, read/write)
+                    entries[1].binding = bind::g2::auto_life;  // auto_life (storage, read/write — five planes)
                     entries[1].visibility = wgpu::ShaderStage::Compute;
                     entries[1].buffer.type = wgpu::BufferBindingType::Storage;
 
-                    entries[2].binding = bind::g2::zone_derive_requests;  // zone_derive_requests (uniform)
-                    entries[2].visibility = wgpu::ShaderStage::Compute;
-                    entries[2].buffer.type = wgpu::BufferBindingType::Uniform;
-
                     wgpu::BindGroupLayoutDescriptor desc{};
-                    desc.label = "Zones State Layout";
+                    desc.label = "Automaton State Layout";
                     desc.entryCount = entries.size();
                     desc.entries = entries.data();
-                    zonesStateLayout_ = device_.CreateBindGroupLayout(&desc);
-                    if (!zonesStateLayout_) return false;
+                    automatonStateLayout_ = device_.CreateBindGroupLayout(&desc);
+                    if (!automatonStateLayout_) return false;
                 }
 
-                // Zones Textures Layout — stratum 3 (Zones family) of the LOOM_2 recut.
+                // Automaton Textures Layout — stratum 3, same band.
                 {
                     std::array<wgpu::BindGroupLayoutEntry, 2> entries{};
 
@@ -774,18 +781,18 @@
                     entries[0].storageTexture.format = wgpu::TextureFormat::RGBA16Float;
                     entries[0].storageTexture.viewDimension = wgpu::TextureViewDimension::e2D;
 
-                    entries[1].binding = bind::g3::zone_life_tex_write;  // zone_life_tex (storage texture, write)
+                    entries[1].binding = bind::g3::auto_life_tex_write;  // auto_life_tex (storage texture, write)
                     entries[1].visibility = wgpu::ShaderStage::Compute;
                     entries[1].storageTexture.access = wgpu::StorageTextureAccess::WriteOnly;
                     entries[1].storageTexture.format = wgpu::TextureFormat::R32Float;
-                    entries[1].storageTexture.viewDimension = wgpu::TextureViewDimension::e2DArray;
+                    entries[1].storageTexture.viewDimension = wgpu::TextureViewDimension::e2D;
 
                     wgpu::BindGroupLayoutDescriptor desc{};
-                    desc.label = "Zones Textures Layout";
+                    desc.label = "Automaton Textures Layout";
                     desc.entryCount = entries.size();
                     desc.entries = entries.data();
-                    zonesTexturesLayout_ = device_.CreateBindGroupLayout(&desc);
-                    if (!zonesTexturesLayout_) return false;
+                    automatonTexturesLayout_ = device_.CreateBindGroupLayout(&desc);
+                    if (!automatonTexturesLayout_) return false;
                 }
 
                 // Empty Layout — stratum filler (A5: zero seats, zero cost) of the LOOM_2 recut.
@@ -1258,9 +1265,9 @@
                     entries[2].buffer = patchInstancesBuffer_;
                     entries[2].size = sizeof(GPUPatchInstance) * Dim::MAX_ACTIVE_PATCHES;
 
-                    entries[3].binding = bind::g2::zone_params;
-                    entries[3].buffer = zoneConfigBuffer_;
-                    entries[3].size = sizeof(GPUGoLZoneArray);
+                    entries[3].binding = bind::g2::auto_config;
+                    entries[3].buffer = automatonConfigBuffer_;
+                    entries[3].size = sizeof(GPUAutomatonConfig);
 
                     entries[4].binding = bind::g2::render_ring_xforms;
                     entries[4].buffer = ringTransformsBuffer_;
@@ -1292,8 +1299,8 @@
                     entries[2].binding = bind::g3::patch_cell_color_array_read;
                     entries[2].textureView = patchCellColorArrayReadView_;
 
-                    entries[3].binding = bind::g3::zone_life_read;
-                    entries[3].textureView = zoneLifeReadView_;
+                    entries[3].binding = bind::g3::auto_life_read;
+                    entries[3].textureView = automatonLifeReadView_;
 
                     entries[4].binding = bind::g3::live_card_read;
                     entries[4].textureView = liveCardView_;
@@ -1367,27 +1374,23 @@
 
                 // Projected from: zoneGolComputeBindGroup_, liveCardWriterGroup_, zoneMaskGroup_.
                 {
-                    std::array<wgpu::BindGroupEntry, 3> entries{};
+                    std::array<wgpu::BindGroupEntry, 2> entries{};
 
-                    entries[0].binding = bind::g2::zone_config;
-                    entries[0].buffer = zoneConfigBuffer_;
-                    entries[0].size = sizeof(GPUGoLZoneArray);
+                    entries[0].binding = bind::g2::auto_config;
+                    entries[0].buffer = automatonConfigBuffer_;
+                    entries[0].size = sizeof(GPUAutomatonConfig);
 
-                    entries[1].binding = bind::g2::zone_life;
-                    entries[1].buffer = zoneLifeBuffer_;
-                    entries[1].size = Dim::MAX_GOL_ZONES * Dim::GOL_ZONE_LIFE_STRIDE * sizeof(float);
-
-                    entries[2].binding = bind::g2::zone_derive_requests;
-                    entries[2].buffer = zoneDeriveRequestBuffer_;
-                    entries[2].size = sizeof(GPUZoneDeriveRequestArray);
+                    entries[1].binding = bind::g2::auto_life;
+                    entries[1].buffer = automatonLifeBuffer_;
+                    entries[1].size = Dim::AUTO_LIFE_STRIDE * sizeof(float);
 
                     wgpu::BindGroupDescriptor desc{};
-                    desc.label = "Zones State BindGroup";
-                    desc.layout = zonesStateLayout_;
+                    desc.label = "Automaton State BindGroup";
+                    desc.layout = automatonStateLayout_;
                     desc.entryCount = entries.size();
                     desc.entries = entries.data();
-                    zonesStateGroup_ = device_.CreateBindGroup(&desc);
-                    if (!zonesStateGroup_) return false;
+                    automatonStateGroup_ = device_.CreateBindGroup(&desc);
+                    if (!automatonStateGroup_) return false;
                 }
 
                 // Projected from: zoneGolComputeBindGroup_, liveCardWriterGroup_.
@@ -1397,16 +1400,16 @@
                     entries[0].binding = bind::g3::live_card_write;
                     entries[0].textureView = liveCardWriteView_;
 
-                    entries[1].binding = bind::g3::zone_life_tex_write;
-                    entries[1].textureView = zoneLifeWriteView_;
+                    entries[1].binding = bind::g3::auto_life_tex_write;
+                    entries[1].textureView = automatonLifeWriteView_;
 
                     wgpu::BindGroupDescriptor desc{};
-                    desc.label = "Zones Textures BindGroup";
-                    desc.layout = zonesTexturesLayout_;
+                    desc.label = "Automaton Textures BindGroup";
+                    desc.layout = automatonTexturesLayout_;
                     desc.entryCount = entries.size();
                     desc.entries = entries.data();
-                    zonesTexturesGroup_ = device_.CreateBindGroup(&desc);
-                    if (!zonesTexturesGroup_) return false;
+                    automatonTexturesGroup_ = device_.CreateBindGroup(&desc);
+                    if (!automatonTexturesGroup_) return false;
                 }
 
                 // A5: the shared zero-seat filler bound wherever a stratum is unused.

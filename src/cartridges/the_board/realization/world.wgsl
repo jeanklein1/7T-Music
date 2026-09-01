@@ -84,12 +84,14 @@
 //   WAVE_THRESHOLD[6]             Per-band activity gate
 //   ACTIVITY_LATTICE_SPACING      400 wu — activity envelope
 //
-// ── GoL Zones (§2.2, §7.0b) ──────────────────────────────────────
-//   GOL_TIERS[10]                 Tier params (rule, density, tick, spring)
-//   GOL_PULSE_TIERS[4]                Pulse algorithm params (field, ...)
-//   GOL_ZONE_SPAWN_CHANCE         0.60 — fraction of discrete zones
-//   GOL_ZONE_HEIGHT_CHANCE        1.00 — fraction with extrusion
-//   GOL_COLOR_WEIGHTS             Color mode probabilities
+// ── The automaton (§2.2, §7.0b) ──────────────────────────────────
+//   Every number that stood here is a DIAL now, and the dials do not
+//   live in this file: contracts/automaton_surface.hpp's AUTO_TABLE is
+//   the design and AUTO_LIVE is the bank the world draws from. What was
+//   here — GOL_TIERS[10], GOL_PULSE_TIERS[4], the spawn and height
+//   chances, the colour-mode weights — was the ZONES' vocabulary, and
+//   the zones are gone (ONE_SURFACE-II U1).
+//   AUTO_TABLE.mode_threshold    the automaton lives on discrete ground
 //
 // ── Pawn (§2.2) ──────────────────────────────────────────────────
 //   PAWN_HEIGHT / PAWN_RADIUS     Physical dimensions
@@ -2220,12 +2222,17 @@ const CUBE_TERRAIN_CLEARANCE: f32 = 3.0;
 const CUBE_GLIDE_TAU: f32 = 1.1;
 
 // --- Cell Behavior Tag Encoding
-const CELL_ANIM_GOL:  u32 = 1u;     // bit 0: Game of Life
+// ONE FIELD, BECAUSE ONE FIELD IS READ. The tag carried a TIER in bits
+// 4..6 and a height flag in bit 7 and nothing ever unpacked either:
+// unpack_cell_tag_mode is the program's only reader and it masks
+// `& 0xFu`. Both write-only fields left with the tiers at
+// ONE_SURFACE-II U1. The mode bits stay a bitset because the "Future:"
+// line below is still the plan.
+const CELL_ANIM_AUTO: u32 = 1u;     // bit 0: the ground's automaton
 // Future: CELL_ANIM_PAWN = 2u, CELL_ANIM_SPHERE = 4u, CELL_ANIM_HUE = 8u
 
-fn pack_cell_tag(mode: u32, tier: u32, height_enabled: bool) -> f32 {
-    let tag = mode | ((tier & 0x7u) << 4u) | (select(0u, 1u, height_enabled) << 7u);
-    return f32(tag) / 255.0;
+fn pack_cell_tag(mode: u32) -> f32 {
+    return f32(mode & 0xFu) / 255.0;
 }
 
 fn unpack_cell_tag_mode(alpha: f32) -> u32 {
@@ -2233,140 +2240,33 @@ fn unpack_cell_tag_mode(alpha: f32) -> u32 {
 }
 
 
-// --- Game of Life Zone Config
-const GOL_ZONE_SEED_BAND: u32      = 250u;      // lattice seed for zone decisions
-const GOL_ZONE_PROP_SPAWN: u32     = 920u;      // spawn roll
-const GOL_ZONE_PROP_TIER: u32      = 921u;      // tier selection roll
-const GOL_ZONE_PROP_HEIGHT: u32    = 922u;      // height factor roll
-
-const GOL_ZONE_SPAWN_CHANCE: f32   = 0.60;      // 60% of checkerboard zones
-const GOL_ZONE_HEIGHT_CHANCE: f32  = 1.00;      // every zone the roll sees gets height
-const GOL_ZONE_MODE_THRESHOLD: f32 = 0.50;      // min interpolated mode for eligibility
-                                                  // (above scatter_edge, well into discrete)
-struct GoLTierParams {
-    // --- Rule
-    // Conway B/S as a bitset: bit n = birth on n neighbours, bit 9+n =
-    // survival on n. B3/S23 is 0x1808u.
-    // L3 MIRROR: bodies/gol_zones.hpp GoLTierProfile::rule_mask.
-    rule_mask: u32,
-
-    // --- Initial conditions
-    density_mean: f32,             // fraction alive at spawn
-    density_sigma: f32,
-
-    // --- Temporal
-    tick_period_mean: f32,         // beats between generations
-    tick_period_sigma: f32,
-
-    // --- Visual transition
-    spring_stiffness_mean: f32,    // spring constant for alive↔dead
-    spring_stiffness_sigma: f32,
-    transition_fraction_mean: f32, // fraction of tick_period for spring transition
-    transition_fraction_sigma: f32,
-
-    // --- Height
-    alive_height_mean: f32,        // terrain rise when alive (world units)
-    alive_height_sigma: f32,
-
-    // --- Per-cell variation
-    spring_variance: f32,          // [0,1] per-cell spring speed scatter
-
-    // --- Selection
-    weight: f32,                   // tier probability (must sum to 1.0)
-    force_no_height: u32,          // 1 = height always disabled for this tier
-
-    // --- Size (UNIFIED_GROUND_1 U5; cells, not world units)
-    grid_cells: u32,               // zone side in cells ∈ {8..32} (Jean-tunable)
-}
-
-const GOL_TIER_COUNT: u32 = 10u;
-
-//                                            rule       dens_μ  σ     tick_μ  σ    spring_μ σ    trans_μ  σ     ht_μ    σ    sv    wt    no_h  cells
-// (cells column: authored by UNIFIED_GROUND_1 U5 as "defaults by weight
-//  order thirds, 32/24/16"; Jean-tunable per row. That descending-rank
-//  pattern held until TUNE_1 A10 re-ranked the weights without touching
-//  the cells — the values are unchanged, the pattern is not. See the CPU
-//  twin in bodies/gol_zones.hpp for the full note.)
-const GOL_TIERS = array<GoLTierParams, GOL_TIER_COUNT>(
-    /* 0: PILLARS  */ GoLTierParams(0x1808u,  0.30, 0.05,  16.0, 4.0,   0.5, 0.1,   0.05, 0.01,  30.0, 9.0,  0.30,  0.11, 0u, 16u),
-    /* 1: SPARSE   */ GoLTierParams(0x1808u,  0.15, 0.05,   4.0, 1.0,   4.0, 1.0,   0.12, 0.03,  18.0, 6.0,  0.20,  0.17, 0u, 32u),
-    /* 2: MODERATE */ GoLTierParams(0x1808u,  0.30, 0.08,   2.0, 0.6,   8.0, 2.0,   0.15, 0.03,   9.0, 3.0,  0.15,  0.09, 0u, 32u),
-    /* 3: DENSE    */ GoLTierParams(0x1808u,  0.45, 0.10,   1.0,  0.3, 12.0, 3.0,   0.25, 0.05,   6.0, 1.5,  0.10,  0.03, 0u, 16u),
-    /* 4: FLASH    */ GoLTierParams(0x1808u,  0.35, 0.10,   0.5,  0.1, 20.0, 5.0,   0.30, 0.05,   0.0, 0.0,  0.40,  0.03, 1u, 24u),
-    /* 5: MONOLITH */ GoLTierParams(0x1808u,  0.20, 0.03,  24.0, 6.0,   0.3, 0.05,  0.03, 0.01,  42.0, 12.0, 0.05,  0.12, 0u, 16u),
-    /* 6: GLACIER  */ GoLTierParams(0x1808u,  0.12, 0.03,   8.0, 2.0,   2.0, 0.5,   0.08, 0.02,  24.0, 7.5,  0.25,  0.21, 0u, 24u),
-    // GOL_RULES_1 — three rules that are not Conway; GOL_ROWS_1/2/3 then
-    // re-authored two of them (Cauldron was named "Walled cities";
-    // Plateau was Day & night and took a new mask). Rationale lives with
-    // the CPU twin in bodies/gol_zones.hpp; these are the same rows.
-    /* 7: PLATEAU  */ GoLTierParams(0x3E1E0u, 0.50, 0.06,   8.0, 2.0,   6.0, 1.5,   0.10, 0.02,  30.0, 8.0,  0.08,  0.09, 0u, 32u),
-    /* 8: CAULDRON */ GoLTierParams(0x79F0u,  0.50, 0.05,   5.0, 1.2,   1.2, 0.3,   0.40, 0.08,   5.0, 1.5,  0.15,  0.08, 0u, 24u),
-    /* 9: HIGHLIFE */ GoLTierParams(0x1848u,  0.30, 0.05,   1.2,  0.3,  9.0, 2.0,   0.20, 0.04,  10.0, 3.0,  0.22,  0.07, 0u, 32u),
-);
-
-// --- Pulse Algorithm Tier Definitions ────────────────────────────────────
+// ─── THE ZONE VOCABULARY AND BOTH TIER TABLES STOOD HERE
+// (ONE_SURFACE-II U1) ────────────────────────────────────────────────
 //
-// Pulse zones: periodic breathing of cell color/height, no neighbor rules.
-// Each cell oscillates between terrain base and a displaced target.
-// CPU selects tier and uploads parameters via GoLZoneConfig; these
-// definitions have a live CPU twin in bodies/gol_zones.hpp (GOL_TIERS
-// / GOL_PULSE_TIERS) — the GPU renders from these, the CPU seeds/ticks
-// from the twin, so both are authoritative and a tuner must edit both.
+// What left, and it is one idea, not a list: EVERYTHING THAT ANSWERED
+// "WHICH ZONE IS THIS AND WHAT KIND IS IT". The lattice seed band and
+// the spawn/tier/height rolls that decided whether a 120 wu node grew a
+// Game of Life and which flavour; GoLTierParams and GOL_TIERS[10]
+// (Pillars, Sparse, Moderate, Dense, Flash, Monolith, Glacier, Plateau,
+// Cauldron, HighLife); GolPulseTierParams and GOL_PULSE_TIERS[4]
+// (Breathe, Sparkle, Drift, Spiral); and the weights that selected among
+// them. Two spellings of each row — one here, one in the CPU twin — and
+// the banner above the pulse table said the price out loud: "both are
+// authoritative and a tuner must edit both".
 //
-// Algorithm and boundary mode constants (shared CPU ↔ GPU):
-//   GOL_ALGORITHM_CONWAY = 0   GOL_ALGORITHM_PULSE = 1
-//   GOL_BOUNDARY_REFLECT = 0   GOL_BOUNDARY_WRAP   = 1
-// (defined below in the GoL zone system section)
-
-struct GolPulseTierParams {
-    // --- Field
-    // Which spatial law writes the per-cell target (PULSE_FIELD_*).
-    // L3 MIRROR: bodies/gol_zones.hpp GolPulseTierProfile::field_fn.
-    field_fn: u32,
-
-    // --- Temporal
-    tick_period_mean: f32,
-    tick_period_sigma: f32,
-    // --- Visual transition
-    spring_stiffness_mean: f32,
-    spring_stiffness_sigma: f32,
-    transition_fraction_mean: f32,
-    transition_fraction_sigma: f32,
-    // --- Phase scatter
-    phase_randomness_mean: f32,
-    phase_randomness_sigma: f32,
-    // --- Tempo scatter
-    tempo_randomness_mean: f32,
-    tempo_randomness_sigma: f32,
-    // --- Height
-    alive_height_mean: f32,
-    alive_height_sigma: f32,
-    // --- Wander
-    wander_radius_mean: f32,
-    wander_radius_sigma: f32,
-    // --- Per-cell variation
-    spring_variance: f32,
-    // --- Selection
-    weight: f32,
-    force_no_height: u32,     // 0 = allow height, 1 = force no height
-    boundary_mode: u32,       // 0 = reflect, 1 = wrap
-    // --- Size (UNIFIED_GROUND_1 U5; cells, not world units)
-    grid_cells: u32,          // zone side in cells (Jean-tunable)
-}
-
-const GOL_PULSE_TIER_COUNT: u32 = 4u;
-
-//                                            field                    tick_μ   σ    spring_μ σ    trans_μ  σ    phase_μ  σ    tempo_μ σ    ht_μ   σ    wand_μ  σ    sv    wt    no_h  bnd  cells
-// (cells column: UNIFIED_GROUND_1 U5 — 32/16/8 by weight order; Jean-tunable.)
-const GOL_PULSE_TIERS = array<GolPulseTierParams, GOL_PULSE_TIER_COUNT>(
-    /* 0: Breathe  */ GolPulseTierParams( PULSE_FIELD_BREATH,  4.0, 1.0,   4.0, 1.0,   0.20, 0.05,   0.15, 0.05,   0.10, 0.03,   2.0, 0.8,  10.0, 3.0,   0.20,  0.38, 0u, 0u, 32u ),
-    /* 1: Sparkle  */ GolPulseTierParams( PULSE_FIELD_BREATH,  1.0,  0.3, 12.0, 3.0,   0.25, 0.05,   0.90, 0.10,   0.60, 0.15,   0.0, 0.0,   5.0, 2.0,   0.50,  0.24, 1u, 0u, 16u ),
-    /* 2: Drift    */ GolPulseTierParams( PULSE_FIELD_BREATH,  8.0, 2.0,   1.5, 0.4,   0.10, 0.03,   0.50, 0.15,   0.40, 0.10,   4.0, 1.5,  25.0, 8.0,   0.35,  0.20, 0u, 1u, 8u ),
-    // GOL_RULES_1 — the continuous field row. Rationale lives with the CPU
-    // twin in bodies/gol_zones.hpp; this is the same row.
-    /* 3: Spiral   */ GolPulseTierParams( PULSE_FIELD_SPIRAL,  6.0, 1.6,   8.0, 2.0,   0.30, 0.06,   0.03, 0.01,    0.0, 0.0,   0.0, 0.0,   0.0, 0.0,   0.10,  0.18, 1u, 1u, 32u ),
-);
-
+// The world has ONE automaton. There is no node to roll, no flavour to
+// select, and no second room to keep in step. The rows' VALUES are not
+// lost: the modal Conway row and the modal Pulse row are transcribed
+// into contracts/automaton_surface.hpp's AUTO_TABLE and pinned there
+// against these tables while they still stood, and every one of them is
+// a DIAL now rather than a weight in a draw nobody could reach.
+// The others are in history, one `git show` away, with their tuning
+// commentary (GOL_ROWS_1/2/3, GOL_TEMPO_1, GOL_RULES_1) intact.
+//
+// ONE CONSTANT SURVIVES AS A FIELD, because it was never about zones:
+// the mode threshold — "only clearly discrete ground is eligible". It is
+// AUTO_TABLE.mode_threshold now, and it is the whole of what
+// tag_cell_behavior still asks.
 
 // --- Pawn Safety Force Field
 const PAWN_FORCEFIELD_ENABLED: bool = true;
@@ -3142,31 +3042,29 @@ fn contrib_pyramids_at(world_xz: vec2<f32>) -> f32 {
     return best;
 }
 
-// CONTRIB_GOL_ZONES — slow_dynamic, global.
+// CONTRIB_AUTOMATON — slow_dynamic, global.
 // Contributes: raw GoL cell extrusion (visual × alive_height × per-cell factor).
 // Dependencies (via DAG): none — composes onto the static stack additively.
 // Notes: no consumer-local suppression here; that is contrib_gol_suppression_at.
-fn contrib_gol_zones_at(world_xz: vec2<f32>) -> f32 {
-    for (var z: u32 = 0u; z < zone_config.count; z++) {
-        let zp = zone_config.zones[z];
-        if (zp.transition_fraction <= 0.0) { continue; }
-        if (zp.alive_height < 0.01) { continue; }
+// A LOOP OVER EIGHT ISLANDS BECAME ONE LOOKUP (ONE_SURFACE-II U1).
+// The zones' version walked every active zone, rebuilt its corner from
+// origin and extent, divided into its cell size, and tested membership —
+// per evaluation point, per consumer, per frame. The automaton has one
+// grid and it is the ground's own, so the cell address IS the index and
+// the only test left is "is this point inside the world".
+fn contrib_automaton_at(world_xz: vec2<f32>) -> f32 {
+    if (auto_config.alive_height < 0.01) { return 0.0; }
 
-        let zone_corner = zp.origin - zp.extent * 0.5;
-        let cell_size = zp.extent / f32(zp.grid_size);
-        let rel = world_xz - zone_corner;
-        let cx = i32(floor(rel.x / cell_size));
-        let cy = i32(floor(rel.y / cell_size));
+    let addr = cell_address(world_xz);
+    let cx = addr.x - auto_config.cell_origin_x;
+    let cy = addr.y - auto_config.cell_origin_z;
+    let gs = i32(auto_config.grid_size);
+    if (cx < 0 || cx >= gs || cy < 0 || cy >= gs) { return 0.0; }
 
-        if (cx < 0 || cx >= i32(zp.grid_size) || cy < 0 || cy >= i32(zp.grid_size)) { continue; }
-
-        let base = z * GOL_ZONE_STRIDE;
-        let idx = u32(cy) * zp.grid_size + u32(cx);
-        let visual = zone_life[base + GOL_CELL_VISUAL + idx];
-        let height_factor = zone_life[base + GOL_CELL_HEIGHT_FACTOR + idx];
-        return visual * zp.alive_height * height_factor * config.mode_gol_height_scale;
-    }
-    return 0.0;
+    let idx = u32(cy) * auto_config.grid_size + u32(cx);
+    let visual = auto_life[AUTO_CELL_VISUAL + idx];
+    let height_factor = auto_life[AUTO_CELL_HEIGHT_FACTOR + idx];
+    return visual * auto_config.alive_height * height_factor * config.mode_gol_height_scale;
 }
 
 
@@ -3340,7 +3238,7 @@ struct QueryInputs {
 // in the stack; mover-anchored terms live at the caller).
 //
 // gol_term is the caller's already-resolved GoL contribution: the raw
-// contrib_gol_zones_at for flyer/agent, or the inline pawn-suppressed
+// contrib_automaton_at for flyer/agent, or the inline pawn-suppressed
 // form gol*(1 − supp_factor) for the walkers — kept a SINGLE term so the
 // walker stays bit-identical (see query_ground_walker).
 //
@@ -3361,12 +3259,12 @@ fn manifold_overlay_stack(xz: vec2<f32>, qi: QueryInputs, gol_term: f32) -> f32 
 // --- Fly-over: all global deformation fields included ---
 
 // POLICY_FLYER — non-walking entities that ride animated terrain.
-// Contributors: static_base + CONTRIB_PYRAMIDS + CONTRIB_GOL_ZONES +
+// Contributors: static_base + CONTRIB_PYRAMIDS + CONTRIB_AUTOMATON +
 //   CONTRIB_TERRAIN_WAVES + CONTRIB_RADIAL_PULSES + CONTRIB_PAWN_AURA
 //   (external form — grid sample at xz).
 // Typical consumers: sphere orbit clearance, cube hover base, primary
 //   camera clamp.
-// Notes: no CONTRIB_GOL_SUPPRESSION — flyers don't flatten GoL at their
+// Notes: no CONTRIB_AUTOMATON_SUPPRESSION — flyers don't flatten GoL at their
 //   own position. Aura uses contrib_pawn_aura_at_external because flyers
 //   sample away from the pawn's position. Gradient variant:
 fn query_ground_flyer(xz: vec2<f32>, qi: QueryInputs) -> f32 {
@@ -3379,9 +3277,9 @@ fn query_ground_flyer(xz: vec2<f32>, qi: QueryInputs) -> f32 {
 // --- Walkers: everything the flyer sees, plus walker-specific fields ---
 
 // POLICY_WALKER — the pawn's resolved standing height.
-// Contributors: static_base + CONTRIB_PYRAMIDS + CONTRIB_GOL_ZONES +
+// Contributors: static_base + CONTRIB_PYRAMIDS + CONTRIB_AUTOMATON +
 //   CONTRIB_TERRAIN_WAVES + CONTRIB_RADIAL_PULSES + CONTRIB_PAWN_AURA
-//   (self form — scalar peak) - CONTRIB_GOL_SUPPRESSION (subtractive,
+//   (self form — scalar peak) - CONTRIB_AUTOMATON_SUPPRESSION (subtractive,
 //   centered on qi.consumer_pos).
 // Typical consumers: pawn_ground_resolve (final resolved Y).
 // Notes: the walker stands on aura-lifted ground. Aura uses
@@ -3391,9 +3289,9 @@ fn query_ground_flyer(xz: vec2<f32>, qi: QueryInputs) -> f32 {
 //   Gradient: use query_ground_walker_tilt for tilt/step-climb to avoid
 //   manufactured slopes from gol_suppression (which IS position-dependent).
 //
-// Implementation: evaluates contrib_gol_zones_at ONCE and applies the
+// Implementation: evaluates contrib_automaton_at ONCE and applies the
 // pawn-centered suppression factor inline — algebraically identical to
-//   h += contrib_gol_zones_at(xz);
+//   h += contrib_automaton_at(xz);
 //   h -= contrib_gol_suppression_at(xz, consumer_pos);
 // but avoids a second full pass over the GoL zone loop — one traversal
 // of the zone set instead of two, which is a saving on every backend and
@@ -3405,7 +3303,7 @@ fn query_ground_walker(xz: vec2<f32>, qi: QueryInputs) -> f32 {
 }
 
 // POLICY_WALKER_TILT — walker minus the self-centered pawn aura.
-// Contributors: static_base + CONTRIB_PYRAMIDS + CONTRIB_GOL_ZONES
+// Contributors: static_base + CONTRIB_PYRAMIDS + CONTRIB_AUTOMATON
 //   (pawn-suppressed) + CONTRIB_TERRAIN_WAVES + CONTRIB_RADIAL_PULSES.
 // Typical consumers: terrain_normal_at (pawn tilt), pawn_ground_resolve
 //   step-climb decisions.
@@ -3452,7 +3350,7 @@ fn query_ground_walker_tilt(xz: vec2<f32>, qi: QueryInputs) -> f32 {
 //      constant scalar with zero tilt gradient, excluded for clarity.
 //
 // GoL carries inline pawn-centered suppression, equivalent to
-//   contrib_gol_zones_at(xz) - contrib_gol_suppression_at(xz, consumer_pos)
+//   contrib_automaton_at(xz) - contrib_gol_suppression_at(xz, consumer_pos)
 // but evaluating the zone loop once instead of twice, kept as the SINGLE
 // term gol*(1-supp) so the arithmetic is bit-stable. Walker intent: "GoL
 // doesn't push me up into the air while I'm standing on it."
@@ -3477,7 +3375,7 @@ fn query_ground_walker_pair(xz: vec2<f32>, qi: QueryInputs) -> vec2<f32> {
 }
 
 // POLICY_WALKER_AGENT — non-pawn walkers (NPCs).
-// Contributors: static_base + CONTRIB_PYRAMIDS + CONTRIB_GOL_ZONES +
+// Contributors: static_base + CONTRIB_PYRAMIDS + CONTRIB_AUTOMATON +
 //   CONTRIB_TERRAIN_WAVES + CONTRIB_RADIAL_PULSES + CONTRIB_PAWN_AURA
 //   (external form — grid sample at xz, since the agent is not the pawn).
 // Typical consumers: agent ground resolve (none today; reserved for
@@ -3495,9 +3393,9 @@ fn query_ground_walker_agent(xz: vec2<f32>, qi: QueryInputs) -> f32 {
 }
 
 // POLICY_WALKER_WITNESS — THE CAMERA'S FLOOR (KITE_1).
-// Contributors: static_base + CONTRIB_PYRAMIDS + CONTRIB_GOL_ZONES +
+// Contributors: static_base + CONTRIB_PYRAMIDS + CONTRIB_AUTOMATON +
 //   CONTRIB_TERRAIN_WAVES + CONTRIB_RADIAL_PULSES + CONTRIB_PAWN_AURA
-//   (external form) - CONTRIB_GOL_SUPPRESSION (subtractive, centered on
+//   (external form) - CONTRIB_AUTOMATON_SUPPRESSION (subtractive, centered on
 //   qi.consumer_pos — the EYE — and height-faded).
 // Typical consumers: update_camera_vp's clearance clamp.
 // Notes: contributor for contributor this is POLICY_WALKER. What differs is
@@ -4618,7 +4516,7 @@ struct PatchTerrainVarying {
 //   + CONTRIB_TERRAIN_WAVES
 //   + CONTRIB_RADIAL_PULSES
 //
-// Does NOT include CONTRIB_GOL_ZONES — the patch heightfield caches the
+// Does NOT include CONTRIB_AUTOMATON — the patch heightfield caches the
 // STATIC ground only. The GoL lift rides the live card's .a and is added
 // per-vertex in the VS (UNIFIED_GROUND_1), never baked.
 //
@@ -4852,58 +4750,61 @@ fn patch_terrain_fs(in: PatchTerrainVarying) -> @location(0) vec4<f32> {
         base_color = c;
     }
 
-    // --- GoL zone visualization
-    // Runtime guard: cell behavior tag alpha is nonzero only inside active zones.
+    // --- THE AUTOMATON'S TINT (ONE_SURFACE-II U1)
+    //
+    // A LOOP THAT SEARCHED EIGHT ZONES FOR THE ONE COVERING THIS FRAGMENT
+    // BECAME A LOOKUP. The search existed because a fragment had to find
+    // which island it stood on: rebuild each zone's corner, convert to
+    // local cells, bounds-test, `break` on the first hit. UG_FIELDS_1 S1
+    // had already retired the lattice pre-filter in front of it, leaving
+    // the bounds test as the membership test — and the automaton's
+    // membership test is "is this cell inside the world", asked once.
+    //
+    // THE ARRAY LAYER WAS THE ZONE INDEX and there is no zone index, so
+    // the life texture is one plane and the sample takes no layer.
+    //
+    // The runtime guard survives exactly: the tag alpha is nonzero only
+    // where tag_cell_behavior wrote it, which is discrete ground. That
+    // gate is now the ONLY thing standing between the automaton and the
+    // whole world, and it is the same gate it always was.
     let tag_alpha = color_sample.a;
     if (tag_alpha > 0.001) {
         let mode = unpack_cell_tag_mode(tag_alpha);
-        if ((mode & CELL_ANIM_GOL) != 0u) {
+        if ((mode & CELL_ANIM_AUTO) != 0u) {
             let cam_dist = distance(frame_r.camera.pos, in.world_pos);
             let fade = 1.0 - smoothstep(GOL_FADE_NEAR, GOL_FADE_FAR, cam_dist);
 
             if (fade > 0.01) {
-                for (var z: u32 = 0u; z < zone_params.count; z++) {
-                    let zp = zone_params.zones[z];
-                    if (zp.transition_fraction <= 0.0) { continue; }
-                    let zone_corner = zp.origin - zp.extent * 0.5;
-                    let local_cell = addr_used - cell_address(zone_corner);
-                    // COVERAGE, NOT LATTICE (UG_FIELDS_1 S1). The bounds
-                    // test IS the membership test. The retired pre-filter
-                    // compared lattice nodes, which assumes a zone never
-                    // leaves its 120 wu node; a 32-cell zone is already
-                    // 100 wu and fragments across the boundary lost it.
-                    // This is also the FS's last MODE_LATTICE_SPACING
-                    // reader — the zone's SIZE is now free of the lattice
-                    // that places it.
-                    if (local_cell.x >= 0 && local_cell.x < i32(zp.grid_size) &&
-                        local_cell.y >= 0 && local_cell.y < i32(zp.grid_size)) {
+                let local_cell = addr_used - vec2<i32>(auto_config.cell_origin_x,
+                                                       auto_config.cell_origin_z);
+                let gs = i32(auto_config.grid_size);
+                if (local_cell.x >= 0 && local_cell.x < gs &&
+                    local_cell.y >= 0 && local_cell.y < gs) {
 
-                        let uv = (vec2<f32>(local_cell) + 0.5) / GOL_ZONE_TEX_N;
-                        let life_sample = textureSampleLevel(
-                            zone_life_read, nearest_sampler, uv, i32(z), 0.0
+                    let uv = (vec2<f32>(local_cell) + 0.5) / f32(auto_config.grid_size);
+                    let life_sample = textureSampleLevel(
+                        auto_life_read, nearest_sampler, uv, 0.0
+                    );
+                    let color_val = life_sample.x;  // R channel = the cell's spring visual
+
+                    if (color_val > 0.01) {
+                        base_color = apply_automaton_color(
+                            base_color,
+                            u32(local_cell.x), u32(local_cell.y),
+                            color_val * fade
                         );
-                        let color_val = life_sample.x;  // R channel = the cell's spring visual
 
-                        if (color_val > 0.01) {
-                            base_color = apply_gol_color(
-                                base_color, zp,
-                                u32(local_cell.x), u32(local_cell.y),
-                                color_val * fade
-                            );
-
-                            // Pawn force field: tint zone cells near pawn (render context)
-                            let pawn_ff = 1.0 - zone_pawn_ff(in.world_pos.xz, render_pawn_pos(), render_pawn_vel_xz());
-                            if (pawn_ff > 0.01) {
-                                base_color = mix(base_color, ZONE_PAWN_TINT, pawn_ff * ZONE_PAWN_TINT_STRENGTH * color_val);
-                            }
-
-                            // Sphere force field: tint zone cells near sphere (render context)
-                            let sphere_ff = 1.0 - zone_sphere_ff(in.world_pos.xz, frame_r.sphere_pos);
-                            if (sphere_ff > 0.01) {
-                                base_color = mix(base_color, ZONE_SPHERE_TINT, sphere_ff * ZONE_SPHERE_TINT_STRENGTH * color_val);
-                            }
+                        // Pawn force field: tint live cells near the pawn (render context)
+                        let pawn_ff = 1.0 - zone_pawn_ff(in.world_pos.xz, render_pawn_pos(), render_pawn_vel_xz());
+                        if (pawn_ff > 0.01) {
+                            base_color = mix(base_color, ZONE_PAWN_TINT, pawn_ff * ZONE_PAWN_TINT_STRENGTH * color_val);
                         }
-                        break;
+
+                        // Sphere force field: tint live cells near the sphere (render context)
+                        let sphere_ff = 1.0 - zone_sphere_ff(in.world_pos.xz, frame_r.sphere_pos);
+                        if (sphere_ff > 0.01) {
+                            base_color = mix(base_color, ZONE_SPHERE_TINT, sphere_ff * ZONE_SPHERE_TINT_STRENGTH * color_val);
+                        }
                     }
                 }
             }
@@ -6667,44 +6568,99 @@ fn shadow_light_vp() -> mat4x4<f32> {
 // §7.0b GOL ZONE DEFINITIONS
 
 // --- GoL zone system (Group 0: bindings 160-162, dedicated layout)
-struct GoLZoneConfig {
-    origin: vec2<f32>,
-    extent: f32,
-    grid_size: u32,
-    tick_period: f32,
-    spring_stiffness: f32,
-    alive_height: f32,
+// ═══ THE AUTOMATON'S CONFIG (ONE_SURFACE-II U1) ══════════════════════
+//
+// ONE STRUCT WHERE AN ARRAY OF EIGHT STOOD. GoLZoneConfig described one
+// island of a Game of Life: where it sat, how wide it was, and the
+// parameters its own lattice node had rolled for it. The automaton is
+// the ground, so it has no origin of its own to carry and no extent to
+// bound — it holds every discrete cell in the world.
+//
+// L3 MIRROR: state.hpp GPUAutomatonConfig; contracts/automaton_surface.hpp
+// AutomatonBank (the dials this is drawn FROM). Three rooms, one fact —
+// change them together.
+//
+// THE HEADER FIELDS ARE THE CPU'S, PER FRAME (beats, dt, should_tick);
+// everything below them is DRAWN ONCE PER WORLD from AUTO_LIVE and the
+// world seed, and does not move again until rebirth.
+struct AutomatonConfig {
+    // ── Per-frame header ──
+    t_beats: f32,
+    dt: f32,
+    should_tick: u32,            // the CPU's tick gate — one bit, not a mask of eight
+    grid_size: u32,              // THIS world's cells per side: (2R+1) * PATCH_CELL_N
+
+    // ── The world's SW corner, in the ground's own cell address space ──
+    // The ONE-ADDRESS LAW (charter C8) paid off: a cell's automaton index
+    // is cell_address(xz) - this, and nothing snaps a corner.
+    cell_origin_x: i32,
+    cell_origin_z: i32,
+
+    // ── Drawn once per world ──
+    algorithm: u32,              // AUTO_ALGORITHM_*
+    rule_mask: u32,              // Conway B/S bitset: bit n birth, bit 9+n survival
+    field_fn: u32,               // AUTO_FIELD_* (Pulse only)
+    color_mode: u32,             // AUTO_COLOR_*
+    boundary_mode: u32,          // the SPRING's overshoot law — NOT the grid's topology
+    tick_period: f32,            // beats
     transition_fraction: f32,
-    color_mode: u32,
+    alive_height: f32,
+    spring_variance: f32,        // per-cell spring speed scatter [0,1]
+    phase_randomness: f32,       // per-cell phase offset [0,1]   (Pulse)
+    tempo_randomness: f32,       // per-cell frequency scatter [0,1] (Pulse)
     target_r: f32,
     target_g: f32,
     target_b: f32,
-    algorithm: u32,
-    wander_radius: f32,
-    phase_randomness: f32,
-    boundary_mode: u32,
-    tempo_randomness: f32,       // per-cell frequency scatter [0,1]
-    spring_variance: f32,        // per-cell spring speed scatter [0,1]
-    // GOL_RULES_1: the two trailing pad words, renamed in place. Same
-    // offsets, same 80 bytes; the CPU twin's static_assert is the witness.
-    rule_mask: u32,              // Conway B/S bitset: bit n birth, bit 9+n survival
-    field_fn: u32,               // Pulse field function id (PULSE_FIELD_*)
+
+    // ── The birth kernel's own dials ──
+    density: f32,                // fraction of cells that start alive
+    height_factor_mean: f32,     // per-cell lift multiplier, Gaussian
+    height_factor_sigma: f32,
+    height_factor_lo: f32,       // and its clamp
+    height_factor_hi: f32,
+
+    // `mode_threshold` IS NOT TRANSPORTED. It lives on the bank and is
+    // mirrored into AUTO_MODE_THRESHOLD beside tag_cell_behavior, which
+    // is its only reader — see that banner for why a binding was the
+    // wrong answer.
+
+    // UNIFORM LAYOUT: 25 scalars is 100 B and a uniform struct rounds to
+    // 16, so three words are spelled rather than inferred. The C++ twin
+    // carries them and a static_assert holds the 112.
+    _pad0: f32,
+    _pad1: f32,
+    _pad2: f32,
 }
 
-// --- GoL Zone Visual Parameters
-const GOL_COLOR_NEUTRAL:  u32 = 0u;  // no color change (height-only extrusion)
-const GOL_COLOR_LENS:     u32 = 1u;  // shift ground toward per-zone target color
+// The automaton's own seed band and property indices. The zones drew
+// from band 250 at a LATTICE NODE; these draw from the world seed at a
+// CELL ADDRESS, which is why the band is new rather than inherited —
+// a band is a namespace, and this one has different keys.
+const AUTO_SEED_BAND: u32          = 260u;
+const AUTO_PROP_DENSITY: u32       = 960u;
+const AUTO_PROP_HEIGHT_FACTOR: u32 = 961u;
 
-// Algorithm constants (must match CPU AlgorithmType::)
-const GOL_ALGORITHM_CONWAY: u32 = 0u;
+// --- The automaton's visual modes (must match CPU AutomatonColor::)
+const AUTO_COLOR_NEUTRAL:  u32 = 0u;  // no color change (height-only extrusion)
+const AUTO_COLOR_LENS:     u32 = 1u;  // shift ground toward the target color
 
-// Pulse field-function constants (must match CPU PulseField::)
+// Algorithm constants (must match CPU AutomatonAlgorithm::)
+const AUTO_ALGORITHM_CONWAY: u32 = 0u;
+
+// Pulse field-function constants (must match CPU AutomatonField::)
 const PULSE_FIELD_BREATH: u32 = 0u;   // what ships today
 const PULSE_FIELD_SPIRAL: u32 = 1u;
 
-// Boundary mode constants (must match CPU BoundaryMode::)
-const GOL_BOUNDARY_REFLECT: u32 = 0u;
-const GOL_BOUNDARY_WRAP:    u32 = 1u;
+// THE SPRING'S OVERSHOOT LAW — AND IT IS NOT THE GRID'S TOPOLOGY.
+// apply_boundary below clamps a VISUAL VALUE leaving [0,1]; the grid's
+// wrap is the evolve kernel's modular neighbour walk, which is a
+// hardcoded modulus and has no mode. The campaign pins the TORUS, which
+// is that modulus; these two constants are a different fact and keep
+// their meaning. (contracts/automaton_surface.hpp states the trap in
+// full, and its static_assert holds the transcribed REFLECT.)
+// Must match CPU AutomatonBoundary::.
+const AUTO_BOUNDARY_REFLECT: u32 = 0u;
+const AUTO_BOUNDARY_WRAP:    u32 = 1u;
 
 // --- Distance fade (prevents aliasing flicker at distance)
 const GOL_FADE_NEAR: f32 = 150.0;    // full effect inside this range
@@ -6745,7 +6701,7 @@ fn wrap01(x: f32) -> f32 {
 }
 
 fn apply_boundary(x: f32, mode: u32) -> f32 {
-    if (mode == GOL_BOUNDARY_WRAP) { return wrap01(x); }
+    if (mode == AUTO_BOUNDARY_WRAP) { return wrap01(x); }
     return reflect01(x);
 }
 
@@ -6822,19 +6778,22 @@ fn gol_composite_cell_color(world_xz: vec2<f32>) -> vec3<f32> {
     return composite_cell_color(id, dcol);
 }
 
-// --- Shared color application (the terrain FS is the sole caller)
-fn apply_gol_color(base_color: vec3<f32>, zp: GoLZoneConfig, cx: u32, cy: u32, blend: f32) -> vec3<f32> {
-    if (zp.color_mode == GOL_COLOR_NEUTRAL) {
+// --- THE GLOBAL ALIVE-COLOUR POLICY (the terrain FS is the sole caller)
+// It took a GoLZoneConfig by value because there were eight of them and
+// the caller had already picked one. There is one automaton, so the
+// policy reads the config directly and the parameter goes.
+fn apply_automaton_color(base_color: vec3<f32>, cx: u32, cy: u32, blend: f32) -> vec3<f32> {
+    if (auto_config.color_mode == AUTO_COLOR_NEUTRAL) {
         return base_color;  // no color change on terrain
     }
 
     let h = gol_cell_hash(cx, cy);
     let v = gol_cell_variation(h);
 
-    if (zp.color_mode == GOL_COLOR_LENS) {
+    if (auto_config.color_mode == AUTO_COLOR_LENS) {
         // Gentle shift: keep most of the base color, nudge toward target
         let variation = v * GOL_LENS_VARIATION_RANGE - GOL_LENS_VARIATION_RANGE * 0.5;
-        let tint_color = vec3(zp.target_r, zp.target_g, zp.target_b);
+        let tint_color = vec3(auto_config.target_r, auto_config.target_g, auto_config.target_b);
         let lens_color = mix(base_color, tint_color, GOL_LENS_BLEND_BASE + variation);
         return mix(base_color, lens_color, blend * GOL_TINT_STRENGTH);
     }
@@ -6848,16 +6807,12 @@ fn apply_gol_color(base_color: vec3<f32>, zp: GoLZoneConfig, cx: u32, cy: u32, b
     return mix(base_color, alive_color, blend * GOL_TINT_STRENGTH);
 }
 
-// L3 MIRROR: Dim::MAX_GOL_ZONES (state.hpp). Sizes BOTH zone arrays below.
-const MAX_GOL_ZONES: u32 = 8u;
-
-struct GoLZoneArray {
-    count: u32,
-    t_beats: f32,
-    dt: f32,
-    tick_mask: u32,              // bit N = zone N should tick Conway this frame
-    zones: array<GoLZoneConfig, MAX_GOL_ZONES>,
-}
+// GoLZoneArray STOOD HERE — a four-word header (count, t_beats, dt,
+// tick_mask) over `array<GoLZoneConfig, MAX_GOL_ZONES>`. The header's
+// three live fields moved INTO AutomatonConfig, where they are the
+// per-frame room of a struct that has no array to head; `count` had
+// nothing to count and `tick_mask` was eight bits for eight zones, now
+// one `should_tick`. MAX_GOL_ZONES went with them (ONE_SURFACE-II U1).
 
 // §7.0c PAWN AURA HELPERS
 
@@ -6951,13 +6906,22 @@ struct PawnAuraCell {
 
 // §7.0d SYSTEM BINDINGS
 
-@group(2) @binding(101) var<storage, read_write> zone_config: GoLZoneArray;
-@group(2) @binding(102) var<storage, read_write> zone_life: array<f32>;
-@group(3) @binding(101) var zone_life_tex_write: texture_storage_2d_array<r32float, write>;
+// THE AUTOMATON'S SEATS. Two storage seats became ONE UNIFORM: the
+// config was read_write storage only because zone_derive_params WROTE it
+// on the GPU, and 104 existed only because WebGPU forbids a read_write
+// storage binding in the vertex stage, so the render side needed a
+// read-only alias of the same buffer. The derive kernel is gone — the
+// CPU draws the automaton once per world from AUTO_LIVE and uploads it —
+// so the config is a uniform, legal in every stage, and one seat serves
+// every reader. Binding 104 is retired; 103 went with the derive
+// requests.
+@group(2) @binding(101) var<uniform> auto_config: AutomatonConfig;
+@group(2) @binding(102) var<storage, read_write> auto_life: array<f32>;
+@group(3) @binding(101) var auto_life_tex_write: texture_storage_2d<r32float, write>;
 
-// --- GoL zone system (Group 1: bindings 31-32, render texture layout)
-@group(3) @binding(102) var zone_life_read: texture_2d_array<f32>;
-@group(2) @binding(104) var<storage, read> zone_params: GoLZoneArray;
+// The life texture is ONE PLANE, not an array of eight. The zone index
+// was its array layer and there is no zone index.
+@group(3) @binding(102) var auto_life_read: texture_2d<f32>;
 @group(3) @binding(21) var pawn_aura_read: texture_2d<f32>;
 @group(3) @binding(103) var live_card_read: texture_2d<f32>;  // GROUND_CARD_1: the live card (sampled; render + compute)
 
@@ -6968,239 +6932,87 @@ struct PawnAuraCell {
 @group(3) @binding(20) var pawn_aura_tex_write: texture_storage_2d<rgba16float, write>;
 @group(3) @binding(100) var live_card_write: texture_storage_2d<rgba16float, write>;  // GROUND_CARD_1: writer kernel
 
-// --- Zone Parameter Derivation (GPU-authoritative) ──────────────────────
+// ─── ZONE PARAMETER DERIVATION STOOD HERE, AND ITS WHOLE PREMISE WAS
+// THE ZONES (ONE_SURFACE-II U1) ──────────────────────────────────────
 //
-// CPU identifies eligible lattice nodes and allocates zone slots.
-// GPU derives all parameters (tier selection, Gaussian sampling, color mode)
-// and writes directly to zone_config. Eliminates CPU-side hash computation.
+// What it was: `zone_derive_params`, a @workgroup_size(1) kernel over a
+// queue of `ZoneDeriveRequest`s (binding 103, retired with them). For
+// each newly spawned zone it re-derived the lattice-node seed, rolled a
+// TIER out of GOL_TIERS or GOL_PULSE_TIERS by cumulative weight, drew
+// every continuous parameter from that tier's Gaussian, rolled a colour
+// mode out of the weighted table, snapped the corner, and wrote the
+// finished GoLZoneConfig back into zone_config[slot] — GPU-authoritative,
+// so the CPU never had to spell the hash.
+//
+// Why nothing replaces it. It existed because there were EIGHT zones,
+// each born at a different moment, each needing its own draw from its
+// own node. There is one automaton and it is born once, with the world.
+// One draw at one moment on the CPU is not a kernel; it is
+// draw_automaton (surface/automaton.hpp), which reads AUTO_LIVE, draws
+// from the world seed, and uploads the result. The tier tables went with
+// the selection they existed to serve (contracts/automaton_surface.hpp
+// carries their values, transcribed and pinned).
+//
+// What DID survive is the kernel below — the seed mask — because masking
+// aliveness against the ground's own vocabulary is a per-cell fact and
+// stays one. It grew the DRAW the CPU used to do, so the automaton's
+// birth is now a single dispatch over the world.
 
-struct ZoneDeriveRequest {
-    slot: u32,              // zone_config.zones[slot] to write
-    nx: i32,                // lattice node X
-    nz: i32,                // lattice node Z
-    algorithm: u32,         // 0=Conway, 1=Pulse
-    height_enabled: u32,    // 0 or 1 (from CPU height chance roll)
-    world_seed: u32,        // master seed for lattice_node_seed
-    _pad0: u32,
-    _pad1: u32,
-}
-
-struct ZoneDeriveRequestArray {
-    count: u32,
-    _pad0: u32,
-    _pad1: u32,
-    _pad2: u32,
-    requests: array<ZoneDeriveRequest, MAX_GOL_ZONES>,
-}
-
-@group(2) @binding(103) var<uniform> zone_derive_requests: ZoneDeriveRequestArray;
-
-// Constants for zone derivation (must match CPU GoLZoneSpawnConfig / GoLColorMode)
-// A zone's extent is tier-derived: grid_cells × PATCH_CELL_SIZE.
-// L3 MIRROR: GoLZoneSpawnConfig::HEIGHT_FACTOR_CLAMP_HI (bodies/gol_zones.hpp).
-// The per-cell height_factor is a CPU Gaussian clamped to [LO, HI] and then
-// multiplied by the birth mask's {0,1}, so this is the true upper bound on
-// the per-cell multiplier. Both rooms.
-const GOL_HEIGHT_FACTOR_MAX: f32 = 1.4;
-const ZONE_DERIVE_LENS_LO: f32       = 0.2;       // LENS target color floor
-const ZONE_DERIVE_LENS_RANGE: f32     = 0.6;       // LENS target color range
-
-// ── Zone color-mode weight vectors ──────────────────────────────
-// WHAT: cumulative-weight distributions for a zone's color mode.
-// AXES: index = GoLColorMode order [0 neutral, 1 lens, 2 blackish]
-//   (must match CPU GoLColorMode, bodies/gol_zones.hpp). Which vector
-//   applies is chosen by the zone's actual_height flag: HEIGHT for
-//   extruding zones, NO_HEIGHT for flat ones.
-// UNITS: probability (each row sums to 1.0).
-// CONSUMER: zone_derive_params (the cumulative color-mode pick).
-// SENTINEL: NO_HEIGHT[neutral] = 0.00 — a flat zone can never be
-//   neutral (always lens or blackish, so flatness stays legible).
-// Biography-adjacent: the pick is seed-deterministic per zone.
-//                                              neutral  lens  blackish
-const GOL_COLOR_WEIGHTS_HEIGHT    = array<f32, 3>(0.30, 0.40, 0.30);
-const GOL_COLOR_WEIGHTS_NO_HEIGHT = array<f32, 3>(0.00, 0.55, 0.45);
-
-// Property indices for zone parameter derivation (must match CPU GoLZoneProp / PulseZoneProp)
-const ZONE_PROP_TIER: u32         = 921u;
-const ZONE_PROP_COLOR_ROLL: u32   = 923u;
-const ZONE_PROP_TICK_PERIOD: u32  = 931u;
-const ZONE_PROP_SPRING: u32       = 932u;
-const ZONE_PROP_HEIGHT: u32       = 933u;
-const ZONE_PROP_TRANSITION: u32   = 934u;
-const ZONE_PROP_TARGET_R: u32     = 935u;
-const ZONE_PROP_TARGET_G: u32     = 936u;
-const ZONE_PROP_TARGET_B: u32     = 937u;
-const ZONE_PROP_PULSE_TIER: u32   = 951u;
-const ZONE_PROP_PHASE_RANDOM: u32 = 952u;
-const ZONE_PROP_WANDER: u32       = 953u;
-const ZONE_PROP_TEMPO_RANDOM: u32 = 954u;
-
-// --- Zone Parameter Derivation ──────────────────────────────────────────
-// CPU sends minimal requests (slot, node coords, algorithm, height flag).
-// GPU derives all parameters from tier tables via Gaussian sampling.
-// Dispatched once per newly-spawned zone, before sync/evolve.
-
-@compute @workgroup_size(1)
-fn zone_derive_params(@builtin(global_invocation_id) gid: vec3<u32>) {
-    let req_idx = gid.x;
-    if (req_idx >= zone_derive_requests.count) { return; }
-    let req = zone_derive_requests.requests[req_idx];
-
-    let seed = lattice_node_seed(req.world_seed, vec2(req.nx, req.nz), GOL_ZONE_SEED_BAND);
-
-    // Raw center from the lattice node; the corner snap moves BELOW the
-    // tier selection — extent is tier-derived (UNIFIED_GROUND_1 U5).
-    let raw_cx = (f32(req.nx) + 0.5) * MODE_LATTICE_SPACING;
-    let raw_cz = (f32(req.nz) + 0.5) * MODE_LATTICE_SPACING;
-
-    var zc: GoLZoneConfig;
-    zc.algorithm = req.algorithm;
-
-    // Each row's own slot; the other algorithm's stays 0.
-    zc.rule_mask = 0u;
-    zc.field_fn  = 0u;
-
-    // Target colors (shared by both algorithms)
-    zc.target_r = hash_property(seed, ZONE_PROP_TARGET_R) * ZONE_DERIVE_LENS_RANGE + ZONE_DERIVE_LENS_LO;
-    zc.target_g = hash_property(seed, ZONE_PROP_TARGET_G) * ZONE_DERIVE_LENS_RANGE + ZONE_DERIVE_LENS_LO;
-    zc.target_b = hash_property(seed, ZONE_PROP_TARGET_B) * ZONE_DERIVE_LENS_RANGE + ZONE_DERIVE_LENS_LO;
-
-    let height_enabled = req.height_enabled != 0u;
-
-    if (req.algorithm == GOL_ALGORITHM_CONWAY) {
-        // Conway tier selection (cumulative weight)
-        let tier_roll = hash_property(seed, ZONE_PROP_TIER);
-        var tier_idx: u32 = GOL_TIER_COUNT - 1u;
-        var cumul: f32 = 0.0;
-        for (var t: u32 = 0u; t < GOL_TIER_COUNT; t++) {
-            cumul += GOL_TIERS[t].weight;
-            if (tier_roll < cumul) { tier_idx = t; break; }
-        }
-        let tp = GOL_TIERS[tier_idx];
-
-        // Size: cells, not world units (UNIFIED_GROUND_1 U5)
-        zc.grid_size = tp.grid_cells;
-        zc.extent    = f32(zc.grid_size) * PATCH_CELL_SIZE;
-
-        let actual_height = height_enabled && (tp.force_no_height == 0u);
-
-        zc.tick_period = max(0.1,
-            sample_gaussian(seed, ZONE_PROP_TICK_PERIOD, tp.tick_period_mean, tp.tick_period_sigma));
-        zc.spring_stiffness = max(0.1,
-            sample_gaussian(seed, ZONE_PROP_SPRING, tp.spring_stiffness_mean, tp.spring_stiffness_sigma));
-        zc.transition_fraction = clamp(
-            sample_gaussian(seed, ZONE_PROP_TRANSITION, tp.transition_fraction_mean, tp.transition_fraction_sigma),
-            0.01, 0.5);
-        zc.alive_height = select(0.0,
-            max(0.5, sample_gaussian(seed, ZONE_PROP_HEIGHT, tp.alive_height_mean, tp.alive_height_sigma)),
-            actual_height);
-        zc.spring_variance = tp.spring_variance;
-        zc.rule_mask = tp.rule_mask;
-
-        // Pulse fields: zeroed for Conway
-        zc.wander_radius = 0.0;
-        zc.phase_randomness = 0.0;
-        zc.boundary_mode = GOL_BOUNDARY_REFLECT;
-        zc.tempo_randomness = 0.0;
-
-        // Color mode selection (weighted by height state)
-        let color_roll = hash_property(seed, ZONE_PROP_COLOR_ROLL);
-        zc.color_mode = 2u; // fallback: blackish
-        var ccum: f32 = 0.0;
-        for (var c: u32 = 0u; c < 3u; c++) {
-            if (actual_height) {
-                ccum += GOL_COLOR_WEIGHTS_HEIGHT[c];
-            } else {
-                ccum += GOL_COLOR_WEIGHTS_NO_HEIGHT[c];
-            }
-            if (color_roll < ccum) { zc.color_mode = c; break; }
-        }
-    } else {
-        // Pulse tier selection
-        let tier_roll = hash_property(seed, ZONE_PROP_PULSE_TIER);
-        var tier_idx: u32 = GOL_PULSE_TIER_COUNT - 1u;
-        var cumul: f32 = 0.0;
-        for (var t: u32 = 0u; t < GOL_PULSE_TIER_COUNT; t++) {
-            cumul += GOL_PULSE_TIERS[t].weight;
-            if (tier_roll < cumul) { tier_idx = t; break; }
-        }
-        let pp = GOL_PULSE_TIERS[tier_idx];
-
-        // Size: cells, not world units (UNIFIED_GROUND_1 U5)
-        zc.grid_size = pp.grid_cells;
-        zc.extent    = f32(zc.grid_size) * PATCH_CELL_SIZE;
-
-        let actual_height = height_enabled && (pp.force_no_height == 0u);
-
-        zc.tick_period = max(0.1,
-            sample_gaussian(seed, ZONE_PROP_TICK_PERIOD, pp.tick_period_mean, pp.tick_period_sigma));
-        zc.spring_stiffness = max(0.1,
-            sample_gaussian(seed, ZONE_PROP_SPRING, pp.spring_stiffness_mean, pp.spring_stiffness_sigma));
-        zc.transition_fraction = clamp(
-            sample_gaussian(seed, ZONE_PROP_TRANSITION, pp.transition_fraction_mean, pp.transition_fraction_sigma),
-            0.01, 0.5);
-        zc.alive_height = select(0.0,
-            max(0.5, sample_gaussian(seed, ZONE_PROP_HEIGHT, pp.alive_height_mean, pp.alive_height_sigma)),
-            actual_height);
-        zc.phase_randomness = clamp(
-            sample_gaussian(seed, ZONE_PROP_PHASE_RANDOM, pp.phase_randomness_mean, pp.phase_randomness_sigma),
-            0.0, 1.0);
-        zc.wander_radius = max(0.0,
-            sample_gaussian(seed, ZONE_PROP_WANDER, pp.wander_radius_mean, pp.wander_radius_sigma));
-        zc.boundary_mode = pp.boundary_mode;
-        zc.tempo_randomness = clamp(
-            sample_gaussian(seed, ZONE_PROP_TEMPO_RANDOM, pp.tempo_randomness_mean, pp.tempo_randomness_sigma),
-            0.0, 1.0);
-        zc.spring_variance = pp.spring_variance;
-        zc.field_fn = pp.field_fn;
-
-        // Pulse zones always use LENS color mode
-        zc.color_mode = GOL_COLOR_LENS;
-    }
-
-    // THE ROOMS' HEIGHT CAP STOOD HERE. It bounded a zone's alive_height so
-    // an uncapped zone could not lift the LAND through the roof of a room
-    // the camera was clamped inside. Its sentinel was 0 = disabled and an
-    // open world was already byte-identical through it, so ONE_WORLD-II U4
-    // removed the branch with the rooms that set it — and U7 removes the
-    // paragraph, which described a clamp no code applies (L30).
-
-    // Zone origin: snap corner to the cell grid with the TIER-DERIVED
-    // extent, then center (the same snap formula; extent now varies).
-    let corner_x = floor((raw_cx - zc.extent * 0.5) / PATCH_CELL_SIZE) * PATCH_CELL_SIZE;
-    let corner_z = floor((raw_cz - zc.extent * 0.5) / PATCH_CELL_SIZE) * PATCH_CELL_SIZE;
-    zc.origin = vec2(corner_x + zc.extent * 0.5, corner_z + zc.extent * 0.5);
-
-    zone_config.zones[req.slot] = zc;
-}
-
-// THE VOCABULARY MASK (UNIFIED_GROUND_1 U5) — the birth-moment kernel.
-// Multiplies the color system's REST discrete-visibility predicate into
-// the CPU-Gaussian-seeded height_factor plane: smooth ground does not
-// extrude, lift, or carry walker height. STATIC at birth (the dynamic,
-// tide-following form is Layer E — campaign v2 §9).
-// GRANULARITY TRUTH: the predicate is evaluated at ZONE-cell centers,
-// which ARE color-mosaic cells (extent = grid × 3.125, corner cell-
-// snapped) — one address, no resampling.
-// ORDERING LAW: derive writes zone_config[slot]; this kernel reads it —
-// sequential dispatches in ONE pass suffice (storage-buffer visibility
-// between dispatches is guaranteed).
+// ═══ THE AUTOMATON'S BIRTH — ONE DISPATCH OVER THE WORLD ═════════════
+//
+// The zone kernel this grew from did HALF of a birth: the CPU generated
+// the alive/dead pattern and the per-cell height factors, uploaded five
+// planes, and this kernel then multiplied the height factors by the
+// ground's visibility mask. Two rooms, one birth, and 20736 cells' worth
+// of upload if it had been asked to do the world.
+//
+// It does the whole birth now, on the GPU, from the world seed:
+// aliveness, velocity, both target planes and the height factor. Nothing
+// is uploaded but the config. Determinism is the seed's — the same world
+// seed draws the same world, which is rung 4 of the persistence ladder
+// and the reason rebirth means anything.
+//
+// THE MASK'S JURISDICTION, UNCHANGED AND WORTH STATING because it is
+// easy to widen by accident: the visibility mask multiplies the HEIGHT
+// FACTOR and nothing else. A cell on smooth ground is still ALIVE — it
+// counts as a neighbour, it evolves, the rule sees it — it simply does
+// not LIFT. That was the zones' behaviour and it stays. (The tint has
+// its own gate on the same underlying rule, one layer away: the baked
+// cell tag, which tag_cell_behavior writes only above the mode
+// threshold.)
 @compute @workgroup_size(8, 8, 1)
-fn zone_seed_mask(@builtin(global_invocation_id) gid: vec3<u32>) {
-    let req_idx = gid.z;
-    if (req_idx >= zone_derive_requests.count) { return; }
-    let req = zone_derive_requests.requests[req_idx];
-    let zp = zone_config.zones[req.slot];
-    if (gid.x >= zp.grid_size || gid.y >= zp.grid_size) { return; }
-    let cs = zp.extent / f32(zp.grid_size);
-    let corner = zp.origin - vec2(zp.extent * 0.5);
-    let center = corner + (vec2(f32(gid.x), f32(gid.y)) + vec2(0.5)) * cs;
-    let vis = step(0.5, discrete_visibility_rest(center, cell_address(center)));
-    // the sim kernels' own dense row-major (idx = y * grid_size + x) —
-    // NOT a fixed-32 stride; the U5b gate (a) verified convention.
-    let idx = req.slot * GOL_ZONE_STRIDE + GOL_CELL_HEIGHT_FACTOR
-            + gid.y * zp.grid_size + gid.x;
-    zone_life[idx] = zone_life[idx] * vis;   // Gaussian seed × mask
+fn automaton_seed(@builtin(global_invocation_id) gid: vec3<u32>) {
+    let cell = gid.xy;
+    if (cell.x >= auto_config.grid_size || cell.y >= auto_config.grid_size) { return; }
+    let idx = auto_idx(cell);
+
+    // THE CELL'S ADDRESS IS THE GROUND'S (charter C8). No corner to snap
+    // and no extent to divide by: the automaton's (x, y) plus the world's
+    // corner IS the ground's global cell index, and its centre follows.
+    let addr = vec2<i32>(auto_config.cell_origin_x + i32(cell.x),
+                         auto_config.cell_origin_z + i32(cell.y));
+    let center = (vec2<f32>(addr) + vec2(0.5)) * PATCH_CELL_SIZE;
+
+    // Per-cell seed: the world's, banded by the cell's own address, so a
+    // cell's draw does not move when the grid does.
+    let cell_seed = lattice_node_seed(config.world_seed, addr, AUTO_SEED_BAND);
+
+    // --- Aliveness: the density dial, drawn per cell
+    let alive = select(0.0, 1.0,
+        hash_property(cell_seed, AUTO_PROP_DENSITY) < auto_config.density);
+
+    // --- Per-cell height multiplier: Gaussian, clamped, masked
+    let hf_raw = sample_gaussian(cell_seed, AUTO_PROP_HEIGHT_FACTOR,
+                                 auto_config.height_factor_mean,
+                                 auto_config.height_factor_sigma);
+    let hf = clamp(hf_raw, auto_config.height_factor_lo, auto_config.height_factor_hi);
+    let vis = step(0.5, discrete_visibility_rest(center, addr));
+
+    auto_life[AUTO_CELL_VISUAL        + idx] = alive;   // visual starts AT its target
+    auto_life[AUTO_CELL_VELOCITY      + idx] = 0.0;
+    auto_life[AUTO_CELL_TARGET        + idx] = alive;
+    auto_life[AUTO_CELL_NEXT          + idx] = alive;
+    auto_life[AUTO_CELL_HEIGHT_FACTOR + idx] = hf * vis;
 }
 
 // §7.1 COMPUTE ENTRY POINTS
@@ -7232,7 +7044,7 @@ fn terrain_normal_at(xz: vec2<f32>, qi: QueryInputs) -> vec3<f32> {
 // Two policies, not one:
 //   POLICY_WALKER       gives the resolved standing height (returned y).
 //                       The pawn rides aura-lifted ground, so its y must
-//                       include CONTRIB_PAWN_AURA + CONTRIB_GOL_SUPPRESSION.
+//                       include CONTRIB_PAWN_AURA + CONTRIB_AUTOMATON_SUPPRESSION.
 //   POLICY_WALKER_TILT  gives climb-safe heights for the slope-law
 //                       comparison. Excludes the two
 //                       self-centered contributors so the pawn can't
@@ -9912,32 +9724,47 @@ fn animated_cell_color(world_center: vec2<f32>, cell: vec2<i32>) -> vec3<f32> {
 }
 
 // Stage 3: Tag cell behavior mode from field state.
+// THE ELIGIBILITY TAG, DOWN TO ITS ONE LIVE TERM (ONE_SURFACE-II U1).
+//
+// It asked four questions and three of them were about ZONES: which
+// 120 wu lattice node is this cell in, did that node's spawn roll clear
+// 0.60, which of ten tiers did its tier roll pick, and did its height
+// roll clear 1.00. None of those has an answer any more — the automaton
+// is the ground, not a node that won a roll.
+//
+// The FOURTH question survives whole, and it was always the real one:
+// IS THIS CELL ON DISCRETE GROUND? Smooth ground does not extrude and
+// never did; the mode threshold is the line, and it is a dial now
+// (AUTO_TABLE.mode_threshold, mirrored into the config).
+//
+// AND THE TAG ITSELF SHRINKS TO WHAT IS READ. pack_cell_tag packed
+// three things into the cell texture's alpha — mode bits, tier, a height
+// flag — and unpack_cell_tag_mode is the only unpacker in the program,
+// masking `& 0xFu`. The tier bits (4..6) and the height bit (7) have
+// been WRITE-ONLY for as long as both have existed; the tier had nothing
+// to say to a reader and the height flag was answered by
+// alive_height > 0 at the config. They are not carried forward.
+//
+// THE THRESHOLD IS A CONSTANT HERE AND A DIAL NOWHERE — YET — and the
+// gate is what said so. Reading it from auto_config made
+// generate_patch_cells (this function's only caller) touch slot (2,101),
+// which no stratum layout that pipeline binds carries: binding_gen's S-5
+// caught it as "reaches auto_config but no stratum layout it binds
+// carries slot". Widening the patch-gen pipeline's binding surface for
+// one float is the wrong trade, and it would buy nothing anyway: this
+// tag is BAKED into the cell colour texture's alpha at patch generation,
+// so the value only takes effect at a rebirth. A live dial whose only
+// effect is at rebirth is a rebirth-cadence dial, which is exactly what
+// THE_PANEL's enrollment unit is for.
+//
+// So: HARDWARE MIRROR, the tree's standing idiom for a number two rooms
+// must agree on without a binding between them.
+// L3 MIRROR: AUTO_TABLE.mode_threshold (contracts/automaton_surface.hpp),
+// which is the ONE HOME — this const follows it. Change both rooms.
+const AUTO_MODE_THRESHOLD: f32 = 0.50;
 fn tag_cell_behavior(id: CellIdentity, world_xz: vec2<f32>) -> f32 {
-    // Only cells in clearly discrete zones are eligible
-    if (id.mode < GOL_ZONE_MODE_THRESHOLD) { return 0.0; }
-
-    // Zone-level seed: all cells in the same mode lattice cell share this
-    let zone_node = vec2<i32>(floor(world_xz / MODE_LATTICE_SPACING));
-    let zone_seed = lattice_node_seed(config.world_seed, zone_node, GOL_ZONE_SEED_BAND);
-
-    // GoL activation roll (per-zone, not per-cell)
-    let spawn_roll = hash_property(zone_seed, GOL_ZONE_PROP_SPAWN);
-    if (spawn_roll >= GOL_ZONE_SPAWN_CHANCE) { return 0.0; }
-
-    // Tier selection (cumulative weight from tier matrix)
-    let tier_roll = hash_property(zone_seed, GOL_ZONE_PROP_TIER);
-    var tier: u32 = GOL_TIER_COUNT - 1u;
-    var cumul: f32 = 0.0;
-    for (var t: u32 = 0u; t < GOL_TIER_COUNT; t++) {
-        cumul += GOL_TIERS[t].weight;
-        if (tier_roll < cumul) { tier = t; break; }
-    }
-
-    // Height factor roll (per-zone)
-    let height_roll = hash_property(zone_seed, GOL_ZONE_PROP_HEIGHT);
-    let height_enabled = height_roll < GOL_ZONE_HEIGHT_CHANCE;
-
-    return pack_cell_tag(CELL_ANIM_GOL, tier, height_enabled);
+    if (id.mode < AUTO_MODE_THRESHOLD) { return 0.0; }
+    return pack_cell_tag(CELL_ANIM_AUTO);
 }
 
 @compute @workgroup_size(8, 8)
@@ -9996,62 +9823,94 @@ fn generate_patch_cells(@builtin(global_invocation_id) id: vec3<u32>,
 }
 
 
-// §7.2 GOL ZONE COMPUTE — Zone-local Game of Life
-// Two compute passes per frame (when zones are active):
-// The zone life texture's side — twin of Dim::GOL_ZONE_GRID
-// (state.hpp). FIXED at 32 while zp.grid_size is tier-derived over
-// {8..32}: the sim writes texels [0, grid_size)² of a 32² layer, so
-// every fetch normalizes by THIS, never by the zone's own grid.
-const GOL_ZONE_TEX_N: f32 = 32.0;
-const GOL_ZONE_STRIDE: u32 = 5120u;     // floats per zone (5 slots × 1024 cells)
-const GOL_CELL_VISUAL: u32 = 0u;        // slot 0: height spring visual [0,1]
-const GOL_CELL_VELOCITY: u32 = 1024u;   // slot 1: height spring velocity
-const GOL_CELL_TARGET: u32 = 2048u;     // slot 2: current target (binary, Conway reads)
-const GOL_CELL_NEXT: u32 = 3072u;       // slot 3: next target (binary, Conway writes)
-const GOL_CELL_HEIGHT_FACTOR: u32 = 4096u;  // slot 4: per-cell height multiplier (persistent)
+// §7.2 THE AUTOMATON'S COMPUTE — one Game of Life, over the ground
+// Two compute passes per frame, unconditionally: the automaton is the
+// ground and the ground is always there.
+//
+// THE TEXTURE'S NORMALIZER CHANGED HANDS, and this is the one place
+// where the capacity/extent distinction bites a READER. The zones' fetch
+// divided by a FIXED 32 (Dim::GOL_ZONE_GRID) because the sim wrote
+// texels [0, grid_size)² of a 32² layer and grid_size was tier-derived.
+// The automaton's texture is created at THIS WORLD's grid_size — one
+// plane, exactly the size of the grid it holds — so the fetch normalizes
+// by auto_config.grid_size and there is no unwritten margin to avoid.
+// ═══ THE LIFE BUFFER'S LAYOUT (ONE_SURFACE-II U1) ════════════════════
+//
+// FIVE PLANES, ONE AFTER ANOTHER, EACH AUTO_CELLS_MAX LONG. The slot
+// offsets are CAPACITY-strided, not extent-strided, and that is the
+// whole trick: a world at radius 2 uses 80x80 of the 144x144 grid, but
+// the plane boundaries stay where they are, so these five offsets are
+// compile-time constants in both rooms instead of a division the shader
+// has to carry. The wasted tail costs bytes and nothing else.
+//
+// The zone layout it replaces was [zone][slot][cell] with a 5120-float
+// per-zone stride — the same idea one level deeper, and the level that
+// went is the zone.
+//
+// L3 MIRROR: Dim::AUTO_GRID_MAX / AUTO_CELLS_MAX / AUTO_SLOT_COUNT
+// (state.hpp). Change both rooms — the extent literal below IS the
+// pipeline's arithmetic, and only the device can see it disagree.
+const AUTO_GRID_MAX: u32 = 144u;          // (2*FINITE_RADIUS_MAX+1) * PATCH_CELL_N
+const AUTO_CELLS_MAX: u32 = 20736u;       // AUTO_GRID_MAX * AUTO_GRID_MAX
+const AUTO_CELL_VISUAL: u32 = 0u;                 // plane 0: height spring visual [0,1]
+const AUTO_CELL_VELOCITY: u32 = 20736u;           // plane 1: height spring velocity
+const AUTO_CELL_TARGET: u32 = 41472u;             // plane 2: current target (Conway reads)
+const AUTO_CELL_NEXT: u32 = 62208u;               // plane 3: next target (Conway writes)
+const AUTO_CELL_HEIGHT_FACTOR: u32 = 82944u;      // plane 4: per-cell height multiplier
+// The plane offsets are 1..4 times AUTO_CELLS_MAX, in order:
+// 20736 / 41472 / 62208 / 82944. The C++ twin derives them from
+// Dim::AUTO_CELLS_MAX rather than spelling them, and asserts the four.
 // Slots 5-6 were a COLOUR spring. It was provably the height spring: same
 // target, same omega/e, same settle thresholds, same apply_boundary and
 // select guard, and seeded from the same life_data with the same zero
 // velocity — so color_visual == visual for every cell at every frame, and
 // always had been. Collapsed; see the commit for the induction.
 
-@compute @workgroup_size(8, 8, 1)
-fn zone_gol_sync(@builtin(global_invocation_id) gid: vec3<u32>) {
-    let zone_id = gid.z;
-    if (zone_id >= zone_config.count) { return; }
-    let z = zone_config.zones[zone_id];
-    if (z.transition_fraction <= 0.0) { return; }
-    let cell = gid.xy;
-    if (cell.x >= z.grid_size || cell.y >= z.grid_size) { return; }
-
-    let base = zone_id * GOL_ZONE_STRIDE;
-    let idx = cell.y * z.grid_size + cell.x;
-    // Copy next_target → target (double-buffer sync, works for both Conway and Pulse)
-    zone_life[base + GOL_CELL_TARGET + idx] = zone_life[base + GOL_CELL_NEXT + idx];
+// THE AUTOMATON'S INDEX, one home. Row-major over THIS world's grid —
+// the same dense convention the zones used inside their own grid, with
+// the zone's base gone.
+fn auto_idx(cell: vec2<u32>) -> u32 {
+    return cell.y * auto_config.grid_size + cell.x;
 }
 
 @compute @workgroup_size(8, 8, 1)
-fn zone_gol_evolve(@builtin(global_invocation_id) gid: vec3<u32>) {
-    let zone_id = gid.z;
-    if (zone_id >= zone_config.count) { return; }
-    let z = zone_config.zones[zone_id];
-    if (z.transition_fraction <= 0.0) { return; }
+fn automaton_sync(@builtin(global_invocation_id) gid: vec3<u32>) {
     let cell = gid.xy;
-    if (cell.x >= z.grid_size || cell.y >= z.grid_size) { return; }
+    if (cell.x >= auto_config.grid_size || cell.y >= auto_config.grid_size) { return; }
+    let idx = auto_idx(cell);
+    // Copy next_target → target (double-buffer sync; Conway and Pulse both)
+    auto_life[AUTO_CELL_TARGET + idx] = auto_life[AUTO_CELL_NEXT + idx];
+}
 
-    let base = zone_id * GOL_ZONE_STRIDE;
-    let idx = cell.y * z.grid_size + cell.x;
-    let dt = zone_config.dt;
+// ═══ THE AUTOMATON'S STEP ════════════════════════════════════════════
+//
+// THE TORUS IS THIS KERNEL'S NEIGHBOUR WALK, and it did not change.
+// `(cell + d + gs) % gs` was already modular when the grid was a zone's
+// 32 cells; the only thing U1 did was make gs the WORLD's grid, so the
+// wrap that used to close a 75 wu island now closes the world. That is
+// the whole of "GoL topologically" — a torus has no edge, so there is no
+// seam to see at the world's rim, and no dial can turn it off.
+@compute @workgroup_size(8, 8, 1)
+fn automaton_evolve(@builtin(global_invocation_id) gid: vec3<u32>) {
+    let cell = gid.xy;
+    if (cell.x >= auto_config.grid_size || cell.y >= auto_config.grid_size) { return; }
+
+    let idx = auto_idx(cell);
+    let dt = auto_config.dt;
+    let z = auto_config;
 
     // --- Read per-cell state
-    var visual = zone_life[base + GOL_CELL_VISUAL + idx];
-    var velocity = zone_life[base + GOL_CELL_VELOCITY + idx];
-    let tgt = zone_life[base + GOL_CELL_TARGET + idx];
+    var visual = auto_life[AUTO_CELL_VISUAL + idx];
+    var velocity = auto_life[AUTO_CELL_VELOCITY + idx];
+    let tgt = auto_life[AUTO_CELL_TARGET + idx];
 
     // --- Tick: algorithm-specific target generation
-    let should_tick = (zone_config.tick_mask & (1u << zone_id)) != 0u;
+    // ONE BIT WHERE A MASK OF EIGHT STOOD: the CPU gated each zone's
+    // Conway step by its own period against `tick_mask`; there is one
+    // period and one automaton.
+    let should_tick = auto_config.should_tick != 0u;
 
-    if (z.algorithm == GOL_ALGORITHM_CONWAY) {
+    if (z.algorithm == AUTO_ALGORITHM_CONWAY) {
         // Conway: count neighbors, apply birth/survival rules
         if (should_tick) {
             var count: i32 = 0;
@@ -10061,12 +9920,12 @@ fn zone_gol_evolve(@builtin(global_invocation_id) gid: vec3<u32>) {
                     if (dx == 0 && dy == 0) { continue; }
                     let nx = u32((i32(cell.x) + dx + gs) % gs);
                     let ny = u32((i32(cell.y) + dy + gs) % gs);
-                    let ni = ny * z.grid_size + nx;
-                    if (zone_life[base + GOL_CELL_TARGET + ni] > 0.5) { count++; }
+                    let ni = u32(ny) * z.grid_size + u32(nx);
+                    if (auto_life[AUTO_CELL_TARGET + ni] > 0.5) { count++; }
                 }
             }
             let next = coupling_gol_next_state(tgt > 0.5, count, z.rule_mask);
-            zone_life[base + GOL_CELL_NEXT + idx] = next;
+            auto_life[AUTO_CELL_NEXT + idx] = next;
         }
     } else {
         // Pulse: the tier's field function writes the per-cell target, no
@@ -10077,20 +9936,20 @@ fn zone_gol_evolve(@builtin(global_invocation_id) gid: vec3<u32>) {
         // Written every frame (deterministic from t_beats), not tick-gated.
         let raw_target = pulse_cell_target(
             cell.x, cell.y,
-            zone_config.t_beats,
+            auto_config.t_beats,
             z.tick_period,
             z.phase_randomness,
             z.tempo_randomness,
             z.field_fn,
             z.grid_size
         );
-        zone_life[base + GOL_CELL_NEXT + idx] = raw_target;
+        auto_life[AUTO_CELL_NEXT + idx] = raw_target;
         // For Pulse, also copy directly to TARGET (no sync delay needed)
-        zone_life[base + GOL_CELL_TARGET + idx] = raw_target;
+        auto_life[AUTO_CELL_TARGET + idx] = raw_target;
     }
 
     // --- Analytical critically damped spring — HEIGHT
-    let current_tgt = zone_life[base + GOL_CELL_TARGET + idx];
+    let current_tgt = auto_life[AUTO_CELL_TARGET + idx];
     let transition_time = max(z.transition_fraction * z.tick_period, 0.01);
 
     // Per-cell spring variance: each cell settles at a slightly different rate
@@ -10118,13 +9977,13 @@ fn zone_gol_evolve(@builtin(global_invocation_id) gid: vec3<u32>) {
 
 
     // --- Write back
-    zone_life[base + GOL_CELL_VISUAL + idx] = visual;
-    zone_life[base + GOL_CELL_VELOCITY + idx] = velocity;
+    auto_life[AUTO_CELL_VISUAL + idx] = visual;
+    auto_life[AUTO_CELL_VELOCITY + idx] = velocity;
 
     // Write to texture: R = the cell's spring visual. The FS tint reads it;
-    // the LIFT reads zone_life[VISUAL] from the buffer. One number, two
-    // consumers, one channel.
-    textureStore(zone_life_tex_write, cell, i32(zone_id), vec4(visual, 0.0, 0.0, 0.0));
+    // the LIFT reads auto_life[VISUAL] from the buffer. One number, two
+    // consumers, one channel. ONE PLANE, not a layer of eight.
+    textureStore(auto_life_tex_write, cell, vec4(visual, 0.0, 0.0, 0.0));
 }
 
 
@@ -10173,18 +10032,27 @@ fn sample_live_card_gol(world_xz: vec2<f32>) -> f32 {
 //   (2) the pulse ring is empty         contrib_radial_pulses_at is
 //       (pulse_count == 0, or every     added OUTSIDE that gate, on its
 //       slot aged out / zero-amp)       own clock signal.t_seconds  [MUSICAL]
-//   (3) no zone covers the texel        contrib_gol_zones_at feeds .a
-//       (zone_config.count == 0, or     with no gate at all, and a zone
-//       no covering zone has            runs on ITS OWN tick clock —
-//       alive_height >= 0.01 and        beats, not the music's voice.
-//       transition_fraction > 0)        [NOT MUSICAL]
-// Conjunct (3) is why the one-way "terrain_time <= 0 => zeros" claim was
-// tempting and wrong: silence the music and a living zone still lifts.
-// Boot pins all three: REST_TERRAIN_TIME and REST_PULSE_COUNT
-// (surface/terrain_looks.hpp ROW 2) and an empty zone table. The rest law
-// is enforced by the CALLER — phase_live_card_write returns before the
-// dispatch when the card is clean (liveCardRestClean_), so this kernel
-// never runs at rest and inherits the law unchanged.
+//   (3) no zone covers the texel        [RETIRED — see below]
+//
+// CONJUNCT (3) DIED WITH THE ZONES, AND THE REST LAW DIED WITH IT
+// (ONE_SURFACE-II U1, ruled before the unit began). It read "no zone
+// covers this texel", and it was the awkward one: contrib_automaton_at
+// feeds .a with no gate at all, and a zone ran on ITS OWN tick clock —
+// beats, not the music's voice — so silencing the music still left a
+// living zone lifting. With eight islands that was a LOCAL condition and
+// the card reached rest whenever they were quiet or absent.
+//
+// An automaton over the whole cell grid makes it FALSE WHEREVER ANY CELL
+// IS ALIVE, which at a seeded density is everywhere, always. The gate
+// would never close again. So it is not re-founded on a narrower test:
+// it is retired, and the card is written every frame, priced.
+// GROUND_CARD_1's tombstone at phase_live_card_write (cartridge.hpp)
+// carries the two conditions that would bring rest back.
+//
+// Boot pins what remains: REST_TERRAIN_TIME and REST_PULSE_COUNT
+// (surface/terrain_looks.hpp ROW 2). This kernel now runs every frame
+// and the two musical conjuncts still decide whether it writes ZEROS —
+// which is the same arithmetic, just no longer skipped.
 //
 // Waking anti-teleport is inherited: t_eff = 0 at the origin => moving ==
 // frozen => a woken band grows out of the frozen shape.
@@ -10347,7 +10215,7 @@ fn write_live_card(
     // texel and pass 2 copied it across; the halo never needed it.
     let p_here = origin + (vec2<f32>(f32(ix), f32(iy)) + vec2(0.5)) * texel;
     textureStore(live_card_write, vec2<i32>(i32(ix), i32(iy)),
-                 vec4(height, grad_x, grad_z, contrib_gol_zones_at(p_here)));
+                 vec4(height, grad_x, grad_z, contrib_automaton_at(p_here)));
 }
 
 // §7.4 PAWN AURA — Persistent terrain influence via toroidal spring grid
@@ -10622,7 +10490,7 @@ fn sample_terrain_grad_at(world_xz: vec2<f32>) -> vec2<f32> {
 //
 // b2b — WORLD-ANCHORED OVERLAY RIDE. The surface-STANDING
 // families (arch feet) add
-// contrib_gol_zones_at so they sit on the LIVE zone surface the mesh
+// contrib_automaton_at so they sit on the LIVE zone surface the mesh
 // renders, not the baked static height — the sink/float fix. Raw GoL, no
 // pawn suppression (structures are not movers). PYRAMIDS are EXCLUDED:
 // they are CAST (buried occupiers the terrain drapes over), not

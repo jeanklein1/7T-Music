@@ -51,7 +51,7 @@ inline ActivePatch* find_patch(MachineCtx* c, int32_t gx, int32_t gz) {
 // THE GUARD THE HANDOFF DEMANDED, ANSWERED BEFORE THE CUT. `rebirth_world`
 // was traced verb by verb: `reset_surface` (which resets the registry
 // wholesale through `init_patch_system`, never walking a ref),
-// `teardown_entities`, `teardown_gol`, `teardown_ribbon`, `clear_spheres`,
+// `teardown_entities`, `teardown_automaton`, `teardown_ribbon`, `clear_spheres`,
 // `clear_cubes`, `teardown_pawn_aura`, `teardown_orbs`. NOT ONE reads
 // `entity_refs`. Every teardown sweeps by OWNER. `unrecord_entity`, the
 // release-by-owner half of the protocol, already had zero callers before

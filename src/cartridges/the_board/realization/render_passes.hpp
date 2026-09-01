@@ -115,17 +115,18 @@ inline void stage_draw_ledger(MachineCtx* c, OrbsState& orbs_state_) {
 // ribbon (whose fallback ground reads the card through the GoL suppression
 // contributor) and ahead of everything else that reads it.
 //
-// THE REST-LAW SKIP BECAME A DISPATCH SKIP. `write_live_card` carries R8's
-// three-conjunct decision (cartridge.hpp, phase_live_card_write): the pass
-// opens either way — an empty dispatch slot is cheaper than a boundary —
-// and the card's 819,200 invocations are skipped exactly when they were.
+// THE REST-LAW SKIP IS RETIRED (ONE_SURFACE-II U1). `write_live_card`
+// carried R8's three-conjunct decision as a bool; the third conjunct was
+// "no zone covers the texel" and an automaton over the whole cell grid
+// falsifies it everywhere, always. The card's 819,200 invocations run
+// every frame now, priced. cartridge.hpp's tombstone at
+// phase_live_card_write names the two conditions that bring rest back.
 //
 // PLACEMENT AND THE CULL DID NOT JOIN. Between this pass and theirs stand
 // R11's three CopyBufferToBuffer (the witness capture), and a copy cannot
 // be encoded inside a pass; O-2 pins it after the compute. Four passes into
 // one was the ask; two into one is what the frame's shape allows.
-inline void dispatch_compute(MachineCtx* c, wgpu::CommandEncoder& encoder,
-                             bool write_live_card) {
+inline void dispatch_compute(MachineCtx* c, wgpu::CommandEncoder& encoder) {
     wgpu::ComputePassDescriptor desc{};
     desc.label = "Compute Phase";
     desc.timestampWrites = c->gpuState_.meter_arm_compute(meter_row::DispatchCompute);
@@ -135,12 +136,10 @@ inline void dispatch_compute(MachineCtx* c, wgpu::CommandEncoder& encoder,
       compute.SetBindGroup(1, c->gpuState_.frame_c_group()); }
 
     // THE CARD FIRST — before every consumer, on its own group 2/3 pair
-    // (ZONES), which the ribbon's binds below replace.
-    if (write_live_card) {
-        c->renderer_.dispatch_live_card_write(
-            compute, c->gpuState_.zones_state_group(), c->gpuState_.zones_textures_group()
-        );
-    }
+    // (the automaton's), which the ribbon's binds below replace.
+    c->renderer_.dispatch_live_card_write(
+        compute, c->gpuState_.automaton_state_group(), c->gpuState_.automaton_textures_group()
+    );
 
     // The ribbon room runs FIRST and on its OWN group 2 (the ribbon state
     // group) — outside the pass-head contract below, which is why it stays
@@ -188,23 +187,35 @@ inline void dispatch_frustum_cull(MachineCtx* c, wgpu::CommandEncoder& encoder, 
     // draws through the plan too, so the old direct-path skip is
     // retired with the path it fed.
 
-    // 0. The plan's inputs: band counts + the active zone rects
-    // (world footprints persisted at commit_gol — E1 rev2's four
-    // floats), packed dense. Uploaded beside the frustum reset.
+    // 0. The plan's inputs: the band count + THE OVERLAP RECT, which is
+    // now ONE and is the world (ONE_SURFACE-II U1).
+    //
+    // What stood here packed up to eight rects from the active zones'
+    // persisted world footprints (ECONOMY_1 E1 rev2's four floats each).
+    // Every clause was about islands. The automaton covers the ground, so
+    // the honest rect is the world box and the cull's test — "can a
+    // curtain reach this patch" — is answered yes for the whole draw set.
+    //
+    // THE KERNEL IS UNTOUCHED. It still walks rect_count rects and still
+    // classifies into A (full IB) or B (cap-only); it simply finds one
+    // rect that contains everything. Keeping the mechanism rather than
+    // short-circuiting it is deliberate: the panel's pause dial is one
+    // dial away from making the answer NO again, and a classifier that
+    // has been deleted cannot come back for it.
+    //
+    // The world box is the half-open [-R*E, (R+1)*E) the finite pin
+    // authors, expressed as the kernel's (corner, extent) pair.
     {
         GPUDrawPlanParams plan{};
         plan.render_count = c->world_state_.render_patch_count;
-        uint32_t n = 0;
-        for (uint32_t i = 0; i < Dim::MAX_GOL_ZONES && n < 8; i++) {
-            const auto& z = c->gol_state_.zones[i];
-            if (!z.active) continue;
-            plan.rects[n][0] = z.corner_x;
-            plan.rects[n][1] = z.corner_z;
-            plan.rects[n][2] = z.extent_x;
-            plan.rects[n][3] = z.extent_z;
-            n++;
-        }
-        plan.rect_count = n;
+        const float R = (float)c->world_state_.finite_radius;
+        const float corner = -R * Dim::PATCH_EXTENT;
+        const float extent = (2.0f * R + 1.0f) * Dim::PATCH_EXTENT;
+        plan.rects[0][0] = corner;
+        plan.rects[0][1] = corner;
+        plan.rects[0][2] = extent;
+        plan.rects[0][3] = extent;
+        plan.rect_count = 1;
         c->gpuState_.upload_draw_plan(queue, plan);
     }
 

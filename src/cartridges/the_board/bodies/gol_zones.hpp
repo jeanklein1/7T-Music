@@ -1,6 +1,7 @@
 #pragma once
 #include <cstdint>
-#include "cartridges/the_board/realization/state.hpp"                    // Dim::*, GPUZoneDeriveRequestArray, wgpu
+#include "cartridges/the_board/realization/state.hpp"                    // Dim::*, wgpu
+#include "cartridges/the_board/contracts/automaton_surface.hpp"           // AUTO_TABLE — the transcription witness at the bottom pins it here
 #include "cartridges/the_board/contracts/wgpu_fwd.hpp"   // wgpu handle fwds (lockstep insurance)
 #include "cartridges/the_board/contracts/entity_types.hpp"     // GoLSelection/GoLPlacement (the boundary DTOs) + queue types
 
@@ -34,13 +35,27 @@
 namespace t7 {
 namespace the_board {
 
-// ═══ MODULE DEPS (S5) ═══════════════════════════════════════════════
-// The GoL score-verbs' requirements face. device_ is the DECLARED
-// handover (stamp S5): flush_zone_derive_requests submits its derive
-// pass on its OWN encoder, MID-RENDER, and it MUST execute before the
-// same frame's agent kernels — SEAM[gol:derive-submit]. Declaring the
-// device changes access, never submission order; the refactor (folding
-// into the frame encoder) stays FORBIDDEN.
+// ═══ SEAM[gol:derive-submit] — TOMBSTONE (ONE_SURFACE-II U1) ═════════
+//
+// The banner that stood here declared a module dep and a prohibition:
+// GolDeps carried `wgpu::Device&` as a DECLARED handover (stamp S5)
+// because flush_zone_derive_requests submitted its derive pass on its
+// OWN encoder, MID-RENDER, and that submit MUST execute before the same
+// frame's agent kernels. Folding it into the frame encoder was FORBIDDEN
+// — the program's one standing refactor prohibition.
+//
+// THE PROHIBITION IS LIFTED BY ITS CAUSE LEAVING, not by anyone deciding
+// it was safe after all. The seam existed for RUNTIME ZONE SPAWNS: a
+// zone born mid-frame had to have its parameters derived before the
+// kernels that read them ran, in that frame. The automaton is seeded at
+// BIRTH, on the birth encoder, outside the frame loop, and nothing
+// spawns after — so there is no mid-frame submit to order, no device
+// handover to declare, and nothing left to forbid. The frame has one
+// submit again.
+//
+// (ONE_SURFACE-I had already taken half its premise: it removed the only
+// thing that created patches after birth, so nothing could host a new
+// zone. U1 removed the other half.)
 class Renderer;
 struct GolDeps {
     GPUState&        gpuState_;
@@ -377,553 +392,151 @@ inline constexpr const char* GOL_PULSE_TIER_NAMES[] = {
     "Breathe", "Sparkle", "Drift", "Spiral"
 };
 
-// ── The tier's zone size (UNIFIED_GROUND_1 U5) ───────────────────
-// tier_idx is the COMPOUND index select_gol_zone packs: 0..
-// GOL_TIER_COUNT-1 are Conway rows, GOL_TIER_COUNT.. are Pulse. This
-// is the only place that decode lives.
-//
-// Two values for one square: cells_x == cells_z until S3 splits the
-// grid, and writing it as a pair now means S3 touches nothing here.
-// The GPU derives the same number in zone_derive_params from the same
-// tables — this is the CPU half of that twin, not a second opinion.
-inline void gol_tier_cells(uint32_t tier_idx, uint32_t& cells_x, uint32_t& cells_z) {
-    const uint32_t n = (tier_idx < GOL_TIER_COUNT)
-        ? GOL_TIERS[tier_idx].grid_cells
-        : GOL_PULSE_TIERS[tier_idx - GOL_TIER_COUNT].grid_cells;
-    cells_x = n;
-    cells_z = n;
-}
+// ═══ THE FAMILY'S RESIDUE (U2 removes it) ════════════════════════
 
-// The tier's NAME, off the same compound decode and living beside it so
-// there is still one decode home, not two. GOL_TIER_NAMES and
-// GOL_PULSE_TIER_NAMES were declared-and-unread until the [GoL] spawn
-// log took them; this is the reader that makes them live.
-inline const char* gol_tier_name(uint32_t tier_idx) {
-    return (tier_idx < GOL_TIER_COUNT)
-        ? GOL_TIER_NAMES[tier_idx]
-        : GOL_PULSE_TIER_NAMES[tier_idx - GOL_TIER_COUNT];
-}
+// The family's slot capacity. It was Dim::MAX_GOL_ZONES and it is local
+// now, because it is no longer a fact about the WORLD — the automaton's
+// capacity is Dim::AUTO_GRID_MAX — only about how many rows a roster
+// family that spawns nothing still has to carry.
+inline constexpr uint32_t MAX_GOL_SLOTS = 8;
 
-inline void gol_tier_extent(uint32_t tier_idx, float& extent_x, float& extent_z) {
-    uint32_t cx = 0u, cz = 0u;
-    gol_tier_cells(tier_idx, cx, cz);
-    extent_x = (float)cx * Dim::PATCH_CELL_SIZE;
-    extent_z = (float)cz * Dim::PATCH_CELL_SIZE;
-}
-
-// ═══ SPAWN PAYLOADS — AT THE CONTRACT HOME ═══════════════════════
-//
-// The GoL Selection/Placement DTOs live in entity_types.hpp,
-// beside the EntityQueueEntry / PlacementEntry unions that are their
-// reason to exist: a DTO that exists to cross a boundary belongs to
-// the boundary's contract, not to either side.
-
-// ═══ RUNTIME CPU STATE ═══════════════════════════════════════════
-
-// ── Per-instance zone state ──────────────────────────────────────
+// ── Per-slot state, down to what the census reads ────────────────
+// GoLZoneState carried lattice-node coordinates, a host patch, a
+// persisted world footprint (corner + extent), an algorithm, a tick
+// period, an initial density and a tick cursor. Every one of those
+// described an ISLAND. What the tree still touches is `active`, through
+// census_scan_active / census_scan_slots.
 struct GoLZoneState {
-    int32_t zone_nx = 0, zone_nz = 0;
-    int32_t host_gx = 0, host_gz = 0;   // host patch (for entity_refs eviction)
-    // ECONOMY_1 E1 rev2 — the zone's WORLD FOOTPRINT, persisted at
-    // commit so the CPU can answer "does this zone reach the LOD0
-    // core?" without the GPU. Authored once from the same corner +
-    // tier extent the derive request carries; the GPU's
-    // zone_derive_params re-derives the identical rectangle.
-    float corner_x = 0.0f, corner_z = 0.0f;
-    float extent_x = 0.0f, extent_z = 0.0f;
     bool active = false;
-    uint32_t algorithm = AlgorithmType::CONWAY;
-    float tick_period = 1.0f;        // CPU derives this for tick mask (matches GPU)
-    float initial_density = 0.3f;    // CPU needs this for life buffer seeding
-    int32_t last_tick_index = -1;
 };
 
-// ── GoL module state ──────────────────────────────────────────
+// ── Module state ─────────────────────────────────────────────────
+// active_slot_count (the dispatch high-water mark), zones_allowed's
+// twin gate and pending_derive_requests all left with the machinery
+// they sized. `zones_allowed` stays because sky.hpp writes it — the
+// [sky -> gol] flag channel — and that channel is U2's to close.
 struct GoLState {
-    GoLZoneState zones[Dim::MAX_GOL_ZONES]{};
+    GoLZoneState zones[MAX_GOL_SLOTS]{};
     uint32_t     zone_count = 0;
-    uint32_t     active_slot_count = 0;     // highest active slot + 1 (for dispatch sizing)
-
     bool         zones_allowed = true;
-
-    // Derive request queue: accumulated during patch gen, flushed once
-    // per frame as a single GPU compute dispatch (zone_derive_params).
-    GPUZoneDeriveRequestArray pending_derive_requests{};
 };
 
-// ═══ MODULE FUNCTIONS — DECLARATIONS ═════════════════════════════
-
-// Lifecycle (three-phase + helper)
-bool select_gol_for_patch(GoLState& gs, MachineCtx* c,
-    int32_t gx, int32_t gz, GoLSelection& sel);
-bool place_gol_from_selection(MachineCtx* c,
-    const GoLSelection& sel, GoLPlacement& plan);
-void commit_gol(GoLState& gs, MachineCtx* c,
-    const GoLPlacement& plan,
-    int32_t trigger_gx, int32_t trigger_gz, wgpu::Queue& queue);
-// The evictor — MachineCtx-shaped
-// to match the FAMILY_DISPATCH evict slot (table in cartridge.hpp, post-class)
-// `evict_gol` stood here — the GOL family's patch-death evictor. Its one
-// reach was FamilyDispatch::evict_slot, which left at ONE_SURFACE-I U3
-// with the patch-death sweep that was its only caller.
-// Dispatch funnels (table-shaped; the FAMILY_DISPATCH rows point here)
-bool dispatch_select_gol(MachineCtx* self, int32_t gx, int32_t gz, EntityQueueEntry& e);
-bool dispatch_place_gol(MachineCtx* self, EntityQueueEntry& e, PlacementEntry& pe);
-void dispatch_commit_gol(MachineCtx* self, PlacementEntry& pe, wgpu::Queue& queue);
-void seed_gol_zone(GoLState& gs, MachineCtx* c,
-    uint32_t slot, wgpu::Queue& queue);
-// Per-frame
-void upload_gol_zone_config(GoLState& gs, GolDeps* c, wgpu::Queue& queue);
-void flush_zone_derive_requests(GoLState& gs, GolDeps* c, wgpu::Queue& queue);
-void teardown_gol(GoLState& gs, GolDeps* c, wgpu::Queue& queue);
-void dispatch_zone_sync(GoLState& gs, GolDeps* c, wgpu::CommandEncoder& encoder);
-void dispatch_zone_evolve(GoLState& gs, GolDeps* c, wgpu::CommandEncoder& encoder);
-
-// ═══ IMPL:
-// rows deref gol_state_(own) + world/time + tile faces via MachineCtx;
-// score-verbs deref gpu/renderer/device/time via GolDeps (S5 device).
-// COHORT: after renderer (Renderer) + entity_pipeline/spawn_engine (funnels,
-// footprints) + patch_system (find_patch) + tile_world (faces) + state.
-
-// ═══ LIFECYCLE — three-phase + helper ════════════════════════════
-
-// ─── select_gol_for_patch ─────────────────────────────────────
-
-inline bool select_gol_for_patch(GoLState& gs, MachineCtx* c,
-    int32_t gx, int32_t gz, GoLSelection& sel) {
-    // THE COMPOSITION LAW: the shared stack — the world's gate
-    // → global → tile (F3);
-    // clamp [0,1]. The per-lattice-node roll stays below (its own seed
-    // domain, cpu_lattice_node_seed — a consumer fact, not the law's).
-    // THE VETO ARM LEFT WITH THE MOODS (ONE_WORLD-II U3). GoL was the one
-    // caller that asked for veto_on_zero_mood — a hard refusal when the
-    // live mood's multiplier was 0, where every other family multiplied
-    // through. Nothing can be 0 in the stack now that the mood term is
-    // gone, so the flag, the second return channel it fed and this early
-    // return all go. The kept row's GoL multiplier was 1.0f, so the arm
-    // never fired in the world this campaign keeps.
-    const float composed = compose_spawn_chance(c, gx, gz, PopFamily::GOL,
-        GoLZoneSpawnConfig::SPAWN_CHANCE, SpawnClamp::RANGE01);
-
-    // Scan lattice nodes overlapping this patch
-    float wx0 = gx * Dim::PATCH_EXTENT;
-    float wx1 = (gx + 1) * Dim::PATCH_EXTENT;
-    float wz0 = gz * Dim::PATCH_EXTENT;
-    float wz1 = (gz + 1) * Dim::PATCH_EXTENT;
-
-    int32_t nx0 = (int32_t)std::floor(wx0 / MODE_LATTICE_SPACING);
-    int32_t nx1 = (int32_t)std::floor(wx1 / MODE_LATTICE_SPACING);
-    int32_t nz0 = (int32_t)std::floor(wz0 / MODE_LATTICE_SPACING);
-    int32_t nz1 = (int32_t)std::floor(wz1 / MODE_LATTICE_SPACING);
-
-    for (int32_t nz = nz0; nz <= nz1; nz++) {
-        for (int32_t nx = nx0; nx <= nx1; nx++) {
-            // Zone center from lattice node
-            float raw_cx = (nx + 0.5f) * MODE_LATTICE_SPACING;
-            float raw_cz = (nz + 0.5f) * MODE_LATTICE_SPACING;
-
-            // Authoritative patch: only the patch containing the center owns this node
-            int32_t auth_gx = (int32_t)std::floor(raw_cx / Dim::PATCH_EXTENT);
-            int32_t auth_gz = (int32_t)std::floor(raw_cz / Dim::PATCH_EXTENT);
-            if (auth_gx != gx || auth_gz != gz) continue;
-
-            // Idempotency: already active at this node?
-            bool exists = false;
-            for (uint32_t i = 0; i < Dim::MAX_GOL_ZONES; i++) {
-                if (gs.zones[i].active &&
-                    gs.zones[i].zone_nx == nx && gs.zones[i].zone_nz == nz) {
-                    exists = true; break;
-                }
-            }
-            if (exists) continue;
-
-            // Spawn roll (the chance arrived composed — loop-invariant)
-            uint32_t seed = cpu_lattice_node_seed(c->world_state_.active_seed, nx, nz, GoLZoneProp::SEED_BAND);
-            float roll = cpu_hash_f(seed, GoLZoneProp::SPAWN_ROLL);
-            if (roll >= composed) continue;
-
-            // Find free slot
-            uint32_t slot = UINT32_MAX;
-            for (uint32_t i = 0; i < Dim::MAX_GOL_ZONES; i++) {
-                if (!gs.zones[i].active) { slot = i; break; }
-            }
-            if (slot == UINT32_MAX) continue;
-
-            // Reserve slot
-            gs.zones[slot].active = true;
-
-            // (The corner snap moved BELOW tier selection — U5 made the
-            //  extent tier-derived, so the corner cannot be known until
-            //  the tier is. zone_derive_params made the same move on the
-            //  GPU side; this is the CPU catching up.)
-
-            // Algorithm selection
-            float algo_roll = cpu_hash_f(seed, PulseZoneProp::ALGORITHM_ROLL);
-            uint32_t algorithm = (algo_roll < GOL_PULSE_ALGORITHM_CHANCE)
-                ? AlgorithmType::PULSE : AlgorithmType::CONWAY;
-
-            // Height enabled
-            float height_roll = cpu_hash_f(seed, GoLZoneProp::HEIGHT_ROLL);
-            bool height_enabled = (height_roll < GoLZoneSpawnConfig::HEIGHT_CHANCE);
-
-            // Tier + CPU-side params
-            float tick_period = 1.0f;
-            float initial_density = 0.0f;
-            uint32_t tier_idx = 0;
-
-            if (algorithm == AlgorithmType::CONWAY) {
-                float w[GOL_TIER_COUNT];
-                for (uint32_t t = 0; t < GOL_TIER_COUNT; t++) w[t] = GOL_TIERS[t].weight;
-                uint32_t tier = select_tier(seed, GoLZoneProp::TIER, w, GOL_TIER_COUNT);
-                const auto& tp = GOL_TIERS[tier];
-                if (tp.force_no_height) height_enabled = false;
-                tick_period = std::max(0.1f,
-                    cpu_sample_gaussian(seed, GoLZoneProp::TICK_PERIOD,
-                        tp.tick_period_mean, tp.tick_period_sigma));
-                initial_density = std::max(0.05f, std::min(0.9f,
-                    cpu_sample_gaussian(seed, GoLZoneProp::DENSITY,
-                        tp.density_mean, tp.density_sigma)));
-                tier_idx = tier;  // Conway: 0 .. GOL_TIER_COUNT - 1
-            }
-            else {
-                float w[GOL_PULSE_TIER_COUNT];
-                for (uint32_t t = 0; t < GOL_PULSE_TIER_COUNT; t++) w[t] = GOL_PULSE_TIERS[t].weight;
-                uint32_t tier = select_tier(seed, PulseZoneProp::PULSE_TIER, w, GOL_PULSE_TIER_COUNT);
-                const auto& pp = GOL_PULSE_TIERS[tier];
-                if (pp.force_no_height) height_enabled = false;
-                tick_period = std::max(0.1f,
-                    cpu_sample_gaussian(seed, GoLZoneProp::TICK_PERIOD,
-                        pp.tick_period_mean, pp.tick_period_sigma));
-                initial_density = 0.0f;
-                // Compound index: GOL_TIER_COUNT .. GOL_TIER_COUNT +
-                // GOL_PULSE_TIER_COUNT - 1. Named, never a literal — the
-                // Conway count moves and every Pulse index moves with it.
-                tier_idx = GOL_TIER_COUNT + tier;
-            }
-
-            // Zone extent + corner (cell-grid-snapped), from the tier's
-            // own size. Snapping subtracts an exact multiple of
-            // Dim::PATCH_CELL_SIZE, so corner + extent/2 returns the snapped
-            // raw centre for every tier — the same identity the GPU's
-            // zone_derive_params relies on, which is why the centre was
-            // right even while the extent was a fixed 100.
-            float extent_x = 0.0f, extent_z = 0.0f;
-            gol_tier_extent(tier_idx, extent_x, extent_z);
-
-            float corner_x = std::floor(
-                (raw_cx - extent_x * 0.5f) / Dim::PATCH_CELL_SIZE) * Dim::PATCH_CELL_SIZE;
-            float corner_z = std::floor(
-                (raw_cz - extent_z * 0.5f) / Dim::PATCH_CELL_SIZE) * Dim::PATCH_CELL_SIZE;
-
-            // Fill selection
-            sel.seed = seed;
-            sel.trigger_gx = gx;
-            sel.trigger_gz = gz;
-            sel.slot = slot;
-            sel.zone_nx = nx;
-            sel.zone_nz = nz;
-            sel.corner_x = corner_x;
-            sel.corner_z = corner_z;
-            sel.algorithm = algorithm;
-            sel.tier_idx = tier_idx;
-            sel.tick_period = tick_period;
-            sel.initial_density = initial_density;
-            sel.height_enabled = height_enabled;
-            // The CIRCUMSCRIBED radius of the tier's rectangle, not the
-            // inscribed one. The registry must never PERMIT an overlap:
-            // two GoL zones that overlap would let contrib_gol_zones_at
-            // (returns on its first covering zone) and the tint (breaks
-            // on its first) disagree about which zone owns a cell, with
-            // no defined order and unequal filters. Conservative here
-            // costs a little density; inscribed would allow corner
-            // overlap, and the old fixed 50 allowed 80 wu of it at 64
-            // cells.
-            sel.footprint_r = 0.5f * std::hypot(extent_x, extent_z);
-
-            return true;  // at most one zone per patch
-        }
-    }
-    return false;
-}
-
-// ─── place_gol_from_selection ─────────────────────────────────
-
-inline bool place_gol_from_selection(MachineCtx* c,
-    const GoLSelection& sel, GoLPlacement& plan) {
-    float extent_x = 0.0f, extent_z = 0.0f;
-    gol_tier_extent(sel.tier_idx, extent_x, extent_z);
-    float cx = sel.corner_x + extent_x * 0.5f;
-    float cz = sel.corner_z + extent_z * 0.5f;
-
-    if (!check_position(c, cx, cz, sel.footprint_r, PopFamily::GOL))
-        return false;
-
-    int32_t host_gx = (int32_t)std::floor(cx / Dim::PATCH_EXTENT);
-    int32_t host_gz = (int32_t)std::floor(cz / Dim::PATCH_EXTENT);
-
-    if (register_footprint(c, cx, cz, sel.footprint_r,
-        host_gx, host_gz, PopFamily::GOL, sel.slot, sel.tier_idx) == UINT32_MAX)
-        return false;
-
-    plan = GoLPlacement{};
-    plan.slot = sel.slot;
-    plan.trigger_gx = sel.trigger_gx;
-    plan.trigger_gz = sel.trigger_gz;
-    plan.host_gx = host_gx;
-    plan.host_gz = host_gz;
-    plan.tier_idx = sel.tier_idx;
-    plan.cx = cx;
-    plan.cz = cz;
-    plan.zone_nx = sel.zone_nx;
-    plan.zone_nz = sel.zone_nz;
-    plan.corner_x = sel.corner_x;
-    plan.corner_z = sel.corner_z;
-    plan.algorithm = sel.algorithm;
-    plan.tick_period = sel.tick_period;
-    plan.initial_density = sel.initial_density;
-    plan.height_enabled = sel.height_enabled;
-
-    return true;
-}
-
-// ─── commit_gol ──────────────────────────────────────────────
-
-inline void commit_gol(GoLState& gs, MachineCtx* c,
-    const GoLPlacement& plan,
-    int32_t trigger_gx, int32_t trigger_gz, wgpu::Queue& queue)
-{
-    (void)trigger_gx; (void)trigger_gz;
-    auto& zone = gs.zones[plan.slot];
-    zone.zone_nx = plan.zone_nx;
-    zone.zone_nz = plan.zone_nz;
-    zone.host_gx = plan.host_gx;
-    zone.host_gz = plan.host_gz;
-    zone.corner_x = plan.corner_x;
-    zone.corner_z = plan.corner_z;
-    gol_tier_extent(plan.tier_idx, zone.extent_x, zone.extent_z);
-    zone.active = true;
-    zone.algorithm = plan.algorithm;
-    zone.tick_period = plan.tick_period;
-    zone.initial_density = plan.initial_density;
-    zone.last_tick_index = -1;
-    gs.zone_count++;
-
-    seed_gol_zone(gs, c, plan.slot, queue);
-
-    if (gs.pending_derive_requests.count < Dim::MAX_GOL_ZONES) {
-        auto& req = gs.pending_derive_requests.requests[gs.pending_derive_requests.count++];
-        req.slot = plan.slot;
-        req.nx = plan.zone_nx;
-        req.nz = plan.zone_nz;
-        req.algorithm = plan.algorithm;
-        req.height_enabled = plan.height_enabled ? 1u : 0u;
-        req.world_seed = c->world_state_.active_seed;
-    }
-
-    // A BIRTH ANNOUNCEMENT ON THE SPAWN PATH (PURSE_0 R3). Unconditional
-    // tail of commit_gol: no change detector, no error guard — it narrates
-    // a SUCCESS, which means it prints when everything is right, which is
-    // the opposite standing from the correctness witnesses the dial keeps.
-    //
-    // It is reachable in steady state, and that is the whole finding: the
-    // caller chain is commit_gol <- dispatch_commit_gol <- commit_entity_queue
-    // <- spawn_selected_patches <- the per-frame distance-driven spawn block,
-    // which drains up to SPAWN_BUDGET_PER_FRAME allocated patches EVERY
-    // frame. On an ever-expanding board patches are continuously allocated,
-    // so this is a rider's chatter, not only a birth. Same flag and same
-    // reason as `[Ribbon] SPAWN/EVICT`.
-    if constexpr (t7::INSTRUMENTS.stream_witness) {
-        std::cout << "[GoL] "
-            << (plan.algorithm == AlgorithmType::PULSE ? "Pulse" : "Conway")
-            << " tier=" << gol_tier_name(plan.tier_idx)
-            << " slot=" << plan.slot
-            << " node=(" << plan.zone_nx << "," << plan.zone_nz << ")"
-            << " corner=(" << plan.corner_x << "," << plan.corner_z << ")"
-            << " host=(" << plan.host_gx << "," << plan.host_gz << ")"
-            << (plan.height_enabled ? " HEIGHT" : "")
-            << " period=" << plan.tick_period
-            << "\n";
-    }
-}
-
-// ─── seed_gol_zone ───────────────────────────────────────────
-
-inline void seed_gol_zone(GoLState& gs, MachineCtx* c,
-    uint32_t slot, wgpu::Queue& queue) {
-    auto& zone = gs.zones[slot];
-    uint32_t seed = cpu_lattice_node_seed(c->world_state_.active_seed, zone.zone_nx, zone.zone_nz, GoLZoneProp::SEED_BAND);
-
-    // Generate initial pattern
-    std::vector<float> life(Dim::GOL_ZONE_CELLS, 0.0f);
-    if (zone.algorithm == AlgorithmType::CONWAY) {
-        // Conway: random alive/dead from density
-        for (uint32_t i = 0; i < Dim::GOL_ZONE_CELLS; i++) {
-            float roll = cpu_hash_f(seed + i, GoLZoneProp::DENSITY);
-            life[i] = (roll < zone.initial_density) ? 1.0f : 0.0f;
-        }
-    }
-
-    // Generate per-cell height factors: Gaussian draw, clamped.
-    // (UNIFIED_GROUND_1 U5: the GPU mask multiplies at birth
-    //  (zone_seed_mask) — smooth ground does not extrude, lift, or
-    //  carry walker height; STATIC at birth (the dynamic, tide-
-    //  following form is Layer E — campaign v2 §9).)
-    std::vector<float> height_factors(Dim::GOL_ZONE_CELLS);
-    for (uint32_t i = 0; i < Dim::GOL_ZONE_CELLS; i++) {
-        float hf = cpu_sample_gaussian(seed + i, GoLZoneProp::HEIGHT_FACTOR,
-            GoLZoneSpawnConfig::HEIGHT_FACTOR_MEAN, GoLZoneSpawnConfig::HEIGHT_FACTOR_SIGMA);
-        height_factors[i] = std::max(GoLZoneSpawnConfig::HEIGHT_FACTOR_CLAMP_LO,
-            std::min(GoLZoneSpawnConfig::HEIGHT_FACTOR_CLAMP_HI, hf));
-    }
-
-    // Upload all life slots
-    c->gpuState_.upload_zone_life(queue, slot, life.data(), height_factors.data(), Dim::GOL_ZONE_CELLS);
-}
-
-// ═══ PER-FRAME UPLOAD ════════════════════════════════════════════
-
-inline void upload_gol_zone_config(GoLState& gs, GolDeps* c, wgpu::Queue& queue) {
-    uint32_t count = 0;
-    uint32_t tick_mask = 0;
-
-    for (uint32_t i = 0; i < Dim::MAX_GOL_ZONES; i++) {
-        if (!gs.zones[i].active) continue;
-
-        // Conway tick gating: exactly one tick per period
-        float effective_period = std::max(gs.zones[i].tick_period, 0.01f);
-        int32_t current_tick = (int32_t)std::floor(c->time_state_.beats / effective_period);
-        if (current_tick != gs.zones[i].last_tick_index) {
-            tick_mask |= (1u << i);
-            gs.zones[i].last_tick_index = current_tick;
-        }
-
-        count = i + 1;
-    }
-    c->gpuState_.upload_zone_config_header(queue, count, c->time_state_.beats, c->time_state_.dt, tick_mask);
-    gs.active_slot_count = count;
-}
-
-// Flush pending zone derive requests as a GPU compute dispatch.
-// Called once per frame after all patch generation is complete.
-inline void flush_zone_derive_requests(GoLState& gs, GolDeps* c, wgpu::Queue& queue) {
-    if (gs.pending_derive_requests.count == 0) return;
-
-    c->gpuState_.upload_zone_derive_requests(queue, gs.pending_derive_requests);
-
-    // DOMESDAY_1 A9 (label law): labels are emitted where objects are
-    // created, from the creating function's name.
-    wgpu::CommandEncoderDescriptor encDesc{};
-    encDesc.label = "flush_zone_derive_requests";
-    wgpu::CommandEncoder encoder = c->device_.CreateCommandEncoder(&encDesc);
-    wgpu::ComputePassDescriptor desc{};
-    desc.label = "Zone Derive Params";
-    // The hidden submit's own pass still meters: this encoder submits
-    // BEFORE the host encoder, so its writes land ahead of the frame-close
-    // resolve in queue order.
-    desc.timestampWrites = c->gpuState_.meter_arm_compute(meter_row::GolDeriveFlush);
-    wgpu::ComputePassEncoder pass = encoder.BeginComputePass(&desc);
-    // LOOM_2 pass head: WORLD + FRAME are every pipeline's strata 0/1.
-    { pass.SetBindGroup(0, c->gpuState_.world_group());
-      pass.SetBindGroup(1, c->gpuState_.frame_c_group()); }
-    c->renderer_.dispatch_zone_derive_params(
-        pass,
-        c->gpuState_.zones_state_group(), c->gpuState_.zones_textures_group(),
-        gs.pending_derive_requests.count);
-    // ORDERING LAW: derive writes zone_config[slot]; the mask reads it —
-    // sequential dispatches in one pass suffice (storage-buffer
-    // visibility between dispatches is guaranteed). (UNIFIED_GROUND_1 U5)
-    c->renderer_.dispatch_zone_seed_mask(
-        pass,
-        c->gpuState_.zones_state_group(), c->gpuState_.zones_textures_group(),
-        gs.pending_derive_requests.count);
-    pass.End();
-    wgpu::CommandBuffer cmd = encoder.Finish();
-    queue.Submit(1, &cmd);
-
-    gs.pending_derive_requests.count = 0;
-}
-
-// ═══ DISPATCH FUNNELS (table-shaped; declared in entity_types.hpp) ═
+// ═══ THE THREE FUNNELS, AT THE NONE-FORK ═════════════════════════
+//
+// The lifecycle they fronted — select a lattice node, place a zone in a
+// free slot, commit it with a derive request and a seeded life buffer —
+// has no subject. They keep their signatures because FAMILY_DISPATCH is
+// a POSITIONAL TABLE and its GOL column must still point at something
+// with the right shape until U2 re-columns it. This is the shape the
+// tree already uses for a family hook with nothing behind it (the
+// pyramid's mesh hook took the same route).
 
 inline bool dispatch_select_gol(MachineCtx* self,
     int32_t gx, int32_t gz, EntityQueueEntry& e) {
-    if (!self->gol_state_.zones_allowed) { return false; }   // the world's gate — no new zones
-    return select_gol_for_patch(self->gol_state_, self, gx, gz, e.gol);
+    (void)self; (void)gx; (void)gz; (void)e;
+    return false;   // nothing to select: the Game of Life is the ground now
 }
 
 inline bool dispatch_place_gol(MachineCtx* self,
     EntityQueueEntry& e, PlacementEntry& pe) {
-    pe.family = e.family; pe.gx = e.gx; pe.gz = e.gz;
-    if (place_gol_from_selection(self, e.gol, pe.gol)) {
-        return true;
-    }
-    else {
-        self->gol_state_.zones[e.gol.slot].active = false;
-        return false;
-    }
+    (void)self; (void)e; (void)pe;
+    return false;   // unreachable: select never yields
 }
 
 inline void dispatch_commit_gol(MachineCtx* self,
     PlacementEntry& pe, wgpu::Queue& queue) {
-    auto* host = find_patch(self, pe.gol.host_gx, pe.gol.host_gz);
-    if (host) {
-        commit_gol(self->gol_state_, self, pe.gol, pe.gx, pe.gz, queue);
-        // the patch-death registry's write half left at ONE_SURFACE-I U3
-    }
-    else {
-        // Host patch gone — release by owner (the patch key can never match).
-        unregister_footprint_for(self, PopFamily::GOL, pe.gol.slot);
-        self->gol_state_.zones[pe.gol.slot].active = false;
-    }
+    (void)self; (void)pe; (void)queue;
+    // unreachable: place never yields
 }
 
-// ═══ THE EVICTOR ══════════════════════════════════════════════════
+// ═══ THE TRANSCRIPTION WITNESS — SPENT AT U2 ═════════════════════
+//
+// AUTO_TABLE's literals were typed by hand into
+// contracts/automaton_surface.hpp while these tables still stood, for
+// ATMOS_TABLE's reason stated verbatim there: a `= GOL_TIERS[6]`
+// initializer would read well and then die with the table, leaving the
+// numbers to be typed at the one moment nothing could check them.
+//
+// These asserts are that check. They do their whole job in this commit
+// and leave with the tables at U2; the numbers they prove stay.
+//
+// PROVEN TO BITE, as Amendment A requires of any net: the injection was
+// AUTO_TABLE.density 0.12f -> 0.13f, which fails the first assert below
+// with its own message. Reverted; the assert stands.
 
+// ── Conway: GOL_TIERS[6] "Glacier", the highest-weight row (0.21) ──
+static_assert(AUTO_TABLE.density             == GOL_TIERS[6].density_mean
+           && AUTO_TABLE.density_spread      == GOL_TIERS[6].density_sigma,
+    "AUTO_TABLE density is Glacier's, transcribed");
+static_assert(AUTO_TABLE.tick_period         == GOL_TIERS[6].tick_period_mean
+           && AUTO_TABLE.tick_period_spread  == GOL_TIERS[6].tick_period_sigma,
+    "AUTO_TABLE tick_period is Glacier's, transcribed");
+static_assert(AUTO_TABLE.transition_fraction        == GOL_TIERS[6].transition_fraction_mean
+           && AUTO_TABLE.transition_fraction_spread == GOL_TIERS[6].transition_fraction_sigma,
+    "AUTO_TABLE transition_fraction is Glacier's, transcribed");
+static_assert(AUTO_TABLE.alive_height        == GOL_TIERS[6].alive_height_mean
+           && AUTO_TABLE.alive_height_spread == GOL_TIERS[6].alive_height_sigma,
+    "AUTO_TABLE alive_height is Glacier's, transcribed");
+static_assert(AUTO_TABLE.spring_variance     == GOL_TIERS[6].spring_variance,
+    "AUTO_TABLE spring_variance is Glacier's, transcribed");
+static_assert(AUTO_TABLE.rule_mask           == GOL_TIERS[6].rule_mask,
+    "AUTO_TABLE rule_mask is Glacier's B3/S23, transcribed");
 
+// GLACIER IS THE MODAL ROW, and the assert says so in arithmetic rather
+// than in prose: no other Conway tier outweighs it. That is the whole
+// justification for picking one of ten, so it is checked, not claimed.
+static_assert(GOL_TIERS[6].weight >= GOL_TIERS[0].weight
+           && GOL_TIERS[6].weight >= GOL_TIERS[1].weight
+           && GOL_TIERS[6].weight >= GOL_TIERS[2].weight
+           && GOL_TIERS[6].weight >= GOL_TIERS[3].weight
+           && GOL_TIERS[6].weight >= GOL_TIERS[4].weight
+           && GOL_TIERS[6].weight >= GOL_TIERS[5].weight
+           && GOL_TIERS[6].weight >= GOL_TIERS[7].weight
+           && GOL_TIERS[6].weight >= GOL_TIERS[8].weight
+           && GOL_TIERS[6].weight >= GOL_TIERS[9].weight,
+    "the transcription source must be the row the retiring world drew most "
+    "often; Glacier is that row and this is the check, not the claim");
 
-// ─── Teardown (owner verb) ────────────────────────────────────────
-inline void teardown_gol(GoLState& gs, GolDeps* c, wgpu::Queue& queue) {
-    // GoL zones (gs is the own organ, explicit; c is the external face)
-    for (uint32_t i = 0; i < Dim::MAX_GOL_ZONES; i++) {
-        gs.zones[i] = GoLZoneState{};
-    }
-    gs.zone_count = 0;
-    gs.active_slot_count = 0;
-    gs.pending_derive_requests.count = 0;
-    GPUGoLZoneArray emptyZones{};
-    c->gpuState_.upload_zone_config(queue, emptyZones);
-}
+// ── Pulse: GOL_PULSE_TIERS[0] "Breathe", the highest-weight row (0.38) ──
+// Only the PULSE-ONLY columns come from here — the ones a Conway world
+// never reads, so that flipping `algorithm` to PULSE lands on the modal
+// Pulse world rather than on zeros.
+static_assert(AUTO_TABLE.phase_randomness == GOL_PULSE_TIERS[0].phase_randomness_mean,
+    "AUTO_TABLE phase_randomness is Breathe's, transcribed");
+static_assert(AUTO_TABLE.tempo_randomness == GOL_PULSE_TIERS[0].tempo_randomness_mean,
+    "AUTO_TABLE tempo_randomness is Breathe's, transcribed");
+static_assert(AUTO_TABLE.field_fn == GOL_PULSE_TIERS[0].field_fn,
+    "AUTO_TABLE field_fn is Breathe's BREATH, transcribed");
+static_assert(GOL_PULSE_TIERS[0].weight >= GOL_PULSE_TIERS[1].weight
+           && GOL_PULSE_TIERS[0].weight >= GOL_PULSE_TIERS[2].weight
+           && GOL_PULSE_TIERS[0].weight >= GOL_PULSE_TIERS[3].weight,
+    "and Breathe is the modal Pulse row");
 
-// ─── Zone compute passes (owner verbs) ─
-// derive params + sync + evolve + mesh, SEPARATE passes
-// for the GPU barrier (O-6a). Callers order them sync -> evolve ->
-// mesh after flush_zone_derive_requests + upload_gol_zone_config.
-inline void dispatch_zone_sync(GoLState& gs, GolDeps* c, wgpu::CommandEncoder& encoder) {
-    wgpu::ComputePassDescriptor cpd{};
-    cpd.label = "GoL Zone Sync";
-    cpd.timestampWrites = c->gpuState_.meter_arm_compute(meter_row::GolZoneCompute);
-    wgpu::ComputePassEncoder pass = encoder.BeginComputePass(&cpd);
-    // LOOM_2 pass head: WORLD + FRAME are every pipeline's strata 0/1.
-    { pass.SetBindGroup(0, c->gpuState_.world_group());
-      pass.SetBindGroup(1, c->gpuState_.frame_c_group()); }
-    c->renderer_.dispatch_zone_gol_sync(pass,
-        c->gpuState_.zones_state_group(), c->gpuState_.zones_textures_group(), gs.active_slot_count);
-    pass.End();
-}
+// ── The shared spawn config: the per-cell height factor ──
+static_assert(AUTO_TABLE.height_factor_mean  == GoLZoneSpawnConfig::HEIGHT_FACTOR_MEAN
+           && AUTO_TABLE.height_factor_sigma == GoLZoneSpawnConfig::HEIGHT_FACTOR_SIGMA
+           && AUTO_TABLE.height_factor_lo    == GoLZoneSpawnConfig::HEIGHT_FACTOR_CLAMP_LO
+           && AUTO_TABLE.height_factor_hi    == GoLZoneSpawnConfig::HEIGHT_FACTOR_CLAMP_HI,
+    "AUTO_TABLE's per-cell height factor is the zones' own draw, transcribed");
+static_assert(AUTO_TABLE.mode_threshold == GoLZoneSpawnConfig::MODE_THRESHOLD,
+    "and the eligibility threshold — the one term of the zone-lattice "
+    "decision that was never about zones. It is a HARDWARE MIRROR rather "
+    "than a transported field (world.wgsl AUTO_MODE_THRESHOLD); this "
+    "assert still pins the bank, which is its one home");
 
-inline void dispatch_zone_evolve(GoLState& gs, GolDeps* c, wgpu::CommandEncoder& encoder) {
-    wgpu::ComputePassDescriptor cpd{};
-    cpd.label = "GoL Zone Evolve";
-    cpd.timestampWrites = c->gpuState_.meter_arm_compute(meter_row::GolZoneCompute);
-    wgpu::ComputePassEncoder pass = encoder.BeginComputePass(&cpd);
-    // LOOM_2 pass head: WORLD + FRAME are every pipeline's strata 0/1.
-    { pass.SetBindGroup(0, c->gpuState_.world_group());
-      pass.SetBindGroup(1, c->gpuState_.frame_c_group()); }
-    c->renderer_.dispatch_zone_gol_evolve(pass,
-        c->gpuState_.zones_state_group(), c->gpuState_.zones_textures_group(), gs.active_slot_count);
-    pass.End();
-}
-
+// ── The colour target: a UNIFORM range written as centre + half-range ──
+// zone_derive_params drew each channel as hash * LENS_TARGET_RANGE +
+// LENS_TARGET_LO — uniform over [0.2, 0.8]. A bank speaks centre and
+// spread, so the transcription is LO + RANGE/2 and RANGE/2. The
+// distribution SHAPE changes (uniform to Gaussian) and that is disclosed
+// rather than hidden: the range is identical and the centre is identical,
+// and a colour target is not a shape anyone can see.
+static_assert(AUTO_TABLE.target[0] == GoLZoneSpawnConfig::LENS_TARGET_LO + GoLZoneSpawnConfig::LENS_TARGET_RANGE * 0.5f
+           && AUTO_TABLE.target[1] == GoLZoneSpawnConfig::LENS_TARGET_LO + GoLZoneSpawnConfig::LENS_TARGET_RANGE * 0.5f
+           && AUTO_TABLE.target[2] == GoLZoneSpawnConfig::LENS_TARGET_LO + GoLZoneSpawnConfig::LENS_TARGET_RANGE * 0.5f
+           && AUTO_TABLE.target_spread == GoLZoneSpawnConfig::LENS_TARGET_RANGE * 0.5f,
+    "AUTO_TABLE's colour target is the zones' uniform [LO, LO+RANGE], "
+    "written as centre and half-range");
 
 } // namespace the_board
 } // namespace t7

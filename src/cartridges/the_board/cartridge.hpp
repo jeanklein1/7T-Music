@@ -73,6 +73,7 @@
 #include "cartridges/the_board/realization/drawable_table.hpp"  // The drawable table (one row per drawable; the two passes iterate it filtered) — after renderer/state, before render_passes
 #include "cartridges/the_board/bodies/pawn.hpp"                 // PawnState + PawnDeps + impl — MERGED single file; after renderer for Renderer/GPUState complete
 #include "cartridges/the_board/bodies/orbs.hpp"                 // OrbsState + OrbsDeps + impl — MERGED; after renderer for Renderer
+#include "cartridges/the_board/surface/automaton.hpp"            // AutomatonState + AutomatonDeps (S5) + impl — the ground's own
 #include "cartridges/the_board/bodies/gol_zones.hpp"            // GoLState + GolDeps (S5 device) + impl — MERGED; after renderer/machine/tile
 #include "coupling/visual_canvas.hpp"
 #include "cartridges/the_board/bodies/ribbon.hpp"               // RibbonState + RibbonDeps + impl — MERGED; after visual_canvas for the coupling face; after agents/cubes/spheres for the FIELD_2 mirror deps
@@ -199,8 +200,16 @@ namespace t7 {
             //     player-owned anchor/rule/gesture state.
             OrbsState orbs_state_;
 
-            //   gol_state_ — GoLState: the zone slots + counts +
-            //     the world's gate + derive-request queue.
+            //   automaton_state_ — AutomatonState: the drawn world and
+            //     its tick cursor. GoLState stood here with eight zone
+            //     slots, two counters, a spawn gate and a derive queue.
+            AutomatonState automaton_state_;
+
+            //   gol_state_ — the FAMILY's residue, and it is U2's to take.
+            //     Down to the slot flags the census reads and the
+            //     zones_allowed channel sky.hpp writes; MachineCtx and
+            //     SkyDeps still bind it because the GOL family still has a
+            //     roster slot until U2 re-columns the positional tables.
             GoLState gol_state_;
 
             //   agent_state_ — AgentState: the 32-slot CPU mirror +
@@ -307,7 +316,7 @@ namespace t7 {
             OrbsDeps      orbs_deps_;
             AgentsDeps    agents_deps_;
             CubeDeps      cube_deps_;
-            GolDeps       gol_deps_;
+            AutomatonDeps automaton_deps_;
             RibbonDeps    ribbon_deps_;
             InputDeps     input_deps_;
             SkyDeps      sky_deps_;
@@ -353,15 +362,12 @@ namespace t7 {
             // the P5 stale-world guard would pass where it must drop.
             uint32_t pawnReadbackGen_ = 0;
 
-            // OPT_1a: true while the live card holds a clean rest field
-            // (skip the writer); boots false so the first frame writes.
-            bool liveCardRestClean_ = false;
-            // SPINE_2 B: R8 decides, R10 encodes. The card's write is the
-            // first dispatch of the compute pass now, so the rest law's
-            // verdict travels the one row between them as a bool. R10
-            // consumes it (sets it false), which is what keeps a frame that
-            // never reached R10 from leaking a stale true into the next.
-            bool liveCardWritePending_ = false;
+            // OPT_1a's TWO BOOLS LEFT WITH THE REST LAW (ONE_SURFACE-II
+            // U1) — `liveCardRestClean_` and `liveCardWritePending_`, the
+            // second of which carried R8's verdict to R10 as SPINE_2 B's
+            // one-row hand-off. There is no verdict to carry: the card is
+            // written every frame. The tombstone at phase_live_card_write
+            // holds the whole retirement.
             enum class FloaterReadbackState { IDLE, COPIED, MAPPING };
             FloaterReadbackState floaterReadbackState_ = FloaterReadbackState::IDLE;
             uint32_t floaterReadbackGen_ = 0;   // OIL_1c — same grammar as pawnReadbackGen_ above
@@ -475,7 +481,7 @@ namespace t7 {
                 , orbs_deps_{ gpuState_, renderer_, player_, time_state_, world_state_ }
                 , agents_deps_{ gpuState_, player_, point_, world_state_, time_state_ }
                 , cube_deps_{ gpuState_, time_state_, player_, point_ }
-                , gol_deps_{ gpuState_, renderer_, device_, time_state_ }
+                , automaton_deps_{ gpuState_, renderer_, time_state_ }
                 , ribbon_deps_{ gpuState_, time_state_, tile_world_state_, player_, point_, inputState_, world_state_, sky_state_, visual_canvas_, ribbon_amp_lat_dst_, ribbon_amp_vert_dst_, ribbon_tint_stim_dst_, ribbon_tint_mix_dst_ }
                 , input_deps_{ inputState_, keys_, mouse_, touch_, player_, world_state_, ribbon_state_, gpuState_, device_, point_, mount_, camera_ }
                 , sky_deps_{ sky_state_, world_state_, gpuState_, gol_state_, sunDirection_, sunColor_, clearColor_ } {
@@ -669,6 +675,7 @@ namespace t7 {
                 {
                     wgpu::Queue q = device_.GetQueue();
                     build_world(&machine_ctx_, device_, q, tile_world_state_, tile_world_deps_);
+                    birth_the_automaton(q);
                 }
 
                 auto t3 = std::chrono::high_resolution_clock::now();
@@ -738,9 +745,17 @@ namespace t7 {
                     zonesActiveAnywherePrev_ = zones_active_anywhere();
                     std::cout << "[Ground] zones active anywhere: "
                               << zonesActiveAnywherePrev_ << " (boot)\n";
-                    liveCardLivePrev_ = live_card_is_live();
-                    std::cout << "[Card] live-card field: "
-                              << live_card_state_label(liveCardLivePrev_)
+                    // The [Card] boot line left with the rest law it
+                    // witnessed (P6's corollary applies to a SWITCH, and
+                    // there is no switch). The automaton's own line below
+                    // is what the card's state is now derived from.
+                    std::cout << "[Ground] automaton: "
+                              << automaton_state_.cfg.grid_size << "x"
+                              << automaton_state_.cfg.grid_size << " cells, rule=0x"
+                              << std::hex << automaton_state_.cfg.rule_mask << std::dec
+                              << " period=" << automaton_state_.cfg.tick_period
+                              << " density=" << automaton_state_.cfg.density
+                              << " height=" << automaton_state_.cfg.alive_height
                               << " (boot)\n";
                 }
 
@@ -852,7 +867,7 @@ namespace t7 {
             enum class RPhase : uint32_t {
                 WitnessHarvest, SurfaceVisibility, RespawnAgents,
                 CensusDumps, RibbonTick, EntityMeshGen, UploadLights, LiveCardWrite, DispatchCompute,
-                WitnessCapture, GolDeriveFlush, GolZoneCompute, PawnAura, OrbSky,
+                WitnessCapture, AutomatonStep, PawnAura, OrbSky,
                 FrustumCull, ShadowPass, MainPass,
                 COUNT
             };
@@ -1244,7 +1259,7 @@ namespace t7 {
             // WITH the seam and is read as MARKED by this note — not as
             // an orphan a sweep may take:
             //   teardown_entities (bodies/grounded.hpp)
-            //   teardown_gol (bodies/gol_zones.hpp)
+            //   teardown_automaton (surface/automaton.hpp)
             //   teardown_ribbon, release_finite_ribbons (bodies/ribbon.hpp)
             //   clear_spheres (bodies/spheres.hpp)
             //   clear_cubes (bodies/cube_behaviors.hpp)
@@ -1252,11 +1267,16 @@ namespace t7 {
             //   teardown_orbs (bodies/orbs.hpp)
             //   GPUState::reset_player_agent (realization/state.hpp)
             //   reseed_player_body (bodies/agents.hpp)
-            // One hop deeper: GPUState::upload_zone_config is called only
-            // by teardown_gol, so it is latent transitively. Its
-            // near-twins are LIVE and are not in the chain —
-            // upload_zone_config_header and deactivate_zone_slot both run
-            // per-frame from gol_zones.
+            // One hop deeper: GPUState::upload_automaton_config has TWO
+            // callers and only one is in the chain — teardown_automaton
+            // (latent) and birth_automaton (LIVE, at every world's birth),
+            // so it is NOT latent and a sweep must not read it as such.
+            // That changed at ONE_SURFACE-II U1: the zones' equivalent
+            // (upload_zone_config) was teardown's alone, because the zones
+            // were born a slot at a time through a derive queue rather
+            // than all at once with the world. Its near-twin
+            // upload_automaton_header is LIVE, per frame, from the
+            // automaton's spine row.
             // NOT LATENT, though this body calls them: become_world,
             // reset_surface, stage_world_birth, spawn_population,
             // dump_agent_census, dump_entity_census, set_world_seed,
@@ -1289,9 +1309,9 @@ namespace t7 {
                 // SEAM[spine:P5] world_state_.world_gen++ at the top is the
                 //   stale-callback guard (P5 family). Genuinely spine-owned.
                 world_state_.world_gen++;
-                // OPT_1a: the new world's rest field must be written
-                // once even if no zone ever goes live there.
-                liveCardRestClean_ = false;
+                // OPT_1a's "the new world's rest field must be written once"
+                // reset stood here. The card is written every frame, so the
+                // first frame of a new world writes it like any other.
                 // THE FIRST-CAPTURE GATE (POINT_1, the measured seam):
                 // the harvest closures bind their gen at MAP time, so a
                 // copy STAGED in the old world (state COPIED) and
@@ -1321,8 +1341,12 @@ namespace t7 {
                 // the ladder).
                 reset_surface(&machine_ctx_, queue, tile_world_state_);
                 teardown_entities(&machine_ctx_, queue);
-                if constexpr (ROSTER.gol)      // ROSTER-GATE gol (c) — teardown clear skipped when disabled (organ pristine)
-                    teardown_gol(gol_state_, &gol_deps_, queue);
+                // UNGATED (ONE_SURFACE-II U1): the ROSTER-GATE that stood
+                // here skipped the clear when the GoL FAMILY was disabled.
+                // The ground has no such switch, and P8's law is explicit
+                // that latency is not exemption — the verb runs on the
+                // teardown path whether or not a caller exists yet.
+                teardown_automaton(automaton_state_, &automaton_deps_, queue);
                 if constexpr (ROSTER.ribbon)   // ROSTER-GATE ribbon (c) — same zero-write elimination
                     teardown_ribbon(ribbon_state_, &ribbon_deps_, queue);
                 if constexpr (ROSTER.sphere)   // ROSTER-GATE sphere (c)
@@ -1406,6 +1430,11 @@ namespace t7 {
                 // completeness assertion — a world rebuilt ahead of it would
                 // be asserting nothing.
                 build_world(&machine_ctx_, device_, queue, tile_world_state_, tile_world_deps_);
+                // Rung 4 (the persistence ladder): the automaton is REBORN
+                // with the world, from the world's own seed — the same seed
+                // draws the same automaton, which is what makes a rebirth
+                // reproducible rather than merely new.
+                birth_the_automaton(queue);
 
                 uint32_t side = world_state_.finite_mode ? 2 * world_state_.finite_radius + 1 : 0;
                 std::cout << "[World] Rebirth complete, seed=" << world_state_.active_seed
@@ -2035,35 +2064,40 @@ namespace t7 {
             // rest law and the witness; what it hands on is a bool, and the
             // consumers still read a written card because dispatch order
             // inside a pass is a visibility rule.
+            // ═══ THE AUTOMATON IS BORN WITH THE WORLD ════════════════
+            //
+            // ONE DOOR (L10), called from the two places a world comes into
+            // being — boot and rebirth_world — immediately after
+            // build_world, because the automaton's seed kernel reads the
+            // ground's own vocabulary (discrete_visibility_rest) and that
+            // reads the config stage_world_birth authored.
+            //
+            // ITS OWN ENCODER AND SUBMIT, and this is NOT the hidden second
+            // submit the derive seam was. That one ran mid-FRAME, every
+            // frame a zone spawned, ahead of the host's encoder, and had to
+            // be a named spine row so the submit was visible. This runs at
+            // BIRTH, outside the frame loop entirely, on the same footing as
+            // build_world's own batch submits.
+            void birth_the_automaton(wgpu::Queue& queue) {
+                draw_automaton(automaton_state_, AUTO_LIVE,
+                               world_state_.active_seed, world_state_.finite_radius);
+                wgpu::CommandEncoderDescriptor encDesc{};
+                encDesc.label = "birth_the_automaton";   // DOMESDAY_1 A9 (label law)
+                wgpu::CommandEncoder encoder = device_.CreateCommandEncoder(&encDesc);
+                birth_automaton(automaton_state_, &automaton_deps_, queue, encoder);
+                wgpu::CommandBuffer cmd = encoder.Finish();
+                queue.Submit(1, &cmd);
+            }
+
+            // R8 DECIDED, AND THERE IS NOTHING LEFT TO DECIDE. The body
+            // read the rest law, printed its transitions under P6, and set
+            // the bool R10 consumed. The whole apparatus is tombstoned
+            // beside live_card_is_live's grave below; the row stays because
+            // the SPINE's row set is a contract with the score census, and
+            // because the card's write is still a distinct thing the frame
+            // does — it is simply unconditional now.
             void phase_live_card_write(RenderCtx& c) {
                 (void)c;
-
-                const bool card_live = live_card_is_live();
-
-                // PROCESS P6 — every switch has a witness. This is the arm
-                // ECONOMY_1 E1 taught the campaign to distrust: a rest skip
-                // that never fires and a rest skip that works produce the
-                // SAME silent log, and the difference is the entire unit.
-                // Witness the INPUT that drives it (the zone_rects_in_core
-                // form), on change of state only, never per frame; the boot
-                // state prints once at init (P6 corollary), so silence here
-                // means "no transition", not "no witness".
-                if (card_live != liveCardLivePrev_) {
-                    std::cout << "[Card] live-card field: "
-                              << live_card_state_label(card_live) << "\n";
-                    liveCardLivePrev_ = card_live;
-                }
-
-                if (card_live) {
-                    liveCardRestClean_ = false;      // live: write every frame
-                } else if (liveCardRestClean_) {
-                    liveCardWritePending_ = false;   // at rest, card clean: skip
-                    return;
-                } else {
-                    liveCardRestClean_ = true;       // entering rest: one clearing write
-                }
-
-                liveCardWritePending_ = true;
             }
 
             // R10 — DISPATCH COMPUTE (music+input+algo). The per-frame world-
@@ -2076,9 +2110,9 @@ namespace t7 {
                 // pass's first dispatch when the rest law asks for it
                 // (SPINE_2 B). Consumed here, so a frame that never reaches
                 // R10 cannot leak the flag into the next one.
-                const bool write_card = liveCardWritePending_;
-                liveCardWritePending_ = false;
-                dispatch_compute(&machine_ctx_, encoder, write_card);
+                // R8's verdict rode in here as a bool. There is no verdict:
+                // the card is this pass's first dispatch, every frame.
+                dispatch_compute(&machine_ctx_, encoder);
             }
 
             // R11 — WITNESS CAPTURE (O-2: staging copies AFTER compute; feeds
@@ -2119,26 +2153,31 @@ namespace t7 {
                 }
             }
 
-            // R12a — GOL DERIVE FLUSH (algo). THE HIDDEN 2nd SUBMIT
-            // (gol_zones.hpp): its own encoder + Submit, before the host submit
-            // (recon E-8). Its own named phase per the spine ruling. Guarded at
-            // the call site (ROSTER.gol + zone_count>0).
-            void phase_gol_derive_flush(RenderCtx& c) {
-                if (gol_state_.zone_count == 0) return;  // runtime data-guard, moved inside (was the call-site `if (zone_count>0)`)
-                rosterGolZoneRuns_++;  // ROSTER-RESIDUE gol (2e) — sole writer marker of the zone GPU buffers; the residue check proves pristine when disabled
-                flush_zone_derive_requests(gol_state_, &gol_deps_, c.queue);
-            }
+            // R12a — GOL DERIVE FLUSH STOOD HERE, AND IT WAS THE PROGRAM'S
+            // ONLY HIDDEN SECOND SUBMIT (ONE_SURFACE-II U1).
+            //
+            // It had its own encoder and its own queue.Submit, issued before
+            // the host's, and its own named spine row so that the submit was
+            // VISIBLE rather than buried inside another phase. That was the
+            // right treatment for it, and the thing it treated is gone:
+            // SEAM[gol:derive-submit] existed because a zone spawning
+            // mid-frame had to derive its parameters before the agent
+            // kernels read them, in the same frame. The automaton is seeded
+            // at BIRTH, on the birth encoder, and nothing spawns after — so
+            // the seam, the second submit, the F_SUBMIT flag on a compute
+            // row, and the ordering assert that paired the two rows all
+            // retire together. The frame has one submit again.
 
-            // R12b — GOL ZONE COMPUTE (algo). Config upload + sync/evolve/mesh
-            // in SEPARATE passes (O-6a barrier by pass boundary). Guarded at the
-            // call site with the derive flush.
-            void phase_gol_zone_compute(RenderCtx& c) {
-                if (gol_state_.zone_count == 0) return;  // shares R12a's guard; flush_zone_derive_requests does NOT touch zone_count (verified), so the two independent checks are equivalent to the original single guard
+            // R12 — THE AUTOMATON'S STEP (algo). Header upload + sync +
+            // evolve in SEPARATE passes (O-6a barrier by pass boundary).
+            // UNGATED: the ground is not a roster family and there is no
+            // count to be zero.
+            void phase_automaton_step(RenderCtx& c) {
                 auto& encoder = c.encoder;
                 auto& queue = c.queue;
-                upload_gol_zone_config(gol_state_, &gol_deps_, queue);
-                dispatch_zone_sync(gol_state_, &gol_deps_, encoder);
-                dispatch_zone_evolve(gol_state_, &gol_deps_, encoder);
+                upload_automaton_header(automaton_state_, &automaton_deps_, queue);
+                dispatch_automaton_sync(&automaton_deps_, encoder);
+                dispatch_automaton_evolve(&automaton_deps_, encoder);
             }
 
             // R13 — PAWN AURA (wall-clock). Persistent terrain influence; the
@@ -2175,29 +2214,60 @@ namespace t7 {
 
             uint32_t zoneRectsInCorePrev_ = 0;   // P6 witness memory (transitions only)
             uint32_t zonesActiveAnywherePrev_ = 0;   // OPT_1e witness memory
-            bool     liveCardLivePrev_ = false;      // OPT_1a witness memory
+            // liveCardLivePrev_ (OPT_1a's witness memory) left with the
+            // transition it remembered.
 
             // OPT_1a — THE REST LAW, one home. The dispatch gate and the P6
             // witness read the SAME function, so the log can never disagree
             // with the skip (the zone_rects_in_core precedent). The three
             // conjuncts in occurrence order, short-circuiting: the two config
             // reads are free, the zone scan only runs if they clear.
-            // Conservative by construction — any doubt is LIVE, and LIVE
-            // writes.
-            bool live_card_is_live() const {
-                if (gpuState_.config().pulse_count > 0) return true;
-                if (gpuState_.config().terrain_time > 0.0f) return true;
-                for (uint32_t i = 0; i < Dim::MAX_GOL_ZONES; i++)
-                    if (gol_state_.zones[i].active) return true;
-                return false;
-            }
-
-            // The witness's words, one home, so the boot line and the
-            // transition line cannot describe the same state differently.
-            static const char* live_card_state_label(bool live) {
-                return live ? "LIVE — writer runs every frame"
-                            : "AT REST — one clearing write, then skipped";
-            }
+            // ═══ THE REST LAW IS RETIRED — TOMBSTONE (GROUND_CARD_1) ═════
+            //
+            // WHAT STOOD HERE. `live_card_is_live()`, a three-term
+            // disjunction read by BOTH the dispatch gate and the P6 witness
+            // so the log could never disagree with the skip:
+            //     pulse_count > 0                      [MUSICAL]
+            //     terrain_time > 0                     [MUSICAL]
+            //     any GoL zone active                  [NOT MUSICAL]
+            // With it: `liveCardRestClean_`, the entering-rest clearing
+            // write, `liveCardWritePending_`, and `live_card_state_label`'s
+            // two-word vocabulary ("LIVE — writer runs every frame" /
+            // "AT REST — one clearing write, then skipped").
+            //
+            // WHY IT CANNOT SURVIVE THE AUTOMATON. The third term asked
+            // whether any zone covers the texel. With eight islands that is
+            // a LOCAL condition and the card reached rest whenever they were
+            // quiet or absent. An automaton over the whole cell grid makes
+            // it false wherever ANY cell is alive — which, at a seeded
+            // density over the world, is everywhere, always. The gate would
+            // never close again, and an optimisation that can never fire is
+            // worse than none: it is a claim the code makes and does not
+            // keep.
+            //
+            // WHY THE CARD IS NOT A LOSS. Jean's boot log, before this unit,
+            // already read "[Card] live-card field: LIVE — writer runs every
+            // frame (boot)". The skip was not being taken. This retires an
+            // optimisation the program had already stopped reaching, which
+            // is a cut and not a loss.
+            //
+            // TWO CONDITIONS BRING REST BACK, and they are named so that
+            // whoever meets one knows where to look:
+            //   (1) AN AUTOMATON PAUSE DIAL. If the panel era lets the
+            //       ground stop advancing, "not advancing" is a real state
+            //       again and the rest law is the right answer to it.
+            //   (2) A TICK-CADENCE GATE. The card is clean BETWEEN ticks, so
+            //       a gate on the automaton's own clock would still close,
+            //       often. It was NOT taken here because conjuncts (1) and
+            //       (2) above are musical and move on their own clock: such
+            //       a gate would have to COMPOSE with them rather than
+            //       replace them, and an honestly per-frame card beats a
+            //       three-clock gate nobody can reason about. If the
+            //       per-frame cost is ever measured and found real, this is
+            //       where to start.
+            //
+            // The kernel's own banner (world.wgsl, §7.3) carries the same
+            // retirement from the shader's side.
 
             // THE COUNT, one home — the draw plan's classifier input and the
             // P6 witness read the SAME function, so the log can never
@@ -2214,23 +2284,26 @@ namespace t7 {
             // the zoned tail MORE often — and the zoned tail is the
             // conservative arm, the one that seals seams. A widening cannot
             // open one.
-            uint32_t zone_rects_in_core() const {
-                const float px = point_.x, pz = point_.z;
-                const float r  = gpuState_.veil_ring();
-                uint32_t n = 0;
-                for (uint32_t i = 0; i < Dim::MAX_GOL_ZONES; i++) {
-                    const auto& z = gol_state_.zones[i];
-                    if (!z.active) continue;
-                    const float minx = z.corner_x - Dim::PATCH_EXTENT;
-                    const float minz = z.corner_z - Dim::PATCH_EXTENT;
-                    const float maxx = z.corner_x + z.extent_x + Dim::PATCH_EXTENT;
-                    const float maxz = z.corner_z + z.extent_z + Dim::PATCH_EXTENT;
-                    const float dx = std::max(0.0f, std::max(minx - px, px - maxx));
-                    const float dz = std::max(0.0f, std::max(minz - pz, pz - maxz));
-                    if (dx * dx + dz * dz <= r * r) n++;
-                }
-                return n;
-            }
+            // ONE RECT, AND IT IS THE WORLD (ONE_SURFACE-II U1). The loop
+            // that stood here tested each active zone's persisted AABB,
+            // inflated by one patch, against the disc of the veil ring
+            // around the point, and returned how many were in scope. Every
+            // clause of it was about ISLANDS: a zone had a corner, an
+            // extent, and a distance from the eye at which it stopped
+            // mattering.
+            //
+            // The automaton has none of those. It covers the ground, so the
+            // answer to "does a curtain reach this patch" is YES for every
+            // patch that carries discrete cells, and the honest rect is the
+            // world box. The classifier is unchanged and its arithmetic is
+            // unchanged; what changed is that segment A is now the common
+            // case rather than an extreme (recorded at the capacity asserts
+            // in contracts/surface_services.hpp — a LOAD question for the
+            // walk, not a correctness one).
+            //
+            // The count is still a COUNT and still the P6 witness's input,
+            // so the log and the plan still read one function.
+            uint32_t zone_rects_in_core() const { return 1u; }
 
             // OPT_1e — THE GLOBAL COUNT. The LOD1 ring's two counts (clean
             // prefix / zoned) select on "any zone active ANYWHERE",
@@ -2240,12 +2313,21 @@ namespace t7 {
             // annulus, so any distance-scoped predicate would open them.
             // Conservative by construction: the prefix draws only at true
             // rest, when no cell anywhere can lift.
-            uint32_t zones_active_anywhere() const {
-                uint32_t n = 0;
-                for (uint32_t i = 0; i < Dim::MAX_GOL_ZONES; i++)
-                    if (gol_state_.zones[i].active) n++;
-                return n;
-            }
+            // OPT_1e's SWITCH IS PINNED SHUT, deliberately and on the
+            // conservative arm. Its own banner said why the predicate was
+            // never geometric: the curtain tail is the only thing sealing
+            // lifted slab walls in the 175-325 wu annulus, so the clean
+            // prefix may draw ONLY at true rest, when no cell anywhere can
+            // lift. The automaton is everywhere and always able to lift, so
+            // true rest is unreachable and the zoned tail is the permanent
+            // answer.
+            //
+            // KEPT AS A FUNCTION rather than folded into its callers: it is
+            // ONE HOME for a fact two readers share (the LOD1 count and the
+            // P6 witness), and the panel's pause dial — the same dial the
+            // rest-law tombstone names — is exactly what would make it move
+            // again.
+            uint32_t zones_active_anywhere() const { return 1u; }
 
             // R17 — FRUSTUM CULL (algo; O-7 tail). Cull before the draw passes —
             // the indirect draws consume the cull output (recon E-5).
@@ -2350,8 +2432,7 @@ namespace t7 {
                 { RPhase::LiveCardWrite,       "live_card_write",       &Cartridge::phase_live_card_write,       Driver::Mixed,     true,                                   F_COMPUTE },
                 { RPhase::DispatchCompute,     "dispatch_compute",      &Cartridge::phase_dispatch_compute,      Driver::Mixed,     true,                                   F_COMPUTE },
                 { RPhase::WitnessCapture,      "witness_capture",       &Cartridge::phase_witness_capture,       Driver::None,      true,                                   F_WITNESS },
-                { RPhase::GolDeriveFlush,      "gol_derive_flush",      &Cartridge::phase_gol_derive_flush,      Driver::Algo,      ROSTER.gol,                             F_COMPUTE | F_SUBMIT },
-                { RPhase::GolZoneCompute,      "gol_zone_compute",      &Cartridge::phase_gol_zone_compute,      Driver::Algo,      ROSTER.gol,                             F_COMPUTE },
+                { RPhase::AutomatonStep,       "automaton_step",        &Cartridge::phase_automaton_step,        Driver::Algo,      true,                                   F_COMPUTE },
                 { RPhase::PawnAura,            "pawn_aura",             &Cartridge::phase_pawn_aura,             Driver::WallClock, ROSTER.pawn_aura,                       F_COMPUTE },
                 { RPhase::OrbSky,              "orb_sky",               &Cartridge::phase_orb_sky,               Driver::Mixed,     ROSTER.orbs,                            F_COMPUTE },
                 { RPhase::FrustumCull,         "frustum_cull",          &Cartridge::phase_frustum_cull,          Driver::Algo,      true,                                   F_COMPUTE },
@@ -2465,8 +2546,7 @@ namespace t7 {
             static_assert(meter_row::SurfaceVisibility   == (uint32_t)RPhase::SurfaceVisibility,   "meter_row drift: SurfaceVisibility");
             static_assert(meter_row::EntityMeshGen       == (uint32_t)RPhase::EntityMeshGen,       "meter_row drift: EntityMeshGen");
             static_assert(meter_row::DispatchCompute     == (uint32_t)RPhase::DispatchCompute,     "meter_row drift: DispatchCompute");
-            static_assert(meter_row::GolDeriveFlush      == (uint32_t)RPhase::GolDeriveFlush,      "meter_row drift: GolDeriveFlush");
-            static_assert(meter_row::GolZoneCompute      == (uint32_t)RPhase::GolZoneCompute,      "meter_row drift: GolZoneCompute");
+            static_assert(meter_row::AutomatonStep       == (uint32_t)RPhase::AutomatonStep,       "meter_row drift: AutomatonStep");
             static_assert(meter_row::PawnAura            == (uint32_t)RPhase::PawnAura,            "meter_row drift: PawnAura");
             static_assert(meter_row::OrbSky              == (uint32_t)RPhase::OrbSky,              "meter_row drift: OrbSky");
             static_assert(meter_row::FrustumCull         == (uint32_t)RPhase::FrustumCull,         "meter_row drift: FrustumCull");
@@ -2481,8 +2561,8 @@ namespace t7 {
             // spine header above. Two laws are INTRA-phase, not row-index laws,
             // enforced by structure inside a single phase: O-3 (the TEARDOWN
             // fixed sequence, inside rebirth_world) and O-6a (the
-            // zone sync->evolve->mesh barrier = the three SEPARATE compute
-            // passes inside phase_gol_zone_compute).
+            // sync->evolve barrier = the SEPARATE compute passes inside
+            // phase_automaton_step).
             static constexpr bool spine_ordered_u() {
                 for (std::size_t i = 0; i < (std::size_t)UPhase::COUNT; i++)
                     if ((std::size_t)UPDATE_SPINE[i].id != i) return false;
@@ -2525,7 +2605,11 @@ namespace t7 {
                           (uint32_t)RPhase::LiveCardWrite < (uint32_t)RPhase::DispatchCompute,
                 "GROUND_CARD_1: the card writes before the consumers "
                 "(pre-evolve zone read preserved, R10<R13 order intact)");
-            static_assert((uint32_t)RPhase::GolDeriveFlush < (uint32_t)RPhase::GolZoneCompute, "gol: the derive flush (hidden submit) precedes the zone compute that reads it");
+            // THE ORDERING ASSERT THAT STOOD HERE IS SPENT WITH ITS SUBJECT.
+            // It read "gol: the derive flush (hidden submit) precedes the
+            // zone compute that reads it" — a real ordering law over two
+            // rows, and the whole reason the hidden submit had to be a row
+            // at all. One row, nothing to order (ONE_SURFACE-II U1).
             static_assert((uint32_t)RPhase::ShadowPass < (uint32_t)RPhase::MainPass, "draw: shadow before main");
 
             // BOOT VALIDATION (always-on): table-order integrity + the O-5b/c
