@@ -15,8 +15,8 @@ carry those facts, or leave them in place and patch around them.
 
 | field | value |
 |---|---|
-| source commit | `e58b4bd4e921f384f2269a68cf97cf206d7ee873` |
-| | ONE_SURFACE-II U3 addendum: ROW 9 pointed at the wrong function, and my sweep made it worse |
+| source commit | `0c1d94c68403eaf9ce68711dc6c74531dd508095` |
+| | ONE_SURFACE-II: the ledgers' stamps settle after the U3 addendum |
 | `src/cartridges/the_board/realization/binding_registry.hpp` | `sha256:351eccaedd6902900df3b13a57c7a818ff10cf4280debbfb9034b0ffabcfcc73` |
 | `src/cartridges/the_board/realization/world.wgsl` | `sha256:44893f9e910f6bcfb9b8e170037c4dc2fba13cd638efb8fb96d9584adf01f2ab` |
 | `src/cartridges/the_board/realization/state.hpp` | `sha256:3dfc4cf35f8c3411c01a94827ed703480cf483ee7b52a04f4e15ad3b0965b622` |
