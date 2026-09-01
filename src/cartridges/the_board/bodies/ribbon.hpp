@@ -35,7 +35,7 @@
 // The impl additionally reaches the spawn-engine services
 // (run_spawn_preamble, negotiate_position — spawn_engine.hpp),
 // seed_utils.hpp, cartridge core (time_state_.seconds/dt/beat_rate,
-// THEMES / Dim::PATCH_EXTENT (file-scope vocabulary), the four ribbon
+// Dim::PATCH_EXTENT (file-scope vocabulary), the four ribbon
 // canvas bindings ride RibbonDeps; the sky release is OWN state), and the
 // GPU wires (upload_ribbon — the one per-frame write — and
 // reset_ribbon_body, the one word that says "you are unseeded").
@@ -93,11 +93,10 @@ struct RibbonDeps {
 // drawn and never again. The struct dies with them: two static members
 // were its whole body.
 //
-// SEAM[ribbon:P4] hygiene rows pattern — the ribbon column of
-//   MOOD_SPAWN_MULT (surface/population_themes.hpp) is
-//   { 1, 1, 1, 1 }, all identity: the mood term suppresses no
-//   row today. (It previously read as carrying indoor zeros; the
-//   live table never had them.) Same family as gol_zones:P4 and
+// The ribbon's column of MOOD_SPAWN_MULT was { 1, 1, 1, 1 }, all
+//   identity, and left with the table at ONE_WORLD-II U3. (It
+//   previously read as carrying indoor zeros; the live table never
+//   had them.) Same family as gol_zones:P4 and
 //   the cube populations' hygiene rows.
 
 // ── Length cap ───────────────────────────────────────────────────
@@ -701,16 +700,16 @@ inline bool select_ribbon_for_patch(RibbonState& rs, MachineCtx* c,
     auto gate = run_spawn_preamble(c, gx, gz,
         rs.active, MAX_RIBBON_INSTANCES,
         RibbonProp::SPAWN_ROLL, RIBBON_SPAWN_LIVE.spawn_chance,
-        mood_mult_for(PopFamily::RIBBON),
         PopFamily::RIBBON);
     if (!gate.ok) return false;
 
-    // Tier selection with theme bias
+    // Tier selection. THE THEME BIAS LEFT (ONE_WORLD-II U3): a second
+    // loop multiplied these by THEMES[gate.theme_idx].tier_wt_ribbon, and
+    // the engine that chose that theme is gone. The base weights are the
+    // whole truth, as they were before the bias was layered over them.
     float tier_weights[RIBBON_TIER_COUNT];
     for (uint32_t t = 0; t < RIBBON_TIER_COUNT; t++)
         tier_weights[t] = RIBBON_BASE_TIER_WEIGHTS[t];
-    for (uint32_t t = 0; t < RIBBON_TIER_COUNT; t++)
-        tier_weights[t] *= THEMES[gate.theme_idx].tier_wt_ribbon[t];
     uint32_t tier_idx = select_tier(gate.seed, RibbonProp::TIER,
         tier_weights, RIBBON_TIER_COUNT);
 

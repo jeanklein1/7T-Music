@@ -41,7 +41,7 @@ namespace the_board {
 // the machine reads the surface only through the m3b faces, reads
 // the clock, reads the witness — and can write none of them.
 struct WorldState;            struct TileWorldState;
-struct ThemesState;           struct MoodState;
+struct MoodState;
 struct PatchSystemState;      struct SpawnEngineState;
 struct EntitiesState;         struct SphereState;
 struct CubeBehaviorsState;    struct RibbonState;
@@ -54,7 +54,6 @@ struct MachineCtx {
     // S1/S2 — the surface the machine stands on
     WorldState&              world_state_;
     const TileWorldState&    tile_world_state_;    // const: only the m3b faces consume it
-    const ThemesState&       themes_state_;        // const: the preamble reads the envelope
     MoodState&               mood_state_;          // active R; portals_dirty W (the arch channel)
     PatchSystemState&        patch_system_state_;
     SpawnEngineState&        spawn_engine_state_;
@@ -129,7 +128,6 @@ struct EntityFamilyTraits {
     bool        grounded;
     uint32_t    spawn_roll_prop;
     float       spawn_chance;
-    const float* mood_multiplier;
     float       position_jitter;
     uint32_t    tier_count;
     uint32_t    tier_prop;
@@ -151,7 +149,6 @@ struct SpawnGateOutput {
     bool     ok;
     uint32_t seed;
     uint32_t slot;
-    uint32_t theme_idx;
 };
 
 // ── Per-instance pipeline state ──────────────────────────────────
@@ -162,7 +159,6 @@ struct EntityInstance {
     int32_t  host_gx = 0, host_gz = 0;
     uint32_t slot = 0;
     uint32_t tier_idx = 0;
-    uint32_t theme_idx = 0;
     float    cx = 0.0f, cz = 0.0f;
     float    rotation = 0.0f;
     float    params[MAX_ENTITY_PARAMS]{};
@@ -178,8 +174,9 @@ struct EntityInstance {
 //
 struct EntityFamilyAdapter {
     SpawnGateOutput(*run_gate)(MachineCtx* c, int32_t gx, int32_t gz);
-    // Q5: the per-family get_theme_tier_weights fn-ptr is gone — tier weights
-    // now come from the ONE theme_tier_weights(theme_idx, traits.family_id)
+    // Q5 retired the per-family get_theme_tier_weights fn-ptr for one
+    // shared accessor; ONE_WORLD-II U3 retired that too. Tier weights are
+    // the adapter's own, unbiased —
     // accessor (population_themes.hpp), keyed on the family the adapter's
     // traits already carry. No per-family plug needed.
     void (*apply_indoor_rescale)(EntityInstance& inst, float ceiling_h);

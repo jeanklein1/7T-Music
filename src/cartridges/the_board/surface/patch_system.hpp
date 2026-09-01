@@ -85,7 +85,7 @@ inline void request_recenter(WorldState& ws) {
 // call: the equality was asserted by luck and would have parted silently the
 // day any default moved. Now it is enforced by call.
 inline void reset_surface(MachineCtx* c, wgpu::Queue& queue,
-    TileWorldState& tile_world_state, ThemesState& themes_state) {
+    TileWorldState& tile_world_state) {
     // Patches + tile cache
     init_patch_system(c, tile_world_state);
     c->world_state_.last_center_x = INT32_MAX;  // force full regen on next frame
@@ -97,9 +97,6 @@ inline void reset_surface(MachineCtx* c, wgpu::Queue& queue,
 
     c->spawn_engine_state_.entityQueueCount_ = 0;
     c->spawn_engine_state_.placementCount_ = 0;
-
-    // Theme envelope — through the owner's door
-    reset_theme_envelope(themes_state);
 
     // Footprints
     for (uint32_t i = 0; i < MAX_FOOTPRINTS; i++) {
@@ -321,12 +318,13 @@ inline bool in_priority_window(MachineCtx* c, int32_t gx, int32_t gz, int32_t cx
 // footprint) now does so before the next patch places, so ground that is
 // genuinely free can be used by it.
 inline void spawn_selected_patches(MachineCtx* c, const PatchCandidate* candidates, uint32_t count,
-    wgpu::Queue& queue,
-    ThemesState& themes_state) {
+    wgpu::Queue& queue) {
+    // THE ENVELOPE'S TICK LEFT (ONE_WORLD-II U3). Each patch advanced the
+    // theme envelope from its own tile seed before selecting entities —
+    // the temporal half of the theme engine, stateful and sequenced. The
+    // selection is the whole of the work now.
     for (uint32_t s = 0; s < count; s++) {
         uint32_t pi = candidates[s].idx;
-        evaluate_theme_envelope(themes_state, c,
-            tile_seed(c->world_state_.active_seed, c->patch_system_state_.patches_[pi].grid_x, c->patch_system_state_.patches_[pi].grid_z));
         select_entities_for_patch(c, c->patch_system_state_.patches_[pi].grid_x, c->patch_system_state_.patches_[pi].grid_z);
         c->patch_system_state_.patches_[pi].phase = PatchPhase::SPAWNED;
         place_entity_queue(c);
@@ -532,7 +530,7 @@ inline std::unordered_set<GridKey, GridKeyHash> build_active_patch_set(MachineCt
 //   update_entity_draw_visibility at the frame tail — the surface
 //   machine waking the occupier machine.
 inline void stream_patches(MachineCtx* c, wgpu::CommandEncoder& encoder, wgpu::Queue& queue,
-    TileWorldState& tile_world_state, ThemesState& themes_state,
+    TileWorldState& tile_world_state,
     TileWorldDeps& tile_world_deps, MoodDeps& mood_deps) {
     // ─── Patch Generation Pipeline ─────────────────────────────────
 
@@ -631,7 +629,7 @@ inline void stream_patches(MachineCtx* c, wgpu::CommandEncoder& encoder, wgpu::Q
                     return p.phase == PatchPhase::ALLOCATED &&
                         in_priority_window(c, p.grid_x, p.grid_z, centerX, centerZ);
                 }, true);
-            spawn_selected_patches(c, spawnCands, spawnCount, queue, themes_state);
+            spawn_selected_patches(c, spawnCands, spawnCount, queue);
 
             // Generate inner patches
             PatchCandidate genCands[Dim::MAX_ACTIVE_PATCHES];
@@ -864,7 +862,7 @@ inline void stream_patches(MachineCtx* c, wgpu::CommandEncoder& encoder, wgpu::Q
         // RIBBON_5: the burst is the young world's, the one-a-frame is the
         // steady world's.
         spawn_selected_patches(c, candidates,
-            std::min(count, young ? 4u : SPAWN_BUDGET_PER_FRAME), queue, themes_state);
+            std::min(count, young ? 4u : SPAWN_BUDGET_PER_FRAME), queue);
     }
 
     // ─── HEIGHTFIELD GENERATION — ONE ARM (RIBBON_6) ─────────────

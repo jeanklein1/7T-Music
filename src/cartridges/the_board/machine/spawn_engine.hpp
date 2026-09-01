@@ -161,7 +161,6 @@ SpawnGatePreambleResult run_spawn_preamble(C* c,
     int32_t gx, int32_t gz,
     ActiveT* active_arr, uint32_t max_instances,
     uint32_t spawn_roll_prop, float spawn_chance,
-    const float* mood_mult,
     uint32_t family)
 {
     SpawnGatePreambleResult r{};
@@ -177,17 +176,13 @@ SpawnGatePreambleResult run_spawn_preamble(C* c,
     }
 
     // 2-6. THE COMPOSITION LAW: the stack, authored once —
-    // mood → global → tile (F3) → base × adj → min(·,1).
-    // Generic semantics: multiply-through on mood zero (no veto flag),
-    // MIN1 clamp.
-    r.theme_idx = c->themes_state_.temporal_flavor;
-    auto composed = compose_spawn_chance(c, gx, gz, family,
-        spawn_chance, mood_mult,
-        /*veto_on_zero_mood=*/false,
-        SpawnClamp::MIN1);
+    // global → base × adj → min(·,1). The mood and tile terms left with
+    // ONE_WORLD-II U3; the mood term was identity at the kept row.
+    const float composed = compose_spawn_chance(c, gx, gz, family,
+        spawn_chance, SpawnClamp::MIN1);
 
     // 7. Spawn gate (seed + roll; the chance arrives composed)
-    auto ctx = evaluate_spawn_gate(c, gx, gz, spawn_roll_prop, composed.chance);
+    auto ctx = evaluate_spawn_gate(c, gx, gz, spawn_roll_prop, composed);
     if (!ctx.passed) return r;
 
     // 8-9. Find and reserve slot
@@ -209,7 +204,7 @@ SpawnGatePreambleResult run_spawn_preamble(C* c,
 //
 // The generic families ran identical bodies here, each restating five constants that
 // its own TRAITS row already declares — max_instances, spawn_roll_prop,
-// spawn_chance, mood_multiplier, family_id — around one call. The restating
+// spawn_chance, family_id — around one call. The restating
 // was why four of those fields read as DEAD: the row was the right home and
 // nobody read it, so the cut was about to remove the home and keep the nine
 // duplicates.
@@ -221,9 +216,9 @@ SpawnGatePreambleResult run_spawn_preamble(C* c,
 // BIT-IDENTITY: same callee, same arguments, same order. run_spawn_preamble is
 // untouched. The SpawnGatePreambleResult -> SpawnGateOutput conversion moves
 // from nine copies to one; note the two structs order their fields
-// DIFFERENTLY (preamble: seed, slot, theme_idx, ok — output: ok, seed, slot,
-// theme_idx), so this is a real field-by-field reorder and must stay written
-// out rather than becoming a cast or a copy.
+// DIFFERENTLY (preamble: seed, slot, ok — output: ok, seed, slot), so this is
+// a real field-by-field reorder and must stay written out rather than
+// becoming a cast or a copy. Both lost their theme_idx at ONE_WORLD-II U3.
 template<typename ActiveT>
 inline SpawnGateOutput gate_from_traits(MachineCtx* c, int32_t gx, int32_t gz,
     const EntityFamilyTraits& t, ActiveT* active_arr)
@@ -231,8 +226,8 @@ inline SpawnGateOutput gate_from_traits(MachineCtx* c, int32_t gx, int32_t gz,
     auto gate = run_spawn_preamble(c, gx, gz,
         active_arr, t.max_instances,
         t.spawn_roll_prop, t.spawn_chance,
-        t.mood_multiplier, t.family_id);
-    return { gate.ok, gate.seed, gate.slot, gate.theme_idx };
+        t.family_id);
+    return { gate.ok, gate.seed, gate.slot };
 }
 
 
@@ -243,7 +238,7 @@ inline SpawnGateOutput gate_from_traits(MachineCtx* c, int32_t gx, int32_t gz,
 // evaluation, and the select → place → commit
 // dispatch loops. Reaches the machine face for the root organs
 // (c->world_state_ / c->time_state_ / c->mood_state_ /
-// c->themes_state_ / c->tile_world_state_ / c->entities_state_ /
+// c->tile_world_state_ / c->entities_state_ /
 // c->player_) and the GPU wire (c->gpuState_); the loops route
 // through FAMILY_DISPATCH with the machine face as the row argument.
 
@@ -688,19 +683,22 @@ inline void dump_entity_census(MachineCtx* c, const char* trigger) {
 // float multiplication ORDER below is the bit-identity contract
 // — do not reorder a multiply, do not move a
 // clamp. Exact argument orders of min/max preserved per policy.
-inline SpawnChanceResult compose_spawn_chance(MachineCtx* c, int32_t gx, int32_t gz,
-    uint32_t family, float base_chance, const float* mood_mult,
-    bool veto_on_zero_mood, SpawnClamp clamp) {
-    float adj_mod = mood_mult[c->mood_state_.active];
-    if (veto_on_zero_mood && adj_mod <= 0.0f) return { 0.0f, true };
-    adj_mod *= GLOBAL_ENTITY_DENSITY;
-    tile_apply_spawn_mult(c->tile_world_state_, gx, gz, family, adj_mod);  // F3: the S2 boundary face
+inline float compose_spawn_chance(MachineCtx* c, int32_t gx, int32_t gz,
+    uint32_t family, float base_chance, SpawnClamp clamp) {
+    // THE MOOD TERM WAS IDENTITY AND IS NOW ABSENT (ONE_WORLD-II U3). The
+    // stack read mood -> global -> tile (F3) -> base x adj -> clamp. The
+    // mood term indexed MOOD_SPAWN_MULT by the live mood; the sunset row
+    // read { 1, 1, 1, 1, 1 } for all five families, so this is
+    // behaviour-identical and not merely intended. The TILE term went with
+    // the theme lattice that authored it. What is left is the global
+    // density and the family's own base chance.
+    float adj_mod = GLOBAL_ENTITY_DENSITY;
     float chance = base_chance * adj_mod;
     switch (clamp) {
         case SpawnClamp::MIN1:    chance = std::min(chance, 1.0f); break;
         case SpawnClamp::RANGE01: chance = std::max(0.0f, std::min(1.0f, chance)); break;
     }
-    return { chance, false };
+    return chance;
 }
 
 // Evaluate the spawn gate: seed + flat probability check.

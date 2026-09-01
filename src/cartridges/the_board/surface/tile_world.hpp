@@ -131,7 +131,6 @@ struct TileShape {
 
 struct TileState {
     TileShape      shape;   // the cast's (landform character)
-    TilePopulation pop;     // themes' (spawn density + weights)
 };
 
 // Spatial cache: keyed by (grid_x, grid_z)
@@ -380,7 +379,6 @@ inline TileState generate_tile_state(TileWorldState& tw, TileWorldDeps* c, int32
     // consume tile_seed props. Same one (gx,gz) generation moment; the
     // TYPE-line split still holds, the authoring now lives with its
     // vocabulary.
-    ts.pop = generate_tile_population(c->world_state_.active_seed, gx, gz);
 
     return ts;
 }
@@ -492,7 +490,14 @@ inline void tile_apply_spawn_mult(const TileWorldState& tw, int32_t gx, int32_t 
                   << ") family " << family << " — ensure_tile did not precede the gate\n";
         std::abort();
     }
-    adj_mod *= it->second.pop.spatial_density[family];
+    // THE TILE TERM LEFT (ONE_WORLD-II U3). It multiplied by the tile's
+    // per-family spatial_density, authored by generate_tile_population off
+    // the THEME LATTICE. The lattice is gone, so the density had no author
+    // and would have stood at its 1.0 default forever: an identity
+    // multiply dressed as a layer. The MISS abort below is kept — it
+    // proves the allocation -> spawn ordering, which is a fact about the
+    // tile cache and not about themes.
+    (void)family;
 }
 
 // F4: the archetype face, bool-out — the miss default stays

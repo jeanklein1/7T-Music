@@ -225,7 +225,6 @@ struct PatchSystemState {
 // the call sites: the tile doors' deps, the mood deps, the driver's
 // intent organ.
 struct TileWorldState;  // tile_world.hpp — the tile cache organ (fwd: the lifecycle owner mutates it through the owner doors; the machine face's view is const)
-struct ThemesState;     // population_themes.hpp — the theme envelope organ (fwd: same law)
 struct TileWorldDeps;   // tile_world.hpp — the tile doors' face (fwd: reference param)
 struct MoodDeps;        // mood.hpp — the back-portal door's face (fwd: reference param)
 
@@ -241,7 +240,7 @@ void evict_patch_entities(MachineCtx* c, ActivePatch& patch, wgpu::Queue& queue)
 // machine (root); OWNER: patch_system. One door, both paths — boot is a
 // transition from nothing (LAWS L10).
 void reset_surface(MachineCtx* c, wgpu::Queue& queue,
-    TileWorldState& tile_world_state, ThemesState& themes_state);  // was teardown_world -> teardown_surface; reduced to the surface core, then called from boot too
+    TileWorldState& tile_world_state);  // was teardown_world -> teardown_surface; reduced to the surface core, then called from boot too
 
 void init_patch_system(MachineCtx* c, TileWorldState& tile_world_state);
 // The recenter door: names the hidden regen request — the
@@ -266,8 +265,7 @@ uint32_t collect_sorted_patches(MachineCtx* c, PatchCandidate* out,
     float pawn_wx, float pawn_wz, Pred&& pred, bool nearest_first);
 bool in_priority_window(MachineCtx* c, int32_t gx, int32_t gz, int32_t cx, int32_t cz);
 void spawn_selected_patches(MachineCtx* c, const PatchCandidate* candidates, uint32_t count,
-    wgpu::Queue& queue,
-    ThemesState& themes_state);
+    wgpu::Queue& queue);
 void generate_selected_patches(MachineCtx* c, const PatchCandidate* candidates, uint32_t count,
     wgpu::CommandEncoder& encoder, wgpu::Queue& queue,
     bool& tileGridDirty,
@@ -275,7 +273,7 @@ void generate_selected_patches(MachineCtx* c, const PatchCandidate* candidates, 
 
 // THE CONDUCTOR: the per-frame streaming step.
 void stream_patches(MachineCtx* c, wgpu::CommandEncoder& encoder, wgpu::Queue& queue,
-    TileWorldState& tile_world_state, ThemesState& themes_state,
+    TileWorldState& tile_world_state,
     TileWorldDeps& tile_world_deps, MoodDeps& mood_deps);
 
 } // namespace the_board

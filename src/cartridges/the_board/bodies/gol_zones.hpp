@@ -137,13 +137,10 @@ struct GoLZoneSpawnConfig {
     // Lens target color range: color = hash * RANGE + LO
     static constexpr float LENS_TARGET_LO = 0.2f;
     static constexpr float LENS_TARGET_RANGE = 0.6f;
-    // SEAM[gol_zones:P4] hygiene rows pattern (P4): the gol mood row
-    //   lives in MOOD_SPAWN_MULT (population_themes.hpp — the GOL
-    //   column). That column is all 1.0 — the mood term rests at
-    //   identity and suppresses nothing today; the veto path
-    //   (veto_on_zero_mood) is the live mechanism awaiting a value.
-    //   Same family as the cube populations' hygiene rows
-    //   (cube_behaviors.hpp). Defensive declaration.
+    // The GoL mood row and the veto it armed left at ONE_WORLD-II U3.
+    //   The column was all 1.0, so the term rested at identity and
+    //   suppressed nothing; the veto was the live mechanism awaiting a
+    //   value that never came, and it was GoL's alone.
 };
 
 // ── Color Modes ──────────────────────────────────────────────────
@@ -497,11 +494,15 @@ inline bool select_gol_for_patch(GoLState& gs, MachineCtx* c,
     // → global → tile (F3);
     // clamp [0,1]. The per-lattice-node roll stays below (its own seed
     // domain, cpu_lattice_node_seed — a consumer fact, not the law's).
-    auto composed = compose_spawn_chance(c, gx, gz, PopFamily::GOL,
-        GoLZoneSpawnConfig::SPAWN_CHANCE, mood_mult_for(PopFamily::GOL),
-        /*veto_on_zero_mood=*/true,
-        SpawnClamp::RANGE01);
-    if (composed.vetoed) return false;
+    // THE VETO ARM LEFT WITH THE MOODS (ONE_WORLD-II U3). GoL was the one
+    // caller that asked for veto_on_zero_mood — a hard refusal when the
+    // live mood's multiplier was 0, where every other family multiplied
+    // through. Nothing can be 0 in the stack now that the mood term is
+    // gone, so the flag, the second return channel it fed and this early
+    // return all go. The kept row's GoL multiplier was 1.0f, so the arm
+    // never fired in the world this campaign keeps.
+    const float composed = compose_spawn_chance(c, gx, gz, PopFamily::GOL,
+        GoLZoneSpawnConfig::SPAWN_CHANCE, SpawnClamp::RANGE01);
 
     // Scan lattice nodes overlapping this patch
     float wx0 = gx * Dim::PATCH_EXTENT;
@@ -538,7 +539,7 @@ inline bool select_gol_for_patch(GoLState& gs, MachineCtx* c,
             // Spawn roll (the chance arrived composed — loop-invariant)
             uint32_t seed = cpu_lattice_node_seed(c->world_state_.active_seed, nx, nz, GoLZoneProp::SEED_BAND);
             float roll = cpu_hash_f(seed, GoLZoneProp::SPAWN_ROLL);
-            if (roll >= composed.chance) continue;
+            if (roll >= composed) continue;
 
             // Find free slot
             uint32_t slot = UINT32_MAX;

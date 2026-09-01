@@ -126,10 +126,11 @@ inline bool generic_select(MachineCtx* c,
     for (uint32_t t = 0; t < traits.tier_count && t < 8; t++)
         weights[t] = adapter.get_tier_profile(t).weight;
 
-    // Apply theme tier weights (per-family array from PopulationTheme)
-    const float* theme_tw = theme_tier_weights(gate.theme_idx, traits.family_id);
-    for (uint32_t t = 0; t < traits.tier_count && t < 8; t++)
-        weights[t] *= theme_tw[t];
+    // THE THEME BIAS LEFT (ONE_WORLD-II U3). A per-family array from the
+    // live PopulationTheme multiplied these weights; the engine that chose
+    // that theme is gone, so the adapter's own tier weights are the whole
+    // truth — which is what they were before the bias was layered over
+    // them, and what the panel will dial directly.
 
     uint32_t tier = select_tier(gate.seed, traits.tier_prop,
         weights, traits.tier_count);
@@ -166,7 +167,6 @@ inline bool generic_select(MachineCtx* c,
     inst.trigger_gz = gz;
     inst.slot       = gate.slot;
     inst.tier_idx   = tier;
-    inst.theme_idx  = gate.theme_idx;
 
     // ── Indoor sizing (must run before compute_solid_half so the
     //    solid extents are derived from the scaled params). THE
@@ -309,7 +309,7 @@ inline constexpr EntityFamilyTraits PYRAMID_TRAITS = {
     PopFamily::PYRAMID, Dim::MAX_PYRAMID_INSTANCES,
     true,                 // grounded — bakes into the heightfield
     PyramidProp::SPAWN_ROLL, PyramidConfig::SPAWN_CHANCE,
-    mood_mult_for(PopFamily::PYRAMID), PyramidConfig::POSITION_JITTER,
+    PyramidConfig::POSITION_JITTER,
     3, PyramidProp::TIER,
     PYRAMID_PARAM_DEFS, PYRAMID_PARAM_COUNT,
     PyramidProp::POSITION_X, PyramidProp::POSITION_Z, PyramidProp::ROTATION,
@@ -468,8 +468,7 @@ inline void dispatch_commit_pyramid_generic(MachineCtx* self, PlacementEntry& pe
     static_assert(TR.grounded        == GND,     #TR " grounded must match");     \
     static_assert(TR.spawn_roll_prop == PROP,    #TR " spawn_roll_prop must match"); \
     static_assert(TR.spawn_chance    == CHANCE,  #TR " spawn_chance must match"); \
-    static_assert(TR.color_part_count == NCOL,   #TR " color_part_count must match"); \
-    static_assert(TR.mood_multiplier == mood_mult_for(FAM), #TR " mood_multiplier must match")
+    static_assert(TR.color_part_count == NCOL,   #TR " color_part_count must match")
 
 T7_GATE_PIN(PYRAMID_TRAITS, PopFamily::PYRAMID, Dim::MAX_PYRAMID_INSTANCES, true,  PyramidProp::SPAWN_ROLL, PyramidConfig::SPAWN_CHANCE,     0u);
 T7_GATE_PIN(SPHERE_TRAITS,  PopFamily::SPHERE,  Dim::MAX_SPHERE_INSTANCES,  false, SphereProp::SPAWN_ROLL,  SphereConfig::SPAWN_CHANCE,      0u);

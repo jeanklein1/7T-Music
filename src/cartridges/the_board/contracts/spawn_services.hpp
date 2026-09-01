@@ -32,7 +32,6 @@ namespace the_board {
 struct SpawnGatePreambleResult {
     uint32_t seed;          // from evaluate_spawn_gate
     uint32_t slot;          // reserved slot index
-    uint32_t theme_idx;     // themes_state_.temporal_flavor at evaluation time
     bool ok;                // false = early exit (idempotency, gate, no slot)
 };
 
@@ -52,7 +51,9 @@ struct SpawnPreamble {
 // ─── Global Entity Density ──────────────────────────────────────
 // (Graduated with the decl tier: gol's bespoke spawn funnel reads it
 // before the machine tail.)
-inline constexpr float GLOBAL_ENTITY_DENSITY = 1.0f;
+// GLOBAL_ENTITY_DENSITY moved to surface/population_themes.hpp — the
+// population panel, where the dials it is turned with will live
+// (ONE_WORLD-II U3).
 
 // ── Minimum Separation Matrix ─────────────────────────────────────
 //
@@ -119,10 +120,11 @@ inline constexpr float MIN_SEPARATION[PopFamily::COUNT][PopFamily::COUNT] = {
 // generic preamble, GoL). Per-consumer FACTS travel as DATA:
 // base-chance authority (scalar, or archetype-indexed — resolved by
 // the caller before the call), clamp policy, and
-// the mood-zero veto style. The float multiplication ORDER inside the
-// definition is the bit-identity contract:
-// mood → GLOBAL_ENTITY_DENSITY → tile (spatial_density) →
-// base × adj → clamp. Seed domains
+// The float multiplication ORDER inside the definition is the
+// bit-identity contract, and ONE_WORLD-II U3 shortened it to
+// GLOBAL_ENTITY_DENSITY → base × adj → clamp: the mood term (identity at
+// the kept row) and the tile term (authored off the theme lattice) both
+// left, and the mood-zero veto style left with them. Seed domains
 // and the rolls themselves stay with the consumers.
 
 enum class SpawnClamp : uint32_t {
@@ -130,14 +132,13 @@ enum class SpawnClamp : uint32_t {
     RANGE01,  // max(0, min(1, chance))  — GoL
 };
 
-struct SpawnChanceResult {
-    float chance;   // the composed probability (post clamp policy)
-    bool  vetoed;   // true only under veto_on_zero_mood with mood ≤ 0
-};
-
-SpawnChanceResult compose_spawn_chance(MachineCtx* c, int32_t gx, int32_t gz,
-    uint32_t family, float base_chance, const float* mood_mult,
-    bool veto_on_zero_mood, SpawnClamp clamp);
+// ONE RETURN CHANNEL (ONE_WORLD-II U3). SpawnChanceResult carried a second
+// field, `vetoed`, true only under veto_on_zero_mood with a mood
+// multiplier of 0 — GoL's arm, and the only caller that took it. The mood
+// multipliers left with the moods, nothing can be 0 in the stack any more,
+// and a struct for one float is a struct for nothing.
+float compose_spawn_chance(MachineCtx* c, int32_t gx, int32_t gz,
+    uint32_t family, float base_chance, SpawnClamp clamp);
 
 SpawnPreamble evaluate_spawn_gate(MachineCtx* c, int32_t gx, int32_t gz,
     uint32_t spawn_roll_prop,
@@ -190,7 +191,6 @@ SpawnGatePreambleResult run_spawn_preamble(C* c,
     int32_t gx, int32_t gz,
     ActiveT* active_arr, uint32_t max_instances,
     uint32_t spawn_roll_prop, float spawn_chance,
-    const float* mood_mult,
     uint32_t family);
 
 // The generic gate — DECLARATION only; defined beside run_spawn_preamble at

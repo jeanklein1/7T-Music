@@ -133,7 +133,7 @@ inline constexpr EntityFamilyTraits SPHERE_TRAITS = {
     PopFamily::SPHERE, Dim::MAX_SPHERE_INSTANCES,
     false,                // NOT grounded — orbits an anchor; claims no ground (ruling 21)
     SphereProp::SPAWN_ROLL, SphereConfig::SPAWN_CHANCE,
-    mood_mult_for(PopFamily::SPHERE), SphereConfig::POSITION_JITTER,
+    SphereConfig::POSITION_JITTER,
     SPHERE_TIER_COUNT, SphereProp::TIER,
     SPHERE_PARAM_DEFS, SPHERE_PARAM_COUNT,
     SphereProp::ANCHOR_X, SphereProp::ANCHOR_Z, SphereProp::ROTATION,

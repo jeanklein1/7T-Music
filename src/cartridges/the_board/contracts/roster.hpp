@@ -60,8 +60,9 @@ struct PopFamily {
 
 // F-1: the family ORDER is load-bearing — FIVE
 // tables are POSITIONAL in it (the five proximity tables left at
-// ONE_WORLD-I U5: MIN_SEPARATION, THEMES[].spawn_weight, MOOD_SPAWN_MULT,
-// TilePopulation::spatial_density, INDOOR_TREATMENT, and
+// ONE_WORLD-I U5: MIN_SEPARATION, INDOOR_TREATMENT, and
+// — until ONE_WORLD-II U3 took the theme engine with them —
+// THEMES[].spawn_weight, MOOD_SPAWN_MULT, TilePopulation::spatial_density,
 // family_short_name's NAMES[] — the eleventh, which PRUNE_2 found outside
 // this roll call and pinned to COUNT where it lives), as is
 // FAMILY_DISPATCH (whose rows are

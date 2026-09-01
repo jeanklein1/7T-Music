@@ -186,13 +186,12 @@ static_assert(sizeof(CUBE_TIER_GAINS) / sizeof(CUBE_TIER_GAINS[0]) == CUBE_TIER_
 //
 // Mood ordering matches MOOD_TABLE (contracts/spine_state.hpp).
 //
-// Cubes carry a mood term, mood_mult_for(PopFamily::CUBE) from
-// MOOD_SPAWN_MULT (surface/population_themes.hpp). That column is
-// {1, 1, 1, 1, 1, 1} — all identity. This banner used to claim
-// {1, 1, 0, 0, 1, 0} and conclude that cubes "don't spawn in indoor
+// Cubes carried a mood term until ONE_WORLD-II U3 — mood_mult_for from
+// MOOD_SPAWN_MULT, a column of all 1.0. This banner once claimed
+// {1, 1, 0, 0, 1, 0} and concluded that cubes "don't spawn in indoor
 // moods"; the indoor zeros never existed in the live table, and the
-// per-row "exists for hygiene" notes inherited the error. The mood
-// term suppresses no row today, so every row here IS consulted.
+// per-row "exists for hygiene" notes inherited the error. The term
+// suppressed no row then and does not exist now.
 // Indoor cube spawning is shaped by indoor_bounds_clamp
 // (machine/spawn_engine.hpp), not by this multiplier.
 
@@ -711,7 +710,7 @@ inline constexpr EntityFamilyTraits CUBE_TRAITS = {
     PopFamily::CUBE, LATTICE_CELLS,   // the LIVING ceiling (7×36 = 252); capacity stays 256 — slots 252-255 never allocate
     false,                // NOT grounded — hovers and drifts; claims no ground (ruling 21)
     CubeProp::SPAWN_ROLL, CubeConfig::SPAWN_CHANCE,
-    mood_mult_for(PopFamily::CUBE), CubeConfig::POSITION_JITTER,
+    CubeConfig::POSITION_JITTER,
     CUBE_TIER_COUNT, CubeProp::TIER,
     CUBE_PARAM_DEFS, CUBE_PARAM_COUNT,
     CubeProp::ANCHOR_X, CubeProp::ANCHOR_Z, CubeProp::ROTATION,

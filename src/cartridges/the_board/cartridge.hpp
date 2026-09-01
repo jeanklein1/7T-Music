@@ -64,7 +64,7 @@
 #include "cartridges/the_board/contracts/floaters.hpp"   // floater TYPES (ActiveSphere/ActiveCube), file scope
 #include "cartridges/the_board/realization/state.hpp"
 #include "console/organ_registry.hpp"   // the compiled dial registry + its C ABI (needs the home types above)
-#include "cartridges/the_board/surface/population_themes.hpp"  // S2: THEMES + ThemeEnvelope + ThemesState — MERGED single file
+#include "cartridges/the_board/surface/population_themes.hpp"  // THE POPULATION PANEL: GLOBAL_ENTITY_DENSITY, and the spawn dials to come (ONE_WORLD-II U3)
 #include "cartridges/the_board/contracts/surface_services.hpp"  // THE SURFACE'S DECL TIER: WorldState + the patch registry + budgets/visibility + PatchSystemState + the surface service decls (bodies ride surface/patch_system.hpp at the cohort tail)
 #include "cartridges/the_board/surface/tile_world.hpp"          // S2: archetypes + tokens + TileState/cache + TileWorldDeps + impl — MERGED single file; after patch_system for WorldState/Dim::PATCH_EXTENT
 #include "cartridges/the_board/bodies/grounded.hpp"             // grounded-family vocabulary + EntitiesState + impl — MERGED; after entity_pipeline for generic_*
@@ -211,10 +211,6 @@ namespace t7 {
 
 
             RibbonState ribbon_state_;
-
-            //   themes_state_ — ThemesState: the theme
-            //     envelope machine + the per-patch selection.
-            ThemesState themes_state_;
 
             //   tile_world_state_ — TileWorldState: the tile
             //     cache + the terrain tokens (what the terrain remembers).
@@ -466,7 +462,7 @@ namespace t7 {
             // ═══ PUBLIC: CARTRIDGE LIFECYCLE ═════════════════════════════
 
             Cartridge()
-                : machine_ctx_{ world_state_, tile_world_state_, themes_state_,
+                : machine_ctx_{ world_state_, tile_world_state_,
                                 mood_state_, patch_system_state_, spawn_engine_state_,
                                 entities_state_, sphere_state_, cube_behaviors_state_,
                                 ribbon_state_, gol_state_,
@@ -626,7 +622,7 @@ namespace t7 {
                 // only as in-struct defaults that HAPPENED to match.
                 {
                     wgpu::Queue q = device_.GetQueue();
-                    reset_surface(&machine_ctx_, q, tile_world_state_, themes_state_);
+                    reset_surface(&machine_ctx_, q, tile_world_state_);
                 }
 
                 // ═══ MOVEMENT: BOOT — PER-PIECE BOOT VERBS (part one) ═══════
@@ -1317,7 +1313,7 @@ namespace t7 {
                 // owner-verb order is free; the new gates eliminate
                 // only zeros-over-pristine GPU writes (disclosed at
                 // the ladder).
-                reset_surface(&machine_ctx_, queue, tile_world_state_, themes_state_);
+                reset_surface(&machine_ctx_, queue, tile_world_state_);
                 teardown_entities(&machine_ctx_, queue);
                 if constexpr (ROSTER.gol)      // ROSTER-GATE gol (c) — teardown clear skipped when disabled (organ pristine)
                     teardown_gol(gol_state_, &gol_deps_, queue);
@@ -1611,7 +1607,7 @@ namespace t7 {
             void phase_stream_patches(RenderCtx& c) {
                 auto& encoder = c.encoder;
                 auto& queue = c.queue;
-                stream_patches(&machine_ctx_, encoder, queue, tile_world_state_, themes_state_, tile_world_deps_, mood_deps_);
+                stream_patches(&machine_ctx_, encoder, queue, tile_world_state_, tile_world_deps_, mood_deps_);
             }
 
             // R4 — RESPAWN AGENTS (S3, algo; RC-1: after stream). Refills slots
