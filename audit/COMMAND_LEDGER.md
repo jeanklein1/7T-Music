@@ -11,12 +11,12 @@ Last commit touching any scanned file: `2250854b809b117d8632227a6d404ecba46346b1
 | file scanned | sha256 |
 |---|---|
 | `src/cartridges/the_board/realization/render_passes.hpp` | `sha256:7fa36d18358a8e524e1b1b48a6b55cd4c41a7688a490244370640336155ae267` |
-| `src/cartridges/the_board/realization/renderer.hpp` | `sha256:3096a36c0f63d70ecc672ab9fb76f4c2f5b8b5ff2a3e4f43d2c9ac2e81c65dc4` |
-| `src/cartridges/the_board/cartridge.hpp` | `sha256:c89b00c21b3c15d28262b58a77924060f09b6428dc7f69bc5b5e5a00f4438e63` |
+| `src/cartridges/the_board/realization/renderer.hpp` | `sha256:6d20d67bd53745eb70e14d05f324b4d12b45df9a2bb087cd62547777467bac1d` |
+| `src/cartridges/the_board/cartridge.hpp` | `sha256:e2748ad7f6acb7a5822eccef917495fe799996004da2be66eba991f8a7637d87` |
 | `src/cartridges/the_board/surface/patch_system.hpp` | `sha256:67953eee56a84e57b68779a077be6770683235b26d25520414ef4ffe4cead70e` |
 | `src/cartridges/the_board/bodies/gol_zones.hpp` | `sha256:2f0e9bc85379b214b3a8a319634f5d65615e753a6b2f63764e162061b105f1e2` |
 | `src/cartridges/the_board/bodies/pawn.hpp` | `sha256:7915ec242a2a3094537882c50a2980c9494e4f1460a3a2f786232b67ec6ead12` |
-| `src/cartridges/the_board/bodies/orbs.hpp` | `sha256:921dc2c6a3c9b1d4e2000d84a79a26bb88703ce8465d841bd6d7362dfd7a0528` |
+| `src/cartridges/the_board/bodies/orbs.hpp` | `sha256:475d3de82ddd4d979d55ad146039937cd3316a0148466ed5c1db5566bde9a8b1` |
 | `src/the_board.cpp` | `sha256:321cf8eef63dd7f991405e893c57914a11a1ec2edfe1e7f28de170663de8acc5` |
 | `src/console/console.hpp` | `sha256:9b65d2d25a3057757e4e828a262bf115945914a2e0f6a38a905d4bb3ed191555` |
 
@@ -71,8 +71,8 @@ console.hpp's depth buffer, neither of which this census reads.
 
 | # | label | colour | depth | samples | recorded in | site |
 |---|---|---|---|---|---|---|
-| 1 | `"Main Bundle"` | 1 x `&colorFormat_` | `depthFormat_` | `effective_msaa()` | `make_main_bundle_encoder` | `src/cartridges/the_board/realization/renderer.hpp:263` |
-| 2 | `"Shadow Sun Bundle"` | 0 x `nullptr` | `kShadowDepthFormat` | `1` | `make_shadow_sun_bundle_encoder` | `src/cartridges/the_board/realization/renderer.hpp:272` |
+| 1 | `"Main Bundle"` | 1 x `&colorFormat_` | `depthFormat_` | `effective_msaa()` | `make_main_bundle_encoder` | `src/cartridges/the_board/realization/renderer.hpp:262` |
+| 2 | `"Shadow Sun Bundle"` | 0 x `nullptr` | `kShadowDepthFormat` | `1` | `make_shadow_sun_bundle_encoder` | `src/cartridges/the_board/realization/renderer.hpp:271` |
 
 ### Encoder-creation sites (the label law, DOMESDAY_1 A9)
 

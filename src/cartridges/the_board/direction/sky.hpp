@@ -32,7 +32,9 @@ struct WorldState;   // patch_system.hpp — the doors read seeds/bounds (refere
 // (reference members/params; complete types arrive with their owners
 // in the cohort). GPUState + the CPU light array come complete
 // from state.hpp (included above).
-class Renderer;
+// `class Renderer;` stood here for SkyDeps::renderer_, which carried one
+// write and left with it (ONE_SURFACE-I U0). The sky reaches realization
+// through GPUState alone now.
 struct GoLState;   struct EntitiesState; struct MachineCtx;
 struct OrbsState;   struct OrbsDeps;
 struct PawnState;
@@ -57,7 +59,6 @@ struct SkyDeps {
     SkyState&           sky_state_;
     const WorldState&    world_state_;
     GPUState&            gpuState_;
-    Renderer&            renderer_;          // set_frustum_cull_active (the world's realization poke)
     GoLState&            gol_state_;         // zones_allowed — the flag channel [sky -> gol]
     float (&sunDirection_)[3];
     float (&sunColor_)[3];
@@ -86,7 +87,7 @@ uint32_t derive_finite_radius(uint32_t seed);
 // ═══ MODULE IMPLEMENTATION ════════════════════════════════════════
 //
 // The doors + appliers + derivers. The bodies reach the deps face
-// (c->sky_state_ / c->world_state_ / c->gpuState_ / c->renderer_ /
+// (c->sky_state_ / c->world_state_ / c->gpuState_ /
 // c->gol_state_ / c->entities_state_ / the sun + clear channel / the
 // CPU light array), the fan's
 // TARGET organs (parameters — orbs/pawn + the machine
@@ -295,7 +296,6 @@ inline void stage_world_birth(SkyDeps* c, wgpu::Queue& queue,
     MachineCtx& machine_ctx,
     OrbsState& orbs_state, OrbsDeps& orbs_deps,
     PawnState& pawn_state) {
-    c->renderer_.set_frustum_cull_active(true);
     c->gol_state_.zones_allowed = true;
     apply_aura_policy(pawn_state, true);        // the pawn door; byte-identical semantics
 

@@ -19,7 +19,7 @@ merge rows the API charges separately.
 | `src/cartridges/the_board/realization/state.hpp` | `sha256:c24bf0e1afb801438c83d5aa99eb466d433eabc0f84c44669ee0d965e2884d6a` |
 | `src/cartridges/the_board/realization/binding_surface.gen.inc` | `sha256:0b98dfab809edd83752dedf7803f758fcf4ce502009763642a37cbf03b2a8446` |
 | `src/cartridges/the_board/realization/binding_registry.hpp` | `sha256:968d2d0dcbaa4ffe35f30b8349de93b4912cb3da09a16c56965408c90fc3ad9c` |
-| `src/cartridges/the_board/realization/renderer.hpp` | `sha256:3096a36c0f63d70ecc672ab9fb76f4c2f5b8b5ff2a3e4f43d2c9ac2e81c65dc4` |
+| `src/cartridges/the_board/realization/renderer.hpp` | `sha256:6d20d67bd53745eb70e14d05f324b4d12b45df9a2bb087cd62547777467bac1d` |
 | `src/cartridges/the_board/realization/world.wgsl` | `sha256:d7e536c6e2d8c5d856fc8eb1da2142340926988037334f33e9abe5440cb30ec0` |
 
 
@@ -30,10 +30,9 @@ only — `draw_orbs` is called from `bodies/orbs.hpp`, not from
 | caller file scanned | sha256 |
 |---|---|
 | `src/cartridges/the_board/bodies/gol_zones.hpp` | `2f0e9bc85379b214b3a8a319634f5d65615e753a6b2f63764e162061b105f1e2` |
-| `src/cartridges/the_board/bodies/orbs.hpp` | `921dc2c6a3c9b1d4e2000d84a79a26bb88703ce8465d841bd6d7362dfd7a0528` |
+| `src/cartridges/the_board/bodies/orbs.hpp` | `475d3de82ddd4d979d55ad146039937cd3316a0148466ed5c1db5566bde9a8b1` |
 | `src/cartridges/the_board/bodies/pawn.hpp` | `7915ec242a2a3094537882c50a2980c9494e4f1460a3a2f786232b67ec6ead12` |
-| `src/cartridges/the_board/cartridge.hpp` | `c89b00c21b3c15d28262b58a77924060f09b6428dc7f69bc5b5e5a00f4438e63` |
-| `src/cartridges/the_board/direction/sky.hpp` | `5d4b1ae91a077711c13a3fee37bf330760f9618a0ff89e04d78fa4e50c8a42e4` |
+| `src/cartridges/the_board/cartridge.hpp` | `e2748ad7f6acb7a5822eccef917495fe799996004da2be66eba991f8a7637d87` |
 | `src/cartridges/the_board/realization/render_passes.hpp` | `7fa36d18358a8e524e1b1b48a6b55cd4c41a7688a490244370640336155ae267` |
 | `src/cartridges/the_board/surface/patch_system.hpp` | `67953eee56a84e57b68779a077be6770683235b26d25520414ef4ffe4cead70e` |
 
@@ -101,7 +100,7 @@ matters only where a binding is a window onto a shared buffer.
 | `W2-3` | **PASS** | positive control: patch_terrain_vs reads patch_instances[actual_id] as other(vertex attribute @location(0)) (direct-path sequential joined with the B3 vertex-attribute input) |
 | `W3-0` | **PASS** | renderer.hpp: 29 Draw*/DispatchWorkgroups call sites, all inside a parsed function |
 | `W3-1` | **PASS** | 32 pipelines: 31 with exactly one call shape, 0 with several (all listed), 1 never invoked — Patch Terrain (instanced) |
-| `W3-3` | **PASS** | every render pipeline's instanceCount resolves to a literal, a named constant or a call-site expression — none is left as a parameter name (7 caller files scanned) |
+| `W3-3` | **PASS** | every render pipeline's instanceCount resolves to a literal, a named constant or a call-site expression — none is left as a parameter name (6 caller files scanned) |
 | `W3-2` | **PASS** | @workgroup_size(1) entry points: 5 (ribbon_head, update_camera_vp, update_player_agent, update_sphere, zone_derive_params). Dispatches issuing ONE workgroup: 4 (ribbon_head, update_camera_vp, update_player_agent, update_sphere). The 1 that differ: zone_derive_params (wg1=True, single-dispatch=False). |
 | `W4-1` | **PASS** | 12 trigger tokens, emitted verbatim into the artifact: time-cost, FXC, law-ref, measured, witness, hangs, compile-time, landed-at, regressed, budget, per-stage, slot-cap |
 | `W4-3` | **PASS** | no trigger is overfitted to the control — site counts: time-cost 6 (sole trigger at 0), FXC 19 (sole trigger at 4), law-ref 59 (sole trigger at 27), measured 15 (sole trigger at 2), witness 29 (sole trigger at 7), hangs 0 (sole trigger at 0), compile-time 15 (sole trigger at 0), landed-at 0 (sole trigger at 0), regressed 0 (sole trigger at 0), budget 14 (sole trigger at 0), per-stage 5 (sole trigger at 0), slot-cap 3 (sole trigger at 0) |
@@ -895,8 +894,8 @@ one column that can.
 |---|---|---|---|---|---|
 | `(file banner)` | file | `src/cartridges/the_board/realization/binding_registry.hpp` | 1 | `law-ref`, `witness` | banner |
 | `patch_instances` | registry constant | `src/cartridges/the_board/realization/binding_registry.hpp` | 80 | `law-ref` | A:proximity |
-| `shadowPatchTerrainPipeline_` | pipeline | `src/cartridges/the_board/realization/renderer.hpp` | 1839 | `measured` | A:proximity |
-| `shadowPawnPipeline_` | pipeline | `src/cartridges/the_board/realization/renderer.hpp` | 1842 | `measured` | A:proximity |
+| `shadowPatchTerrainPipeline_` | pipeline | `src/cartridges/the_board/realization/renderer.hpp` | 1838 | `measured` | A:proximity |
+| `shadowPawnPipeline_` | pipeline | `src/cartridges/the_board/realization/renderer.hpp` | 1841 | `measured` | A:proximity |
 | `(file banner)` | file | `src/cartridges/the_board/realization/state.hpp` | 1 | `law-ref` | banner |
 | `Frame R Layout` | layout | `src/cartridges/the_board/realization/state.hpp` | 4335 | `law-ref` | A:proximity, B:named |
 | `Agents State Layout entries[7]` | layout entry | `src/cartridges/the_board/realization/state.hpp` | 4425 | `law-ref` | A:proximity |

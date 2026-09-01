@@ -68,7 +68,7 @@ HOMES = {
     "AgentBehaviorBank":     "src/cartridges/the_board/contracts/agent_tiers.hpp",
     "PawnAuraProfile":       "src/cartridges/the_board/contracts/pawn_surface.hpp",
     "OrbConsole":            "src/cartridges/the_board/contracts/orb_surface.hpp",
-    "OrbMoodConfig":         "src/cartridges/the_board/contracts/orb_surface.hpp",
+    "OrbConfig":         "src/cartridges/the_board/contracts/orb_surface.hpp",
     "PanelSurface":          "src/cartridges/the_board/contracts/control_panel.hpp",
     "RibbonSurface":         "src/cartridges/the_board/contracts/ribbon_surface.hpp",
     "CanvasSurface":         "src/coupling/canvas_surface.hpp",
@@ -96,7 +96,7 @@ PAIRS = {
     "AgentBehaviorBank": ("AGENT_BEHAVIORS",   "BEHAVIOR_LIVE"),
     "PawnAuraProfile":   ("PAWN_AURA_DEFAULT", "PAWN_AURA_LIVE"),
     "OrbConsole":        ("ORB_CONSOLE",       "ORB_CONSOLE_LIVE"),
-    "OrbMoodConfig":     ("ORB_TABLE",         "ORB_LIVE"),
+    "OrbConfig":     ("ORB_TABLE",         "ORB_LIVE"),
     "PanelSurface":      ("PANEL_TABLE",       "PANEL_LIVE"),
     "RibbonSurface":     ("RIBBON_TABLE",      "RIBBON_LIVE"),
     "CanvasSurface":     ("CANVAS_TABLE",      "CANVAS_LIVE"),
@@ -105,7 +105,7 @@ PAIRS = {
 # THE FOUR BANKS ONE_WORLD-II BUILT are witnessed here for the first
 # time at U8. AtmosphereBank and AgentPopulationBank were HOMES with no
 # PAIR — the tool called them "(not a graduation)" when each is exactly
-# one — and OrbMoodConfig's pair named ORB_MOOD_TABLE, the seven-row
+# one — and OrbConfig's pair named ORB_MOOD_TABLE, the seven-row
 # table U2 took, rather than ORB_TABLE, the design row that seeds
 # ORB_LIVE today. A pair naming a symbol that does not exist witnesses
 # nothing and reports zero readers for it, which reads as a pass.

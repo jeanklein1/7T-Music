@@ -158,7 +158,7 @@ READERS = {
     "BEHAVIOR": ("BEHAVIOR_LIVE", "AgentBehaviorBank", [
         ("src/cartridges/the_board/bodies/agents.hpp", "upload_agent_registries_to_gpu"),
     ]),
-    "ORB_BANK": ("ORB_LIVE", "OrbMoodConfig", [
+    "ORB_BANK": ("ORB_LIVE", "OrbConfig", [
         ("src/cartridges/the_board/bodies/orbs.hpp", "configure_orbs"),
         ("src/cartridges/the_board/bodies/orbs.hpp", "apply_first_run_defaults_"),
         ("src/cartridges/the_board/bodies/orbs.hpp", "pack_palette_"),

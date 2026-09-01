@@ -63,14 +63,16 @@ static_assert(sizeof(OrbConsole) == 4 * sizeof(float),
 // ═══ THE ORB VOCABULARY, GRADUATED (ORGAN_3b P3) ═════════════════
 // The agent_tiers precedent, for the same reason stated the same way:
 // the organ needs to name the definition, and THE ORGAN MAY NOT INCLUDE
-// A BODY. So OrbMoodConfig, its table, and the id constants its default
+// A BODY. So OrbConfig, its table, and the id constants its default
 // initialisers name live here; bodies/orbs.hpp keeps its registries, its
 // gestures and its impl, and includes this header as it already did.
 //
-// THE TYPE KEEPS THE MOODS' NAME (ONE_WORLD-II U7, flagged). Its rows
-// stopped being seven at U1b and there is one world now, so `OrbMoodConfig`
-// names a system that no longer exists — but a type rename is Jean's gate,
-// so the campaign reports it rather than taking it.
+// IT WAS OrbMoodConfig (ONE_SURFACE-I U0 housekeeping, Jean's word). Its
+// rows stopped being seven at ONE_WORLD-II U1b and there is one world now,
+// so the moods' name outlived the moods. The rename is WIRE-SAFE by
+// construction: an organ row's id is `#BLOCK "." #FIELD` (the enrollment
+// macro, src/console/organ_registry.hpp), so the block name ORB_BANK is
+// what a stored preset key carries and no struct name ever reaches one.
 
 // ── Rule-critical parameter floors ───────────────────────────────
 inline constexpr float ORB_DEFAULT_DRAG = 0.5f;
@@ -94,7 +96,7 @@ inline constexpr uint32_t ORB_TIERSET_RES = 1;
 inline constexpr uint32_t ORB_TIERSET_COUNT = 2;
 inline constexpr uint32_t ORB_TIERSET_NONE = 0xFFFFFFFFu;  // → uniform population
 
-struct OrbMoodConfig {
+struct OrbConfig {
     // Population
     uint32_t enabled = 0u;     // ORGAN_3b P3 (D2): widened from C++ bool.
                                // A bool is one byte and the ABI's BOOL write
@@ -147,7 +149,7 @@ struct OrbMoodConfig {
 // field while the source still stands; it does its whole job in this
 // commit and leaves with ORB_MOOD_TABLE.
 //                          en     n    hueB   hueV   bri    drg   rul  rotS    rotAxis                  orbS  pal  hct    trs   sepR   alnR    cohR    sepW   alnW   cohW   maxS   gst  drgB  drgO  drgF  drgK
-inline constexpr OrbMoodConfig ORB_TABLE =
+inline constexpr OrbConfig ORB_TABLE =
     {  true,  128, 0.08f, 0.06f, 0.85f, 0.4f,  3u,  0.012f, {0.15f, 0.97f, 0.10f},  0.0f, 0u,  0.08f, 0u,   50.0f, 120.0f, 200.0f, 30.0f, 8.0f,  15.0f, 60.0f, 0u,  0.0f, 0.0f, 0.0f, 0.0f };
 
 // ORB_MOOD_TABLE stood here — seven rows, one per mood — with the
@@ -155,7 +157,7 @@ inline constexpr OrbMoodConfig ORB_TABLE =
 // values against its sunset row. Both left at ONE_WORLD-II U2; the
 // witness spent itself in U1b, as designed.
 
-inline OrbMoodConfig ORB_LIVE = ORB_TABLE;
+inline OrbConfig ORB_LIVE = ORB_TABLE;
 
 } // namespace the_board
 } // namespace t7

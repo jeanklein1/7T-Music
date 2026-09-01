@@ -112,13 +112,13 @@ enum : uint8_t {
     // re-rolling". Its rows were fifty-two definition-only rows against the
     // four regimes of a mood definition, until the roll left.
     ORGAN_BLOCK_ATMOS        = 12,  // AtmosphereBank     — ATMOS_LIVE
-    // THE ORB BANK (ONE_WORLD-II U1b). OrbMoodConfig — ORB_LIVE, the sky's
+    // THE ORB BANK (ONE_WORLD-II U1b). OrbConfig — ORB_LIVE, the sky's
     // one row. Nineteen definition-only rows against a per-mood array
     // until the moods stopped being seven; the applier is unchanged, so the
     // block keeps the orb console's BOUNDARY cadence and its per-field
     // touched mask (four of the twenty-five facts are baked at init and
     // re-seed; the rest ride the uniform upload).
-    ORGAN_BLOCK_ORB_BANK     = 13,  // OrbMoodConfig      — ORB_LIVE
+    ORGAN_BLOCK_ORB_BANK     = 13,  // OrbConfig      — ORB_LIVE
     // A BANK THE CAMPAIGN BUILT (ONE_WORLD-II U6b). It had no rows before
     // — NEW enrollment, which is why it waited for this unit while the
     // re-homes rode their subjects' commits (Amendment D moves transport
@@ -140,7 +140,7 @@ enum : uint8_t {
 
 // THE DEFINITION-ONLY SENTINELS ARE GONE (ONE_WORLD-II U6a). A row was
 // definition-only when its family had no live instance anywhere — the
-// MoodProfile family on 255, the OrbMoodConfig family on 254 — and the
+// MoodProfile family on 255, the orb family on 254 — and the
 // sentinel stood in the block slot so two families' offsets could not
 // collide at the same number. U1a gave the atmosphere an instance
 // (ATMOS_LIVE, block 12) and U1b gave the orbs one (ORB_LIVE, block 13);
@@ -452,8 +452,7 @@ inline void raise_orb_definition() {
 
 // ─── THE TOUCHED MASK ─────────────────────────────────────────────
 // WHICH FIELDS the orb bank's writes touched since the boundary last
-// looked (A BIT IS AN OFFSET / 4, into OrbMoodConfig — the type keeps the
-// name the moods gave it; renaming is Jean's gate). The FLAG says THAT
+// looked (A BIT IS AN OFFSET / 4, into OrbConfig). The FLAG says THAT
 // the bank changed, the MASK says WHAT, and the boundary decides how much
 // re-speak the edit requires. A RAISE WITH NO BITS MEANS EVERYTHING — what
 // door RESPEAK promises, and the answer for a caller that does not say.
@@ -471,15 +470,15 @@ inline uint32_t take_orb_def_touched() {
 // carries. It sits beside the mask because the bit convention is defined
 // here and nowhere else.
 inline constexpr uint32_t ORB_RESEED_BITS =
-      (1u << (offsetof(the_board::OrbMoodConfig, enabled)    / 4u))
-    | (1u << (offsetof(the_board::OrbMoodConfig, count)      / 4u))
-    | (1u << (offsetof(the_board::OrbMoodConfig, palette_id) / 4u))
-    | (1u << (offsetof(the_board::OrbMoodConfig, drag)       / 4u));
+      (1u << (offsetof(the_board::OrbConfig, enabled)    / 4u))
+    | (1u << (offsetof(the_board::OrbConfig, count)      / 4u))
+    | (1u << (offsetof(the_board::OrbConfig, palette_id) / 4u))
+    | (1u << (offsetof(the_board::OrbConfig, drag)       / 4u));
 static_assert(ORB_RESEED_BITS == 0x00001023u,
     "the reseed set is enabled 0 · count 1 · drag 5 · palette_id 12. "
-    "A field reordered in OrbMoodConfig fails the BUILD "
+    "A field reordered in OrbConfig fails the BUILD "
     "here rather than teaching the boundary to re-seed on the wrong dial");
-static_assert(sizeof(the_board::OrbMoodConfig) / 4u <= 32u,
+static_assert(sizeof(the_board::OrbConfig) / 4u <= 32u,
     "the touched mask is a uint32: every field's offset/4 must be a bit "
     "it can hold. 27 words today, five to spare");
 
@@ -809,7 +808,7 @@ EMSCRIPTEN_KEEPALIVE inline void organ_set(int block, int offset, int type,
     if (block == ORGAN_BLOCK_ATMOS)
         g_atmos_dirty = true;
     // The orb bank keeps the per-field mask it had as a definition family:
-    // its offsets are OrbMoodConfig's either way, so ORB_RESEED_BITS still
+    // its offsets are OrbConfig's either way, so ORB_RESEED_BITS still
     // reads them, and the boundary still decides what each field costs.
     if (block == ORGAN_BLOCK_ORB_BANK) {
         g_orb_def_touched |= (1u << (e->offset / 4u));

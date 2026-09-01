@@ -320,8 +320,9 @@ target on record — `seed= int= amb= sun el= az= fog=`, no `mood=`, no
 `regime=` — and `[World] Born FINITE radius=R (SxS patches)` is new.
 
 **Flagged, not taken (naming and build are Jean's gates):**
-- `OrbMoodConfig` still wears the moods' name. Its rows stopped being seven at
-  U1b; the type is the world's one orb row now. A type rename is Jean's.
+- ~~`OrbMoodConfig` still wears the moods' name.~~ **TAKEN at ONE_SURFACE-I
+  U0** on Jean's word: the type is `OrbConfig`. Wire-safe — a row's id is
+  `#BLOCK "." #FIELD`, so no struct name reaches a stored preset key.
 - The frustum-cull flag (`useIndirectTerrainPipeline_`) is WRITTEN once at
   every world's birth and READ BY NOBODY — OPT_1 found it latent, and the
   column that fed it died at U2, so the write is now the literal `true`. The

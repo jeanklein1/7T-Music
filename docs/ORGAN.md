@@ -93,7 +93,8 @@ four rows are witnesses and its brightness is authored at `Atmosphere · Sky`.
 | `BEHAVIOR` | `AgentBehaviorBank` · `BEHAVIOR_LIVE` | the world's | `g_tier_def_dirty` — same author as TIER | the same |
 
 **Two kinds, not four (ONE_WORLD-II).** `MOOD` (`MoodProfile` · `MOOD_LIVE`)
-and `ORB_MOOD` (`OrbMoodConfig` · `ORB_MOOD_LIVE`) were MOOD-SELECTED: one row
+and `ORB_MOOD` (`OrbMoodConfig` · `ORB_MOOD_LIVE` — the type is `OrbConfig`
+since ONE_SURFACE-I) were MOOD-SELECTED: one row
 per mood, the write's target choosing which. U1a gave the atmosphere an
 instance and U1b gave the orbs one, so both became ordinary instance blocks
 (12 and 13); the target parameter left with the last selecting kind at U6b,
@@ -132,8 +133,7 @@ much re-speak the edit requires. Bit = offset / 4, pinned by `static_assert`
 beside each mask.
 - `g_orb_console_dirty` (block 5): dome radius, noise floor and speed
   multiplier take targeted partial uploads; base size raises the orb re-speak.
-- `g_orb_def_touched` (over `OrbMoodConfig`, the type that kept the moods'
-  name) against `ORB_RESEED_BITS` —
+- `g_orb_def_touched` (over `OrbConfig`) against `ORB_RESEED_BITS` —
   `enabled`, `count`, `palette_id`, `drag`: only those four re-seed the sky; the
   other fifteen ride the uniform upload. A raise with no bits means everything.
 
@@ -254,7 +254,7 @@ outlives the fact.
 | --- | --- | --- |
 | ~~`THEME_BASE_WEIGHT`~~ | it was one scalar over a 5×N weight construction; the honest dial was the whole `MOOD_SPAWN_MULT` matrix, D5-large — **struck, ONE_WORLD-II U3** | a composite editor (D5) |
 | ~~`INDOOR_PALETTES[]`~~ | mixed-shape rows, count read from `INDOOR_PALETTE_COUNT` (D5) — **struck, ONE_WORLD-II U4** | a composite editor (D5) |
-| `tierset_id` | its "none" value is `0xFFFFFFFF`, and a 0…1 slider cannot express a sentinel without lying (D1(d)). `organ_gap` reports it, by name, as the one absent member of `OrbMoodConfig` | a composite editor (D5) |
+| `tierset_id` | its "none" value is `0xFFFFFFFF`, and a 0…1 slider cannot express a sentinel without lying (D1(d)). `organ_gap` reports it, by name, as the one absent member of `OrbConfig` | a composite editor (D5) |
 | `mute_couplings` | a bitmask: `Coupling::ALL` is `0x1FFFFF` and a slider from 0 to 2 097 151 is not a dial. It wants a checkbox per bit — a shell feature, not an enrollment line — and **the bits are not there to check**: 21 bits wide, 8 of them named, so twenty-one checkboxes would be thirteen toggles over bits nothing reads. `Coupling::` is also a hand-kept mirror of `world.wgsl`'s `COUPLING_*` block, which D1's third branch reserves | a checkbox grid over a roster the C++ emits — priced, unbuilt, and **not CC's to choose** |
 
 `D5` is the composite-editor deferral: a fact whose honest control is a grid

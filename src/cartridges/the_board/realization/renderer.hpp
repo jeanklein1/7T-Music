@@ -193,7 +193,6 @@ namespace t7 {
             // Patch terrain pipelines (instanced rendering)
             wgpu::RenderPipeline patchTerrainPipeline_;          // direct draw; all FS features compiled in
             wgpu::RenderPipeline patchTerrainIndirectPipeline_;  // same + USE_PATCH_INDIRECTION=true (for frustum cull)
-            bool useIndirectTerrainPipeline_ = false;
             wgpu::RenderPipeline shadowPatchTerrainPipeline_;
 
             // Entity placement Y-correction pipeline (0D)
@@ -673,23 +672,23 @@ namespace t7 {
                 pass.DrawIndexedIndirect(indirectArgs, indirectOffset);
             }
 
-            // STATUS: LATENT[frustum_cull_opt_out] — WRITTEN once at every
-            // world's birth and READ BY NOBODY. Its one reader was
-            // render_passes.hpp's `if (!use_indirect_terrain()) return;`
-            // early-out, retired when the draw plan took every world ("the
-            // kernel runs in EVERY mood now", dispatch_frustum_cull), so the
-            // rows that asked for allow_frustum_cull = false had their
-            // terrain culled anyway — the column read as a knob and was not
-            // one. Found by OPT_1's O0-f recensus.
+            // LATENT[frustum_cull_opt_out] STOOD HERE AND IS TAKEN
+            // (ONE_SURFACE-I U0 housekeeping, Jean's word). The pair was
+            // `useIndirectTerrainPipeline_` with `set_frustum_cull_active` /
+            // `use_indirect_terrain`: one write, the literal `true` from
+            // stage_world_birth, and no reader at all. Its one reader had
+            // been render_passes.hpp's `if (!use_indirect_terrain()) return;`
+            // early-out, retired when the draw plan took every world
+            // ("the kernel runs in EVERY mood now", dispatch_frustum_cull) —
+            // so a row asking for allow_frustum_cull = false had its terrain
+            // culled anyway, and the column read as a knob it was not.
+            // OPT_1's O0-f recensus found it; ONE_WORLD-II U2 killed the
+            // column that fed it and U7 re-read it and left it flagged
+            // because the cut wanted a build. The build is run.
             //
-            // ONE_WORLD-II U7 RE-READ IT AND THE CASE IS NOW SIMPLER, NOT
-            // DIFFERENT. The column that fed it died with the moods (U2), so
-            // the write is the literal `true` from stage_world_birth and the
-            // pair is a constant with a setter. The cut is still a BUILD
-            // question and still Jean's ruling, not a sweep's — flagged
-            // here rather than taken.
-            void set_frustum_cull_active(bool active) { useIndirectTerrainPipeline_ = active; }
-            bool use_indirect_terrain() const { return useIndirectTerrainPipeline_; }
+            // THE FRUSTUM CULL ITSELF IS UNTOUCHED. What died is an OPT-OUT
+            // nothing could exercise; dispatch_frustum_cull runs every frame
+            // as it has since the draw plan landed.
 
             // ═══ OIL_1 U13 (ledger: R19, C7) — THE COLOR PASS-HEAD CONTRACT
             // The entity draw helpers below ride group0 (the pass's entity

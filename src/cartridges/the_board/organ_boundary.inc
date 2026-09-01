@@ -57,7 +57,7 @@
                 // take_orb_definition_dirty() block.
 
                 // base_size is an OrbConsole field, so its offset means
-                // nothing in OrbMoodConfig's bit space: it raises the FLAG
+                // nothing in OrbConfig's bit space: it raises the FLAG
                 // with no touched bit, and this local is what keeps a
                 // same-frame flock drag from swallowing it.
                 bool console_reseed = false;

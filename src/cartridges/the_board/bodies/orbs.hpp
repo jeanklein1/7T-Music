@@ -44,7 +44,7 @@ struct OrbsDeps {
 
 // ── Rule-critical parameter floors ───────────────────────────────
 // Graduated to contracts/orb_surface.hpp (ORGAN_3b P3) with
-// OrbMoodConfig, whose `drag` initialiser names ORB_DEFAULT_DRAG.
+// OrbConfig, whose `drag` initialiser names ORB_DEFAULT_DRAG.
 
 // ═══ REGISTRY: PALETTES ══════════════════════════════════════════
 
@@ -113,7 +113,7 @@ inline constexpr OrbPalette ORB_PALETTE_WARM_MONO = {
 };
 
 // The palette ids graduated to contracts/orb_surface.hpp (ORGAN_3b P3)
-// with OrbMoodConfig, whose initialisers name them.
+// with OrbConfig, whose initialisers name them.
 
 inline constexpr OrbPalette ORB_PALETTES[ORB_PAL_COUNT] = {
     ORB_PALETTE_JWST_DEEP,
@@ -178,7 +178,7 @@ inline constexpr OrbTierSet ORB_TIERSET_RESONANT = {
 };
 
 // The tier-set ids graduated to contracts/orb_surface.hpp (ORGAN_3b P3)
-// with OrbMoodConfig, whose initialisers name them.
+// with OrbConfig, whose initialisers name them.
 
 inline constexpr OrbTierSet ORB_TIERSETS[ORB_TIERSET_COUNT] = {
     ORB_TIERSET_JWST_STARS,
@@ -294,7 +294,7 @@ struct OrbsState {
 // NO DEFAULT, deliberately: there are exactly two callers and each has a
 // different answer, so a third that forgets should fail the BUILD rather
 // than inherit whichever answer happened to be written here.
-void configure_orbs(OrbsState& os, OrbsDeps* c, const OrbMoodConfig& cfg,
+void configure_orbs(OrbsState& os, OrbsDeps* c, const OrbConfig& cfg,
     wgpu::Queue& queue, bool reseed);
 void teardown_orbs(OrbsState& os, OrbsDeps* c);
 // Player commands
@@ -311,7 +311,7 @@ void dispatch_orb_dynamics(OrbsState& os, OrbsDeps* c, wgpu::CommandEncoder& enc
 template <class Enc>
 void render_orbs(OrbsState& os, OrbsDeps* c, Enc& pass);
 
-// OrbMoodConfig graduated to contracts/orb_surface.hpp (ORGAN_3b P3),
+// OrbConfig graduated to contracts/orb_surface.hpp (ORGAN_3b P3),
 // where ORB_LIVE stands beside ORB_TABLE as the world's one row
 // (ONE_WORLD-II U1b took the per-mood array). The TYPE still wears the
 // moods' name; renaming it is Jean's gate, so it is flagged, not taken.
@@ -337,7 +337,7 @@ inline float* orb_tier_flock_ptr(GPUOrbConfig& cfg, uint32_t i) {
 // Apply the bank's first-run defaults to player-owned state. The flock
 // gesture is "the world seeds once, player wins after." (The anchor seed
 // retired — the dome is a skybox, eye-centered always.)
-inline void apply_first_run_defaults_(OrbsState& os, const OrbMoodConfig& cfg) {
+inline void apply_first_run_defaults_(OrbsState& os, const OrbConfig& cfg) {
     if (!os.gesture_initialized[ORB_RULE_BROWNIAN]) {
         os.gesture_idx[ORB_RULE_BROWNIAN] = std::min(
             cfg.flock_gesture_default, ORB_BROWNIAN_GESTURE_COUNT - 1u);
@@ -498,7 +498,7 @@ inline void pack_flocking_(const OrbsState& os, GPUOrbConfig& gpuCfg,
     //  smoother it used to read retired with the gen-1 coupling.)
 }
 
-inline void log_configure_(const OrbsState& os, const OrbMoodConfig& cfg,
+inline void log_configure_(const OrbsState& os, const OrbConfig& cfg,
     float eff_drag, float eff_orbital_speed,
     uint32_t palette_id) {
     static const char* RULE_NAMES[] = { "brownian", "orbital", "frozen", "flocking" };
@@ -519,7 +519,7 @@ inline void log_configure_(const OrbsState& os, const OrbMoodConfig& cfg,
 
 // ═══ LIFECYCLE ═══════════════════════════════════════════════════
 
-inline void configure_orbs(OrbsState& os, OrbsDeps* c, const OrbMoodConfig& cfg,
+inline void configure_orbs(OrbsState& os, OrbsDeps* c, const OrbConfig& cfg,
     wgpu::Queue& queue, bool reseed) {
     os.active = cfg.enabled != 0u;   // ORGAN_3b P3 — enabled is a u32 now (D2)
     os.count = std::min(cfg.count, (uint32_t)Dim::MAX_ORBS);
