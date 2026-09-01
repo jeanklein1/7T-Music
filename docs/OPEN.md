@@ -383,6 +383,63 @@ in candidate order.
   removing the guard turns `clamp(p.x, 0+m, 0-m)` — low above high, which
   WGSL leaves undefined — into a body test. Left alone deliberately.
 
+## THE MOSAIC IS UNREACHABLE (open, found at ONE_SURFACE-I's close)
+
+**MOSAIC_2's whole apparatus is dead code, and L12 — a LAW — rests on
+it.** Found by the campaign's own recon reading the tree after the units
+landed, then verified by hand.
+
+`entity_fs` guards the mosaic on `if (in.mosaic_seed != 0u &&
+config.mosaic_enable > 0.5)`. `mosaic_seed` is a `@location(4)
+@interpolate(flat) u32` on `EntityVarying` — and **no vertex entry in
+world.wgsl ever writes it.** Every `@vertex` returning `EntityVarying`
+(`pawn_vs`, `sphere_vs`, `monolith_vs`, both of `ribbon_vs`'s returns)
+writes `clip_pos`, `world_pos`, `normal` and `entity_color` and nothing
+else; WGSL zero-inits `var out: EntityVarying;`, so the seed is 0 at
+every fragment and the branch never runs. The whole occurrence set of
+`mosaic_seed` in the shader is its declaration, the test, and the two
+uses inside the branch. On the CPU side `EntityInstance::mosaic_seed`
+(contracts/entity_types.hpp) is declared and **never read or written
+anywhere in src/ or tools/** — dead on both sides. `paint_y` is
+unwritten the same way.
+
+Unreachable with it: `mosaic_sample`, `mosaic_far`, `mosaic_shard`, the
+GRAIN, `config.mosaic_facet`, `config.mosaic_shard_size` and
+`config.mosaic_blend`'s far half.
+
+**Why this is not a sweep's to take.** L12 (DISTANCE TAKES THE GRAIN,
+NEVER THE MATERIAL) is a numbered law whose entire worked example is this
+mechanism, and L11's PAINT ANCHOR names `paint_pos`. Deleting it retires
+a law's subject and a visual intention that has a stamped history
+(MOSAIC_0/1/2). Reviving it is one line in each entity VS. Which of those
+two happens is a ruling, and Jean's.
+
+**It also predates ONE_SURFACE.** Nothing in this campaign or
+ONE_WORLD's touched `mosaic_seed`; whatever used to write it left before
+either. The finding is reported here rather than acted on.
+
+### A CORRECTION TO ONE_SURFACE-I U4's COMMIT MESSAGE
+
+U4 kept the grain's smoothstep and its two dials, and argued for it from
+arithmetic: the band is [300, 342], a finite world's box diagonal runs
+212 / 354 / 495 / 636 wu at radii 1..4, so the grain varies for three
+radii in four and could not be folded to a constant. **The arithmetic is
+right and the conclusion is right — bodies do draw out to the ring at
+342, so the grain WOULD vary if it were evaluated — but it is never
+evaluated, for the reason above.** What U4 shipped is unchanged and
+remains behaviour-identical, which is what its acceptance test asked; the
+justification was one layer short of the truth.
+
+Two smaller corrections from the same source, both already true in the
+tree and neither changing what shipped:
+- the ring gates anchor on `config.cull_point_x/z` (staged, one frame
+  stale by law E-4) while `veil_t` anchors on `render_point_pos()`
+  (live). Two anchors, which is precisely the condition L12's closing
+  paragraph says one band exists to avoid.
+- `ribbon_vs` has no ring gate at all — U4 noted this as the ribbon's
+  surviving exemption, and it is worth restating that the exemption is
+  now the ONLY thing distinguishing `ribbon_fs` from `entity_fs`.
+
 ## ONE_SURFACE-II — THE AUTOMATON (U0 landed; U1-U4 held)
 
 The Game of Life stops being an ENTITY and becomes a PROPERTY OF THE

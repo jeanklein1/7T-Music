@@ -14,8 +14,8 @@ merge rows the API charges separately.
 | field | value |
 |---|---|
 | demo column censused | `full` |
-| source commit | `c9b284213ae8945f539644fcc52e466c42dbd62c` |
-| | ONE_SURFACE-I U6: the sweep, and most of what it swept was older than the campaign |
+| source commit | `815c0f9973b6761490a868c1588698858dea46a7` |
+| | ONE_SURFACE-I U5a: the readback still asked for three slots |
 | `src/cartridges/the_board/realization/state.hpp` | `sha256:f2f03971f79c08f9ad748044485cab813deccd5ef1e7b28f957607a12eaa2f49` |
 | `src/cartridges/the_board/realization/binding_surface.gen.inc` | `sha256:0b98dfab809edd83752dedf7803f758fcf4ce502009763642a37cbf03b2a8446` |
 | `src/cartridges/the_board/realization/binding_registry.hpp` | `sha256:968d2d0dcbaa4ffe35f30b8349de93b4912cb3da09a16c56965408c90fc3ad9c` |

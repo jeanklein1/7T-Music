@@ -15,15 +15,15 @@ carry those facts, or leave them in place and patch around them.
 
 | field | value |
 |---|---|
-| source commit | `7d7a023b879636c503a1bcfc576a94630e5dc7c4` |
-| | ONE_SURFACE-I U7: the audit room, and what L33's witness actually requires |
+| source commit | `815c0f9973b6761490a868c1588698858dea46a7` |
+| | ONE_SURFACE-I U5a: the readback still asked for three slots |
 | `src/cartridges/the_board/realization/binding_registry.hpp` | `sha256:968d2d0dcbaa4ffe35f30b8349de93b4912cb3da09a16c56965408c90fc3ad9c` |
 | `src/cartridges/the_board/realization/world.wgsl` | `sha256:5969680e9d9e8c484bf5fe02691abc1aff939798eec391f2ee0602558fd03b7f` |
 | `src/cartridges/the_board/realization/state.hpp` | `sha256:f2f03971f79c08f9ad748044485cab813deccd5ef1e7b28f957607a12eaa2f49` |
 | `src/cartridges/the_board/realization/binding_surface.gen.inc` | `sha256:0b98dfab809edd83752dedf7803f758fcf4ce502009763642a37cbf03b2a8446` |
 | `src/cartridges/the_board/realization/renderer.hpp` | `sha256:6d20d67bd53745eb70e14d05f324b4d12b45df9a2bb087cd62547777467bac1d` |
 | `tools/binding_ledger.py` | `sha256:a3c75bab894774eb0302686e5efd52275b280e14abfcf4e8753b28d5b5086692` |
-| `audit/BINDING_LEDGER.md` | `sha256:b58ce367f4007a9269d0f4e23a6929db2fc8db743e9f5431f673309746733bb7` |
+| `audit/BINDING_LEDGER.md` | `sha256:389de845ce5095e7d2550832041d7086985c17b311022b27c71ad8af81c4cc3a` |
 
 `tools/binding_ledger.py` is an input because its parsers are IMPORTED,
 not copied — one parse, two artifacts, no drift between instruments.
