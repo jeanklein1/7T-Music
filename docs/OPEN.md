@@ -1092,6 +1092,50 @@ a sweep must not read it as latent.
 **Baseline battery at this recon**: every row green at the pushed tip,
 L33 rebuilds byte-identically, S-6 clean, and S-8 among the witnesses.
 
+### HANDOFF II · U0 — ALSO DONE, and it needs no probe either
+
+II's U0 asks four questions and three of them are answerable now. All
+four are recorded here rather than in a second sitting, because the
+answers change what II builds.
+
+**1. THE CONSOLE TIER'S STDIN STATE: EMPTY.** Nothing in `src/` reads
+`std::cin`, `getline`, `stdin`, `read(0, …)` or polls fd 0. **The REPL
+has nothing to fight** — the concern §1's U0 raises does not arise. What
+it will have to answer is that the frame loop is a busy `while
+(console.running())` with a blocking `present()`, so the read must be
+non-blocking or on its own thread; that is a design choice for U2, not a
+conflict.
+
+**2. THE WATCHER'S PLATFORM SEAM IS ALREADY BUILT — AND IT IS EXACTLY
+§1.1's SPEC.** `FileWatcher` (`src/the_board.cpp`) is `watch(path)` +
+`check()` over `std::filesystem::last_write_time` with the `error_code`
+overload — **one file, one stat per check, no dependency**, which is
+word for word what II asks the scene watcher to be. It is polled from
+the frame loop every ~30 frames beside the shader reload, and it is
+GENERIC: it takes any path.
+**So the scene watcher is a SECOND INSTANCE of an existing class, not a
+new mechanism.** II's U1 does not build a watcher; it builds an
+`apply_scene(path)` and hangs it off one.
+
+**3. `organ_manifest` IS NATIVELY CALLABLE, DIRECTLY.** It is an
+`inline` function in a header the cartridge already includes, `extern
+"C"` for name reach and `EMSCRIPTEN_KEEPALIVE`'d against linker GC —
+and the macro **self-defines away** off the web, which its own banner
+notes is why the ABI cost the sunset nothing. It returns a `const char*`
+into a `static std::string`, built lazily and carrying the CURRENT value
+of every entry so a surface opens showing the PROGRAM rather than its
+own defaults. **No cwrap, no marshalling, no bridge**: the REPL calls it
+like any other function.
+
+**4. THE WEB SHELL: absent** — answered above, and it discharges §1.4.
+
+**WHAT II'S UNITS ACTUALLY REDUCE TO, after this recon.** U1's road is
+an import walk plus a `FileWatcher` instance. U2's hand is a parser over
+`organ_manifest`'s JSON with a write to `organ_set` — both of which
+exist and are law. U3 has no subject. **The campaign is smaller than its
+handoff, and it is smaller because the ABI was built to survive exactly
+this.**
+
 
 > **SCHEDULED.** THE_PANEL arrived as two handoffs and runs after
 > ONE_SURFACE-II closes green, probe included.
