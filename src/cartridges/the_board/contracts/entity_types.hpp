@@ -360,7 +360,9 @@ struct FamilyDispatch {
     bool (*try_select)(MachineCtx* self, int32_t gx, int32_t gz, EntityQueueEntry& e);
     bool (*try_place)(MachineCtx* self, EntityQueueEntry& e, PlacementEntry& pe);
     void (*try_commit)(MachineCtx* self, PlacementEntry& pe, wgpu::Queue& queue);
-    void (*evict_slot)(MachineCtx* self, uint32_t slot, wgpu::Queue& queue);
+    // `evict_slot` stood here (ONE_SURFACE-I U3). It was the ONE place in
+    // the tree that reached a family's evictor, and its one caller was
+    // `evict_patch_entities` — the patch-death sweep. Patches do not die.
     bool (*prepare_mesh)(MachineCtx* self, wgpu::Queue& queue);
     void (*dispatch_mesh)(MachineCtx* self, wgpu::ComputePassEncoder& pass);
     uint32_t (*active_count)(const MachineCtx* self);
@@ -382,6 +384,25 @@ struct FamilyDispatch {
     bool grounded;
     const char* name;
 };
+
+// THE POSITIONAL NET (Amendment A, ONE_SURFACE-I U3). FamilyDispatch is
+// initialised WITHOUT designators by all five rows, exactly as
+// EntityFamilyAdapter is, and it had no net when `evict_slot` was removed
+// from the middle of it. Every member after the cut shifted one slot up;
+// the build broke on the first row because `prepare_mesh`'s signature
+// differs from the retired member's — but that is the same luck U4's
+// removal ran on, and the next removal may sit between two members that
+// match. So one distinctive slot is pinned by POSITION.
+//
+// PROVEN TO BITE before it was trusted: with `evict_slot` restored and
+// this assert in place the build failed here and nowhere else, naming
+// exactly this line; removing the member again turned it green.
+static_assert(offsetof(FamilyDispatch, grounded) == 7 * sizeof(void(*)()),
+    "FamilyDispatch is initialised POSITIONALLY by all five families and "
+    "its members are interchangeable-looking function pointers: `grounded` "
+    "is the first non-pointer and a member added or removed above it "
+    "silently re-binds every row. Re-check every brace list before moving "
+    "this struct");
 
 extern const FamilyDispatch FAMILY_DISPATCH[PopFamily::COUNT];
 

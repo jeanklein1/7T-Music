@@ -422,7 +422,7 @@ namespace t7 {
             //   mesh adapters are shared (inlined beside the table,
             //   post-class).
             // SEAM[spine:family-dispatch] anchor for cross-file references —
-            //   eviction routes through FAMILY_DISPATCH[f].evict_slot to the
+            //   eviction routed through FAMILY_DISPATCH[f].evict_slot to the
             //   owner-side evict_<family> functions.
             //
             // The row type (struct FamilyDispatch) and the queue-entry
@@ -2948,39 +2948,39 @@ namespace t7 {
         //   and every row's trailing name string is boot-checked against
         //   family_short_name by validate_spine (F-2), so a row swap fails
         //   LOUD. Row columns (FamilyDispatch, entity_types.hpp):
-        //     { try_select, try_place, try_commit, evict_slot,
+        //     { try_select, try_place, try_commit,
         //       prepare_mesh, dispatch_mesh, active_count, slot_census,
         //       grounded, name }
         // CONSUMERS: the machine tail walks select/place/commit per queue
-        //   entry; eviction routes through evict_slot; the mesh pair feeds the
+        //   entry; the evict_slot row left at ONE_SURFACE-I U3; the mesh pair feeds the
         //   RENDER_UPDATE mesh phases (none-fork = family has no mesh).
         inline const FamilyDispatch FAMILY_DISPATCH[PopFamily::COUNT] = {
             { dispatch_select_pyramid_generic, dispatch_place_pyramid_generic, dispatch_commit_pyramid_generic,
-              evict_pyramid, dispatch_prepare_mesh_none, dispatch_mesh_gen_none,   // mesh hook → none-fork: pyramid mesh dead-by-design; placement feeds the heightfield
+              dispatch_prepare_mesh_none, dispatch_mesh_gen_none,   // mesh hook → none-fork: pyramid mesh dead-by-design; placement feeds the heightfield
               active_count_pyramid,
               slot_census_pyramid,
               PYRAMID_TRAITS.grounded,
               "pyr" },
             { dispatch_select_sphere_generic, dispatch_place_sphere_generic, dispatch_commit_sphere_generic,
-              evict_sphere, dispatch_prepare_mesh_none, dispatch_mesh_gen_none,
+              dispatch_prepare_mesh_none, dispatch_mesh_gen_none,
               active_count_sphere,
               slot_census_sphere,
               SPHERE_TRAITS.grounded,   // false — orbits an anchor, claims no ground
               "sph" },   // no CPU mesh gen — GPU compute handles update_sphere
             { dispatch_select_ribbon, dispatch_place_ribbon, dispatch_commit_ribbon,
-              evict_ribbon, dispatch_prepare_mesh_none, dispatch_mesh_gen_none,
+              dispatch_prepare_mesh_none, dispatch_mesh_gen_none,
               active_count_ribbon,
               slot_census_ribbon,
               true,   // anchored: the tips touch ground (no TRAITS object)
               "ribn" },  // no CPU mesh gen — GPU compute handles ribbon rendering
             { dispatch_select_cube_generic, dispatch_place_cube_generic, dispatch_commit_cube_generic,
-              evict_cube, dispatch_prepare_mesh_none, dispatch_mesh_gen_none,
+              dispatch_prepare_mesh_none, dispatch_mesh_gen_none,
               active_count_cube,
               slot_census_cube,
               CUBE_TRAITS.grounded,      // false — hovers and drifts, claims no ground
               "cube" },  // no CPU mesh gen — GPU compute handles update_cube
             { dispatch_select_gol, dispatch_place_gol, dispatch_commit_gol,
-              evict_gol, dispatch_prepare_mesh_none, dispatch_mesh_gen_none,
+              dispatch_prepare_mesh_none, dispatch_mesh_gen_none,
               active_count_gol,
               slot_census_gol,
               true,   // registers directly, gol_zones.hpp (no TRAITS object)

@@ -39,28 +39,23 @@ inline ActivePatch* find_patch(MachineCtx* c, int32_t gx, int32_t gz) {
     return nullptr;
 }
 
-// Hook: full eviction of a single patch.
-// OIL_1 U8/U9 — THE RAISES THIS PRIMITIVE OWES BUT DOES NOT MAKE:
-// removing a patch changes the grid set (patch_instances_dirty) and
-// frees a layer (alloc_scan_pending). Both raises live in this
-// function's ONE caller was the eviction block in the streaming
-// conductor, which batched them after its compaction. The conductor left
-// at ONE_SURFACE-I U2 and this primitive is callerless; U3 takes it.
-inline void evict_patch(MachineCtx* c, uint32_t pi, wgpu::Queue& queue) {
-    free_layer(c, c->patch_system_state_.patches_[pi].layer);
-    evict_patch_entities(c, c->patch_system_state_.patches_[pi], queue);
-    c->patch_system_state_.patches_[pi].valid = false;
-}
-
-inline void evict_patch_entities(MachineCtx* c, ActivePatch& patch, wgpu::Queue& queue) {
-    for (uint32_t i = 0; i < patch.entity_ref_count; i++) {
-        auto& ref = patch.entity_refs[i];
-        FAMILY_DISPATCH[ref.family].evict_slot(c, ref.slot, queue);
-    }
-
-    patch.entity_ref_count = 0;
-}
-
+// ══ THE EVICTION LANE STOOD HERE (ONE_SURFACE-I U3) ═════════════════
+//
+// `evict_patch` freed a patch's layer and swept its entities;
+// `evict_patch_entities` walked the host patch's `entity_refs` and called
+// FAMILY_DISPATCH[f].evict_slot on each. Their one caller was the
+// conductor's CONTINUOUS PATCH EVICTION block, which left at U2 — patches
+// never die mid-world now, so patch-death eviction has no subject.
+//
+// THE GUARD THE HANDOFF DEMANDED, ANSWERED BEFORE THE CUT. `rebirth_world`
+// was traced verb by verb: `reset_surface` (which resets the registry
+// wholesale through `init_patch_system`, never walking a ref),
+// `teardown_entities`, `teardown_gol`, `teardown_ribbon`, `clear_spheres`,
+// `clear_cubes`, `teardown_pawn_aura`, `teardown_orbs`. NOT ONE reads
+// `entity_refs`. Every teardown sweeps by OWNER. `unrecord_entity`, the
+// release-by-owner half of the protocol, already had zero callers before
+// this campaign found it.
+//
 // ── Dynamic budgets ────────────────────────────────────────────────
 
 // ── World lifecycle ────────────────────────────────────────────────
@@ -214,19 +209,11 @@ inline uint32_t alloc_layer(MachineCtx* c) {
     return c->patch_system_state_.freeLayerStack_[--c->world_state_.free_layer_count];
 }
 
-inline void free_layer(MachineCtx* c, uint32_t layer) {
-    // CONSERVATION (RIBBON_5), the other end: a layer returned twice, or one
-    // returned that was never taken, overflows the stack and corrupts whatever
-    // follows it. The pool cannot hold more than it owns.
-    if (c->world_state_.free_layer_count >= Dim::MAX_ACTIVE_PATCHES ||
-        layer >= Dim::MAX_ACTIVE_PATCHES) {
-        std::fprintf(stderr, "[Patch] LAYER POOL OVERFLOW — free(%u) refused "
-            "(free=%u of %u). A layer was returned twice.\n",
-            layer, c->world_state_.free_layer_count, Dim::MAX_ACTIVE_PATCHES);
-        return;
-    }
-    c->patch_system_state_.freeLayerStack_[c->world_state_.free_layer_count++] = layer;
-}
+// `free_layer` stood here — the pool's return half, carrying RIBBON_5's
+// double-free guard. Its only caller was `evict_patch`. A finite world
+// draws from the pool once, at birth, and never returns to it: the stack
+// is filled by `init_patch_system` and popped (2R+1)^2 times, and
+// build_world's conservation check is what proves that (ONE_SURFACE-I U3).
 
 // ── Visibility cylinder ────────────────────────────────────────────
 
@@ -310,14 +297,11 @@ inline void spawn_selected_patches(MachineCtx* c, const PatchCandidate* candidat
         commit_entity_queue(c, queue);
     }
 
-    for (uint32_t s = 0; s < count; s++) {
-        uint32_t pi = candidates[s].idx;
-        int32_t gx = c->patch_system_state_.patches_[pi].grid_x;
-        int32_t gz = c->patch_system_state_.patches_[pi].grid_z;
-        // Two-tip registration through the owner's door: the
-        // ref-count protocol lives whole in bodies/ribbon.hpp now.
-        ribbon_register_tips_at(c->ribbon_state_, c->patch_system_state_.patches_[pi], gx, gz);
-    }
+    // THE LATE TIP REGISTRATION STOOD HERE. A ribbon committed against a
+    // patch whose other tip had not been allocated yet registered that tip
+    // when its patch arrived. The builder allocates the WHOLE grid before
+    // the first commit, so `find_patch` resolves both tips at commit time
+    // and there is no later to register in (ONE_SURFACE-I U3).
 }
 
 // Process heightfield generation for pre-collected patch candidates.

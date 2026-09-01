@@ -15,15 +15,15 @@ carry those facts, or leave them in place and patch around them.
 
 | field | value |
 |---|---|
-| source commit | `e6bf833abc1b3b66af061a8eac8aed63a7753403` |
-| | ONE_SURFACE-I U1: the builder rises |
+| source commit | `43edc6ef26816a023279639ec8b55aaee3f73b8a` |
+| | ONE_SURFACE-I U2: the conductor falls |
 | `src/cartridges/the_board/realization/binding_registry.hpp` | `sha256:968d2d0dcbaa4ffe35f30b8349de93b4912cb3da09a16c56965408c90fc3ad9c` |
 | `src/cartridges/the_board/realization/world.wgsl` | `sha256:d7e536c6e2d8c5d856fc8eb1da2142340926988037334f33e9abe5440cb30ec0` |
 | `src/cartridges/the_board/realization/state.hpp` | `sha256:042cba71e1cd8b14930eb7baf8b391fb0bb0f2871a34cd7e3c8ad90277341858` |
 | `src/cartridges/the_board/realization/binding_surface.gen.inc` | `sha256:0b98dfab809edd83752dedf7803f758fcf4ce502009763642a37cbf03b2a8446` |
 | `src/cartridges/the_board/realization/renderer.hpp` | `sha256:6d20d67bd53745eb70e14d05f324b4d12b45df9a2bb087cd62547777467bac1d` |
 | `tools/binding_ledger.py` | `sha256:a3c75bab894774eb0302686e5efd52275b280e14abfcf4e8753b28d5b5086692` |
-| `audit/BINDING_LEDGER.md` | `sha256:fda43fc1c3a7c56eaa40589aed0370d0673769222a7e3e58ddfda3ef9a9cb083` |
+| `audit/BINDING_LEDGER.md` | `sha256:c207a88f979445e3552800182cae2fa7d8cdcc2073b8d91f1cae6c5b384bcbf8` |
 
 `tools/binding_ledger.py` is an input because its parsers are IMPORTED,
 not copied — one parse, two artifacts, no drift between instruments.
@@ -850,12 +850,12 @@ wrapper, 18 wrapper calls) and are not recounted here.
 |---|---|---|---|---|
 | `cartridge.hpp:1983` | `phase_entity_mesh_gen` | 0 | `worldGroup_` | — |
 | `cartridge.hpp:1984` | `phase_entity_mesh_gen` | 1 | `frameCGroup_` | — |
-| `gol_zones.hpp:824` | `flush_zone_derive_requests` | 0 | `worldGroup_` | — |
-| `gol_zones.hpp:825` | `flush_zone_derive_requests` | 1 | `frameCGroup_` | — |
-| `gol_zones.hpp:912` | `dispatch_zone_sync` | 0 | `worldGroup_` | — |
-| `gol_zones.hpp:913` | `dispatch_zone_sync` | 1 | `frameCGroup_` | — |
-| `gol_zones.hpp:925` | `dispatch_zone_evolve` | 0 | `worldGroup_` | — |
-| `gol_zones.hpp:926` | `dispatch_zone_evolve` | 1 | `frameCGroup_` | — |
+| `gol_zones.hpp:826` | `flush_zone_derive_requests` | 0 | `worldGroup_` | — |
+| `gol_zones.hpp:827` | `flush_zone_derive_requests` | 1 | `frameCGroup_` | — |
+| `gol_zones.hpp:907` | `dispatch_zone_sync` | 0 | `worldGroup_` | — |
+| `gol_zones.hpp:908` | `dispatch_zone_sync` | 1 | `frameCGroup_` | — |
+| `gol_zones.hpp:920` | `dispatch_zone_evolve` | 0 | `worldGroup_` | — |
+| `gol_zones.hpp:921` | `dispatch_zone_evolve` | 1 | `frameCGroup_` | — |
 | `orbs.hpp:743` | `dispatch_orb_init` | 0 | `worldGroup_` | — |
 | `orbs.hpp:744` | `dispatch_orb_init` | 1 | `frameCGroup_` | — |
 | `orbs.hpp:764` | `dispatch_orb_recolor` | 0 | `worldGroup_` | — |
@@ -919,8 +919,8 @@ wrapper, 18 wrapper calls) and are not recounted here.
 | `renderer.hpp:629` | `dispatch_zone_seed_mask` | 2 | `zonesStateGroup_` | — |
 | `renderer.hpp:630` | `dispatch_zone_seed_mask` | 3 | `zonesTexturesGroup_` | — |
 | `renderer.hpp:666` | `draw_patch_terrain_plan_slot` | 2 | `sceneStateGroup_` | — |
-| `patch_system.hpp:176` | `generate_patch_batch` | 0 | `worldGroup_` | — |
-| `patch_system.hpp:177` | `generate_patch_batch` | 1 | `frameCGroup_` | — |
+| `patch_system.hpp:171` | `generate_patch_batch` | 0 | `worldGroup_` | — |
+| `patch_system.hpp:172` | `generate_patch_batch` | 1 | `frameCGroup_` | — |
 
 ## Appendix — the renderer handle convention
 

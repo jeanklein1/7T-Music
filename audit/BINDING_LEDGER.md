@@ -14,8 +14,8 @@ merge rows the API charges separately.
 | field | value |
 |---|---|
 | demo column censused | `full` |
-| source commit | `f7d66dd80bdad9124c37979b25c3c6b04ccd0597` |
-| | ONE_SURFACE-I U0 housekeeping: two names ONE_WORLD-II flagged and could not take |
+| source commit | `43edc6ef26816a023279639ec8b55aaee3f73b8a` |
+| | ONE_SURFACE-I U2: the conductor falls |
 | `src/cartridges/the_board/realization/state.hpp` | `sha256:042cba71e1cd8b14930eb7baf8b391fb0bb0f2871a34cd7e3c8ad90277341858` |
 | `src/cartridges/the_board/realization/binding_surface.gen.inc` | `sha256:0b98dfab809edd83752dedf7803f758fcf4ce502009763642a37cbf03b2a8446` |
 | `src/cartridges/the_board/realization/binding_registry.hpp` | `sha256:968d2d0dcbaa4ffe35f30b8349de93b4912cb3da09a16c56965408c90fc3ad9c` |
@@ -29,12 +29,12 @@ only — `draw_orbs` is called from `bodies/orbs.hpp`, not from
 
 | caller file scanned | sha256 |
 |---|---|
-| `src/cartridges/the_board/bodies/gol_zones.hpp` | `2f0e9bc85379b214b3a8a319634f5d65615e753a6b2f63764e162061b105f1e2` |
+| `src/cartridges/the_board/bodies/gol_zones.hpp` | `40df3f6531d37752bede4eba9f6173ea24907f3e3537b9c53c7f59158cc99f7b` |
 | `src/cartridges/the_board/bodies/orbs.hpp` | `475d3de82ddd4d979d55ad146039937cd3316a0148466ed5c1db5566bde9a8b1` |
 | `src/cartridges/the_board/bodies/pawn.hpp` | `7915ec242a2a3094537882c50a2980c9494e4f1460a3a2f786232b67ec6ead12` |
-| `src/cartridges/the_board/cartridge.hpp` | `92ff2abeb51255f79416c9f640b37f9228554cd940eb9f014b2556935c9bac68` |
+| `src/cartridges/the_board/cartridge.hpp` | `a69937866b1c3af5584d17f84c953e5268459ce9a561ccb3915c41bcc6d32b2d` |
 | `src/cartridges/the_board/realization/render_passes.hpp` | `7fa36d18358a8e524e1b1b48a6b55cd4c41a7688a490244370640336155ae267` |
-| `src/cartridges/the_board/surface/patch_system.hpp` | `a8a67e8b9aca5f3a7f4ca34d2a3d61542ad91e4b596853f5eb06f485952b1732` |
+| `src/cartridges/the_board/surface/patch_system.hpp` | `4a28dc7e4eaa78602195090e70d0aab1a5aecab34386e6a4e6097f616d73760e` |
 
 The source commit is the last commit touching any of the four primary
 inputs — not `HEAD`, which moves when this file is committed. The content

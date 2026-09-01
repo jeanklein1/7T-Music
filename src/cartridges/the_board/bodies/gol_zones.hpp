@@ -463,7 +463,9 @@ void commit_gol(GoLState& gs, MachineCtx* c,
     int32_t trigger_gx, int32_t trigger_gz, wgpu::Queue& queue);
 // The evictor — MachineCtx-shaped
 // to match the FAMILY_DISPATCH evict slot (table in cartridge.hpp, post-class)
-void evict_gol(MachineCtx* self, uint32_t slot, wgpu::Queue& queue);
+// `evict_gol` stood here — the GOL family's patch-death evictor. Its one
+// reach was FamilyDispatch::evict_slot, which left at ONE_SURFACE-I U3
+// with the patch-death sweep that was its only caller.
 // Dispatch funnels (table-shaped; the FAMILY_DISPATCH rows point here)
 bool dispatch_select_gol(MachineCtx* self, int32_t gx, int32_t gz, EntityQueueEntry& e);
 bool dispatch_place_gol(MachineCtx* self, EntityQueueEntry& e, PlacementEntry& pe);
@@ -866,7 +868,7 @@ inline void dispatch_commit_gol(MachineCtx* self,
     auto* host = find_patch(self, pe.gol.host_gx, pe.gol.host_gz);
     if (host) {
         commit_gol(self->gol_state_, self, pe.gol, pe.gx, pe.gz, queue);
-        host->record_entity(PopFamily::GOL, pe.gol.slot);
+        // the patch-death registry's write half left at ONE_SURFACE-I U3
     }
     else {
         // Host patch gone — release by owner (the patch key can never match).
@@ -877,13 +879,6 @@ inline void dispatch_commit_gol(MachineCtx* self,
 
 // ═══ THE EVICTOR ══════════════════════════════════════════════════
 
-inline void evict_gol(MachineCtx* self,
-    uint32_t slot, wgpu::Queue& queue) {
-    unregister_footprint_for(self, PopFamily::GOL, slot);   // the hand that claims is the hand that frees
-    self->gpuState_.deactivate_zone_slot(queue, slot);
-    self->gol_state_.zones[slot].active = false;
-    self->gol_state_.zone_count--;
-}
 
 
 // ─── Teardown (owner verb) ────────────────────────────────────────

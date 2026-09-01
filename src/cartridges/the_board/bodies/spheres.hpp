@@ -49,7 +49,9 @@ inline void clear_spheres(SphereState& ss, GPUState& gpu, wgpu::Queue& queue) {
     }
 }
 
-void evict_sphere(MachineCtx* self, uint32_t slot, wgpu::Queue& queue);
+// `evict_sphere` stood here — the SPHERE family's patch-death evictor. Its one
+// reach was FamilyDispatch::evict_slot, which left at ONE_SURFACE-I U3
+// with the patch-death sweep that was its only caller.
 void reconcile_sphere_mirror(SphereState& ss, SphereDeps* c, const GPUFloatingEntityState* data);
 // Dispatch funnels (table-shaped; defined below beside the recipe)
 bool dispatch_select_sphere_generic(MachineCtx* self, int32_t gx, int32_t gz, EntityQueueEntry& e);
@@ -64,12 +66,6 @@ void dispatch_commit_sphere_generic(MachineCtx* self, PlacementEntry& pe, wgpu::
 // ride the cohort tail); WorldState/SkyState complete upstream.
 // clear_spheres keeps its deps-form GPUState& (the stamped precedent). ═════════
 
-inline void evict_sphere(MachineCtx* self,
-    uint32_t slot, wgpu::Queue& queue) {
-    self->sphere_state_.activeSpheres_[slot].active = false;  // sphere state owned by SphereState
-    GPUFloatingEntityState empty{};
-    self->gpuState_.upload_sphere_entity_slot(queue, slot, empty);
-}
 
 // ═══ THE SPHERE RECIPE ════════════════════════════════════════════
 //
@@ -221,11 +217,11 @@ inline void dispatch_commit_sphere_generic(MachineCtx* self, PlacementEntry& pe,
     auto* host = find_patch(self, pe.generic.host_gx, pe.generic.host_gz);
     if (host) {
         generic_commit(self, SPHERE_TRAITS, SPHERE_ADAPTER, pe.generic, queue);
-        // Lifecycle Phase 2: sphere lifetime is no longer tied to its
-        // host patch. We don't call host->record_entity() here, so
-        // evict_patch_entities will never evict_sphere on this
-        // slot — the GPU-side pawn-distance test in update_sphere is
-        // the sole eviction path. The find_patch() lookup is retained
+        // Lifecycle Phase 2: sphere lifetime is not tied to its host
+        // patch. It never recorded itself in the patch-death registry, so
+        // that sweep could never take it — and the registry itself left at
+        // ONE_SURFACE-I U3. The GPU-side pawn-distance test in
+        // update_sphere is the sole eviction path, as it always was. The find_patch() lookup is retained
         // because a missing host still means "spawn was invalid"; we
         // just don't link the sphere into the patch's eviction list.
     }

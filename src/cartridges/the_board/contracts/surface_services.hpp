@@ -147,43 +147,14 @@ struct ActivePatch {
     bool valid = false;
     PatchPhase phase = PatchPhase::ALLOCATED;
 
-    // Entity ownership (recorded at commit, read at eviction)
-    struct EntityRef {
-        uint32_t family;   // PopFamily index
-        uint32_t slot;     // index into Active* array
-    };
-    static constexpr uint32_t MAX_ENTITY_REFS = 16;   // 10 recording families; host-side clustering can stack triggers — headroom + the loud drop below
-    EntityRef entity_refs[MAX_ENTITY_REFS]{};
-    uint32_t entity_ref_count = 0;
-
-    void record_entity(uint32_t family, uint32_t slot) {
-        if (entity_ref_count < MAX_ENTITY_REFS) {
-            entity_refs[entity_ref_count++] = { family, slot };
-        } else {
-            // LOUD DROP (always-on): an unrecorded entity outlives this
-            // patch's eviction — a leak, never silent.
-            std::fprintf(stderr,
-                "[ActivePatch] entity_ref OVERFLOW patch(%d,%d) family=%u slot=%u dropped (cap %u)\n",
-                grid_x, grid_z, family, slot, MAX_ENTITY_REFS);
-        }
-    }
-
-    // Release-by-owner for RECORDS (REQUEST_1 rider): an owner that dies
-    // while this patch still lives takes its record back, so no stale
-    // {family, slot} can ever misdirect a later eviction at a successor
-    // in the reused slot. Swap-with-last; one record per (family, slot)
-    // per patch. NOT to be called from inside evict_patch_entities' own
-    // iteration (it would skip the swapped-in record's evictor) — the
-    // callers are owner-side death verbs outside any patch loop.
-    void unrecord_entity(uint32_t family, uint32_t slot) {
-        for (uint32_t i = 0; i < entity_ref_count; i++) {
-            if (entity_refs[i].family == family && entity_refs[i].slot == slot) {
-                entity_refs[i] = entity_refs[--entity_ref_count];
-                return;
-            }
-        }
-    }
-
+    // THE ENTITY-REF REGISTRY STOOD HERE (ONE_SURFACE-I U3): `EntityRef`,
+    // `entity_refs[MAX_ENTITY_REFS]`, `entity_ref_count`, `record_entity`
+    // with its always-on LOUD DROP, and `unrecord_entity`. It existed for
+    // ONE consumer — `evict_patch_entities`, which walked it to evict a
+    // dying patch's bodies — and patches do not die in a world that is
+    // built once. The guard §1.5 demanded was answered first: no teardown
+    // path reads it; every one sweeps by OWNER. `unrecord_entity` already
+    // had zero callers before the campaign found it.
 };
 
 // ── Dynamic budgets ────────────────────────────────────────────────

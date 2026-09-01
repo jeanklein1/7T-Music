@@ -295,7 +295,9 @@ uint32_t pick_cube_behavior_for_spawn(uint32_t seed);
 void clear_cubes(CubeBehaviorsState& cbs, GPUState& gpu, wgpu::Queue& queue);  // DEPS-FORM PRECEDENT: explicit GPUState& param, born-converted
 // The evictor — MachineCtx-shaped
 // to match the FAMILY_DISPATCH evict slot (table in cartridge.hpp, post-class)
-void evict_cube(MachineCtx* self, uint32_t slot, wgpu::Queue& queue);
+// `evict_cube` stood here — the CUBE family's patch-death evictor. Its one
+// reach was FamilyDispatch::evict_slot, which left at ONE_SURFACE-I U3
+// with the patch-death sweep that was its only caller.
 // Dispatch funnels (table-shaped; defined below beside the recipe)
 bool dispatch_select_cube_generic(MachineCtx* self, int32_t gx, int32_t gz, EntityQueueEntry& e);
 bool dispatch_place_cube_generic(MachineCtx* self, EntityQueueEntry& e, PlacementEntry& pe);
@@ -597,12 +599,6 @@ inline void toggle_cube_kite_mode(CubeBehaviorsState& cbs, CubeDeps* c, wgpu::Qu
 
 // ═══ THE EVICTOR ══════════════════════════════════════════════════
 
-inline void evict_cube(MachineCtx* self,
-    uint32_t slot, wgpu::Queue& queue) {
-    self->cube_behaviors_state_.activeCubes_[slot].active = false;  // cube state owned by CubeBehaviorsState
-    GPUFloatingEntityState empty{};
-    self->gpuState_.upload_cube_entity_slot(queue, slot, empty);
-}
 
 // ═══ THE CUBE RECIPE ══════════════════════════════════════════════
 //

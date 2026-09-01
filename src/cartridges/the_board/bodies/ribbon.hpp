@@ -347,9 +347,12 @@ struct ActiveRibbon {
     float anchor_x = 0.0f, anchor_z = 0.0f;
     int32_t near_tip_gx = 0, near_tip_gz = 0;
     int32_t far_tip_gx = 0, far_tip_gz = 0;
-    bool near_tip_registered = false;
-    bool far_tip_registered = false;
-    uint32_t ref_count = 0;     // patches referencing this ribbon via record_entity
+    // `near_tip_registered` / `far_tip_registered` / `ref_count` stood here
+    // (ONE_SURFACE-I U3). The three were one protocol: a ribbon spans two
+    // patches, each recorded the ribbon in its own entity_refs, and the
+    // count let `evict_ribbon` free the body only when the LAST referencing
+    // patch died. The registry, the evictor and patch death all left in
+    // this unit, so the count had nothing left to count.
     bool active = false;
     float spawn_color[3] = { 0.0f, 0.0f, 0.0f };   // idle base for the line-tint coupling (gen-2): gpu.color = lerp(spawn, stim, mix)
     float spawn_lateral_amp = 0.0f;   // seed-drawn wave amps — the amp pipes'
@@ -403,7 +406,9 @@ void commit_ribbon(RibbonState& rs, MachineCtx* c,
 // The evictor — MachineCtx-shaped
 // to match the FAMILY_DISPATCH evict slot (table in cartridge.hpp, post-class);
 // carries the flown-ribbon pin (host == RIBBON) and ref-count law
-void evict_ribbon(MachineCtx* self, uint32_t slot, wgpu::Queue& queue);
+// `evict_ribbon` stood here — the RIBBON family's patch-death evictor. Its one
+// reach was FamilyDispatch::evict_slot, which left at ONE_SURFACE-I U3
+// with the patch-death sweep that was its only caller.
 // Dispatch funnels (table-shaped; the FAMILY_DISPATCH rows point here)
 bool dispatch_select_ribbon(MachineCtx* self, int32_t gx, int32_t gz, EntityQueueEntry& e);
 bool dispatch_place_ribbon(MachineCtx* self, EntityQueueEntry& e, PlacementEntry& pe);
@@ -430,7 +435,6 @@ void release_finite_ribbons(RibbonState& rs, RibbonDeps* c, wgpu::Queue& queue);
 // The dismount — machine-faced; RIBBON_1 made it a handover, not a death.
 void ribbon_on_dismount(MachineCtx* self, wgpu::Queue& queue);
 struct ActivePatch;  // fwd (patch_system.hpp follows this header in the cohort)
-void ribbon_register_tips_at(RibbonState& rs, ActivePatch& host, int32_t gx, int32_t gz);
 // Shared geometry helper (single entry: the dispatch path)
 void fill_ribbon_selection_geometry(uint32_t seed, uint32_t tier_idx,
     RibbonSelection& sel);
@@ -877,9 +881,6 @@ inline void commit_ribbon(RibbonState& rs, MachineCtx* c,
     ar.far_tip_gx = (int32_t)std::floor(far_x / Dim::PATCH_EXTENT);
     ar.far_tip_gz = (int32_t)std::floor(far_z / Dim::PATCH_EXTENT);
 
-    ar.near_tip_registered = false;
-    ar.far_tip_registered = false;
-    ar.ref_count = 0;
 
     ar.active = true;
     rs.active_count++;
@@ -923,21 +924,16 @@ inline void dispatch_commit_ribbon(MachineCtx* self,
     uint32_t slot = pe.ribbon.slot;
     auto& ar = self->ribbon_state_.active[slot];
 
-    // Register with tip patches that currently exist.
-    // Late registration handles the other tip when its patch is allocated.
+    // THE TIP TEST SURVIVES ITS REGISTRY (ONE_SURFACE-I U3). The two
+    // `record_entity` calls and the `*_tip_registered` flags left with the
+    // reference protocol; what is asked here is still asked, and is still a
+    // correctness gate: a ribbon whose anchors lie OUTSIDE the finite grid
+    // is a ribbon standing on nothing, and the REJECT below is what refuses
+    // it. Reachable in a walled world — a tip can fall past the wall.
     uint32_t refs = 0;
-    auto* near_host = find_patch(self, ar.near_tip_gx, ar.near_tip_gz);
-    if (near_host) {
-        near_host->record_entity(PopFamily::RIBBON, slot);
-        ar.near_tip_registered = true;
-        refs++;
-    }
-    auto* far_host = find_patch(self, ar.far_tip_gx, ar.far_tip_gz);
-    if (far_host && (ar.far_tip_gx != ar.near_tip_gx || ar.far_tip_gz != ar.near_tip_gz)) {
-        far_host->record_entity(PopFamily::RIBBON, slot);
-        ar.far_tip_registered = true;
-        refs++;
-    }
+    if (find_patch(self, ar.near_tip_gx, ar.near_tip_gz)) refs++;
+    if (find_patch(self, ar.far_tip_gx, ar.far_tip_gz) &&
+        (ar.far_tip_gx != ar.near_tip_gx || ar.far_tip_gz != ar.near_tip_gz)) refs++;
 
     if (refs == 0) {
         if constexpr (t7::INSTRUMENTS.stream_witness) {
@@ -954,58 +950,10 @@ inline void dispatch_commit_ribbon(MachineCtx* self,
         self->ribbon_state_.active_count--;
         return;
     }
-    ar.ref_count = refs;
 }
 
 // ═══ THE EVICTOR ══════════════════════════════════════════════════
 
-inline void evict_ribbon(MachineCtx* self,
-    uint32_t slot, wgpu::Queue& queue) {
-    auto& ar = self->ribbon_state_.active[slot];
-    if (!ar.active) return;
-
-    // The RIBBON host: the flown ribbon is pinned for the flight's
-    // duration. Its anchor patches stream out as the player flies away,
-    // but the ribbon must persist — skip eviction entirely while it is
-    // the mounted, rendered ribbon. A rendered WANDERER is pinned the same
-    // way: it drifts freely off its spawn patch, and with one slot the
-    // world's ribbon persists — a contemplative object should.
-    // RIBBON_1: the two pins are now ONE object's whole life. A dismount
-    // sets ar.wander (ribbon_on_dismount), so the ribbon crosses from the
-    // first pin to the second without ever passing through the ref_count
-    // decrement below — which is exactly why the old dismount had to free
-    // it by hand, and exactly why this one does not.
-    if (slot == self->ribbon_state_.rendered_slot
-        && (self->point_.host == PointHost::RIBBON || ar.wander)) {
-        return;
-    }
-
-    // Decrement ref count — one anchor patch has been evicted.
-    // Only fully evict when all referencing patches are gone.
-    if (ar.ref_count > 1) {
-        ar.ref_count--;
-        return;
-    }
-
-    // Final reference gone — full eviction. The release belongs HERE and not
-    // at the top: the two early returns above are a live ribbon (the host /
-    // wanderer pin, and the refcount still holding). Releasing there would
-    // free the ground of a ribbon that is still standing on it.
-    unregister_footprint_for(self, PopFamily::RIBBON, slot);
-    ar = ActiveRibbon{};
-    self->ribbon_state_.gpu[slot] = GPURibbonState{};
-    self->ribbon_state_.active_count--;
-    if (self->ribbon_state_.rendered_slot == slot) {
-        GPURibbonState empty{};
-        self->gpuState_.upload_ribbon(queue, empty);
-        self->ribbon_state_.rendered_slot = UINT32_MAX;
-        // Successor ribbons reuse this slot — force re-seed.
-        self->gpuState_.reset_ribbon_body(queue);
-    }
-    if constexpr (t7::INSTRUMENTS.stream_witness) {
-        std::cout << "[Ribbon] EVICT slot=" << slot << "\n";
-    }
-}
 
 // ─── The dismount (owner verb) ────────────────────────────────────
 // THE RIBBON FLIES ON (RIBBON_1's ruling). The rider steps off; the ribbon
@@ -1088,31 +1036,11 @@ inline void release_finite_ribbons(RibbonState& rs, RibbonDeps* c, wgpu::Queue& 
 }
 
 
-// ─── Tip registration (owner verb): called by the
-// streaming conductor when a patch spawns — registers whichever of a
-// ribbon's two anchor tips lives at (gx,gz) into the host patch and
-// takes the reference. The inverse (the ref_count decrement) already
-// lives owner-side in evict_ribbon.
-inline void ribbon_register_tips_at(RibbonState& rs, ActivePatch& host, int32_t gx, int32_t gz) {
-    for (uint32_t r = 0; r < MAX_RIBBON_INSTANCES; r++) {
-        auto& ar = rs.active[r];
-        if (!ar.active) continue;
-        // Check near tip
-        if (!ar.near_tip_registered &&
-            ar.near_tip_gx == gx && ar.near_tip_gz == gz) {
-            host.record_entity(PopFamily::RIBBON, r);
-            ar.near_tip_registered = true;
-            ar.ref_count++;
-        }
-        // Check far tip
-        if (!ar.far_tip_registered &&
-            ar.far_tip_gx == gx && ar.far_tip_gz == gz) {
-            host.record_entity(PopFamily::RIBBON, r);
-            ar.far_tip_registered = true;
-            ar.ref_count++;
-        }
-    }
-}
+// `ribbon_register_tips_at` stood here — the LATE registration door the
+// streaming conductor called when a patch spawned, so a ribbon committed
+// before its second tip's patch existed could still take that reference.
+// The builder allocates the whole grid before the first commit, so both
+// tips resolve at commit time and there is no later (ONE_SURFACE-I U3).
 
 } // namespace the_board
 } // namespace t7

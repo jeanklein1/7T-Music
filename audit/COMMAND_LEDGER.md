@@ -5,16 +5,16 @@ Read-only: a census of the program's pass and submit surface.
 
 ## Provenance
 
-Last commit touching any scanned file: `e6bf833abc1b3b66af061a8eac8aed63a7753403`
-(ONE_SURFACE-I U1: the builder rises)
+Last commit touching any scanned file: `43edc6ef26816a023279639ec8b55aaee3f73b8a`
+(ONE_SURFACE-I U2: the conductor falls)
 
 | file scanned | sha256 |
 |---|---|
 | `src/cartridges/the_board/realization/render_passes.hpp` | `sha256:7fa36d18358a8e524e1b1b48a6b55cd4c41a7688a490244370640336155ae267` |
 | `src/cartridges/the_board/realization/renderer.hpp` | `sha256:6d20d67bd53745eb70e14d05f324b4d12b45df9a2bb087cd62547777467bac1d` |
-| `src/cartridges/the_board/cartridge.hpp` | `sha256:92ff2abeb51255f79416c9f640b37f9228554cd940eb9f014b2556935c9bac68` |
-| `src/cartridges/the_board/surface/patch_system.hpp` | `sha256:a8a67e8b9aca5f3a7f4ca34d2a3d61542ad91e4b596853f5eb06f485952b1732` |
-| `src/cartridges/the_board/bodies/gol_zones.hpp` | `sha256:2f0e9bc85379b214b3a8a319634f5d65615e753a6b2f63764e162061b105f1e2` |
+| `src/cartridges/the_board/cartridge.hpp` | `sha256:a69937866b1c3af5584d17f84c953e5268459ce9a561ccb3915c41bcc6d32b2d` |
+| `src/cartridges/the_board/surface/patch_system.hpp` | `sha256:4a28dc7e4eaa78602195090e70d0aab1a5aecab34386e6a4e6097f616d73760e` |
+| `src/cartridges/the_board/bodies/gol_zones.hpp` | `sha256:40df3f6531d37752bede4eba9f6173ea24907f3e3537b9c53c7f59158cc99f7b` |
 | `src/cartridges/the_board/bodies/pawn.hpp` | `sha256:7915ec242a2a3094537882c50a2980c9494e4f1460a3a2f786232b67ec6ead12` |
 | `src/cartridges/the_board/bodies/orbs.hpp` | `sha256:475d3de82ddd4d979d55ad146039937cd3316a0148466ed5c1db5566bde9a8b1` |
 | `src/the_board.cpp` | `sha256:321cf8eef63dd7f991405e893c57914a11a1ec2edfe1e7f28de170663de8acc5` |
@@ -37,10 +37,10 @@ in `console.hpp`.
 | 3 | Shadow Pass | render | `render_shadow_pass` | `src/cartridges/the_board/realization/render_passes.hpp:262` | (none: depth-only) | Clear/Store, readOnly (absent) → `c->gpuState_.shadow_map_view()` | (no stencil aspect) |
 | 4 | Rasterized Scene | render | `render_main_pass` | `src/cartridges/the_board/realization/render_passes.hpp:532` | Clear/Store or Discard → `backbuffer or msaaColor` resolve → `backbuffer` | Clear/Discard, readOnly (absent) → `depth` | (no stencil aspect) |
 | 5 | Entity Mesh Gen | compute | `phase_entity_mesh_gen` | `src/cartridges/the_board/cartridge.hpp:1981` | — | — | — |
-| 6 | Patch Bake (fused) | compute | `generate_patch_batch` | `src/cartridges/the_board/surface/patch_system.hpp:174` | — | — | — |
-| 7 | Zone Derive Params | compute | `flush_zone_derive_requests` | `src/cartridges/the_board/bodies/gol_zones.hpp:822` | — | — | — |
-| 8 | GoL Zone Sync | compute | `dispatch_zone_sync` | `src/cartridges/the_board/bodies/gol_zones.hpp:910` | — | — | — |
-| 9 | GoL Zone Evolve | compute | `dispatch_zone_evolve` | `src/cartridges/the_board/bodies/gol_zones.hpp:923` | — | — | — |
+| 6 | Patch Bake (fused) | compute | `generate_patch_batch` | `src/cartridges/the_board/surface/patch_system.hpp:169` | — | — | — |
+| 7 | Zone Derive Params | compute | `flush_zone_derive_requests` | `src/cartridges/the_board/bodies/gol_zones.hpp:824` | — | — | — |
+| 8 | GoL Zone Sync | compute | `dispatch_zone_sync` | `src/cartridges/the_board/bodies/gol_zones.hpp:905` | — | — | — |
+| 9 | GoL Zone Evolve | compute | `dispatch_zone_evolve` | `src/cartridges/the_board/bodies/gol_zones.hpp:918` | — | — | — |
 | 10 | Pawn Aura | compute | `dispatch_pawn_aura` | `src/cartridges/the_board/bodies/pawn.hpp:168` | — | — | — |
 | 11 | Orb Init | compute | `dispatch_orb_init` | `src/cartridges/the_board/bodies/orbs.hpp:741` | — | — | — |
 | 12 | Orb Recolor | compute | `dispatch_orb_recolor` | `src/cartridges/the_board/bodies/orbs.hpp:762` | — | — | — |
@@ -53,8 +53,8 @@ in `console.hpp`.
 
 | # | receiver | enclosing function | site |
 |---|---|---|---|
-| 1 | `queue.Submit` | `build_world` | `src/cartridges/the_board/surface/patch_system.hpp:616` |
-| 2 | `queue.Submit` | `flush_zone_derive_requests` | `src/cartridges/the_board/bodies/gol_zones.hpp:839` |
+| 1 | `queue.Submit` | `build_world` | `src/cartridges/the_board/surface/patch_system.hpp:600` |
+| 2 | `queue.Submit` | `flush_zone_derive_requests` | `src/cartridges/the_board/bodies/gol_zones.hpp:841` |
 | 3 | `app->queue.Submit` | `frame` | `src/the_board.cpp:337` |
 
 3 submit sites. The frame's one submit rides the pawn's
@@ -83,8 +83,8 @@ every landing.
 
 | # | label | enclosing function | site |
 |---|---|---|---|
-| 1 | `"build_world"` | `build_world` | `src/cartridges/the_board/surface/patch_system.hpp:610` |
-| 2 | `"flush_zone_derive_requests"` | `flush_zone_derive_requests` | `src/cartridges/the_board/bodies/gol_zones.hpp:815` |
+| 1 | `"build_world"` | `build_world` | `src/cartridges/the_board/surface/patch_system.hpp:594` |
+| 2 | `"flush_zone_derive_requests"` | `flush_zone_derive_requests` | `src/cartridges/the_board/bodies/gol_zones.hpp:817` |
 | 3 | `"frame"` | `frame` | `src/the_board.cpp:328` |
 
 ## §3 — the swapchain reconfigure trigger

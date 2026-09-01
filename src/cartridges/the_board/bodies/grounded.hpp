@@ -115,7 +115,9 @@ struct EntitiesState {
 
 // ═══ THE EVICTORS — DECLARATIONS ═══════════════════════════════════
 
-void evict_pyramid(MachineCtx* self, uint32_t slot, wgpu::Queue& queue);
+// `evict_pyramid` stood here — the PYRAMID family's patch-death evictor. Its one
+// reach was FamilyDispatch::evict_slot, which left at ONE_SURFACE-I U3
+// with the patch-death sweep that was its only caller.
 void teardown_entities(MachineCtx* c, wgpu::Queue& queue);
 
 // ═══ IMPL:
@@ -169,21 +171,6 @@ inline bool mesh_gen_settled(bool& pending, float& since, const TimeState& ts,
 
 // ═══ THE EVICTORS ═════════════════════════════════════════════════
 
-inline void evict_pyramid(MachineCtx* self,
-    uint32_t slot, wgpu::Queue& queue)
-{
-    unregister_footprint_for(self, PopFamily::PYRAMID, slot);   // the hand that claims is the hand that frees
-    self->entities_state_.cpu_pyramids.instances[slot] = GPUPyramidInstance{};
-    self->entities_state_.pyramids[slot].active = false;
-    self->world_state_.ground_entries_dirty = true;
-
-    uint32_t max_idx = 0;
-    for (uint32_t i = 0; i < Dim::MAX_PYRAMID_INSTANCES; i++) {
-        if (self->entities_state_.pyramids[i].active) max_idx = i + 1;
-    }
-    self->entities_state_.cpu_pyramids.count = max_idx;
-    self->gpuState_.upload_pyramids(queue, self->entities_state_.cpu_pyramids);
-}
 
 
 // ─── Teardown (owner verb) ────────────────────────────────────────

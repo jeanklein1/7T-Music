@@ -403,7 +403,10 @@ inline bool dispatch_place_pyramid_generic(MachineCtx* self, EntityQueueEntry& e
 }
 inline void dispatch_commit_pyramid_generic(MachineCtx* self, PlacementEntry& pe, wgpu::Queue& queue) {
     auto* host = find_patch(self, pe.generic.host_gx, pe.generic.host_gz);
-    if (host) { generic_commit(self, PYRAMID_TRAITS, PYRAMID_ADAPTER, pe.generic, queue); host->record_entity(PopFamily::PYRAMID, pe.generic.slot); }
+    // `host->record_entity(...)` stood beside the commit — the patch-death
+    // registry's write half, retired with the registry (ONE_SURFACE-I U3).
+    // `host` is still the gate: a body commits iff its patch exists.
+    if (host) { generic_commit(self, PYRAMID_TRAITS, PYRAMID_ADAPTER, pe.generic, queue); }
     // HOST PATCH GONE. The footprint was registered at place; its host
     // vanished before commit. Release by OWNER — the one release path.
     else { unregister_footprint_for(self, PopFamily::PYRAMID, pe.generic.slot); self->entities_state_.pyramids[pe.generic.slot].active = false; }
