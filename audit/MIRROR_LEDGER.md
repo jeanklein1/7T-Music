@@ -15,15 +15,15 @@ carry those facts, or leave them in place and patch around them.
 
 | field | value |
 |---|---|
-| source commit | `b051763a4b95e69f9e222aade1ffac0b310774f3` |
-| | ONE_WORLD-II U4: the indoor organs fall, whole — and the light collapses to the sun |
+| source commit | `6ac58115fb35465b78f81ce018bb1c9fd0ccb72d` |
+| | ONE_WORLD-II U2: the moods fall — by enumeration, not by span |
 | `src/cartridges/the_board/realization/binding_registry.hpp` | `sha256:bd8c83ad2f09175a33a534682e7a888d147e357e256343e765a0e284ba11690f` |
 | `src/cartridges/the_board/realization/world.wgsl` | `sha256:347c4b677f238ac968c2daa26f18362640e2703c53695016a2391fe024aae467` |
 | `src/cartridges/the_board/realization/state.hpp` | `sha256:2663b0b7b0601ee2e1325776af186dd80b1a87e8c7d4cc7d23f4e01040ec9737` |
 | `src/cartridges/the_board/realization/binding_surface.gen.inc` | `sha256:a11be1f7421b6771b20a3e8325a177a3e1070625e10af0959ade6663214f4397` |
 | `src/cartridges/the_board/realization/renderer.hpp` | `sha256:777971a3c789db740b763dd37b7acb9e2d3bd4c33c255fbef4fc3f15dfa7797d` |
 | `tools/binding_ledger.py` | `sha256:a3c75bab894774eb0302686e5efd52275b280e14abfcf4e8753b28d5b5086692` |
-| `audit/BINDING_LEDGER.md` | `sha256:f6896165f2294bc222f2bf84b0f840839ee71c3ed424adaca0a1d4ca3a35caac` |
+| `audit/BINDING_LEDGER.md` | `sha256:53ffe071b43e2e4b3cc87545830ca1bd6cce865c97f8ff76ec902d985e40c2bb` |
 
 `tools/binding_ledger.py` is an input because its parsers are IMPORTED,
 not copied — one parse, two artifacts, no drift between instruments.
@@ -848,8 +848,8 @@ wrapper, 18 wrapper calls) and are not recounted here.
 
 | site (line hint) | enclosing function | idx | group member(s) | dynamic offsets |
 |---|---|---|---|---|
-| `cartridge.hpp:1944` | `phase_entity_mesh_gen` | 0 | `worldGroup_` | — |
-| `cartridge.hpp:1945` | `phase_entity_mesh_gen` | 1 | `frameCGroup_` | — |
+| `cartridge.hpp:1952` | `phase_entity_mesh_gen` | 0 | `worldGroup_` | — |
+| `cartridge.hpp:1953` | `phase_entity_mesh_gen` | 1 | `frameCGroup_` | — |
 | `gol_zones.hpp:824` | `flush_zone_derive_requests` | 0 | `worldGroup_` | — |
 | `gol_zones.hpp:825` | `flush_zone_derive_requests` | 1 | `frameCGroup_` | — |
 | `gol_zones.hpp:912` | `dispatch_zone_sync` | 0 | `worldGroup_` | — |

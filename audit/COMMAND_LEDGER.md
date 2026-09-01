@@ -5,14 +5,14 @@ Read-only: a census of the program's pass and submit surface.
 
 ## Provenance
 
-Last commit touching any scanned file: `b051763a4b95e69f9e222aade1ffac0b310774f3`
-(ONE_WORLD-II U4: the indoor organs fall, whole — and the light collapses to the sun)
+Last commit touching any scanned file: `6ac58115fb35465b78f81ce018bb1c9fd0ccb72d`
+(ONE_WORLD-II U2: the moods fall — by enumeration, not by span)
 
 | file scanned | sha256 |
 |---|---|
 | `src/cartridges/the_board/realization/render_passes.hpp` | `sha256:1a512e928a9e65050b872e502781c697ff09821aae058e61841e23e8d233a9b1` |
 | `src/cartridges/the_board/realization/renderer.hpp` | `sha256:777971a3c789db740b763dd37b7acb9e2d3bd4c33c255fbef4fc3f15dfa7797d` |
-| `src/cartridges/the_board/cartridge.hpp` | `sha256:6761a11d2d77d8ee4e603f17bab94c47373bf2519dee207ed4a702c288ed7cd1` |
+| `src/cartridges/the_board/cartridge.hpp` | `sha256:0417aad0c448a44ee9e3790c9b1acbd1afccdcc4137a060fd241ef58d9682583` |
 | `src/cartridges/the_board/surface/patch_system.hpp` | `sha256:186b027ae6869c5c996aa2d21ad426eeadb6c72c92610f2c4fbd920059b6d05d` |
 | `src/cartridges/the_board/bodies/gol_zones.hpp` | `sha256:bcc79598a28c23d87d840eeaa8a56def087567fcaefbba257fc687019ab101d8` |
 | `src/cartridges/the_board/bodies/pawn.hpp` | `sha256:bac566779a35e46048585b51426d4bfe7b971093ea5e38e9b0219150774b3fbf` |
@@ -36,7 +36,7 @@ in `console.hpp`.
 | 2 | Frustum Cull Patches | compute | `dispatch_frustum_cull` | `src/cartridges/the_board/realization/render_passes.hpp:220` | — | — | — |
 | 3 | Shadow Pass | render | `render_shadow_pass` | `src/cartridges/the_board/realization/render_passes.hpp:262` | (none: depth-only) | Clear/Store, readOnly (absent) → `c->gpuState_.shadow_map_view()` | (no stencil aspect) |
 | 4 | Rasterized Scene | render | `render_main_pass` | `src/cartridges/the_board/realization/render_passes.hpp:534` | Clear/Store or Discard → `backbuffer or msaaColor` resolve → `backbuffer` | Clear/Discard, readOnly (absent) → `depth` | (no stencil aspect) |
-| 5 | Entity Mesh Gen | compute | `phase_entity_mesh_gen` | `src/cartridges/the_board/cartridge.hpp:1942` | — | — | — |
+| 5 | Entity Mesh Gen | compute | `phase_entity_mesh_gen` | `src/cartridges/the_board/cartridge.hpp:1950` | — | — | — |
 | 6 | Patch Bake (fused) | compute | `generate_patch_batch` | `src/cartridges/the_board/surface/patch_system.hpp:180` | — | — | — |
 | 7 | Zone Derive Params | compute | `flush_zone_derive_requests` | `src/cartridges/the_board/bodies/gol_zones.hpp:822` | — | — | — |
 | 8 | GoL Zone Sync | compute | `dispatch_zone_sync` | `src/cartridges/the_board/bodies/gol_zones.hpp:910` | — | — | — |

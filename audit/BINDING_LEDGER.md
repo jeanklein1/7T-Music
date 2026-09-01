@@ -32,7 +32,7 @@ only — `draw_orbs` is called from `bodies/orbs.hpp`, not from
 | `src/cartridges/the_board/bodies/gol_zones.hpp` | `bcc79598a28c23d87d840eeaa8a56def087567fcaefbba257fc687019ab101d8` |
 | `src/cartridges/the_board/bodies/orbs.hpp` | `2b98e51ba1ee455a56608dee6d57e931d7b0269901f4da5aa4b7c803fea36d40` |
 | `src/cartridges/the_board/bodies/pawn.hpp` | `bac566779a35e46048585b51426d4bfe7b971093ea5e38e9b0219150774b3fbf` |
-| `src/cartridges/the_board/cartridge.hpp` | `6761a11d2d77d8ee4e603f17bab94c47373bf2519dee207ed4a702c288ed7cd1` |
+| `src/cartridges/the_board/cartridge.hpp` | `0417aad0c448a44ee9e3790c9b1acbd1afccdcc4137a060fd241ef58d9682583` |
 | `src/cartridges/the_board/direction/mood.hpp` | `f20eff811a897bc4be2b8fdecc339c7b50b1f406b6ad56f52537a97462924723` |
 | `src/cartridges/the_board/realization/render_passes.hpp` | `1a512e928a9e65050b872e502781c697ff09821aae058e61841e23e8d233a9b1` |
 | `src/cartridges/the_board/surface/patch_system.hpp` | `186b027ae6869c5c996aa2d21ad426eeadb6c72c92610f2c4fbd920059b6d05d` |

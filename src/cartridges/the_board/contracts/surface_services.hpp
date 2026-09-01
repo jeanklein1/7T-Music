@@ -35,13 +35,21 @@ namespace the_board {
 
 // ROOT ORGAN: the struct's home is here; the
 // instance (world_state_) stays at the composition root.
-// THE PIN (ONE_WORLD-II U2, flipped at U5). WorldShape carried `finite`
-// per mood — SHAPE_OPEN false, the rooms and the finite field true — and
-// boot wore the sunset's open row. The shape died with the moods, so the
-// fact becomes ONE constant the world is born with. It boots FALSE here,
-// which is exactly what the sunset row said: U2 changes where the fact
-// lives, not what it is, and U5 is the unit that changes it.
-inline constexpr bool WORLD_FINITE = false;
+// THE PIN (ONE_WORLD-II U5). WorldShape carried `finite` per mood —
+// SHAPE_OPEN false, the rooms and the finite field true — and boot wore
+// the sunset's open row. U2 moved the fact here without changing it; this
+// is the unit that changes it.
+//
+// THE WORLD IS FINITE, AND NOTHING UNSETS IT. Not a mood, not a key, not
+// a param: one constant, read once at every world's birth through the L10
+// door. A finite world is a bounded one — the containment clamp
+// (finite_bounds_resolve, world.wgsl) is its wall, and the veil stands
+// down because a wall defines the boundary where fog used to.
+//
+// THE OPEN PATHS ARE UNTOUCHED, deliberately. Every `finite_mode`-false
+// branch still stands, compiled and correct; they are campaign 3's
+// subject, not this one's. A pin is a value, not an excision.
+inline constexpr bool WORLD_FINITE = true;
 
 // THE PIN'S DIALS (ONE_WORLD-II U2). The radius range every world draws
 // from — WorldShape's finite_radius_min/max, rehomed whole. The atrium's

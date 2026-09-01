@@ -1166,6 +1166,14 @@ namespace t7 {
                 world_state_.active_seed   = seed;
                 world_state_.finite_mode   = WORLD_FINITE;
                 world_state_.finite_radius = derive_finite_radius(seed);
+                // SMALL AND LOUD (ONE_WORLD-II U5). The pin is one
+                // constant and one line: a world that is bounded says so,
+                // once, at the door both births walk. The side is the
+                // patch count across the box — 2r+1 — which is the number
+                // a walk can actually count.
+                const uint32_t side = 2u * world_state_.finite_radius + 1u;
+                std::cout << "[World] Born FINITE radius=" << world_state_.finite_radius
+                          << " (" << side << "x" << side << " patches)\n";
             }
 
             // THE REBIRTH (ONE_WORLD-I — graduated whole from the transition
