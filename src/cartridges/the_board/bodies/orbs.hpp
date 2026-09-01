@@ -248,9 +248,6 @@ inline constexpr OrbOrbitalGesture ORB_ORBITAL_GESTURES[ORB_ORBITAL_GESTURE_COUN
     { 1.0f,   3.0f,  "shear"    },  // 3  parallel axis, layered sheets
 };
 
-// ═══ MOOD CONFIG (authoring surface) ═════════════════════════════
-
-
 // ═══ ORBS MODULE STATE ═══════════════════════════════════════════
 
 inline constexpr uint32_t ORB_RULE_BROWNIAN = 0u;
@@ -268,7 +265,7 @@ struct OrbsState {
 
     // ── Motion rule + flocking gesture ───────────────────────────
     // Motion rule and flock gesture are both player-owned: they persist
-    // across mood transitions. The rule seeds to Brownian on first run.
+    // across a world's rebirth. The rule seeds to Brownian on first run.
     uint32_t current_motion_rule = 0u;
     bool     motion_rule_initialized = false;  // one-time Brownian seed guard
     uint32_t gesture_idx[4]         = { 0u, 0u, 0u, 0u };
@@ -290,7 +287,7 @@ struct OrbsState {
 
 // Lifecycle
 // ORGAN_5 P1b — CONFIGURE LEARNS RESTRAINT. `reseed` says whether this
-// re-speak must also re-run the init kernel. A mood change does (a new
+// re-speak must also re-run the init kernel. A world's birth does (a new
 // world's sky is a new sky); a panel edit that touched only per-frame
 // GPU reads does not, and re-seeding for one would suppress the very
 // motion texture the drag is meant to show.
@@ -314,9 +311,10 @@ void dispatch_orb_dynamics(OrbsState& os, OrbsDeps* c, wgpu::CommandEncoder& enc
 template <class Enc>
 void render_orbs(OrbsState& os, OrbsDeps* c, Enc& pass);
 
-// The orb mood table + OrbMoodConfig graduated to
-// contracts/orb_surface.hpp (ORGAN_3b P3), where ORB_MOOD_LIVE stands
-// beside the design table as the world's per-mood definition.
+// OrbMoodConfig graduated to contracts/orb_surface.hpp (ORGAN_3b P3),
+// where ORB_LIVE stands beside ORB_TABLE as the world's one row
+// (ONE_WORLD-II U1b took the per-mood array). The TYPE still wears the
+// moods' name; renaming it is Jean's gate, so it is flagged, not taken.
 
 // ═══ IMPL:
 // bodies deref orbs_state_(own) + gpu/renderer/player/time/world via OrbsDeps.
@@ -336,10 +334,10 @@ inline float* orb_tier_flock_ptr(GPUOrbConfig& cfg, uint32_t i) {
 
 // ═══ CONFIGURE HELPERS ═══════════════════════════════════════════
 
-// Apply mood's first-run defaults to player-owned state. The flock
-// gesture is "mood seeds once, player wins after." (The anchor seed
+// Apply the bank's first-run defaults to player-owned state. The flock
+// gesture is "the world seeds once, player wins after." (The anchor seed
 // retired — the dome is a skybox, eye-centered always.)
-inline void apply_mood_first_run_defaults_(OrbsState& os, const OrbMoodConfig& cfg) {
+inline void apply_first_run_defaults_(OrbsState& os, const OrbMoodConfig& cfg) {
     if (!os.gesture_initialized[ORB_RULE_BROWNIAN]) {
         os.gesture_idx[ORB_RULE_BROWNIAN] = std::min(
             cfg.flock_gesture_default, ORB_BROWNIAN_GESTURE_COUNT - 1u);
@@ -359,7 +357,7 @@ inline void apply_mood_first_run_defaults_(OrbsState& os, const OrbMoodConfig& c
 }
 
 // TEMPERAMENT (ORGAN_4 P1e): palette is config-owned — the dial and the
-// mood are the durable authors and pack_palette_ re-speaks them; the
+// bank are the durable authors and pack_palette_ re-speaks them; the
 // KP palette-cycle is a live gesture that lasts until the next
 // configure. Rule and gesture are the OPPOSITE (player-owned, seed
 // once): that asymmetry is deliberate — a dial exists for palette_id,
@@ -487,7 +485,7 @@ inline void pack_flocking_(const OrbsState& os, GPUOrbConfig& gpuCfg,
         gpuCfg.flock_coh_sign = gf.coh_sign;
     }
 
-    // Per-rule drag: zero → 1.0× pass-through (mood has no opinion).
+    // Per-rule drag: zero → 1.0× pass-through (the bank has no opinion).
     auto passthrough = [](float authored) {
         return (authored > 0.0f) ? authored : 1.0f;
         };
@@ -541,10 +539,10 @@ inline void configure_orbs(OrbsState& os, OrbsDeps* c, const OrbMoodConfig& cfg,
     const float eff_flock_coh_w = eff(cfg.flock_coh_weight, ORB_DEFAULT_FLOCK_COH_W);
     const float eff_flock_max_speed = eff(cfg.flock_max_speed, ORB_DEFAULT_FLOCK_MAX_SPEED);
 
-    // First-run mood defaults for player-owned state.
-    apply_mood_first_run_defaults_(os, cfg);
+    // First-run bank defaults for player-owned state.
+    apply_first_run_defaults_(os, cfg);
     // Motion rule is player-owned (like the flock gesture): seed once to
-    // Brownian, then leave it — mood transitions no longer overwrite it.
+    // Brownian, then leave it — a rebirth no longer overwrites it.
     if (!os.motion_rule_initialized) {
         os.current_motion_rule = ORB_RULE_BROWNIAN;
         os.motion_rule_initialized = true;
@@ -610,7 +608,7 @@ inline void configure_orbs(OrbsState& os, OrbsDeps* c, const OrbMoodConfig& cfg,
     c->gpuState_.upload_orb_config(queue, gpuCfg);
     // ORGAN_5 P1b — NEVER CLEAR A PENDING INIT HERE. A light pass leaves
     // the flag exactly as it found it, so a re-seed already armed by a
-    // mood change (or by an earlier heavy edit in the same frame) still
+    // world's birth (or by an earlier heavy edit in the same frame) still
     // fires; only a heavy pass ever raises it.
     //
     // THE UNIFORM'S dt/t ARE ZEROED BY THIS WRITE and that is invisible
@@ -620,7 +618,7 @@ inline void configure_orbs(OrbsState& os, OrbsDeps* c, const OrbMoodConfig& cfg,
     // in the RENDER spine, so the same frame's dispatch_orb_dynamics
     // re-authors both before any kernel reads them. With the dome
     // inactive the dispatch early-returns and nothing reads the uniform
-    // at all. Every mood change has always taken this same path.
+    // at all. Every world's birth has always taken this same path.
     if (reseed) os.init_pending = true;
 
     log_configure_(os, cfg, eff_drag, eff_orbital_speed, os.current_palette_id);

@@ -82,7 +82,7 @@ READERS = {
         ("src/cartridges/the_board/cartridge.hpp", "phase_motion_drivers"),
         ("src/cartridges/the_board/bodies/pawn.hpp", "tick_pawn_couplings"),
         ("src/cartridges/the_board/bodies/pawn.hpp", "toggle_aura"),
-        ("src/cartridges/the_board/bodies/pawn.hpp", "apply_aura_mood_policy"),
+        ("src/cartridges/the_board/bodies/pawn.hpp", "apply_aura_policy"),
         ("src/cartridges/the_board/bodies/ribbon.hpp", "ribbon_frame_tick"),
     ]),
     "PAWN": ("PAWN_AURA_LIVE", "PawnAuraProfile", [
@@ -111,18 +111,11 @@ READERS = {
         ("src/cartridges/the_board/cartridge.hpp", "phase_fill_signal"),
         ("src/cartridges/the_board/bodies/ribbon.hpp", "ribbon_frame_tick"),
     ]),
-    "INDOOR": ("INDOOR_LIVE", "IndoorSurface", [
-        ("src/cartridges/the_board/direction/mood.hpp", "apply_mood_lighting"),
-        ("src/cartridges/the_board/bodies/ribbon.hpp", "select_ribbon_for_patch"),
-        ("src/cartridges/the_board/bodies/cube_behaviors.hpp", "cube_apply_indoor_rescale"),
-        ("src/cartridges/the_board/bodies/spheres.hpp", "sphere_apply_indoor_rescale"),
-        ("src/cartridges/the_board/machine/entity_pipeline.hpp", "pyramid_apply_indoor_rescale"),
-    ]),
+    # INDOOR (INDOOR_LIVE / IndoorSurface) stood here with five readers, and
+    # WORLD (WORLD_DRAW_LIVE) with one. Both families left with the rooms at
+    # ONE_WORLD-II U4; the sweep takes their rows at U7.
     "CANVAS": ("CANVAS_LIVE", "CanvasSurface", [
         ("src/coupling/visual_canvas.hpp", "tick"),
-    ]),
-    "WORLD": ("WORLD_DRAW_LIVE", "WorldDrawSurface", [
-        ("src/cartridges/the_board/direction/mood.hpp", "derive_indoor_lights"),
     ]),
     "RIBBON_SPAWN": ("RIBBON_SPAWN_LIVE", "RibbonSpawnSurface", [
         ("src/cartridges/the_board/bodies/ribbon.hpp", "select_ribbon_for_patch"),
@@ -153,15 +146,12 @@ READERS = {
         ("src/cartridges/the_board/contracts/agent_surface.hpp", "agents_tier_sum"),
     ]),
     "ATMOS": ("ATMOS_LIVE", "AtmosphereBank", [
-        ("src/cartridges/the_board/direction/mood.hpp", "draw_atmosphere"),
+        ("src/cartridges/the_board/direction/sky.hpp", "draw_atmosphere"),
     ]),
     # ── the definition kinds: a definition's reader is its APPLIER ────
-    # MoodProfile keeps only its SHAPE half here: apply_mood_lighting reads
-    # m.shape.terrain_amp_ceiling and m.shape.indoor / .wall_height. The
-    # atmosphere handle and apply_mood_regime left with the roll.
-    "MOOD": ("MOOD_LIVE", "MoodProfile", [
-        ("src/cartridges/the_board/direction/mood.hpp", "apply_mood_lighting"),
-    ]),
+    # MOOD (MOOD_LIVE / MoodProfile) was the third, and the last of the
+    # SELECTING kinds. It left with the moods at ONE_WORLD-II U2; the two
+    # below are the world's single banks, so a target has nothing to pick.
     "TIER": ("TIER_LIVE", "AgentTierBank", [
         ("src/cartridges/the_board/bodies/agents.hpp", "upload_agent_registries_to_gpu"),
     ]),
@@ -170,7 +160,7 @@ READERS = {
     ]),
     "ORB_BANK": ("ORB_LIVE", "OrbMoodConfig", [
         ("src/cartridges/the_board/bodies/orbs.hpp", "configure_orbs"),
-        ("src/cartridges/the_board/bodies/orbs.hpp", "apply_mood_first_run_defaults_"),
+        ("src/cartridges/the_board/bodies/orbs.hpp", "apply_first_run_defaults_"),
         ("src/cartridges/the_board/bodies/orbs.hpp", "pack_palette_"),
         ("src/cartridges/the_board/bodies/orbs.hpp", "pack_tiers_"),
         ("src/cartridges/the_board/bodies/orbs.hpp", "pack_flocking_"),

@@ -7,8 +7,9 @@ here is an author the program did not have, and nothing here is a home for a
 fact that has one elsewhere.
 
 `?organ=1` opens the panel (the backtick folds it; on a phone, the pill).
-`?preset=<name>` boots a scene with no panel. `?mood=N` and `?seed=N` pin the
-world. With none of these the shell returns on its second statement and the
+`?preset=<name>` boots a scene with no panel. `?seed=N` pins the world — it
+was `?mood=N&seed=N` until ONE_WORLD-II U2, and a world is chosen by its seed
+alone now. With none of these the shell returns on its second statement and the
 audience path is byte-identical.
 
 ## The compiled registry
@@ -51,39 +52,54 @@ triple that is not an entry, counts the refusal, and names it.
 | 5 `ORBS` | `ORB_CONSOLE_LIVE` | the console mask |
 | 6 `PANEL` | `PANEL_LIVE` | its readers |
 | 7 `RIBBON` | `RIBBON_LIVE` | its readers |
-| 8 `INDOOR` | `INDOOR_LIVE` | the next spawn — destructive |
+| 8 | — a HOLE. `INDOOR_LIVE` retired at ONE_WORLD-II U4; block ids are the console's wire contract and every stored preset key is one, so the id is never re-packed | — |
 | 9 `CANVAS` | `canvas::CANVAS_LIVE` (one tier below the cartridge) | its readers |
-| 10 `WORLD` | `WORLD_DRAW_LIVE` | the next world draw — destructive |
+| 10 | — a HOLE. `WORLD_DRAW_LIVE` retired at ONE_WORLD-II U4, same law as 8 | — |
 | 11 `RIBBON_SPAWN` | `RIBBON_SPAWN_LIVE` | the next ribbon spawn — destructive |
-| 255 / 254 | sentinels for definition-only rows: `MoodProfile` / `OrbMoodConfig` | — |
+| 12 `ATMOS` | `ATMOS_LIVE` — the world's one sky, as a distribution | the boundary re-draws from it |
+| 13 `ORB_BANK` | `ORB_LIVE` — the sky's one orb row | `configure_orbs`, per-field mask |
+| 14 `AGENTS` | `AGENTS_LIVE` — how many walk this world, and what they are | the next spawn — destructive |
 
 Blocks 0–2 are reached through three accessors on `GPUState` and no others. GPU
 truth — positions, camera, simulation state — has no accessor and therefore no
-block id; a panel that cannot name a thing cannot write it. Blocks 3–11 are
+block id; a panel that cannot name a thing cannot write it. Blocks 3–14 are
 contracts-tier CPU banks whose base is the instance itself. There is
 deliberately no Camera section: pose is GPU truth, and the camera's dials under
-`Interaction · Camera` are input grammar. A third definition-only family takes 253.
+`Interaction · Camera` are input grammar.
+
+**The 255/254 sentinels are gone (ONE_WORLD-II U6a).** They stood in the block
+slot for definition-only rows so two families' offsets could not collide at
+the same number. Every row in the tree addresses an instance now, so the
+sentinels, the `ORGAN_PARAM_DEFONLY` macro pair and the `is_defonly` predicate
+all left; a future family with no instance re-founds the convention
+descending from 255.
 
 ## Definition and preview
 
-The default write is a DEFINITION: it changes what a mood (or the world) MEANS
-and lets the program's own applier produce the instance at the frame boundary.
-PREVIEW writes the instance; the next author may take it back. A row with no
-definition writes the instance under either mode; a definition-only row refuses
-preview.
+The default write is a DEFINITION: it changes what the WORLD means and lets
+the program's own applier produce the instance at the frame boundary. PREVIEW
+writes the instance; the next author may take it back. A row with no definition
+writes the instance under either mode.
 
 An instance row whose home an applier re-produces is a window, not a dial:
 it is enrolled as a witness (`_RO`), and the authored dial sits on the
 applier's INPUT. The sun is the case of record — `GPULighting::sun` is drawn
-by `apply_mood_lighting` at every mood entry and every MOOD re-speak, so its
-four rows are witnesses and its brightness is authored at `Atmosphere · Regime N`.
+by `stage_sky` at every world's birth and every atmosphere re-speak, so its
+four rows are witnesses and its brightness is authored at `Atmosphere · Sky`.
 
 | kind | struct · bank | scope | raises | applier at the boundary |
 | --- | --- | --- | --- | --- |
-| `MOOD` | `MoodProfile` · `MOOD_LIVE` | mood-selected | `g_def_dirty` + mood | `apply_mood_regime`, `apply_mood_lighting` — live mood only |
 | `TIER` | `AgentTierBank` · `TIER_LIVE` | the world's | `g_tier_def_dirty` | `upload_agent_registries_to_gpu` |
 | `BEHAVIOR` | `AgentBehaviorBank` · `BEHAVIOR_LIVE` | the world's | `g_tier_def_dirty` — same author as TIER | the same |
-| `ORB_MOOD` | `OrbMoodConfig` · `ORB_MOOD_LIVE` | mood-selected | `g_orb_def_dirty` + mood + touched mask | `configure_orbs` — live mood only |
+
+**Two kinds, not four (ONE_WORLD-II).** `MOOD` (`MoodProfile` · `MOOD_LIVE`)
+and `ORB_MOOD` (`OrbMoodConfig` · `ORB_MOOD_LIVE`) were MOOD-SELECTED: one row
+per mood, the write's target choosing which. U1a gave the atmosphere an
+instance and U1b gave the orbs one, so both became ordinary instance blocks
+(12 and 13); the target parameter left with the last selecting kind at U6b,
+and a definition target above 0 is now REFUSED OUT LOUD — a stored preset
+keyed `"<mood>/<param>"` names a world that no longer exists, and aliasing it
+onto the one bank would be a silent lie.
 
 A field is a definition only if its applier is the field's one runtime reader.
 A kind shares a flag when it shares an author. The definition path CONVERTS
@@ -96,7 +112,7 @@ integer lanes and never reinterprets them. The manifest emits `cad`, `inst` and
 | --- | --- | --- |
 | `LIVE` | silent | the default |
 | `GEN` | `on respawn` | stored — the one fact the row must volunteer |
-| `BOUNDARY` | `boundary` | a definition kind, a sentinel block, or `block_has_boundary` |
+| `BOUNDARY` | `boundary` | a definition kind or `block_has_boundary` |
 | `DRIVEN` | `driven` | `ro` |
 
 `derived_cadence()` is the one place the rule lives. Temperament: an idempotent
@@ -116,7 +132,8 @@ much re-speak the edit requires. Bit = offset / 4, pinned by `static_assert`
 beside each mask.
 - `g_orb_console_dirty` (block 5): dome radius, noise floor and speed
   multiplier take targeted partial uploads; base size raises the orb re-speak.
-- `g_orb_def_touched` (over `OrbMoodConfig`) against `ORB_RESEED_BITS` —
+- `g_orb_def_touched` (over `OrbMoodConfig`, the type that kept the moods'
+  name) against `ORB_RESEED_BITS` —
   `enabled`, `count`, `palette_id`, `drag`: only those four re-seed the sky; the
   other fifteen ride the uniform upload. A raise with no bits means everything.
 
@@ -129,14 +146,17 @@ functions of the cartridge, taken once per frame from `the_board.cpp`.
 A door raises a flag the boundary already consumes and adds no author.
 `organ_doors()` emits the roster; the shell renders one button per row; presses
 coalesce in a bitmask.
-- `RESPEAK` — raise every definition flag for the live mood.
+- `RESPEAK` — raise every definition flag at once.
 - `ORB_RULE`, `ORB_GESTURE` — the commands keys KP_8 / KP_7 press; the sky's
   two player-owned facts, which is why they are doors and not dials.
 
 The mood door (`organ_go_mood`) stood here until ONE_WORLD-I: it pressed
 `request_mood_transition`, and door and request left together with the
-transition machine. `organ_mood` and `organ_mood_names` remain — the live
-mood is still readable, it is simply no longer switchable from the surface.
+transition machine. `organ_mood`, `organ_regime` and `organ_mood_names` were
+what remained of it, and they left at ONE_WORLD-II U2/U6b with the fact they
+read — an export that would return a fact that no longer exists dies with the
+fact rather than returning a lie. `organ_host` / `organ_go_host` (RIBBON_1)
+are the surviving door-with-a-parameter, on the shape the mood door founded.
 
 The rule window (`organ_orb_rule`) packs rule, gesture, lit and count out of
 `OrbsState`, refreshed at the boundary and nowhere else, so it cannot go stale
@@ -144,14 +164,15 @@ whoever turned the rule.
 
 ## The ABI
 
-`organ_manifest`, `organ_doors`, `organ_mood_names` (JSON); `organ_set`,
-`organ_door` (writes); `organ_get`, `organ_def_get`,
-`organ_mood`, `organ_regime`, `organ_orb_rule` (reads, by manifest index);
+`organ_manifest`, `organ_doors` (JSON); `organ_set`, `organ_door`,
+`organ_go_host` (writes); `organ_get`, `organ_def_get`, `organ_orb_rule`,
+`organ_host` (reads, by manifest index where one applies);
 `organ_param_count`, `organ_rejected_count`, `organ_last_reject`,
-`organ_flush_count` (the status line). The manifest is emitted in table order,
-so its index is the row's index. The ABI is inert until `bind_home` and `bind_mood` run at
-the end of cartridge init; every entry point returns harmlessly before that,
-and the shell polls until `organ_param_count` is nonzero.
+`organ_flush_count`, `organ_build_stamp` (the status line). The manifest is
+emitted in table order, so its index is the row's index. The ABI is inert until
+`bind_home` and `bind_point` run at the end of cartridge init; every entry
+point returns harmlessly before that, and a consumer polls until
+`organ_param_count` is nonzero.
 
 The ABI's consumer is the native control surface to come (docs/OPEN.md,
 THE ABLETON SEAM); the browser panel that drove it is attic'd at tag
@@ -172,28 +193,36 @@ NATIVE PRESET INGESTION). The `?preset=` boot road went with the panel.
 
 ## The tuning loop
 
-`?organ=1&mood=N&seed=N` boots into a mood under a pinned seed; the lens
-follows the regime the seed drew. Export, shelve, and
-`?preset=<name>&mood=N&seed=N` boots EVERY tuned sky: one file carries every
-mood's definitions, so a walk across the mood keys finds each one as it was
-shelved. The `[Atmos]` witness prints `(mood, seed, regime)` once per regime,
-so a drag is silent and a regime change under a weight dial is announced.
+`--seed=N` pins the world; the panel's dials address the banks that world was
+drawn from, and the boundary re-draws WITH the dial rather than re-rolling
+(same seed, shifted centre, same offset). The `[Atmos]` witness prints
+`seed= int= amb= sun el= az= fog=` once per WORLD, so a drag is silent and a
+new world announces itself.
 
-## Moods
+It was `?organ=1&mood=N&seed=N` into one of seven moods, with a lens that
+followed the regime the seed drew, and a preset file carrying every mood's
+definitions keyed `"<mood>/<param>"`. The regime roll left at U1, the moods at
+U2, and the witness lost a term at each: it printed `(mood, seed, regime)` and
+prints one seed now. A preset shelved before those cuts is REFUSED by key,
+loudly and by name.
 
-Variants are moods: `open_sunset`, `open_night`, `open_noon` share one
-`SHAPE_OPEN` and differ only in atmosphere. A new mood is one `SHAPE_` (or a
-shared one) and one `ATMOS_` constant, one row in each positional per-mood
-table (`MOOD_TABLE`, `ORB_MOOD_TABLE`, `AGENT_POPULATIONS`, `MOOD_SPAWN_MULT`,
-`CUBE_POPULATIONS`), a portal colour and a weight in `WORLD_DRAW_TABLE`, and a
-name in `MOOD_NAMES` — every table's assert names the commit it expects.
-`WorldShape.light_scheme` / `.palette`: `*_ROLL` lets the seed draw; a shape may
-pin either to an index instead.
+## The world
 
-The destination law is one weighted table, `WORLD_DRAW_LIVE.mood_weights`,
-walked by id (`pick_portal_mood`; `pick_open_mood` restricts the walk to open
-shapes — the triad's way out of a room). A weight of 0 shuts a door without
-unmaking the mood.
+ONE WORLD, ONE SKY. A world is a SEED and nothing else: `--seed=` on argv
+or a drawn one, and every fact the program used to look up per mood is a
+LIVE BANK the panel owns — `ATMOS_LIVE` (the sky as a distribution),
+`ORB_LIVE`, `CUBE_LIVE`, `AGENTS_LIVE`. The world is pinned FINITE and its
+radius draws from `FINITE_RADIUS_MIN/MAX` under the same seed.
+
+`## Moods` stood here until ONE_WORLD-II U7. It described seven variants,
+their positional tables (`MOOD_TABLE`, `ORB_MOOD_TABLE`,
+`AGENT_POPULATIONS`, `MOOD_SPAWN_MULT`, `CUBE_POPULATIONS`), a portal
+colour, a weight in `WORLD_DRAW_TABLE`, a name in `MOOD_NAMES`, and the
+destination law that walked `WORLD_DRAW_LIVE.mood_weights` by id. Most of
+that was ALREADY STALE when this campaign found it — `pick_portal_mood`,
+`pick_open_mood` and the portal colours left with the doors at
+ONE_WORLD-I. All of it is gone now.
+
 
 ## Instruments
 
@@ -202,24 +231,29 @@ unmaking the mood.
 | `tools/organ_gap.py` | the map of declared members the panel does not name; `--gate` fails on a design table with a surviving runtime reader |
 | `tools/organ_readers.py` | a declared reader names every enrolled field |
 | `tools/organ_ledger.py` | `audit/ORGAN.md` — every row with range, step and cadence; the music campaign's target map |
-| `tools/gates/shell_gate/run.py` | the C++ ↔ shell seam: no sentinel in the shell; type enum, cadence length, scope constants and `RULE_NAMES` agree; every cwrap reaches an export at matching arity |
-| `tools/gates/console_gate/run.py` | the translation units type-check against the pinned emdawnwebgpu surface |
+| `tools/gates/console_gate/run.py` | the translation units type-check, two tiers, zero diagnostics |
 
-The three organ tools share `tools/organ_parse.py`. Every instrument reads
-text; the web boot is the witness of record for everything past the type
-surface.
+`tools/gates/shell_gate/run.py` stood in this table and left with the browser
+panel at WEB_SUNSET: it proved the C++ ↔ shell seam, and there is no shell to
+be at the other end of it. The three organ tools share `tools/organ_parse.py`.
+Every instrument reads text; the NATIVE boot is the witness of record for
+everything past the type surface.
 
 ## What has no dial, and why
 
 An enrollment states a belief and only the reader proves it; the converse also
 has a register. Four facts survived every wave of the disposition survey
 without earning a row, and each names its own owner rather than waiting on a
-campaign.
+campaign. **Two of the four have since died with their subjects
+(ONE_WORLD-II): `THEME_BASE_WEIGHT` with the theme engine at U3, and
+`INDOOR_PALETTES[]` with the rooms at U4.** Their rows are struck rather than
+deleted, because the REASON each was not a dial is the register's content and
+outlives the fact.
 
 | what | why not a dial | its owner |
 | --- | --- | --- |
-| `THEME_BASE_WEIGHT` | it is one scalar over a 5×N weight construction; the honest dial is the whole `MOOD_SPAWN_MULT` matrix, D5-large | a composite editor (D5) |
-| `INDOOR_PALETTES[]` | mixed-shape rows, count read from `INDOOR_PALETTE_COUNT` (D5) | a composite editor (D5) |
+| ~~`THEME_BASE_WEIGHT`~~ | it was one scalar over a 5×N weight construction; the honest dial was the whole `MOOD_SPAWN_MULT` matrix, D5-large — **struck, ONE_WORLD-II U3** | a composite editor (D5) |
+| ~~`INDOOR_PALETTES[]`~~ | mixed-shape rows, count read from `INDOOR_PALETTE_COUNT` (D5) — **struck, ONE_WORLD-II U4** | a composite editor (D5) |
 | `tierset_id` | its "none" value is `0xFFFFFFFF`, and a 0…1 slider cannot express a sentinel without lying (D1(d)). `organ_gap` reports it, by name, as the one absent member of `OrbMoodConfig` | a composite editor (D5) |
 | `mute_couplings` | a bitmask: `Coupling::ALL` is `0x1FFFFF` and a slider from 0 to 2 097 151 is not a dial. It wants a checkbox per bit — a shell feature, not an enrollment line — and **the bits are not there to check**: 21 bits wide, 8 of them named, so twenty-one checkboxes would be thirteen toggles over bits nothing reads. `Coupling::` is also a hand-kept mirror of `world.wgsl`'s `COUPLING_*` block, which D1's third branch reserves | a checkbox grid over a roster the C++ emits — priced, unbuilt, and **not CC's to choose** |
 
@@ -240,19 +274,28 @@ is.
 
 ## The tally
 
-**365 entries — 348 dials and 17 witnesses.** Cut from `audit/ORGAN.md`, which
+**310 entries — 295 dials and 15 witnesses.** Cut from `audit/ORGAN.md`, which
 `tools/organ_ledger.py` regenerates from the enrollment list.
 
 | section | rows |
 | --- | --- |
-| Agents | 109 |
-| Atmosphere | 73 |
-| Ribbon | 56 |
-| Terrain | 42 |
-| Sky & Light | 41 |
+| Agents | 102 |
+| Ribbon | 55 |
+| Terrain | 37 |
+| Atmosphere | 31 |
+| Sky & Light | 30 |
 | Interaction | 22 |
 | Pawn | 18 |
+| Population | 5 |
 | Debug | 4 |
+| Camera | 3 |
+| Measure | 3 |
 
-By cadence: `boundary` 180 · `live` 122 · `gen` 46 · `driven` 17.
-By definition kind: none 189 · BEHAVIOR 70 · MOOD 55 · TIER 32 · ORB_MOOD 19.
+By cadence: `boundary` 106 · `live` 164 · `gen` 25 · `driven` 15.
+By definition kind: none 208 · BEHAVIOR 70 · TIER 32.
+
+It was **365 — 348 and 17** before ONE_WORLD-II. The atmosphere lost 40 rows
+at U1 (fifty-two definition-only rows against four regimes became twelve
+against one bank), the moods took the `MOOD` kind's 55 and `ORB_MOOD`'s 19
+became ORB_BANK's instance rows, and U6b added the agents' five and the
+population panel's. Every number here is the ledger's, never hand-counted.

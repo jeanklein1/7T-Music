@@ -47,7 +47,7 @@
 
 #include "render/render_cartridge.hpp"
 #include "core/input_event.hpp"
-#include "core/boot_params.hpp"                                    // DOMESDAY_1 B9 — ?seed= / ?mood= boot overrides (ctor, the one authoring site)
+#include "core/boot_params.hpp"                                    // DOMESDAY_1 B9 — the ?seed= boot override (ctor, the one authoring site)
 #include "core/instruments.hpp"                                    // THE INSTRUMENTS DIAL: INSTRUMENTS.frame_meter / .periodic_census gate the recurring self-measurement (compile-time, T7_INSTRUMENTS; default off)
 #include "cartridges/the_board/contracts/roster.hpp"
 #include "cartridges/the_board/demos/demo.hpp"             // THE SELECTED SENTENCE: DEMO + ROSTER (compile-time, INCUBATE_DEMO; default full)
@@ -55,7 +55,7 @@
 #include "cartridges/the_board/contracts/ground_architecture.hpp"  // ground contributor/policy tables + compile-time DAG checks
 #include "cartridges/the_board/contracts/entity_types.hpp"         // THE CONTRACT HOME: pipeline contracts + boundary DTOs + queue unions + dispatch row/table decl
 #include "cartridges/the_board/contracts/spawn_services.hpp"      // THE MACHINE'S DECL TIER: spawn/pipeline service decls + boundary DTOs + MIN_SEPARATION (bodies ride the merged machine headers at the cohort tail)
-#include "cartridges/the_board/contracts/spine_state.hpp"          // TimeState + PlayerState + InputState + SkyState/MoodProfile/MOOD_TABLE (spine organ TYPES; instances stay at the root)
+#include "cartridges/the_board/contracts/spine_state.hpp"          // TimeState + PlayerState + InputState + SkyState (spine organ TYPES; instances stay at the root)
 #include "cartridges/the_board/contracts/point.hpp"                // THE POINT: the parent of the player system — host enum + the bubble decl; instance at the root
 #include "cartridges/the_board/contracts/control_panel.hpp"        // THE PANEL: the field's dials + the beacon rests — one home, every room
 #include "cartridges/the_board/contracts/driver_surface.hpp"       // THE DRIVERS' ROOM: rests and gains at the seams; phase_motion_drivers reads DRIVER_LIVE.fog
@@ -77,8 +77,8 @@
 #include "coupling/visual_canvas.hpp"
 #include "cartridges/the_board/bodies/ribbon.hpp"               // RibbonState + RibbonDeps + impl — MERGED; after visual_canvas for the coupling face; after agents/cubes/spheres for the FIELD_2 mirror deps
 #include "cartridges/the_board/direction/input.hpp"             // KeyState/MouseState + InputDeps + impl — MERGED; after ribbon for RibbonState (the sky fixture); InputState graduated to spine_state
-#include "cartridges/the_board/realization/render_passes.hpp"   // the pass/dispatch bodies on THE MACHINE FACE + light-VP helpers — MERGED; before mood (compute_spot_light_vp)
-#include "cartridges/the_board/direction/mood.hpp"              // MoodDeps + the atmosphere vocabulary + impl — MERGED; after ribbon/input (fan targets), before the machine natives (they call its derivers); SkyState/MoodProfile/MOOD_TABLE graduated to spine_state
+#include "cartridges/the_board/realization/render_passes.hpp"   // the pass/dispatch bodies on THE MACHINE FACE + light-VP helpers — MERGED; before sky
+#include "cartridges/the_board/direction/sky.hpp"              // SkyDeps + the draw + the world's birth + impl — MERGED; after ribbon/input (fan targets), before the machine natives (they call its derivers); SkyState graduated to spine_state
 #include "cartridges/the_board/machine/spawn_engine.hpp"        // S3: the spawn engine — footprint registry, the composition law, mesh-param rebuilds, the census dumps — MERGED; cohort tail
 #include "cartridges/the_board/machine/entity_pipeline.hpp"     // S3: the three-phase verbs + the welded four — MERGED; after spawn_engine (services) + entities (vocab)
 #include "cartridges/the_board/surface/patch_system.hpp"        // S2: the active-patch machine's bodies on THE MACHINE FACE — MERGED; decl tier in contracts/surface_services.hpp
@@ -200,7 +200,7 @@ namespace t7 {
             OrbsState orbs_state_;
 
             //   gol_state_ — GoLState: the zone slots + counts +
-            //     mood gate + derive-request queue.
+            //     the world's gate + derive-request queue.
             GoLState gol_state_;
 
             //   agent_state_ — AgentState: the 32-slot CPU mirror +
@@ -251,17 +251,18 @@ namespace t7 {
             TargetBinding checker_mean_dst_{};
             TargetBinding checker_var_dst_{};
 
-            // Sun + atmosphere — authored solely by apply_mood, at boot and at
-            // every transition. No boot literals: MOOD_TABLE is the one source.
+            // Sun + atmosphere — authored solely by stage_world_birth, at boot
+            // and at every rebirth. No boot literals: ATMOS_LIVE is the one
+            // source.
             float sunDirection_[3] = {};
             float sunColor_[3] = {};
             float clearColor_[3] = {};
 
-            // ═══ MOOD STATE ═════════════════════════════════════════════
+            // ═══ SKY STATE ══════════════════════════════════════════════
             //
             // Struct SkyState lives in contracts/spine_state.hpp.
-            // The INSTANCE stays spine-resident because
-            // mood-applied values feed every other subsystem
+            // The INSTANCE stays spine-resident because the values the
+            // world's birth draws feed every other subsystem
             // (SEAM[spine:transitions], K4).
             SkyState sky_state_;
 
@@ -309,7 +310,7 @@ namespace t7 {
             GolDeps       gol_deps_;
             RibbonDeps    ribbon_deps_;
             InputDeps     input_deps_;
-            MoodDeps      mood_deps_;
+            SkyDeps      sky_deps_;
 
 
             // SEAM[spine:transitions] (K4, Jean, 2026-07-11): the transition
@@ -318,10 +319,10 @@ namespace t7 {
             //   class as the P5 readbacks. ONE_WORLD-I took the machine and
             //   then the doors; the ruling stands over what remains —
             //   sky_state_ — and over rebirth_world, the machine's one
-            //   survivor. Mood (direction/mood.hpp) supplies vocabulary +
-            //   appliers + three doors and owns NO instance; struct SkyState's
-            //   TYPE lives in contracts/spine_state.hpp. Constitution §2
-            //   carries the K4 line.
+            //   survivor. The sky (direction/sky.hpp) supplies the draw, the
+            //   applier and the birth sequence and owns NO instance; struct
+            //   SkyState's TYPE lives in contracts/spine_state.hpp.
+            //   Constitution §2 carries the K4 line.
             // SEAM[spine:portal-system] CLOSED at ONE_WORLD-I U2 — its whole
             //   subject (the portal arrays, the back-portal anchor, the
             //   force-spawn channel) left with the doors.
@@ -473,7 +474,7 @@ namespace t7 {
                 , gol_deps_{ gpuState_, renderer_, device_, time_state_ }
                 , ribbon_deps_{ gpuState_, time_state_, tile_world_state_, player_, point_, inputState_, world_state_, sky_state_, visual_canvas_, ribbon_amp_lat_dst_, ribbon_amp_vert_dst_, ribbon_tint_stim_dst_, ribbon_tint_mix_dst_ }
                 , input_deps_{ inputState_, keys_, mouse_, touch_, player_, world_state_, ribbon_state_, gpuState_, device_, point_, mount_, camera_ }
-                , mood_deps_{ sky_state_, world_state_, gpuState_, renderer_, gol_state_, sunDirection_, sunColor_, clearColor_ } {
+                , sky_deps_{ sky_state_, world_state_, gpuState_, renderer_, gol_state_, sunDirection_, sunColor_, clearColor_ } {
                 // THE ROOT AUTHORS THE BOOT VALUES (the demo sentence lands
                 // here, not via in-struct defaults — no include-order cable).
                 // DRAW_0: the seed is DRAWN, not authored — boot_seed()
@@ -498,8 +499,8 @@ namespace t7 {
                 // BOOT IS A BIRTH FROM NOTHING — IN FACT (ATRIUM_0).
                 // The SEED is settled above and is now the whole of what a
                 // world is chosen by: the mood that used to be settled
-                // beside it, and the ?mood= / --mood= override that forced
-                // it, left at ONE_WORLD-II U2. Boot walks the L10 door and
+                // beside it, and the override that forced it, both left at
+                // ONE_WORLD-II U2. Boot walks the L10 door and
                 // nothing else: there is no world behind it to tear down,
                 // which is exactly what rebirth_world's body is for.
                 become_world(world_state_.active_seed);
@@ -612,13 +613,13 @@ namespace t7 {
                 // Order is today's, preserved byte-for-byte (PRIME INVARIANT);
                 // one conductor call per piece, presence constexpr-gated.
                 // BOOT IS A TRANSITION FROM NOTHING. The world has one way to come
-                // into being; the only difference between boot and a mood change is
-                // what came before. apply_mood is that one way — it subsumes the
-                // frustum-cull row, the orb one-shot, and every atmospheric value
-                // boot used to hand-copy from MOOD_TABLE[0].
+                // into being; the only difference between boot and a rebirth is
+                // what came before. stage_world_birth is that one way — it subsumes
+                // the frustum-cull row, the orb one-shot, and every atmospheric
+                // value boot used to hand-copy from a table row.
                 {
                     wgpu::Queue q = device_.GetQueue();
-                    stage_world_birth(&mood_deps_, q,
+                    stage_world_birth(&sky_deps_, q,
                         machine_ctx_,
                         orbs_state_, orbs_deps_,
                         pawn_state_);
@@ -673,8 +674,8 @@ namespace t7 {
                 // stays true.
                 gpuState_.report_gpu_budget();
                 // ORGAN — the homes exist by now, so bind them; the ABI is
-                // inert until this runs. The mood organ is BORROWED, so the
-                // panel cannot name a state the program has left.
+                // inert until this runs. The point is BORROWED, so the
+                // panel cannot name a host the program has left.
                 t7::organ::bind_home(&gpuState_);
                 t7::organ::bind_point(&point_);   // RIBBON_1 — the panel's host row
 
@@ -690,7 +691,7 @@ namespace t7 {
                     mark(ROSTER.pawn_aura, "pawn_aura"); mark(ROSTER.orbs, "orbs");
                     mark(ROSTER.wanderers, "wanderers");
                     // EVERY REMAINING PIECE IS SH-SHARED (ONE_WORLD-II U4).
-                    // indoor_shell was the roster's ONE SEPARABLE piece — the
+                    // The shell was the roster's ONE SEPARABLE piece — the
                     // only bit whose buffers were skipped rather than created
                     // pristine — so the ternary that named it has no live
                     // branch and the classification is empty.
@@ -994,11 +995,11 @@ namespace t7 {
                 auto& signal = c.signal;
                 visual_canvas_.tick(signal);
                 // ORGAN — the drivers' room sits at this seam:
-                // out = rest + gain·deviation. The REST is the mood's,
+                // out = rest + gain·deviation. The REST is ATMOS_LIVE's,
                 // drawn per world into sky_state_.fog_rest_* by
-                // apply_mood_lighting; the DEVIATION is the canvas's,
+                // stage_sky; the DEVIATION is the canvas's,
                 // measured from its anchor row. Gain 1 is the coupling
-                // verbatim, gain 0 is the mood's own fog, and with no
+                // verbatim, gain 0 is the bank's own fog, and with no
                 // bindings the rest alone speaks — so the dial works
                 // headless too.
                 //
@@ -1146,8 +1147,8 @@ namespace t7 {
                 else {
                     gpuState_.set_world_bounds(0.0f, 0.0f, 0.0f, 0.0f);
                 }
-                // THE VEIL (ruled): OFF in finite/indoor — walls define the
-                // boundary there, not fog (the same law that makes all patches
+                // THE VEIL (ruled): OFF in finite mode — the bounds define the
+                // edge there, not fog (the same law that makes all patches
                 // visible in finite mode). Dirty-gated; rides the U8 drain.
                 gpuState_.set_veil_strength(world_state_.finite_mode ? 0.0f : 1.0f);
             }
@@ -1157,11 +1158,11 @@ namespace t7 {
             // seed. The three facts ARE the world's identity: which seed
             // drew it, whether it is walled, how far the walls stand
             // (ATRIUM_0: finite_mode and finite_radius were in-struct
-            // defaults at boot, correct by luck while the boot mood was
-            // open). The radius is DERIVED from the seed and the live
-            // mood's shape, never authored: DemoConfig does not grow, and
-            // its parked D2 axis stays parked. Boot is a birth from
-            // nothing in fact, not in doctrine.
+            // defaults at boot, correct by luck while the boot world was
+            // open). The radius is DERIVED from the seed within the pin's
+            // dials, never authored: DemoConfig does not grow, and its
+            // parked D2 axis stays parked. Boot is a birth from nothing
+            // in fact, not in doctrine.
             void become_world(uint32_t seed) {
                 world_state_.active_seed   = seed;
                 world_state_.finite_mode   = WORLD_FINITE;
@@ -1239,7 +1240,7 @@ namespace t7 {
             // upload_zone_config_header and deactivate_zone_slot both run
             // per-frame from gol_zones.
             // NOT LATENT, though this body calls them: become_world,
-            // reset_surface, apply_mood, spawn_population_for_mood,
+            // reset_surface, stage_world_birth, spawn_population,
             // dump_agent_census, dump_entity_census, set_world_seed,
             // set_possessed_slot — every one has a live caller at boot or
             // in the frame.
@@ -1255,7 +1256,7 @@ namespace t7 {
             // attic archaeology (L30).
             //
             // MAINTAINED, NOT FROZEN — latency is not exemption. Later
-            // campaigns treat this body as a first-class reader: its mood
+            // campaigns treat this body as a first-class reader: its bank
             // reads rewire like any live caller's, its narration rides
             // probate, twin-room discipline applies. A latent verb rots
             // if a campaign walks past it.
@@ -1312,7 +1313,7 @@ namespace t7 {
                     clear_cubes(cube_behaviors_state_, gpuState_, queue);
                 if constexpr (ROSTER.pawn_aura)  // ROSTER-GATE pawn_aura (c) — teardown clear skipped when disabled (no aura to clear)
                     teardown_pawn_aura(pawn_state_);
-                // Sky orbs: apply_mood re-enables + re-seeds as needed
+                // Sky orbs: stage_world_birth re-enables + re-seeds as needed
                 if constexpr (ROSTER.orbs)  // ROSTER-GATE orbs (c) — teardown one-shot skipped when disabled
                     teardown_orbs(orbs_state_, &orbs_deps_);
 
@@ -1355,10 +1356,10 @@ namespace t7 {
                     preserved_color_r, preserved_color_g, preserved_color_b,
                     preserved_skin);
                 gpuState_.set_world_seed(world_state_.active_seed);
-                // THE MOOD IS THE WORLD'S, AND IT DOES NOT MOVE. The machine
-                // carried a destination mood; a rebirth re-draws the SAME
-                // mood under a new seed, so the live id is the argument.
-                stage_world_birth(&mood_deps_, queue,
+                // THE SKY IS THE WORLD'S, AND IT IS DRAWN AGAIN. The machine
+                // carried a destination mood once; there is one world now, so
+                // a rebirth re-draws the SAME bank under a new seed.
+                stage_world_birth(&sky_deps_, queue,
                     machine_ctx_,
                     orbs_state_, orbs_deps_,
                     pawn_state_);
@@ -1374,8 +1375,8 @@ namespace t7 {
                 dump_entity_census(&machine_ctx_, "rebirth");
                 // ROSTER-GATE ribbon (c) — finite-mode release, owner
                 // verb. Zero effect when ribbon is off (active_count
-                // stays 0). ORDER (O-3): after apply_mood set
-                // sky_state_.active.
+                // stays 0). ORDER (O-3): after the world's birth has
+                // staged the sky.
                 if constexpr (ROSTER.ribbon)
                     release_finite_ribbons(ribbon_state_, &ribbon_deps_, queue);
 
@@ -1558,7 +1559,7 @@ namespace t7 {
                 //
                 // THE BASE IS Idle::PAWN_HEADING, not point_.heading: the
                 // arrival row's azimuth is an offset on the ARRIVAL gaze, a
-                // constant, and apply_mood_arrival adds it to exactly this.
+                // constant, and the arrival applier added it to exactly this.
                 // A printed offset against the live heading would be a
                 // different number from the one the panel takes, which is
                 // the one way this instrument could lie.
@@ -1594,7 +1595,7 @@ namespace t7 {
             void phase_stream_patches(RenderCtx& c) {
                 auto& encoder = c.encoder;
                 auto& queue = c.queue;
-                stream_patches(&machine_ctx_, encoder, queue, tile_world_state_, tile_world_deps_, mood_deps_);
+                stream_patches(&machine_ctx_, encoder, queue, tile_world_state_, tile_world_deps_, sky_deps_);
             }
 
             // R4 — RESPAWN AGENTS (S3, algo; RC-1: after stream). Refills slots
@@ -1636,7 +1637,7 @@ namespace t7 {
                 // blocking console write on the render thread, so ~50 lines
                 // every 30 s IS the long frame every 30 s. Off, the row above
                 // (the residue proof, a correctness witness) still runs and
-                // this returns. The "boot" and "mood-transition" dumps are
+                // this returns. The "boot" and "rebirth" dumps are
                 // NOT on the dial: those are P6 transition witnesses, and
                 // their frames are already long.
                 if constexpr (!INSTRUMENTS.periodic_census) return;
@@ -1970,7 +1971,7 @@ namespace t7 {
             // this row left with the doors (ONE_WORLD-I U2).
             void phase_upload_lights(RenderCtx& c) {
                 auto& queue = c.queue;
-                upload_lights(&mood_deps_, queue);
+                upload_lights(&sky_deps_, queue);
             }
 
             // LIVE CARD WRITE (GROUND_CARD_1; between R9 and R10). The per-frame
@@ -2720,17 +2721,17 @@ namespace t7 {
                 }
             }
 
-            // Mood is VOCABULARY + APPLIERS + THREE DOORS: CeilingType /
-            // MoodProfile / MOOD_TABLE / indoor palettes +
-            // the door, applier, and deriver declarations are in mood.hpp
-            // (file scope, above the class); the definitions live in the
-            // same header's MODULE IMPLEMENTATION zone (the merged file,
-            // pre-class in the cohort). MOOD OWNS NO STATE —
-            // nothing at the COMPOSITION ROOT; sky_state_ is spine-resident
+            // THE SKY is THE DRAW + ONE APPLIER + THE BIRTH SEQUENCE: the
+            // door, applier and deriver declarations are in sky.hpp (file
+            // scope, above the class); the definitions live in the same
+            // header's MODULE IMPLEMENTATION zone (the merged file, pre-class
+            // in the cohort). THE SKY OWNS NO STATE — nothing at the
+            // COMPOSITION ROOT; sky_state_ is spine-resident
             // (SEAM[spine:transitions], L38 — assembly only; this is declared
-            // orchestration). The force-spawn mutation that belonged to the
-            // arch's owner left with the doors (ONE_WORLD-I U2). The
-            // lighting-scheme tables stay impl-side. See §1.
+            // orchestration). It was MOOD, a vocabulary and four appliers; the
+            // vocabulary died at ONE_WORLD-II U2 and U4 and the file was
+            // renamed at U7. The force-spawn mutation that belonged to the
+            // arch's owner left with the doors (ONE_WORLD-I U2). See §1.
 
         public:
 

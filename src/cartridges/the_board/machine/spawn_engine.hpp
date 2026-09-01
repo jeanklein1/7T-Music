@@ -1,6 +1,6 @@
 #pragma once
 #include <cstdint>
-#include <iostream>       // census + the indoor-skip line
+#include <iostream>       // the census lines
 #include <cmath>      // std::floor, std::sqrt, std::min/max companions   // (impl, merged)
 #include <algorithm>  // std::min, std::max   // (impl, merged)
 #include <iomanip>    // census column formatting   // (impl, merged)
@@ -243,18 +243,6 @@ inline SpawnGateOutput gate_from_traits(MachineCtx* c, int32_t gx, int32_t gz,
 // through FAMILY_DISPATCH with the machine face as the row argument.
 
 
-// ── Helper 1b: the indoor bounds law ────────────────────────
-//
-// One law for every placement site (negotiate_position). In
-// finite indoor worlds, push the
-// candidate inward so the clamped radius stays at least
-// INDOOR_ENTITY_WALL_MARGIN from every wall. We clamp instead of
-// rejecting because rejection would silently drop entities
-// anchored to corner patches (their seed-determined position
-// keeps landing in the wall margin and never recovers). Clamping
-// shifts the candidate to the boundary of the legal box, then
-// the existing footprint-overlap check handles any pile-ups.
-//
 // ── Helper 2: NegotiatePosition ─────────────────────────────
 
 inline PositionResult negotiate_position(MachineCtx* c,
@@ -575,7 +563,7 @@ inline void dump_entity_census(MachineCtx* c, const char* trigger) {
     // arrivals makes stillness print nothing, which is the point.
     //
     // THE WINDOW IS THE INTERVAL CONSTANT, not a delta against
-    // lastCensusDump_. Boot and mood-transition never write that field (they
+    // lastCensusDump_. Boot and rebirth never write that field (they
     // mirror the agent census, which does not either), so a delta would
     // measure the wrong span immediately after a transition; a fixed window
     // means the same thing at every trigger. Sub-frame slop is expected and

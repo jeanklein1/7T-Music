@@ -307,13 +307,11 @@ namespace t7 {
             // (L3 MIRROR — the TILE_GRID_CAPACITY pattern; no compile-time
             // bridge spans the runtime-loaded seam.)
             //
-            // ONE FACT, ONE HOME, deliberately: this sizes the spot atlas
-            // as well as the sun map, because the sun map IS the spot
-            // atlas's first texture during indoor moods (it is idle then).
-            // Splitting the constant would give the two halves of one
-            // atlas different tile widths. At 2048 the pair costs 33.6 MB
-            // of VRAM — the spot half of that spend buys 1024x2048 indoor
-            // tiles, which is not waste, but it is real.
+            // ONE FACT, ONE HOME. It sized the spot atlas as well as the
+            // sun map, because the sun map WAS the atlas's first texture —
+            // splitting the constant would have given the two halves of one
+            // atlas different tile widths. The spot half left with the rooms
+            // (ONE_WORLD-II U4) and the sun keeps the map it always had.
             //
             // PORT_5a — 4096 -> 2048 (Jean's stamp). The pair was 134.2 MB
             // of a 681 MiB boot request that a shared-memory GPU could not
@@ -325,8 +323,6 @@ namespace t7 {
             // depthBiasClamp (renderer.hpp), a WORLD quantity tuned at the
             // old texel; see this unit's commit body.
             constexpr uint32_t SHADOW_MAP_SIZE = 2048;
-
-            // Indoor shell (ceiling + walls for finite indoor scenes)
 
             // MAX_ARCH_INSTANCES and the AMG_* mesh-gen capacities stood
             // here. The catenary arch was the last family with a GPU mesh-gen
@@ -365,7 +361,7 @@ namespace t7 {
             constexpr uint32_t MAX_ORBS = 256;
 
             // Agent system — unified entity layer. Slot 0 is the player's
-            // body; slots 1..MAX_AGENTS-1 are mood-authored agents. See
+            // body; slots 1..MAX_AGENTS-1 are the bank's agents. See
             // bodies/agents.hpp.
             constexpr uint32_t MAX_AGENTS = 32;
 
@@ -567,7 +563,7 @@ namespace t7 {
             float world_bound_max[2];         // XZ max clamp (0,0 = infinite)
             uint32_t placement_patch_count;   // active patches for entity Y-correction
             // RETIRED TO NAMED PADS (ONE_WORLD-II U4), not deleted: the
-            // indoor amplitude clamp and the camera's ceiling. Twelve bytes
+            // rooms' amplitude clamp and their ceiling. Twelve bytes
             // of hole UPSTREAM of lod_point_x (336) and checker_resultant
             // would move every offset behind them and part a mirror no
             // instrument reconciles. The house idiom is two fields below
@@ -618,13 +614,10 @@ namespace t7 {
             // instead of tinting) at the two icing FS sites. Repurposes one
             // of the pulse pad floats — no struct-size delta.
             float veil_dither;
-            // Indoor GoL height cap (0 = disabled): zone_derive_params bounds
-            // each new zone's alive_height so the MAXIMUM realised cell lift
-            // equals this exactly (it divides by the height_factor clamp
-            // bound to get there). Staged by
-            // The GoL lift cap, authored by apply_mood_lighting. A PAD
-            // TWICE OVER (ONE_WORLD-II U4): it was the last pulse pad
-            // before the indoor module repurposed it, and it is one again.
+            // The GoL lift cap: it bounded each new zone's alive_height so
+            // the MAXIMUM realised cell lift equalled it exactly. A PAD TWICE
+            // OVER (ONE_WORLD-II U4): it was the last pulse pad before the
+            // rooms' module repurposed it, and it is one again.
             float _pad_indoor_height_cap_retired;
             float pulse_data[32];             // 8 × {origin_x, origin_z, onset_seconds, amplitude}
             // ─── LOD-band point position ────────────────────────────────
@@ -656,7 +649,7 @@ namespace t7 {
             // veil_strength: 1 in an open world, 0 in a finite one — the
             //   CONTAINMENT WALL defines the boundary there, not fog
             //   (staged per frame by U5). Its predicate was always
-            //   finite_mode and never indoor, so ONE_WORLD-II U4 changed
+            //   finite_mode and never a room's, so ONE_WORLD-II U4 changed
             //   nothing but the sentence: the rooms are gone and the
             //   invisible wall the b3 ruling named is what remains.
             // lod0_radius: the terrain full-mesh/half-mesh split (175) —
@@ -1089,8 +1082,8 @@ namespace t7 {
         //
         // IT SPEAKS THE ARRIVAL ROW'S THREE NAMES, so a pose made by hand
         // can be read off and authored: distance, elevation in degrees, and
-        // the azimuth as an OFFSET on the gaze. The base is whatever
-        // apply_mood_arrival adds the offset to and nothing else — pass
+        // the azimuth as an OFFSET on the gaze. The base is whatever the
+        // arrival applier added the offset to and nothing else — pass
         // Idle::PAWN_HEADING, the ARRIVAL gaze, not the live heading — or
         // the number printed is not the number to type and the instrument
         // lies.
@@ -1405,7 +1398,7 @@ namespace t7 {
             float    base_hue;           //  8: legacy (unused when palette_count > 0)
             float    hue_variance;       // 12: legacy (unused when palette_count > 0)
             float    brightness;         // 16: global brightness (palette value center)
-            float    drag;               // 20: per-mood drag override
+            float    drag;               // 20: the bank's drag override
             float    noise_amp;          // 24: current noise amplitude (coupling-driven)
             float    dome_radius;        // 28: dome shell radius
             float    base_size;          // 32: sprite half-size
@@ -1501,7 +1494,7 @@ namespace t7 {
             float    tier3_force_gain;        //340
             float    tier3_color_gain;        //344
             float    tier3_cumulative_weight; //348
-            // ── Pass 9: flocking mood-level parameters ──────────
+            // ── Pass 9: flocking bank-level parameters ──────────
             float    flock_sep_radius;            //352
             float    flock_align_radius;          //356
             float    flock_coh_radius;            //360
@@ -1559,7 +1552,7 @@ namespace t7 {
         // fragment stage used to spend three storage seats.
         //
         // IT HELD THREE ARRAYS AND NOW HOLDS ONE (ONE_WORLD-II U4). The
-        // SPOT array was the indoor rooms' ceiling cones, each carrying its
+        // SPOT array was the rooms' ceiling cones, each carrying its
         // own shadow VP for the atlas — it dies with the rooms. The POINT
         // array died longer ago and more quietly: `points.count = 0` was
         // the ONLY write it ever took, every frame, so 272 bytes of the
@@ -1635,7 +1628,7 @@ namespace t7 {
         // FORMAT_1 U2 — Depth16Unorm. Core WebGPU (absent from
         // GPUFeatureName, so no grant is needed), 2 B/texel: both shadow
         // textures halve, 16 -> 8 MiB each, resident 32 -> 16, and the
-        // per-frame model at four indoor lights 32 -> 16 MiB against the
+        // per-frame model at four room lights 32 -> 16 MiB against the
         // 96 this era began with.
         inline constexpr wgpu::TextureFormat kShadowDepthFormat =
             wgpu::TextureFormat::Depth16Unorm;
@@ -1734,7 +1727,7 @@ namespace t7 {
 
         // ── THE AGENTS' ROOM CONSTANTS (CHORD_1) ──────────────────────
         // Five uniform seats became one block. Everything here is
-        // CPU-authored at world/mood cadence, so one block is one binding
+        // CPU-authored at world cadence, so one block is one binding
         // and one upload per beat of that clock. Mirrors
         // world.wgsl::AgentRoomConstants BYTE-FOR-BYTE; the asserts below
         // are the handshake (L3 — both rooms, same commit).
@@ -1815,7 +1808,7 @@ namespace t7 {
         // the camera. Mirrors world.wgsl::FrameR BYTE-FOR-BYTE (L3).
         //
         // TWO AUTHORS, ONE BLOCK. lighting is CPU-authored (upload_lights,
-        // mood.hpp). vp and camera are GPU-SOVEREIGN — update_camera_vp
+        // sky.hpp). vp and camera are GPU-SOVEREIGN — update_camera_vp
         // writes both, and they reach this block by
         // CopyBufferToBuffer on the frame's own encoder. The CPU never
         // reads them back; the readback law is why the copy exists at all.
@@ -1845,7 +1838,7 @@ namespace t7 {
         static_assert(offsetof(GPUFrameR, sphere_pos) == 224);
 
         // ── SCENE CONSTANTS (CHORD_4) ─────────────────────────────────
-        // The render room's mood-cadence block: the tier-gains window,
+        // The render room's world-cadence block: the tier-gains window,
         // the figure profiles, the ribbon window. Mirrors
         // world.wgsl::SceneConstants BYTE-FOR-BYTE (L3).
         //
@@ -1980,11 +1973,11 @@ namespace t7 {
             uint32_t organTouched_ = 0;
             uint32_t organLastFlush_ = 0;
             bool configDirty_ = true;      // true at boot → first frame always uploads
-            bool configDynamic_ = false;   // mood override: true = upload every frame
+            bool configDynamic_ = false;   // world override: true = upload every frame
 
             wgpu::Buffer signalBuffer_, configBuffer_;
             // Agent system — unified entity buffer. Slot 0 is the player's
-            // body; slots 1..MAX_AGENTS-1 are mood-authored agents.
+            // body; slots 1..MAX_AGENTS-1 are the bank's agents.
             wgpu::Buffer agentStateBuffer_;
             wgpu::Buffer agentStateReadbackStaging_;
             wgpu::Buffer floatingEntityReadbackStaging_;
@@ -2030,8 +2023,8 @@ namespace t7 {
             // EVERY SetBindGroup of that group, not only the shadow pass's.
             // ORGAN — THE LIGHTING HOME. upload_lighting stores through it,
             // so it always carries what the GPU last received and the panel
-            // edits it in place. A mood change re-authors it, which is
-            // correct: a mood is a bigger authority than a dial.
+            // edits it in place. A world's birth re-authors it, which is
+            // correct: a birth is a bigger authority than a dial.
             GPULighting lightingStage_{};
 
             // THE FRAME METER — GPU half. Query set + resolve/readback pair
@@ -2112,8 +2105,6 @@ namespace t7 {
 
 
             wgpu::Buffer pyramidInstancesBuffer_;  // GPU-side pyramid array for heightfield baking (LIVE)
-
-            // Indoor shell (ceiling + walls)
 
             // ── LOOM_2 recut strata — layouts and groups (created in
             // binding_surface.gen.inc; declared here) ──
@@ -2361,7 +2352,7 @@ namespace t7 {
             }
 
             // WALLET_1revA E8 — ONE write, not three. The three sources
-            // already shared a single function (upload_lights, mood.hpp),
+            // already shared a single function (upload_lights, sky.hpp),
             // so the block is composed there and written whole; the
             // offset-write alternative at 0/48/320 was not needed.
             void upload_lighting(wgpu::Queue& queue, const GPULighting& lighting) {
@@ -3008,8 +2999,6 @@ namespace t7 {
                 writeStruct(queue, pyramidInstancesBuffer_, arr);
             }
 
-            // Indoor shell accessors
-
 
             static constexpr uint32_t ribbon_vertex_count() { return Dim::RIBBON_VERTEX_COUNT; }
             wgpu::Buffer ribbon_buffer() const { return ribbonBuffer_; }
@@ -3185,8 +3174,8 @@ namespace t7 {
                     &mult, sizeof(float));
             }
             // Per-frame color dynamics: pulse / converge / surge intensities.
-            // hue_converge_target lives at offset 156 and changes only on mood
-            // entry, so it's written via the full upload_orb_config path.
+            // hue_converge_target lives at offset 156 and changes only at a
+            // world's birth, so it's written via the full upload_orb_config path.
             void upload_orb_color_dynamics(wgpu::Queue& queue,
                 float pulse, float converge, float surge) {
                 struct { float pulse, converge, surge; } packed = { pulse, converge, surge };
@@ -3397,7 +3386,7 @@ namespace t7 {
             }
             uint32_t organ_last_flush_count() const { return organLastFlush_; }
 
-            // The frame-boundary flush (docs/ORGAN.md, "The write path").
+            // The frame-boundary flush (docs/ORGAN.md, "The write path and the masks").
             // A slider drag is many events and one WriteBuffer: the events
             // only set bits, and this runs once a frame through the program's
             // own upload paths. Nothing here duplicates an upload.
@@ -3619,7 +3608,7 @@ namespace t7 {
                 // (L3 MIRROR — change both rooms together). Capacities are
                 // A/B 128 (the handoff said 64; finite_radius 4 puts 81
                 // LOD0 patches in the plan — 64 would overflow its own
-                // indoor clause), C 256.
+                // finite clause), C 256.
                 //   A [   0,  512): LOD0 zone-overlapped -> full IB
                 //   B [ 512, 1024): LOD0 clean           -> cap-only IB
                 //   C [1024, 2048): LOD1 frustum-visible -> LOD1 IB
@@ -4207,10 +4196,10 @@ namespace t7 {
                     patchCellColorArrayReadView_ = patchCellColorArrayTexture_.CreateView(&viewDesc);
                 }
 
-                // Shadow map (Depth32Float). Sun depth outdoors — and the
-                // spot atlas's FIRST texture indoors, holding lights 0-1 in
-                // two half-width tiles while the sun is idle. Not
-                // directional-only; render_shadow_pass picks it for li < 2.
+                // Shadow map (Depth32Float). THE SUN'S, and the sun's alone
+                // since ONE_WORLD-II U4 — it was also the spot atlas's first
+                // texture, holding lights 0-1 in two half-width tiles while
+                // the sun was idle, and that half died with the rooms.
                 {
                     wgpu::TextureDescriptor desc{};
                     desc.size = { Dim::SHADOW_MAP_SIZE, Dim::SHADOW_MAP_SIZE, 1 };
@@ -4360,8 +4349,8 @@ namespace t7 {
                     }
                 }
                 // THE VEIL — chain defaults (Dim: ring 325 / icing 40 /
-                // lod0 175); strength staged per frame by U5 (0 in
-                // finite/indoor). Boot outdoor-on.
+                // lod0 175); strength staged per frame by U5 (0 in a finite
+                // world). Boot open-on.
                 config_.veil_ring   = Dim::VEIL_RING_DEFAULT;
                 config_.veil_icing  = Dim::VEIL_ICING_DEFAULT;
                 config_.veil_strength = 1.0f;
@@ -4394,7 +4383,7 @@ namespace t7 {
                 config_.world_bound_max[0] = 0.0f;
                 config_.world_bound_max[1] = 0.0f;
                 config_.terrain_time = 0.0f;         // 0 = frozen terrain (default)
-                // Band motion: -1 = inactive sentinel (default for all moods at boot)
+                // Band motion: -1 = inactive sentinel (the boot default)
                 config_.band_blend_0 = -1.0f;
                 config_.band_blend_1 = -1.0f;
                 config_.band_blend_2 = -1.0f;
@@ -4410,8 +4399,8 @@ namespace t7 {
                 queue.WriteBuffer(configBuffer_, 0, &config_, sizeof(config_));
 
                 // Agent buffer: zero-init all 32 slots, then populate slot 0
-                // with the player at the idle pose. Slots 1..31 are mood-
-                // populated by the Cartridge after mood application.
+                // with the player at the idle pose. Slots 1..31 are the
+                // Cartridge's, populated after the world's birth.
                 {
                     GPUAgentState agents[Dim::MAX_AGENTS] = {};
                     auto& p = agents[0];

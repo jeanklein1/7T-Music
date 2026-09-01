@@ -114,7 +114,7 @@ static_assert(AGENT_EVICTION_RADIUS == Dim::EXIST_RADIUS,
 // AGENT_CENSUS_INTERVAL — wall-clock period (seconds). The periodic
 // agent census died (BATCH C); the surviving consumer is the ROSTER
 // gol-residue proof cadence (phase_census_dumps). The on-demand agent
-// census remains at "boot" and "mood-transition".
+// census remains at "boot" and "rebirth".
 inline constexpr float AGENT_CENSUS_INTERVAL = 30.0f;
 
 // ═══ REGISTRY: BEHAVIORS ═════════════════════════════════════════
@@ -283,7 +283,7 @@ inline void populate_agent_slot_(const AgentState& as,
     // front of the viewer instead of all around them. The direction is
     // Idle::PAWN_HEADING's — the ARRIVAL gaze, a constant, not the live
     // heading: the composition is the room's, and it must not swing when
-    // the visitor turns. Every mood but the atrium passes 0 here, and at
+    // the visitor turns. Every caller passes 0 here, and at
     // 0 both cosines fall out and the centre is the caller's, unmoved.
     const float two_pi = 6.28318530718f;
     const float gaze = heading_to_bearing(Idle::PAWN_HEADING);
@@ -448,7 +448,7 @@ inline void respawn_evicted_agents(AgentState& as, AgentsDeps* c,
 
     // RIBBON_4: respawn_evicted_agents is a per-frame spine row, and under a
     // fast point agents are evicted and respawned continuously — steady-state
-    // chatter, not a transition witness. The mood-spawn line above stays.
+    // chatter, not a transition witness. The spawn line above stays.
     if constexpr (t7::INSTRUMENTS.stream_witness) {
         if (respawned > 0) {
             std::cout << "[Agents] Respawn " << respawned

@@ -17,8 +17,8 @@
 // the same struct and never the same file.
 //
 // THE SEED TRAP, WRITTEN DOWN. The bank seeds from the SUNSET row because
-// sunset is the look this campaign keeps — explicitly NOT from
-// MOOD_FINITE_OUTDOOR's, even though the world pins FINITE. That row is
+// sunset is the look this campaign keeps — explicitly NOT from the walled
+// row, even though the world pins FINITE. That row was
 // `/* unpopulated */`: count 0, every weight 0, and both spawn guards test
 // `count > 0 && beh_sum > 0 && tier_sum > 0`, so matching the seed row to
 // the pinned shape would empty the world in silence. The pinned SHAPE and

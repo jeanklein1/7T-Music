@@ -10,15 +10,15 @@ Last commit touching any scanned file: `b9552c1617aa561a5d2b10d1a964b94b50a51cb5
 
 | file scanned | sha256 |
 |---|---|
-| `src/cartridges/the_board/realization/render_passes.hpp` | `sha256:1a512e928a9e65050b872e502781c697ff09821aae058e61841e23e8d233a9b1` |
-| `src/cartridges/the_board/realization/renderer.hpp` | `sha256:777971a3c789db740b763dd37b7acb9e2d3bd4c33c255fbef4fc3f15dfa7797d` |
-| `src/cartridges/the_board/cartridge.hpp` | `sha256:0417aad0c448a44ee9e3790c9b1acbd1afccdcc4137a060fd241ef58d9682583` |
-| `src/cartridges/the_board/surface/patch_system.hpp` | `sha256:186b027ae6869c5c996aa2d21ad426eeadb6c72c92610f2c4fbd920059b6d05d` |
-| `src/cartridges/the_board/bodies/gol_zones.hpp` | `sha256:bcc79598a28c23d87d840eeaa8a56def087567fcaefbba257fc687019ab101d8` |
-| `src/cartridges/the_board/bodies/pawn.hpp` | `sha256:bac566779a35e46048585b51426d4bfe7b971093ea5e38e9b0219150774b3fbf` |
-| `src/cartridges/the_board/bodies/orbs.hpp` | `sha256:2b98e51ba1ee455a56608dee6d57e931d7b0269901f4da5aa4b7c803fea36d40` |
-| `src/the_board.cpp` | `sha256:98f6d39ea0c27c5c11c339b091492fa6a58cdfdd8f284f418702317d25b46f4c` |
-| `src/console/console.hpp` | `sha256:de4577d58c8e6e1d73c3e814db79aa08b99c895190ea717f2fed06047cf17d29` |
+| `src/cartridges/the_board/realization/render_passes.hpp` | `sha256:e107748a4fbb469ebfea5790657e22684e78ec231f5478dc7bddbce01f3b6fbd` |
+| `src/cartridges/the_board/realization/renderer.hpp` | `sha256:3096a36c0f63d70ecc672ab9fb76f4c2f5b8b5ff2a3e4f43d2c9ac2e81c65dc4` |
+| `src/cartridges/the_board/cartridge.hpp` | `sha256:c89b00c21b3c15d28262b58a77924060f09b6428dc7f69bc5b5e5a00f4438e63` |
+| `src/cartridges/the_board/surface/patch_system.hpp` | `sha256:67953eee56a84e57b68779a077be6770683235b26d25520414ef4ffe4cead70e` |
+| `src/cartridges/the_board/bodies/gol_zones.hpp` | `sha256:2f0e9bc85379b214b3a8a319634f5d65615e753a6b2f63764e162061b105f1e2` |
+| `src/cartridges/the_board/bodies/pawn.hpp` | `sha256:7915ec242a2a3094537882c50a2980c9494e4f1460a3a2f786232b67ec6ead12` |
+| `src/cartridges/the_board/bodies/orbs.hpp` | `sha256:921dc2c6a3c9b1d4e2000d84a79a26bb88703ce8465d841bd6d7362dfd7a0528` |
+| `src/the_board.cpp` | `sha256:321cf8eef63dd7f991405e893c57914a11a1ec2edfe1e7f28de170663de8acc5` |
+| `src/console/console.hpp` | `sha256:9b65d2d25a3057757e4e828a262bf115945914a2e0f6a38a905d4bb3ed191555` |
 
 The handoff named `render_passes.hpp` and `renderer.hpp`; the
 tree places pass encoders more widely, so the census scans the
@@ -35,17 +35,17 @@ in `console.hpp`.
 | 1 | Compute Phase | compute | `dispatch_compute` | `src/cartridges/the_board/realization/render_passes.hpp:132` | — | — | — |
 | 2 | Frustum Cull Patches | compute | `dispatch_frustum_cull` | `src/cartridges/the_board/realization/render_passes.hpp:220` | — | — | — |
 | 3 | Shadow Pass | render | `render_shadow_pass` | `src/cartridges/the_board/realization/render_passes.hpp:262` | (none: depth-only) | Clear/Store, readOnly (absent) → `c->gpuState_.shadow_map_view()` | (no stencil aspect) |
-| 4 | Rasterized Scene | render | `render_main_pass` | `src/cartridges/the_board/realization/render_passes.hpp:534` | Clear/Store or Discard → `backbuffer or msaaColor` resolve → `backbuffer` | Clear/Discard, readOnly (absent) → `depth` | (no stencil aspect) |
-| 5 | Entity Mesh Gen | compute | `phase_entity_mesh_gen` | `src/cartridges/the_board/cartridge.hpp:1950` | — | — | — |
-| 6 | Patch Bake (fused) | compute | `generate_patch_batch` | `src/cartridges/the_board/surface/patch_system.hpp:180` | — | — | — |
+| 4 | Rasterized Scene | render | `render_main_pass` | `src/cartridges/the_board/realization/render_passes.hpp:531` | Clear/Store or Discard → `backbuffer or msaaColor` resolve → `backbuffer` | Clear/Discard, readOnly (absent) → `depth` | (no stencil aspect) |
+| 5 | Entity Mesh Gen | compute | `phase_entity_mesh_gen` | `src/cartridges/the_board/cartridge.hpp:1951` | — | — | — |
+| 6 | Patch Bake (fused) | compute | `generate_patch_batch` | `src/cartridges/the_board/surface/patch_system.hpp:178` | — | — | — |
 | 7 | Zone Derive Params | compute | `flush_zone_derive_requests` | `src/cartridges/the_board/bodies/gol_zones.hpp:822` | — | — | — |
 | 8 | GoL Zone Sync | compute | `dispatch_zone_sync` | `src/cartridges/the_board/bodies/gol_zones.hpp:910` | — | — | — |
 | 9 | GoL Zone Evolve | compute | `dispatch_zone_evolve` | `src/cartridges/the_board/bodies/gol_zones.hpp:923` | — | — | — |
 | 10 | Pawn Aura | compute | `dispatch_pawn_aura` | `src/cartridges/the_board/bodies/pawn.hpp:168` | — | — | — |
-| 11 | Orb Init | compute | `dispatch_orb_init` | `src/cartridges/the_board/bodies/orbs.hpp:743` | — | — | — |
-| 12 | Orb Recolor | compute | `dispatch_orb_recolor` | `src/cartridges/the_board/bodies/orbs.hpp:764` | — | — | — |
-| 13 | Orb Copy Prev | compute | `dispatch_orb_copy_prev` | `src/cartridges/the_board/bodies/orbs.hpp:779` | — | — | — |
-| 14 | Orb Dynamics | compute | `dispatch_orb_dynamics` | `src/cartridges/the_board/bodies/orbs.hpp:798` | — | — | — |
+| 11 | Orb Init | compute | `dispatch_orb_init` | `src/cartridges/the_board/bodies/orbs.hpp:741` | — | — | — |
+| 12 | Orb Recolor | compute | `dispatch_orb_recolor` | `src/cartridges/the_board/bodies/orbs.hpp:762` | — | — | — |
+| 13 | Orb Copy Prev | compute | `dispatch_orb_copy_prev` | `src/cartridges/the_board/bodies/orbs.hpp:777` | — | — | — |
+| 14 | Orb Dynamics | compute | `dispatch_orb_dynamics` | `src/cartridges/the_board/bodies/orbs.hpp:796` | — | — | — |
 
 14 passes: 2 render, 12 compute.
 

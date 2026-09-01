@@ -24,10 +24,8 @@
 //   ATMOS_TABLE  the DESIGN — authored, constexpr, two jobs only:
 //                seeding the bank and standing under its asserts
 //   ATMOS_LIVE   the BANK — what every runtime reader reads
-// Enrollment (the panel's rows) rides U6 with the other banks', by
-// ruling; until then the atmosphere's organ rows still address
-// MoodProfile and are authorless — a disclosed mid-campaign state, not
-// a defect.
+// Enrollment landed at U6: the panel's twelve sky rows address ATMOS_LIVE
+// itself, so a dial's write and the draw's read are the same memory.
 //
 // FLAT, AND NOT AN ARRAY. A family that wants regimes back subscribes
 // the way the old comment described — its own columns, its own index —

@@ -261,20 +261,33 @@ found the whole family at once: an amber sphere the CPU census did not know
 existed, a test rig that outlived its own retirement condition, five
 transcriptions of `MOOD_TABLE[0]` across three files, and a frustum-cull flag
 whose only writer was `apply_mood` — so the world booted in `open_default`
-wearing a cull setting that belonged to no mood at all.
+wearing a cull setting that belonged to no mood at all. (Those names are the
+minute's, kept as it was written; the struck-note below says what each is now.)
 
 The two doors this law currently names:
 
-- `apply_mood` — the atmosphere, the feature gates, the orbs. Called at boot
-  and at every transition, with `mood_state_.active`.
-- `reset_surface` — patches, tiles, themes, queues, piers, footprints. Called
-  at boot and by the transition machine. It was `teardown_surface`; the rename
-  is the law made visible in the name.
+- `stage_world_birth` — the atmosphere, the feature gates, the orbs. Called
+  at boot and at every rebirth, with the world's seed.
+- `reset_surface` — patches, tiles, queues, piers, footprints. Called at boot
+  and by the rebirth. It was `teardown_surface`; the rename is the law made
+  visible in the name.
+
+**STRUCK-NOTE — the subjects, not the law (ONE_WORLD-II, 2026-09-01).** Every
+name in the paragraph above and the two below belonged to the mood system,
+and the mood system is gone. What each became: `apply_mood` →
+`stage_world_birth`; `mood_state_.active` → nothing, the world is chosen by
+its SEED alone; `MOOD_TABLE[0]` → `ATMOS_TABLE`, one row seeding `ATMOS_LIVE`;
+`apply_mood_lighting` → `stage_sky` (U7); `MoodState` → `SkyState`;
+`open_default` → the one world there is. The law is untouched because it never
+depended on them: BOOT_ONE_VOICE found the family through a mood system, and
+the finding is about boot, not about moods. The frustum-cull flag the last
+bullet names is still WRITTEN by the one door and still read by nobody —
+flagged at `realization/renderer.hpp`, a build question and Jean's.
 
 **What this does NOT license.** Boot legitimately owns things a transition
 never touches — buffer creation, pipeline construction, the one-shot index
 generation, and the REST values of knobs no mood authors (fog is the live
-example: `apply_mood_lighting` does not touch it, so the boot fog values are
+example: the sky's applier does not touch it, so the boot fog values are
 correct, not residue). The test is not "did a transition write it" but
 "**does a transition path author this value?**" If yes, boot calls that path.
 If no, boot is its author and says so.
@@ -1131,6 +1144,14 @@ boundary wiring at all.
 *Paid for by:* ORGAN_3/3b. `INDOOR_HEIGHT_CAP_FRACTION` has one idempotent
 reader and nine destructive ones, so its bank has none.
 
+**STRUCK-NOTE (ONE_WORLD-II U4, noted U7).** The example died: the rooms'
+height cap left with the ceilings it capped, and its bank with it. The LAW is
+untouched and still governs — `RIBBON_SPAWN_LIVE` and the world-draw bank are
+the two destructive banks that keep its temperament today (see
+`src/console/organ_registry.hpp`, "THE TWO DESTRUCTIVE BANKS"). The example is
+kept rather than replaced because the reason it was paid for is the reason it
+is worth reading.
+
 ## L45 — AN ENROLLMENT STATES A BELIEF; ONLY THE READER PROVES IT
 
 A graduation from a design table to a live bank is complete when the table's
@@ -1206,7 +1227,13 @@ and "a custom environment" stand with them.
 **The citation it carried was already dangling.** The block cited
 `docs/ORGAN.md, "The persistence ladder"` — a section deleted at `f294a9fe`
 (ORGAN_7 P5) and never graduated with that commit's four laws. Two sibling
-citations in `src/` are dangling the same way and are U7's to probate:
+citations in `src/` were dangling the same way and were U7's to probate:
 `docs/ORGAN.md, "The drivers' room"` (`contracts/driver_surface.hpp`) and
 `docs/ORGAN.md, "Instance and definition"` (`spine_state.hpp`, at the
 eligibility rule).
+
+**DISCHARGED at ONE_WORLD-II U7.** The drivers'-room citation was rewritten
+to say the section is gone and where the fact lives instead; the
+eligibility-rule citation was retargeted to `docs/ORGAN.md, "Definition and
+preview"`, which that file does carry. Every `docs/ORGAN.md` citation left in
+`src/` now names a heading that exists.

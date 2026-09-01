@@ -119,10 +119,10 @@ void evict_pyramid(MachineCtx* self, uint32_t slot, wgpu::Queue& queue);
 void teardown_entities(MachineCtx* c, wgpu::Queue& queue);
 
 // ═══ IMPL:
-// bodies deref EntitiesState(own) + World/Mood/GPU via MachineCtx; no
+// bodies deref EntitiesState(own) + World/Sky/GPU via MachineCtx; no
 // Cartridge. COHORT: after contracts/spawn_services.hpp (generic_* +
 // preamble DECLS — the machine bodies ride the cohort tail) +
-// patch_system.hpp (WorldState, find_patch) + mood.hpp.
+// patch_system.hpp (WorldState, find_patch) + sky.hpp.
 
 // ═══ MESH-GEN PREPARERS ═══════════════════════════════════════════
 

@@ -167,6 +167,13 @@ there are the "Gallery" indoor LIGHT SCHEME (`scheme_weights[2]`) and
 the portal dials, which are S3's. Whether the room empties is S3's
 question alone now.
 
+**ANSWERED, and not by S3 (ONE_WORLD-II U4).** The room never emptied
+under a prune; it died with the rooms. `scheme_weights` fed the light-scheme
+roll whose only declared reader was the indoor deriver, so `WorldDrawSurface`,
+`WORLD_DRAW_LIVE` and organ block 10 all left together. The block id is a
+HOLE, never re-packed — a stored preset key is a block id, and re-packing
+would silently re-point every one.
+
 ### PRUNE_1 — WHAT LEFT, AND THE ARGUMENT THAT MADE IT SAFE
 
 The organ: `bodies/gallery.hpp` whole, six pipelines and their entry
@@ -254,6 +261,65 @@ machine-verified cell by cell against the pre-campaign tree.
   took a re-ruling with it. Both are law now: a prune may take a dead
   subject's prose, never a live one's law, and the orphan sweep
   includes a WGSL reference scan.
+
+### ONE_WORLD-II — THE WEATHER (landed)
+
+The seven moods, the theme engine and the indoor rooms, in nine commits.
+**The world is one world and wears one weather**: a world is a SEED and
+nothing else, every fact the program used to look up per mood is a LIVE
+BANK the panel owns, and the world is pinned FINITE with its radius drawn
+from the seed between two dials.
+
+| unit | what left, and what rose |
+|---|---|
+| U1 / U1a / U1b / U1c | **The banks rose first, and the moods still stood.** `ATMOS_LIVE` (flat — a bearing plus twelve centre/spread fields, `REGIME_COUNT` and the weighted roll gone), `ORB_LIVE`, `CUBE_LIVE`, `AGENTS_LIVE`, each transcribed from the sunset row and pinned by a witness that spent itself against the still-standing table. Every runtime applier rewired to a bank; the mood tables became single-purpose seeds with no runtime reader. The organ's atmosphere rows went 52 → 12. |
+| U2 | **The moods fell.** `MOOD_TABLE` / `MOOD_LIVE` / `mood_def` / `MoodProfile` / `MOOD_NAMES` / `WorldShape` / `Regime` / `Atmosphere` / `CeilingType`, `--mood`, `DEMO_BOOT_MOOD`, `mood_constants.hpp`, `MoodState` → `SkyState`, `apply_mood` → `stage_world_birth`. Cut as an ENUMERATION of six death-verified symbols, not as a banner span — the clause that made that mandatory is below. |
+| U3 | **The theme engine fell** and `population_themes.hpp` survives as the population panel proper. `THEMES`, the lattice, the envelopes, the cooldowns, `theme_tier_weights`, `theme_short_name`, `MOOD_SPAWN_MULT` and traits' `mood_multiplier`; `compose_spawn_chance` is `global → base × adj → clamp`. |
+| U4 | **The rooms fell, whole.** The shell mesh + `ShellVertex` + `Dim::SHELL_*` + its pipeline, `INDOOR_PALETTES`, `INDOOR_LIVE` / `IndoorSurface`, `WORLD_DRAW_LIVE` / `WorldDrawSurface`, the spot lights (array, atlas half, pipelines, `SPOT_PCF_*`, WGSL), the per-family indoor sizing hook and its policy table, the three structural pads. `GPULighting` 848 → 48 B and `GPUFrameR` 1040 → 240 B in both rooms. Organ blocks 8 and 10 are HOLES. |
+| U5 | **The pin.** `WORLD_FINITE` boots true and nothing unsets it; the radius derives from the seed between `FINITE_RADIUS_MIN/MAX`. `become_world` prints the world it made. |
+| U6a / U6b | **The organ re-homed.** The definition-only mechanism retired whole — the 255/254 sentinels, the `ORGAN_PARAM_DEFONLY` pair, `is_defonly` — because every row addresses an instance now. Blocks 12/13/14 (`ATMOS`, `ORB_BANK`, `AGENTS`) enrolled; the selecting kinds' target parameter left, and a definition target above 0 is REFUSED OUT LOUD by name. |
+| U7 | **The sweep.** Prose probate across `src/`, `tools/` and `docs/`; three orphaned `*_INDOOR_RESCALE_PARAMS` tables U4 left behind; a stale `spotShadowMapTexture_` row in `binding_schema.py`; `mood.hpp` → `sky.hpp`, `apply_mood_lighting` → `stage_sky`, `apply_aura_mood_policy` → `apply_aura_policy`; struck-notes on L10 and L44; the ledgers' hand-copied tally corrected against the tool. |
+| U8 | Instruments, the audit room, the L33 witness and the full battery. |
+
+**AMENDMENT B GREW A THIRD CLAUSE, and it was paid for three times.**
+Deletion regions anchor on **symbols, never on banners**; a banner-to-banner
+span is lawful only after every symbol between the banners has been
+individually death-verified and appears on the cut's enumeration, and
+anything found between them that is not on the list survives the cut and is
+flagged. The persistence ladder had to be relocated OUT of the mood region
+before U2 could cut it; a banner span in `world.wgsl` took `veil_dither_noise`
+and `veil_t`; one in `orb_surface.hpp` took `ORB_TABLE`. All three were caught
+— two by a gate, one by the compiler — and a between-banner orphan with no
+callers would have passed every gate in silence.
+
+**AMENDMENT D, the three rooms of a fact.** A fact has its definition (the
+bank), its applier (the read) and its transport (organ rows, C-ABI exports,
+preset keys); when a commit moves any room, every room moves in that commit.
+Paid for at U1, where the ruling deferred transport to U6 and the panel spent
+five units writing `MOOD_LIVE[mood].atmos.*` while the draw read `ATMOS_LIVE`
+— an atmosphere dial turned and nothing happened, and no gate in the tree
+could see it.
+
+**Parked with THE PANEL (below), not done here:** the orphan console verbs
+the sweep surfaced — `cycle_cube_behavior_override`, `reveal_zoetrope`,
+`toggle_cube_kite_mode`, `unrecord_entity` and roughly forty accessor leads —
+each reachable from no key and no door. None is this campaign's subject; they
+await the panel's own recon, which is the sitting that can say what a control
+surface needs.
+
+**Flagged, not taken (naming and build are Jean's gates):**
+- `OrbMoodConfig` still wears the moods' name. Its rows stopped being seven at
+  U1b; the type is the world's one orb row now. A type rename is Jean's.
+- The frustum-cull flag (`useIndirectTerrainPipeline_`) is WRITTEN once at
+  every world's birth and READ BY NOBODY — OPT_1 found it latent, and the
+  column that fed it died at U2, so the write is now the literal `true`. The
+  cut wants a build.
+- Five WGSL orphans that predate this campaign and are not its subjects:
+  `row_occupier`, `seg_closest`, `signal_active`, `translator` (defined,
+  referenced only from prose) and `CARD_NODES_4` (a documented exclusion).
+- `docs/FXC_LAWS_RECORD.md` cites `GPUSpotLightArray`'s `static_assert` in
+  `state.hpp` as a live example; the assert left at U4. It is a stamped
+  record, so the sweep reports it rather than editing it.
 
 ## NATIVE PRESET INGESTION (open, born at WEB_SUNSET)
 
@@ -387,7 +453,8 @@ Playhead's forward-cue requirement was always waiting for.
 The socket is already open: `parse_boot_params(int, char**)` kept its full
 signature through the sunset with both parameters unnamed, `main()` still
 calls it with real `argc`/`argv`, and N1 restores the
-`--seed/--mood/--cap/--msaa` loop behind it.
+`--seed/--cap/--msaa` loop behind it. (`--mood` was the fourth until
+ONE_WORLD-II U2 — a world is chosen by its seed alone now.)
 
 ## THE PANEL (held — the campaign that gives the rebirth a caller)
 

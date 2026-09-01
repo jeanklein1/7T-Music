@@ -53,7 +53,7 @@ namespace t7 {
             namespace g2 {
                 // AGENTS (0–19)
                 inline constexpr uint32_t agent_state                 = 0;
-                inline constexpr uint32_t agent_room                  = 1;  // AgentRoomConstants — CHORD_1: portals + behaviors + tier_gains + occupier_amg, one uniform block at world/mood cadence (2864 B)
+                inline constexpr uint32_t agent_room                  = 1;  // AgentRoomConstants — CHORD_1: portals + behaviors + tier_gains + occupier_amg, one uniform block at world cadence (2864 B)
                 inline constexpr uint32_t floating_entities           = 2;
                 inline constexpr uint32_t render_agents               = 5;
                 inline constexpr uint32_t render_floating             = 6;
@@ -103,7 +103,7 @@ namespace t7 {
                 inline constexpr uint32_t ribbon_body_read            = 145;  // the agents' room's read of the same home: the mount reads .saddle, the field reads .emit
 
                 // SCENE (200–219)
-                inline constexpr uint32_t scene_constants             = 200;  // SceneConstants — CHORD_4: tier_gains + figure_profiles + ribbon, one uniform block at world/mood cadence (4336 B, render VS only; bound by the scene AND shadow layouts)
+                inline constexpr uint32_t scene_constants             = 200;  // SceneConstants — CHORD_4: tier_gains + figure_profiles + ribbon, one uniform block at world cadence (4336 B, render VS only; bound by the scene AND shadow layouts)
 
                 // FRAME_K (240–259)
                 inline constexpr uint32_t vp_data                     = 240;  // aka fc_vp (frustum-cull alias) — aka fc_vp

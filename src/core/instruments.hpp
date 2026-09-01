@@ -38,7 +38,7 @@
 // Those are doctrine, not measurement (P6: every switch has a witness, and
 // silence afterwards must mean "no transition", not "no witness"), and they
 // cost nothing in steady state — boot is already a stall and a transition
-// frame is already long. The census at "boot" and "mood-transition" stays;
+// frame is already long. The census at "boot" and "rebirth" stays;
 // only the PERIODIC one answers to the dial. Loud correctness checks
 // (the ROSTER gol-residue proof, the entity_ref overflow drop, the SPINE
 // boot validation) are witnesses too, and also stay: they print when

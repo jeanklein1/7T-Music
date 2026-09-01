@@ -183,16 +183,12 @@ static_assert(sizeof(CUBE_TIER_GAINS) / sizeof(CUBE_TIER_GAINS[0]) == CUBE_TIER_
 
 // ═══ REGISTRY: POPULATIONS ═══════════════════════════════════════
 //
-// Mood ordering matches MOOD_TABLE (contracts/spine_state.hpp).
-//
 // Cubes carried a mood term until ONE_WORLD-II U3 — mood_mult_for from
 // MOOD_SPAWN_MULT, a column of all 1.0. This banner once claimed
 // {1, 1, 0, 0, 1, 0} and concluded that cubes "don't spawn in indoor
-// moods"; the indoor zeros never existed in the live table, and the
-// per-row "exists for hygiene" notes inherited the error. The term
-// suppressed no row then and does not exist now.
-// Indoor cube spawning is shaped by indoor_bounds_clamp
-// (machine/spawn_engine.hpp), not by this multiplier.
+// moods"; those zeros never existed in the live table, and the per-row
+// "exists for hygiene" notes inherited the error. The term suppressed no
+// row then and does not exist now.
 
 // THE SUNSET ROW'S THREE VALUES, named so the bank's witness has a source
 // to be proved against after CUBE_POPULATIONS itself left with the moods.
@@ -324,9 +320,9 @@ void project_cell_color(const CubeBehaviorsState& cbs, uint32_t active_seed, uin
     float& out_r, float& out_g, float& out_b);
 
 // ═══ IMPL:
-// rows deref cube_state(own) + mood/time/world via MachineCtx; corral/kite
+// rows deref cube_state(own) + time/world via MachineCtx; corral/kite
 // read AgentState + player_ via CubeDeps. COHORT: after agents (AgentState)
-// + entity_pipeline (generic_*) + spawn_engine (preamble) + mood/state.
+// + entity_pipeline (generic_*) + spawn_engine (preamble) + sky/state.
 
 // Apply tier gains to base substrate values. Called by cube_write_gpu
 // during spawn — the result is what gets stored on the cube.
@@ -876,18 +872,9 @@ inline void cube_write_gpu(MachineCtx* c, const EntityInstance& inst, wgpu::Queu
     zcbs.settled[inst.slot] = true;
 }
 
-inline constexpr uint32_t CUBE_INDOOR_RESCALE_PARAMS[] = {
-    CubeIdx::BODY_RADIUS, CubeIdx::ORBIT_HEIGHT, CubeIdx::INFLUENCE_RADIUS,
-    CubeIdx::BOB_AMPLITUDE,
-    // SPIN_SPEED (a rate), BOB_PERIOD (a time), ASPECT_Y / ASPECT_Z /
-    // FACE_VARIANCE (ratios) intentionally not scaled.
-};
-
-// Cube policy: CAP (INDOOR_TREATMENT). Vertical extent =
-// orbit_height + the body's half-height + bob_amplitude; the
-// half-height is body_radius × aspect_y (the render kernel scales Y
-// by r · aspect_y; the GPU floor clamp uses the same term). ASPECT_Y
-// is a ratio, so scaling BODY_RADIUS carries the half-height.
+// CUBE_INDOOR_RESCALE_PARAMS and its CAP policy note stood here —
+// cube_apply_indoor_rescale's table, orphaned when U4 took that adapter
+// slot. U7's orphan sweep; the same cut as the sphere's and the pyramid's.
 
 inline constexpr EntityFamilyAdapter CUBE_ADAPTER = {
     cube_run_gate,

@@ -43,7 +43,7 @@ namespace the_board {
 //    a copy of a constant nothing changed. A landmark that swaps
 //    profiles assigns the bank.)
 //   (aura intent — lives at DRIVER_LIVE.aura.intent, contracts/driver_surface.hpp;
-//    written by key 3's door, the mood policy door, and the panel. The presence
+//    written by key 3's door, the aura policy door, and the panel. The presence
 //    ramp smooths the transition toward it, at the room's own attack/release.)
 //   aura_height_enabled — Height-effect gate (key 2, direction/input.hpp);
 //     flattens the extrusion. It USED to leave the color tint visible; since
@@ -195,11 +195,11 @@ inline void toggle_aura(PawnState& ps, PawnDeps* c) {
     std::cout << "[Aura] Field: " << (DRIVER_LIVE.aura.intent ? "ON" : "OFF") << "\n";
 }
 
-// ─── Mood policy door: respect player preference when
-// permitted, force off when forbidden — the mood driver speaks through
+// ─── Aura policy door: respect player preference when
+// permitted, force off when forbidden — the world's birth speaks through
 // the pawn's own door instead of writing the organ. Semantics
 // byte-identical to the direct write it replaces (disclosure rule).
-inline void apply_aura_mood_policy(PawnState& ps, bool allow) {
+inline void apply_aura_policy(PawnState& ps, bool allow) {
     (void)ps;
     if (!allow) DRIVER_LIVE.aura.intent = 0u;
 }

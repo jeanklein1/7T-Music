@@ -171,8 +171,9 @@ The program distributes design and spawn probability one way,
 written many times. The tool underneath is single: the SEEDED DESIGN
 SAMPLER — (seed, design-space table) -> individual — with the bucket
 walk (select_weighted, Q10) already consolidated and the surrounding
-ceremony (tier rolls, param draws, modulation stacks base x theme x
-mood) to follow as M-o. TABLES STAY PER-DOMAIN: they are the
+ceremony (tier rolls, param draws, modulation stacks — base x theme x
+mood when this was written; base x adj since ONE_WORLD-II took both
+outer terms) to follow as M-o. TABLES STAY PER-DOMAIN: they are the
 authoring surface and legitimately plural; the SAMPLER becomes one.
 THE BIT-IDENTITY GUARD, non-negotiable: consolidation is lawful only
 while every (seed, prop) -> value path stays bit-identical — hash
@@ -195,7 +196,8 @@ Five axes a demo varies: D1 the surface cast (extent;
 streamed-procedural or generated-once) · D2 the surface's voice
 (geometry and color pipes; the wave rewired) · D3 the population
 (roster + design tables + future profiles) · D4 the skins · D5 the
-composition (coupling set, seed, mood profile). The flagship pair —
+composition (coupling set, seed, and — until ONE_WORLD-II pinned one
+world — a mood profile). The flagship pair —
 the gallery exhibit and the musician template — is the completion
 test: one grammar, both sentences, a stranger composing a third
 without editing a relation.

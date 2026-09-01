@@ -112,7 +112,7 @@ inline constexpr float MIN_SEPARATION[PopFamily::COUNT][PopFamily::COUNT] = {
 //
 // DEFINED in machine/spawn_engine.hpp (merged, cohort tail): the
 // engine reaches the machine face for the root organs (world/time/
-// mood/themes/tile state, entities_state_, the GPU wire) and routes
+// world/tile state, entities_state_, the GPU wire) and routes
 // the six families through FAMILY_DISPATCH.
 
 // ═══ THE COMPOSITION LAW — the collapse ═════════════════════
@@ -157,7 +157,7 @@ void unregister_footprint_for(MachineCtx* c, uint32_t family, uint32_t slot);
 // `grounded` (ruling 21) decides whether footprint_r means anything: a family
 // registers iff its own extent touches the ground plane. FALSE skips BOTH the
 // check and the registration — the floater is neither blocked by ground nor a
-// claimant of it. It does NOT skip indoor_bounds_clamp (containment is a
+// claimant of it. It does NOT skip the containment clamp (containment is a
 // different concept) nor the host-patch derivation (eviction bookkeeping,
 // which every family needs). Deliberately NOT defaulted: with two call sites,
 // an explicit value at each beats a default that would silently register a

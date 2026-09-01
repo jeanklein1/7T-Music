@@ -5,7 +5,7 @@
 // the deps nor the queue, which is why the consumption lives at this tier.
 
             // ORGAN — the frame boundary: doors, definition re-speaks and
-            // the flush, taken once per frame for the LIVE mood only.
+            // the flush, taken once per frame for the one world.
             void organ_flush(wgpu::Queue& queue) {
                 // DOOR 0, Re-speak definitions: it raises the flags the
                 // lines below already consume, so the boundary then does
@@ -35,15 +35,15 @@
                 }
 
                 // THE ATMOSPHERE BANK'S FLAG. The twelve sky rows address
-                // ATMOS_LIVE directly, so they raise no mood-definition
-                // flag and are not a mood's to guard: there is one sky and
-                // it is always this world's. A second arm stood above this
-                // one until ONE_WORLD-II U2 — it took a mood-definition
-                // flag and dropped the write unless the target mood was the
-                // live one, a guard whose whole subject was the six other
+                // ATMOS_LIVE directly, so they raise no selecting flag and
+                // nothing has to be guarded: there is one sky and it is
+                // always this world's. A second arm stood above this one
+                // until ONE_WORLD-II U2 — it took a definition flag and
+                // dropped the write unless the target mood was the live
+                // one, a guard whose whole subject was the six other
                 // moods.
                 if (t7::organ::take_atmos_dirty()) {
-                    apply_mood_lighting(&mood_deps_, queue);
+                    stage_sky(&sky_deps_, queue);
                 }
                 // The tier bank changed, so its author re-speaks the whole
                 // registry in its own voice — idempotent by construction.
@@ -73,7 +73,7 @@
                     if (cm & 8u) gpuState_.upload_orb_speed_mult(queue,
                                      ORB_CONSOLE_LIVE.speed_mult);
                     // A console edit is about the sky we are looking at,
-                    // so the live mood is the honest answer.
+                    // and there is only the one to be looking at.
                     if (cm & 2u) {
                         t7::organ::raise_orb_definition();
                         console_reseed = true;

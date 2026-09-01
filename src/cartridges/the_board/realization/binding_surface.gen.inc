@@ -119,7 +119,7 @@
                     // THE AGENTS' ROOM CONSTANTS (CHORD_1) — five uniform seats
                     // became one block: portals, the behavior registry, the tier
                     // registry, and the two occupier windows. One cadence
-                    // (world/mood), one author (CPU), one upload. The seats it
+                    // (the world), one author (CPU), one upload. The seats it
                     // replaced were bindings 1, 3, 4, 7 and 8; the room's uniform
                     // row went 11 of 12 to 7 of 12.
                     // (GROUND_CARD_1 [5c] evictions: tile_grid 25, pier_instances 26,
@@ -601,13 +601,13 @@
                     entries[4].visibility = wgpu::ShaderStage::Vertex;
                     entries[4].buffer.type = wgpu::BufferBindingType::ReadOnlyStorage;
 
-                    // SCENE CONSTANTS (CHORD_4) — the render room’s mood-cadence
+                    // SCENE CONSTANTS (CHORD_4) — the render room’s world-cadence
                     // block: the tier-gains window, the figure profiles, the ribbon
                     // window. UNIFORM, not storage, for the reason the tier registry
                     // and the figure table each carried alone before the merge: the
                     // render VERTEX stage sits at the per-stage STORAGE cap and
                     // uniform has its own budget (BINDING_LEDGER Table B). 4336 B,
-                    // mood-cadence. The scene and shadow layouts seat the SAME block
+                    // world-cadence. The scene and shadow layouts seat the SAME block
                     // — one window each, one home.
                     entries[5].binding = bind::g2::scene_constants;  // scene_constants (uniform, 4336 B — CHORD_4)
                     entries[5].visibility = wgpu::ShaderStage::Vertex;
@@ -696,13 +696,13 @@
                     entries[3].visibility = wgpu::ShaderStage::Vertex;
                     entries[3].buffer.type = wgpu::BufferBindingType::ReadOnlyStorage;
 
-                    // SCENE CONSTANTS (CHORD_4) — the render room’s mood-cadence
+                    // SCENE CONSTANTS (CHORD_4) — the render room’s world-cadence
                     // block: the tier-gains window, the figure profiles, the ribbon
                     // window. UNIFORM, not storage, for the reason the tier registry
                     // and the figure table each carried alone before the merge: the
                     // render VERTEX stage sits at the per-stage STORAGE cap and
                     // uniform has its own budget (BINDING_LEDGER Table B). 4336 B,
-                    // mood-cadence. The scene and shadow layouts seat the SAME block
+                    // world-cadence. The scene and shadow layouts seat the SAME block
                     // — one window each, one home.
                     entries[4].binding = bind::g2::scene_constants;  // scene_constants (uniform, 4336 B — CHORD_4)
                     entries[4].visibility = wgpu::ShaderStage::Vertex;

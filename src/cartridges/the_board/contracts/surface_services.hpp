@@ -253,11 +253,11 @@ struct PatchSystemState {
 // THE MACHINE FACE (MachineCtx), the S3 dispatch seam
 // (select/place/commit — contracts/spawn_services.hpp), and the GPU
 // wire (gpuState_ / renderer_). The reaches outside the face ride
-// the call sites: the tile doors' deps, the mood deps, the driver's
+// the call sites: the tile doors' deps, the sky's deps, the driver's
 // intent organ.
 struct TileWorldState;  // tile_world.hpp — the tile cache organ (fwd: the lifecycle owner mutates it through the owner doors; the machine face's view is const)
 struct TileWorldDeps;   // tile_world.hpp — the tile doors' face (fwd: reference param)
-struct MoodDeps;        // mood.hpp — the back-portal door's face (fwd: reference param)
+struct SkyDeps;        // sky.hpp — reset_surface's face (fwd: reference param)
 
 // THE S2/S3 BOUNDARY FACE: the patch registry is read across the
 // boundary by the occupier commits (host->record_entity via
@@ -305,7 +305,7 @@ void generate_selected_patches(MachineCtx* c, const PatchCandidate* candidates, 
 // THE CONDUCTOR: the per-frame streaming step.
 void stream_patches(MachineCtx* c, wgpu::CommandEncoder& encoder, wgpu::Queue& queue,
     TileWorldState& tile_world_state,
-    TileWorldDeps& tile_world_deps, MoodDeps& mood_deps);
+    TileWorldDeps& tile_world_deps, SkyDeps& sky_deps);
 
 } // namespace the_board
 } // namespace t7

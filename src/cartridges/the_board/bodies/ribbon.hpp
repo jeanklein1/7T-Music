@@ -94,8 +94,8 @@ struct RibbonDeps {
 //
 // The ribbon's column of MOOD_SPAWN_MULT was { 1, 1, 1, 1 }, all
 //   identity, and left with the table at ONE_WORLD-II U3. (It
-//   previously read as carrying indoor zeros; the live table never
-//   had them.) Same family as gol_zones:P4 and
+//   previously read as carrying zeros for the rooms; the live table
+//   never had them.) Same family as gol_zones:P4 and
 //   the cube populations' hygiene rows.
 
 // ── Length cap ───────────────────────────────────────────────────
@@ -720,14 +720,14 @@ inline bool select_ribbon_for_patch(RibbonState& rs, MachineCtx* c,
 
     fill_ribbon_selection_geometry(gate.seed, tier_idx, sel);
 
-    // THE MINIATURE left with the rooms (ONE_WORLD-II U4). Indoors a
-    // gate-spawned ribbon pre-scaled by INDOOR_LIVE.ribbon_scale
+    // THE MINIATURE left with the rooms (ONE_WORLD-II U4). In a room a
+    // gate-spawned ribbon was pre-scaled by the rooms' ribbon_scale
     // ("incredibly diminished") and then met a cap law that never bit at
     // 0.15. Its two faults were held, not ruled — the miniature never sat
-    // inside the mood's clamps, and propagation_speed is authored in
-    // outdoor units/s, so shrinking the body raised the head's oscillation
-    // rate by 1/scale. Both leave with the treatment; the ribbon flies at
-    // its authored size, which is the only size there is now.
+    // inside the room's clamps, and propagation_speed is authored in
+    // open-world units/s, so shrinking the body raised the head's
+    // oscillation rate by 1/scale. Both leave with the treatment; the
+    // ribbon flies at its authored size, the only size there is now.
 
     {
         float patch_cx = (gx + 0.5f) * Dim::PATCH_EXTENT;
@@ -752,10 +752,9 @@ inline bool place_ribbon_from_selection(MachineCtx* c,
         RibbonProp::ORIENTATION,
         /*grounded=*/true,   // the anchor ribbon's tips touch ground; it claims and is blocked
         sel.footprint_r,
-        // FULL containment (INDOOR_TREATMENT): the MINIATURE extent —
-        // scaled lateral_amp + the scaled cube span (S-4's scale ran
-        // at selection, before this clamp: a small ribbon needs only
-        // a small room). Outdoors the clamp never fires.
+        // The ribbon's authored extent — lateral_amp plus the cube
+        // span. The rooms' FULL-containment clamp read it and left with
+        // them (ONE_WORLD-II U4); in an open world nothing fires.
         PopFamily::RIBBON, sel.slot, sel.tier_idx);
     if (!pos.ok) return false;
 
@@ -1073,8 +1072,8 @@ inline void teardown_ribbon(RibbonState& rs, RibbonDeps* c, wgpu::Queue& queue) 
 }
 
 // ─── Finite-mode release (owner verb) ─
-// deactivate ribbons in finite mode. ORDER (O-3): must run AFTER
-// apply_mood set sky_state_.active.
+// deactivate ribbons in finite mode. ORDER (O-3): must run AFTER the
+// world's birth has staged the sky.
 inline void release_finite_ribbons(RibbonState& rs, RibbonDeps* c, wgpu::Queue& queue) {
     if (c->world_state_.finite_mode && rs.active_count > 0) {
         for (uint32_t i = 0; i < MAX_RIBBON_INSTANCES; i++) {

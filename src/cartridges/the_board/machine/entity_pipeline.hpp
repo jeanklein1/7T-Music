@@ -18,7 +18,7 @@
 // Depends on cohort include order: entity_types.hpp (traits/adapter/
 // instance vocabulary), grounded.hpp (props/configs/palettes + the
 // tier enums — COMPLETE, the merged bodies deref them), state.hpp
-// (GPU mesh params), mood.hpp (MOOD_TABLE + the mood
+// (GPU mesh params), sky.hpp (the world's birth and its
 // doors), machine/spawn_engine.hpp (the services, defined just above
 // in the cohort). MERGED at the cohort tail (the
 // B ruling): the decl tier (the generic_* decls
@@ -27,30 +27,22 @@
 namespace t7 {
 namespace the_board {
 
-// ─── Indoor Sizing (THE INDOOR MODULE's per-family hooks) ────────
+// ─── THE ROOMS' SIZING STOOD HERE ────────────────────────────────
 //
-// Policy rides INDOOR_TREATMENT + the dials
-// (contracts/indoor_module.hpp); the families below keep only their
-// hand-curated param-index lists — only LENGTH dimensions get
-// scaled, never ratios (PyrIdx::ASPECT, PyrIdx::TRUNCATION), counts,
-// or angles. (The list used to cite TAPER/ENTASIS, BASE_LAYERS/RIBS/
-// ARM_COUNT and LEAN_DIR/FROND_DROOP; every one of those props was a
-// column's, cactus's or palm's and left at PRUNE_2 — the LAW is
-// unchanged, only its examples.) CAP families call the shared
-// cap_to_ceiling law.
-// (EXACT — snap HEIGHT to wall_height and scale every other length
-// param by the same ratio so proportions hold — left with the column,
-// its only practitioner; IndoorSize::EXACT stands unclaimed.)
-// Adding a new eligible family means declaring its own
-// <family>_apply_indoor_rescale (a cap_to_ceiling call + its list),
-// registering it in the adapter, and rowing INDOOR_TREATMENT.
+// A per-family hook shrank a body under a room's ceiling: a policy table
+// (contracts/indoor_module.hpp), an adapter slot, and one hand-curated
+// param-index list per family naming only the LENGTH dimensions, never
+// ratios, counts or angles. All of it left with the ceilings at
+// ONE_WORLD-II U4 — the module, the slot, the shared cap_to_ceiling law
+// and the unclaimed EXACT policy — and U7 takes the three orphaned lists
+// it left behind and this paragraph, which described a hook no adapter
+// carries (L30).
 //
-// SEAM[entity_pipeline:rescale-per-family] DONE — was a free-function
-//   switch on family_id; lifted to per-family adapter slot during
-//   Pass 7 of the modularity rollout. The rolled-band helper
-//   (rescale_to_rolled_target: target in [lo,hi]×ceiling, property
-//   index 7777u for the roll) lost its callers to the module's cap
-//   law — held by git.
+// SEAM[entity_pipeline:rescale-per-family] CLOSED with its subject. It was
+//   a free-function switch on family_id, lifted to a per-family adapter
+//   slot during Pass 7 of the modularity rollout, and the rolled-band
+//   helper it grew (rescale_to_rolled_target) lost its callers to the
+//   module's cap law before the module lost its own. Held by git.
 
 // ═══ MODULE FUNCTIONS ══════════════════════════════════════════════
 //
@@ -314,11 +306,8 @@ inline SpawnGateOutput pyramid_run_gate(MachineCtx* c, int32_t gx, int32_t gz) {
     return gate_from_traits(c, gx, gz, PYRAMID_TRAITS, c->entities_state_.pyramids);
 }
 
-inline constexpr uint32_t PYRAMID_INDOOR_RESCALE_PARAMS[] = {
-    PyrIdx::HEIGHT, PyrIdx::BASE_HALF, PyrIdx::EDGE_BLEND,
-    // ASPECT, TRUNCATION are ratios — not scaled.
-};
-
+// PYRAMID_INDOOR_RESCALE_PARAMS stood here — pyramid_apply_indoor_rescale's
+// table, orphaned when U4 took that adapter slot. U7's orphan sweep.
 
 inline void pyramid_compute_solid_half(EntityInstance& inst, const TierProfile&) {
     float base_half = inst.params[PyrIdx::BASE_HALF];

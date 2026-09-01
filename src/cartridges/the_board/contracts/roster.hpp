@@ -42,7 +42,7 @@
 //
 //   Only SEP pieces skip creation in v0; SH·* sites carry
 //   LATENT[gate-a-shared] with the retirement condition; NO-RES pieces own
-//   nothing to skip. Its one SEP piece was indoor_shell, and the
+//   nothing to skip. Its one SEP piece was the rooms' shell, and the
 //   classification is empty since ONE_WORLD-II U4.
 
 namespace t7 {
@@ -61,7 +61,7 @@ struct PopFamily {
 
 // F-1: the family ORDER is load-bearing — FIVE
 // tables are POSITIONAL in it (the five proximity tables left at
-// ONE_WORLD-I U5: MIN_SEPARATION, INDOOR_TREATMENT, and
+// ONE_WORLD-I U5: MIN_SEPARATION, the rooms' per-family treatment, and
 // — until ONE_WORLD-II U3 took the theme engine with them —
 // THEMES[].spawn_weight, MOOD_SPAWN_MULT, TilePopulation::spatial_density,
 // family_short_name's NAMES[] — the eleventh, which PRUNE_2 found outside
@@ -146,13 +146,13 @@ static_assert(placement_order_is_permutation(),
 struct Roster {
     bool pyramid, sphere, ribbon, cube, gol;
     // FEATURES (5)
-    // FIVE FEATURES BECAME THREE (ONE_WORLD-II U4). spot_lights and
-    // indoor_shell went with the rooms — and this struct is initialised
+    // FIVE FEATURES BECAME THREE (ONE_WORLD-II U4). spot_lights and the
+    // shell went with the rooms — and this struct is initialised
     // POSITIONALLY from the matrix's GRID, so both the brace list and the
     // two GRID rows moved in the same commit as these two lines.
     bool pawn_aura;     // presence ramp + aura terrain compute
     bool orbs;          // sky dome (distinct from the sphere family)
-    bool wanderers;     // mood-authored NPC population (agent slots 1+)
+    bool wanderers;     // the bank's NPC population (agent slots 1+)
 
     constexpr bool family_enabled(uint32_t f) const {
         switch (f) {

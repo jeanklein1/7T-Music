@@ -57,7 +57,7 @@ bool dispatch_place_sphere_generic(MachineCtx* self, EntityQueueEntry& e, Placem
 void dispatch_commit_sphere_generic(MachineCtx* self, PlacementEntry& pe, wgpu::Queue& queue);
 
 // ═══ IMPL: the row
-// bodies deref sphere_state_ + world/mood/gpu/time via MachineCtx;
+// bodies deref sphere_state_ + world/sky/gpu/time via MachineCtx;
 // reconcile via SphereDeps. COHORT PROOF: sits AFTER
 // contracts/spawn_services.hpp (generic_select/place/commit +
 // run_spawn_preamble + negotiate_position DECLS — the machine bodies
@@ -195,16 +195,10 @@ inline void sphere_write_gpu(MachineCtx* c, const EntityInstance& inst, wgpu::Qu
     c->gpuState_.upload_sphere_entity_slot(queue, inst.slot, fe);
 }
 
-inline constexpr uint32_t SPHERE_INDOOR_RESCALE_PARAMS[] = {
-    SphIdx::BODY_RADIUS, SphIdx::ORBIT_RADIUS, SphIdx::ORBIT_HEIGHT,
-    SphIdx::INFLUENCE_RADIUS,
-    // ORBIT_SPEED (a rate) intentionally not scaled.
-};
-
-// Sphere policy: CAP (INDOOR_TREATMENT). Vertical extent =
-// orbit_height + body_radius (the orbit ring is horizontal at
-// orbit_height; the body's top adds its radius). Every length param
-// rides the one ratio — a miniature, not a squash.
+// SPHERE_INDOOR_RESCALE_PARAMS and its CAP policy note stood here. Both
+// were sphere_apply_indoor_rescale's, and that slot left EntityFamilyAdapter
+// at ONE_WORLD-II U4 — U4 took the function and missed the table it read, so
+// U7's orphan sweep takes it (reader-less, subject dead, L30).
 
 inline constexpr EntityFamilyAdapter SPHERE_ADAPTER = {
     sphere_run_gate,

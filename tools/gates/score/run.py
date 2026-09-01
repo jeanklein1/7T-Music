@@ -133,7 +133,7 @@ GREP_MANIFEST = {
     'gol':      [('cartridge.hpp', 'teardown',  imm(r'ROSTER\.gol',     r'teardown_gol')),
                  ('cartridge.hpp', 'mesh prep', imm(r'ROSTER\.gol',     r'[^;]*?\.prepare_mesh'))],
     'pawn_aura':[('cartridge.hpp', 'teardown',  imm(r'ROSTER\.pawn_aura', r'teardown_pawn_aura'))],
-    'orbs':     [('direction/mood.hpp', 'boot config', blk(r'ROSTER\.orbs', 'configure_orbs')),
+    'orbs':     [('direction/sky.hpp', 'boot config', blk(r'ROSTER\.orbs', 'configure_orbs')),
                  ('organ_boundary.inc', 'organ re-speak', imm(r'ROSTER\.orbs', r'configure_orbs')),
                  ('cartridge.hpp', 'teardown',   imm(r'ROSTER\.orbs',  r'teardown_orbs'))],
     # DELEGATED pieces: the gate lives at the module door (cited), not the spine.

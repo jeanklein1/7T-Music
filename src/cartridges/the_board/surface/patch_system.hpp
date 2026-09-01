@@ -20,10 +20,10 @@
 // wire (c->gpuState_ / c->renderer_). The reaches OUTSIDE the face
 // ride the call site (the B law): the WRITABLE tile-cache + theme
 // organs (the face's views are const — the lifecycle owner mutates
-// them through the owner doors), the tile doors' deps, the mood deps
+// them through the owner doors), the tile doors' deps, the sky's deps
 // (the back-portal door), and the driver's intent organ (the movement
 // budget read). COHORT: the tail's last — after the machine natives
-// (spawn service defs) and mood (the back-portal door's def).
+// (spawn service defs) and sky (reset_surface's def).
 // ─────────────────────────────────────────────────────────────────
 
 namespace t7 {
@@ -102,8 +102,6 @@ inline void reset_surface(MachineCtx* c, wgpu::Queue& queue,
     for (uint32_t i = 0; i < MAX_FOOTPRINTS; i++) {
         c->spawn_engine_state_.footprints_[i] = GroundFootprint{};
     }
-
-    // Indoor shell
 
     // Lights need re-upload with potentially new config
     c->sky_state_.lights_dirty = true;
@@ -320,8 +318,8 @@ inline void spawn_selected_patches(MachineCtx* c, const PatchCandidate* candidat
     wgpu::Queue& queue) {
     // THE ENVELOPE'S TICK LEFT (ONE_WORLD-II U3). Each patch advanced the
     // theme envelope from its own tile seed before selecting entities —
-    // the temporal half of the theme engine, stateful and sequenced. The
-    // selection is the whole of the work now.
+    // the temporal half of the engine that died there, stateful and
+    // sequenced. The selection is the whole of the work now.
     for (uint32_t s = 0; s < count; s++) {
         uint32_t pi = candidates[s].idx;
         select_entities_for_patch(c, c->patch_system_state_.patches_[pi].grid_x, c->patch_system_state_.patches_[pi].grid_z);
@@ -530,7 +528,7 @@ inline std::unordered_set<GridKey, GridKeyHash> build_active_patch_set(MachineCt
 //   machine waking the occupier machine.
 inline void stream_patches(MachineCtx* c, wgpu::CommandEncoder& encoder, wgpu::Queue& queue,
     TileWorldState& tile_world_state,
-    TileWorldDeps& tile_world_deps, MoodDeps& mood_deps) {
+    TileWorldDeps& tile_world_deps, SkyDeps& sky_deps) {
     // ─── Patch Generation Pipeline ─────────────────────────────────
 
     int32_t centerX, centerZ;

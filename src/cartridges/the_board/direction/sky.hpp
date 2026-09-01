@@ -2,57 +2,28 @@
 #include <cstdint>
 #include "cartridges/the_board/realization/state.hpp"                    // wgpu, GPUState
 #include "cartridges/the_board/contracts/agent_tiers.hpp"      // TIER_LIVE — the doorway witness reads a walker's contact_radius (ATRIUM_7)
-#include "cartridges/the_board/contracts/spine_state.hpp"      // SkyState + the atmosphere vocabulary (CeilingType / MoodProfile / MOOD_TABLE)
+#include "cartridges/the_board/contracts/spine_state.hpp"      // SkyState — the world's drawn sky, the instance this file authors
 #include "cartridges/the_board/contracts/atmosphere_surface.hpp"   // ATMOS_LIVE — the atmosphere panel; draw_atmosphere's bank (ONE_WORLD-II U1)
 #include "cartridges/the_board/contracts/wgpu_fwd.hpp"   // wgpu handle fwds (lockstep insurance)
 #include <algorithm>   // std::max, std::min, std::clamp   // (impl, merged)
 #include <cmath>       // std::sqrt, std::sin, std::cos, std::cosh, std::floor, std::abs   // (impl, merged)
-#include <iostream>    // mood / lighting logs   // (impl, merged)
+#include <iostream>    // the [Atmos] and [World] lines   // (impl, merged)
 #include <iomanip>     // std::fixed, std::setprecision — the arc's facing witness (ATRIUM_5)   // (impl, merged)
 
-// ─── mood.hpp (MERGED: deps + atmosphere vocabulary + impl) ───────
+// ─── sky.hpp (MERGED: deps + the draw + the world's birth) ───────
 //
-// Atmosphere: the world's sky, drawn from the bank.
+// THE WORLD'S SKY: drawn from ATMOS_LIVE by the world's seed, applied
+// once at every birth, and re-drawn at the boundary when a dial moves.
 //
-// Mood is VOCABULARY + APPLIERS + THREE DOORS. This header owns the
-// vocabulary — CeilingType, MoodProfile, MOOD_TABLE,
-// the indoor wall palettes (the indoor treatment — sizes,
-// bounds, dials — graduated to contracts/indoor_module.hpp) — and
-// the DECLARATIONS of the three doors
-// (stage_world_birth, upload_lights) plus the appliers and
-// derivers. The Mood IDs are file-scope vocabulary
-// (mood_constants.hpp), consumed here. MOOD OWNS NO INSTANCE: struct
-// SkyState's TYPE lives in contracts/spine_state.hpp; the instance
-// mood_state is SPINE-OWNED orchestration (L38 — assembly only, K4 as
-// amended). The force-spawn channel mood once computed values for left
-// with the doors (ONE_WORLD-I U2).
-// MERGED at the cohort tail:
-// SkyState / CeilingType / MoodProfile / MOOD_TABLE + the request
-// door decl live in contracts/spine_state.hpp (the spine's organ
-// contract — the demo sentence includes mood_constants, so the
-// DEMO-reading SkyState rides the spine tier; tile_world/ribbon/the
-// config tables read them early);
-// this file keeps MoodDeps, the
-// decls, and every definition. COHORT: after ribbon/input
-// (the fan's door owners + ORB_MOOD_TABLE), before the
-// machine natives (they call derive_finite_radius).
-//
-// The impl additionally reaches the spine-resident state
-// (mood_state / cpuSpotLights_ / sun + clear colors / world_state_ and
-// the feature-gate flags), the converted modules' surfaces (orbs'
-// configure, render_passes' compute_spot_light_vp),
-// Dim::PATCH_EXTENT (patch_system.hpp).
-//
-// SEAM[mood:K1] apply_mood is the single canonical mood entry point.
-//   Every mood activation — boot and rebirth alike — funnels through
-//   here. The orchestrator owns only ordering and the activate-mood
-//   bookkeeping; the substantive work splits across three named
-//   sub-functions (apply_mood_lighting, _spot_lights, _indoor_shell).
-// apply_mood orchestrates the named applier helpers; the appliers
-//   match the natural seams in the flow, and their call order is
-//   load-bearing.
-// ─────────────────────────────────────────────────────────────────
-
+// IT WAS mood.hpp (ONE_WORLD-II U7). The file owned a VOCABULARY —
+// CeilingType, MoodProfile, MOOD_TABLE, the indoor wall palettes — and
+// four appliers that fanned a mood's definition out to the light, the
+// spots, the shell and the sky. The vocabulary died at U2 and U4, three
+// of the four appliers with it. What is left is one applier, one draw
+// and the sequence that stages a world, and none of it is a mood's —
+// which is why the survivor is `stage_sky` and not `apply_mood_lighting`
+// (U7; a name that outlives its subject is the defect this campaign is
+// for, and the rename is Jean's to veto).
 namespace t7 {
 namespace the_board {
 
@@ -66,39 +37,28 @@ struct GoLState;   struct EntitiesState; struct MachineCtx;
 struct OrbsState;   struct OrbsDeps;
 struct PawnState;
 
-// ═══ MOOD STATE + PROFILE VOCABULARY — GRADUATED ═════════════════
-// SkyState / CeilingType / MoodProfile / MOOD_TABLE live in
-// contracts/spine_state.hpp: the early consumers read the
-// contract; the instance stays at the root.
-
-// ═══ THE WORLD-DRAW BANK'S NOTE ══════════════════════════════════
-
-// SCHEME_WEIGHTS graduated to contracts/mood_constants.hpp (ORGAN_4 P3d)
-// as WORLD_DRAW_LIVE: the organ may not include a direction file, so a
-// dial on it was impossible until it had a contracts home. It is C3
-// DESTRUCTIVE and enrolls with the GEN chip and no wiring. Three of the
-// bank's four axes — the portal density, the destination law and the
-// portal palette — left with the doors at ONE_WORLD-I U2; the scheme
-// roll is what a fresh world still draws.
+// ═══ SKY STATE — GRADUATED ═══════════════════════════════════════
+// SkyState lives in contracts/spine_state.hpp: the early consumers read
+// the contract; the instance stays at the root. The vocabulary that stood
+// beside it there left at ONE_WORLD-II U2 and U4.
 
 // ═══ THE DEPS FACE ═══════════════════════════════════════════════
 //
-// Mood's own organs plus its true reaches — the atmosphere author's
-// face: the mood organ, the sun/clear channel, the realization pokes
-// (GPUState uploads, the frustum-cull flag) and the gol mood gate (the
-// THE FLAG CHANNEL [mood -> gol]). The CPU spot-light staging array and
-// the const view of entities left with the indoor derivations at
-// ONE_WORLD-II U4 — both were that deriver's alone. The fan's TARGET organs
-// are deliberately NOT members (the B ruling, input's precedent):
-// orbs/pawn pairs + the machine face ride apply_mood's
-// parameters — the spine addresses the fan's bodies at the call site,
-// through the owner command doors.
-struct MoodDeps {
+// The sky's own organs plus its true reaches: the sky organ, the
+// sun/clear channel, the realization pokes (GPUState uploads, the
+// frustum-cull flag) and the gol gate (THE FLAG CHANNEL [sky -> gol]).
+// The CPU spot-light staging array and the const view of entities left
+// with the rooms' derivations at ONE_WORLD-II U4 — both were that
+// deriver's alone. The fan's TARGET organs are deliberately NOT members
+// (the B ruling, input's precedent): orbs/pawn pairs + the machine face
+// ride stage_world_birth's parameters — the spine addresses the fan's
+// bodies at the call site, through the owner command doors.
+struct SkyDeps {
     SkyState&           sky_state_;
     const WorldState&    world_state_;
     GPUState&            gpuState_;
-    Renderer&            renderer_;          // set_frustum_cull_active (per-mood realization poke)
-    GoLState&            gol_state_;         // zones_allowed — the flag channel [mood -> gol]
+    Renderer&            renderer_;          // set_frustum_cull_active (the world's realization poke)
+    GoLState&            gol_state_;         // zones_allowed — the flag channel [sky -> gol]
     float (&sunDirection_)[3];
     float (&sunColor_)[3];
     float (&clearColor_)[3];
@@ -106,19 +66,19 @@ struct MoodDeps {
 
 // ═══ MODULE FUNCTIONS — DECLARATIONS ═════════════════════════════
 
-// Mood lifecycle (doors). The fan's targets ride apply_mood's tail
+// The world's lifecycle (doors). The fan's targets ride the birth's tail
 // parameters — organ-named, addressed by the spine at the call site.
-void stage_world_birth(MoodDeps* c, wgpu::Queue& queue,
+void stage_world_birth(SkyDeps* c, wgpu::Queue& queue,
     MachineCtx& machine_ctx,
     OrbsState& orbs_state, OrbsDeps& orbs_deps,
     PawnState& pawn_state);
 // The applier. ONE_WORLD-II U4 took the other three: the spot-light
-// deriver and the shell generator with the indoor organs, and
+// deriver and the shell generator with the rooms' organs, and
 // apply_mood_arrival — declared with no body and no caller since before
 // this campaign — with them.
-void apply_mood_lighting(MoodDeps* c, wgpu::Queue& queue);
+void stage_sky(SkyDeps* c, wgpu::Queue& queue);
 // Per-frame uploads (door)
-void upload_lights(MoodDeps* c, wgpu::Queue& queue);
+void upload_lights(SkyDeps* c, wgpu::Queue& queue);
 // Derivers (door)
 uint32_t derive_finite_radius(uint32_t seed);
 
@@ -213,7 +173,7 @@ inline AtmosphereInstance draw_atmosphere(uint32_t seed, const AtmosphereBank& a
         out.sun_direction[2] = -(ce * std::sin(az));
     }
     // ── the sky — the bank's, flat (ONE_WORLD-II U1) ──
-    // There was an index here: the world's regime, rolled from the mood's
+    // There was an index here: the world's regime, rolled from a mood's
     // weights before this ran. Every mood weighted regime 0 alone, so the
     // roll had one destination and the array had one live slot; both left
     // with the moods. Named, never aliased: every enrolled leaf is reached
@@ -232,14 +192,14 @@ inline AtmosphereInstance draw_atmosphere(uint32_t seed, const AtmosphereBank& a
     return out;
 }
 
-// ═══ APPLY MOOD ══════════════════════════════════════════════════
+// ═══ STAGE THE SKY ═══════════════════════════════════════════════
 
-// 1) Atmospheric: THE DRAW, then the fan. (seed, definition) → instance,
-//    re-run on every apply — a mood entry and a definition edit alike.
-//    The seed is the world's, so a panel edit moves the instance WITH the
-//    dial (same seed, shifted centre, same offset) rather than re-rolling
-//    it. Touches GPU directly + a few member fields.
-inline void apply_mood_lighting(MoodDeps* c, wgpu::Queue& /*queue*/) {
+// THE DRAW, then the fan. (seed, bank) → instance, re-run on every apply
+//    — a world's birth and a panel edit alike. The seed is the world's,
+//    so a panel edit moves the instance WITH the dial (same seed, shifted
+//    centre, same offset) rather than re-rolling it. Touches GPU directly
+//    + a few member fields.
+inline void stage_sky(SkyDeps* c, wgpu::Queue& /*queue*/) {
     const AtmosphereInstance ai = draw_atmosphere(c->world_state_.active_seed, ATMOS_LIVE);
     const float len = std::sqrt(ai.sun_direction[0] * ai.sun_direction[0] +
                                 ai.sun_direction[1] * ai.sun_direction[1] +
@@ -260,7 +220,7 @@ inline void apply_mood_lighting(MoodDeps* c, wgpu::Queue& /*queue*/) {
     c->sky_state_.sun_intensity = ai.sun_intensity;
     c->sky_state_.sun_ambient   = ai.sun_ambient;
 
-    // The fog's REST — the mood's since ATMOS_1. The U4 seam
+    // The fog's REST — the sky's own since ATMOS_1. The U4 seam
     // (phase_motion_drivers) composes the canvas's deviation over it
     // every frame; this is the rung-3 instance that seam reads.
     c->sky_state_.fog_rest_density  = ai.fog_density;
@@ -272,8 +232,8 @@ inline void apply_mood_lighting(MoodDeps* c, wgpu::Queue& /*queue*/) {
     c->clearColor_[1] = ai.clear_color[1];
     c->clearColor_[2] = ai.clear_color[2];
 
-    // THE THREE INDOOR STRUCTURALS LEFT HERE (ONE_WORLD-II U4). This
-    // applier authored all three — the terrain amplitude ceiling, its
+    // THE THREE ROOM STRUCTURALS LEFT HERE (ONE_WORLD-II U4). This
+    // applier authored all three — the terrain amplitude cap, its
     // SkyState mirror, and the GoL lift cap composed from the module's
     // fraction of the wall — and each reached a GPUDesignConfig field
     // that is a named pad now. The three metered organ rows that watched
@@ -281,9 +241,9 @@ inline void apply_mood_lighting(MoodDeps* c, wgpu::Queue& /*queue*/) {
     // gone meters a permanent zero.
     c->sky_state_.lights_dirty = true;
 
-    // THE WITNESS. One line per (mood, seed), not per draw (ATMOS_1b): a
-    // line prints when that PAIR changes — which is every entry, and
-    // nothing else. A centre, colour or spread drag re-draws every frame
+    // THE WITNESS. One line per world, not per draw (ATMOS_1b): a line
+    // prints when the SEED changes — which is every birth, and nothing
+    // else. A centre, colour or spread drag re-draws every frame
     // and says nothing here; the panel is its readout. The same seed
     // still prints the same line, and a boot must print
     // int=0.9 amb=0.2 fog=0.003 for the sunset until someone changes
@@ -319,7 +279,7 @@ inline void apply_mood_lighting(MoodDeps* c, wgpu::Queue& /*queue*/) {
         }
     }
 }
-// ── apply_mood (orchestrator) ──
+// ── stage_world_birth (orchestrator) ──
 //
 // THE WORLD'S BIRTH (ONE_WORLD-II U2). It was apply_mood: it took a mood
 // id, clamped it, stored it, read that mood's definition and fanned the
@@ -331,15 +291,15 @@ inline void apply_mood_lighting(MoodDeps* c, wgpu::Queue& /*queue*/) {
 //
 // The three feature gates were per-mood columns and are now the world's,
 // stated once here rather than authored in a table nobody can turn.
-inline void stage_world_birth(MoodDeps* c, wgpu::Queue& queue,
+inline void stage_world_birth(SkyDeps* c, wgpu::Queue& queue,
     MachineCtx& machine_ctx,
     OrbsState& orbs_state, OrbsDeps& orbs_deps,
     PawnState& pawn_state) {
     c->renderer_.set_frustum_cull_active(true);
     c->gol_state_.zones_allowed = true;
-    apply_aura_mood_policy(pawn_state, true);   // the pawn door; byte-identical semantics
+    apply_aura_policy(pawn_state, true);        // the pawn door; byte-identical semantics
 
-    apply_mood_lighting(c, queue);              // sun + ambient — the whole of the light now
+    stage_sky(c, queue);                        // sun + ambient — the whole of the light now
     if constexpr (ROSTER.orbs)                  // ROSTER-GATE orbs (b) — sky dome never configured
         // ORGAN_5 P1b — reseed TRUE: a world's birth is a new sky, so the
         // init kernel re-runs and every orb is re-drawn. This is the heavy
@@ -354,7 +314,7 @@ inline void stage_world_birth(MoodDeps* c, wgpu::Queue& queue,
 
 // ── upload_lights ──
 // (Must precede compute for shadow VP.)
-inline void upload_lights(MoodDeps* c, wgpu::Queue& queue) {
+inline void upload_lights(SkyDeps* c, wgpu::Queue& queue) {
     if (!c->sky_state_.lights_dirty) return;
     c->sky_state_.lights_dirty = false;
 
@@ -382,7 +342,7 @@ inline void upload_lights(MoodDeps* c, wgpu::Queue& queue) {
 // ═══ DERIVERS ════════════════════════════════════════════════════
 
 
-// Derive finite world radius from seed within mood-defined bounds.
+// Derive the finite world's radius from the seed, within the pin's dials.
 // The world's radius, drawn from the dials. It read a WorldShape's own
 // min/max until ONE_WORLD-II U2 rehomed the pair beside finite_mode; the
 // SALT IS UNCHANGED at 77u, so a given seed draws the radius it always

@@ -130,7 +130,7 @@ struct GoLZoneSpawnConfig {
     static constexpr float HEIGHT_FACTOR_SIGMA = 0.15f;
     static constexpr float HEIGHT_FACTOR_CLAMP_LO = 0.6f;
     // L3 MIRROR: world.wgsl GOL_HEIGHT_FACTOR_MAX. This is the upper bound on
-    // the per-cell multiplier, and the indoor height cap divides by it at
+    // the per-cell multiplier, and the rooms' height cap divided by it at
     // zone_derive_params so the capped lift is exact. Change both rooms.
     static constexpr float HEIGHT_FACTOR_CLAMP_HI = 1.4f;
     // Lens target color range: color = hash * RANGE + LO
@@ -478,7 +478,7 @@ void dispatch_zone_sync(GoLState& gs, GolDeps* c, wgpu::CommandEncoder& encoder)
 void dispatch_zone_evolve(GoLState& gs, GolDeps* c, wgpu::CommandEncoder& encoder);
 
 // ═══ IMPL:
-// rows deref gol_state_(own) + mood/world/time + tile faces via MachineCtx;
+// rows deref gol_state_(own) + world/time + tile faces via MachineCtx;
 // score-verbs deref gpu/renderer/device/time via GolDeps (S5 device).
 // COHORT: after renderer (Renderer) + entity_pipeline/spawn_engine (funnels,
 // footprints) + patch_system (find_patch) + tile_world (faces) + state.
@@ -489,7 +489,7 @@ void dispatch_zone_evolve(GoLState& gs, GolDeps* c, wgpu::CommandEncoder& encode
 
 inline bool select_gol_for_patch(GoLState& gs, MachineCtx* c,
     int32_t gx, int32_t gz, GoLSelection& sel) {
-    // THE COMPOSITION LAW: the shared stack — mood (explicit veto)
+    // THE COMPOSITION LAW: the shared stack — the world's gate
     // → global → tile (F3);
     // clamp [0,1]. The per-lattice-node roll stays below (its own seed
     // domain, cpu_lattice_node_seed — a consumer fact, not the law's).
@@ -845,7 +845,7 @@ inline void flush_zone_derive_requests(GoLState& gs, GolDeps* c, wgpu::Queue& qu
 
 inline bool dispatch_select_gol(MachineCtx* self,
     int32_t gx, int32_t gz, EntityQueueEntry& e) {
-    if (!self->gol_state_.zones_allowed) { return false; }   // mood gate — no new zones
+    if (!self->gol_state_.zones_allowed) { return false; }   // the world's gate — no new zones
     return select_gol_for_patch(self->gol_state_, self, gx, gz, e.gol);
 }
 

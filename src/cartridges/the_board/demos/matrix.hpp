@@ -33,8 +33,8 @@
 // The compile-time boolean FOLD is preserved end to end: column_to_roster
 // yields a constexpr Roster, so ROSTER (demos/demo.hpp) folds every
 // gate site exactly as the hand-written brace-list did.
-// DemoConfig is untouched — seed + boot_mood are authored onto the
-// root organs in the Cartridge ctor.
+// DemoConfig is untouched — the seed is authored onto the root organs
+// in the Cartridge ctor.
 //
 // FREE TICKING: the grid encodes NO dependency edges — and since
 // ONE_WORLD-I took the transitions bit, the roster carries no legality
@@ -61,8 +61,8 @@ enum : uint32_t {
 }
 
 // ═══ THE COLUMNS (demo names — the valid INCUBATE_DEMO set) ════════
-// Adding a demo = one enum value here + one grid column + one seed +
-// one boot_mood. A bad INCUBATE_DEMO=<name> resolves to DemoCol::<name>
+// Adding a demo = one enum value here + one grid column + one seed.
+// A bad INCUBATE_DEMO=<name> resolves to DemoCol::<name>
 // and fails as an unknown enumerator — a clean compile error.
 enum class DemoCol : uint32_t {
     full,      // the golden twin — every tickable ON

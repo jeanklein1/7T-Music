@@ -22,7 +22,7 @@
 // FIRST COUPLING — fog. The held field (a one-based rank, 0 = none) selects a
 // fog density from FOG_BY_FIELD and an atmospheric tint from FOG_COLOR_BY_FIELD;
 // the canvas emits each as a DEVIATION from the anchor row (ATMOS_1), and the
-// mood's own rest is composed in at the cartridge's seam — v3 §2, scalar
+// world's own rest is composed in at the cartridge's seam — v3 §2, scalar
 // deviations over inviolate idleness. Segments carry both, so density and
 // color drift across a modulation instead of snapping. The source,
 // "all.field", is already published, so the analysis side is untouched.
@@ -30,7 +30,7 @@
 // WIRING (live). The cartridge owns a VisualCanvas, binds it once in
 // bind_signal_layout with the analysis layout, ticks it each frame in
 // update() after the signal, and flushes fog — density and color — from
-// params() to set_fog as mood rest + gain · deviation. Fog has one driver:
+// params() to set_fog as the world's rest + gain · deviation. Fog has one driver:
 // the field.
 //
 // CHECKER-REBUILD — THE PITCH-CLASS COLOR FIELD (the terrain's checker
@@ -91,7 +91,7 @@ namespace t7 {
     // ANCHOR: the value index 0 also carries, and the zero point of the deviation
     // the pipe now carries (ATMOS_1) — field 1 reads as "no deviation", and every
     // other field as a shift away from it, composed at the seam over whatever rest
-    // the MOOD wears (a sunset's, a night's). The absolute values stay in the
+    // the WORLD wears. The absolute values stay in the
     // table because that is how a composer reads them; the subtraction is one
     // line in tick(). Fields 5/6 sit in the dense band, 2/3/4 in the light.
     // Index 0 is "no field yet" — the value at boot, before any scale is held, not
@@ -99,7 +99,7 @@ namespace t7 {
     inline constexpr int   FOG_FIELD_COUNT = 7;          // index 0 = none, 1..6 fields
     // THE ANCHOR — one home for both rows that wear it. Twinned by the boot
     // config in realization/state.hpp (config_.fog_density / fog_color) and by
-    // ATMOS_SUNSET's fog rest in contracts/spine_state.hpp: the mood's rest
+    // ATMOS_TABLE's fog rest (contracts/atmosphere_surface.hpp): the bank's rest
     // and the canvas's zero point are the same number by construction, which
     // is what keeps gain 1 on the sunset the pre-ATMOS_1 picture exactly.
     inline constexpr float FOG_DENSITY_NONE  = 0.0030f;
@@ -225,7 +225,7 @@ namespace t7 {
     // there are no collisions across entities. Read it as a register map; every
     // coupling and every entity flush resolves against it by name. (A vector's rest
     // is one value across its channels. Both fog pipes rest at 0 since ATMOS_1:
-    // the canvas emits DEVIATIONS from its anchor row, and the mood's own rest is
+    // the canvas emits DEVIATIONS from its anchor row, and the world's own rest is
     // composed in at the U4 seam — the same shape the ribbon pipes below wear.)
     //
     //                          name           base count   rest
@@ -371,7 +371,7 @@ namespace t7 {
             // ── fog ──────────────────────────────────────────────────────────────
             // The held field selects a density and an atmospheric tint; the canvas
             // emits each as a DEVIATION from the anchor row (ATMOS_1), and the
-            // cartridge's seam composes it over the mood's own rest. Segments carry
+            // cartridge's seam composes it over the world's own rest. Segments carry
             // both so they drift across a modulation rather than snapping. One
             // source, two pipes. Decode is a table index — inline, not a goal
             // object.

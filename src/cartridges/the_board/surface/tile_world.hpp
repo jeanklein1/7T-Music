@@ -147,7 +147,7 @@ struct GridKeyHash {
 // ═══ MODULE DEPS ════════════════════════════════════════════════════
 // The requirements face made literal: what tile_world's authoring
 // verbs consume beyond their own state. Organ-named members, bound
-// once at the root. const trio law: world + mood read-only, the GPU
+// once at the root. const trio law: world + sky read-only, the GPU
 // wire writable. (WorldState fwd — patch_system.hpp follows this
 // header in the cohort; the reference member tolerates the
 // incomplete type.)
@@ -168,7 +168,7 @@ struct TileWorldState {
 // ═══ MODULE FUNCTIONS — DECLARATIONS ═══════════════════════════════
 //
 // DEFINED below (the merged impl): generate reaches the
-// machine's mood/world state; upload reaches the GPU wire.
+// machine's world state; upload reaches the GPU wire.
 // THE S2/S3 BOUNDARY FACE: the tile cache is read across the boundary
 // by the spawn preamble and the surface samplers (estimate_terrain_
 // height / terrain_tile_warm) — the interface trio's memory member.
@@ -213,7 +213,7 @@ bool tile_archetype(const TileWorldState& tw, int32_t gx, int32_t gz, uint32_t& 
 // bodies deref WorldState/SkyState/GPUState via TileWorldDeps (no
 // Cartridge). COHORT PROOF: the merged file sits AFTER patch_system.hpp
 // (WorldState complete + Dim::PATCH_EXTENT/Dim::PATCH_PREGEN_RADIUS) and after
-// population_themes.hpp (THEMES) and mood.hpp (MOOD_TABLE); the S2
+// population_themes.hpp and the sky's own tables; the S2
 // faces stay declared before the machine templates instantiate. ══════
 
 // Forgetting radius: tiles beyond this many grid cells get evicted
@@ -314,9 +314,9 @@ inline TileState generate_tile_state(TileWorldState& tw, TileWorldDeps* c, int32
     }
 
     // THE POOL'S REST (ONE_WORLD-II U1c). A mood branch stood here — 1.5
-    // indoors against 0.05 out, a thirtyfold swing, and this file's ONLY
-    // mood read. The world is outdoor and the campaign pins it, so the
-    // indoor arm dies with indoor and the outdoor value is simply the
+    // in a room against 0.05 outside, a thirtyfold swing, and this file's
+    // ONLY mood read. The world is open-air and the campaign pins it, so
+    // the room's arm dies with the rooms and the open value is simply the
     // truth: named rather than left as a literal in a folded branch,
     // because it is a dial the panel will want and does not have yet
     // (new enrollment, and that is U6's).

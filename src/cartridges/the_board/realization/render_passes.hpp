@@ -184,9 +184,9 @@ inline void dispatch_compute(MachineCtx* c, wgpu::CommandEncoder& encoder,
 }
 
 inline void dispatch_frustum_cull(MachineCtx* c, wgpu::CommandEncoder& encoder, wgpu::Queue& queue) {
-    // THE DRAW PLAN: the kernel runs in EVERY mood now — the finite/
-    // indoor path draws through the plan too, so the old indoor skip
-    // is retired with the direct path it fed.
+    // THE DRAW PLAN: the kernel runs in EVERY world — a finite world
+    // draws through the plan too, so the old direct-path skip is
+    // retired with the path it fed.
 
     // 0. The plan's inputs: band counts + the active zone rects
     // (world footprints persisted at commit_gol — E1 rev2's four
@@ -238,7 +238,7 @@ inline void dispatch_frustum_cull(MachineCtx* c, wgpu::CommandEncoder& encoder, 
 // ═══ SHADOW PASS ═════════════════════════════════════════════════
 
 // ONE SHADOW PASS, ONE LIGHT (ONE_WORLD-II U4). A two-texture atlas arm
-// stood in front of this one, opened when the mood set spot_light_active:
+// stood in front of this one, opened when a room set spot_light_active:
 // lights 0-1 tiled onto the sun's own map and 2-3 onto a second texture,
 // one render pass per TEXTURE with per-light viewports and scissors, the
 // light index riding immediate data. It went with the rooms it lit. The
@@ -286,14 +286,11 @@ inline void render_shadow_pass(MachineCtx* c, wgpu::CommandEncoder& encoder) {
 // All shadow draws: terrain (FORK) + the drawable table (shadow filter).
 // A shadow pass is DEPTH-ONLY, so draw order is doubly immaterial here.
 //
-// cast_terrain — true for the sun pass, false for every spot atlas tile
-// (UMBRA_4). An indoor spot sits under a shell with a cone that never
-// reaches the horizon, and the pass ran ONCE PER LIGHT: up to
-// MAX_SPOT_LIGHTS full terrain redraws per frame, inside the known
-// bottleneck, to shadow a surface the cone cannot light. No light-volume
-// bounding mechanism is built to decide this — no mechanism until a
-// measurement asks. The drawable table is untouched: the indoor scene's
-// actual occluders all still cast.
+// cast_terrain — true for the sun pass; it was false for every spot atlas
+// tile (UMBRA_4), because a room's spot sat under a shell with a cone that
+// never reached the horizon and the pass ran ONCE PER LIGHT. There is one
+// light now and it is the sun's, so the parameter has one live answer. The
+// drawable table is untouched: every occluder still casts.
 template <class Enc>
 inline void draw_shadow_all(MachineCtx* c, Enc& pass, bool cast_terrain) {
     // FORK — terrain, both bands at LOD1 density (ECONOMY_1 E2): the
@@ -339,7 +336,7 @@ inline void draw_shadow_all(MachineCtx* c, Enc& pass, bool cast_terrain) {
     // pushed.
     // THE SUBTRACTION MASK (PANORAMA_1) — the shadow pass's two halves. Same
     // rule as the main pass: skipped at the encoder, so the pass row reads
-    // the absence. `cast_terrain` is the MOOD's word and stays ahead of it.
+    // the absence. `cast_terrain` is the pass's own word and stays ahead of it.
     const uint32_t smask = c->gpuState_.config().shadow_mask;
 
     // ONE DRAW, ONE RECORD (BUNDLE_1, R-G). The two bands shared this
@@ -384,8 +381,8 @@ inline void encode_main_opaque(MachineCtx* c, Enc& pass,
                                OrbsState& orbs_state_, OrbsDeps& orbs_deps_) {
     // Terrain — THE DRAW PLAN (ECONOMY_1 closing arm): the cull kernel
     // authored three lists; the pass executes them as three indirect
-    // draws. Outdoor AND finite/indoor go through the same plan (the
-    // kernel sees all bands everywhere). The E1 global-flag selection
+    // draws. An open world and a finite one go through the same plan
+    // (the kernel sees all bands everywhere). The E1 global-flag selection
     // is RETIRED here — the plan is per-patch; the flag survives only
     // with the snapshot pass that was its last carrier (PRUNE_1).
     // THE SUBTRACTION MASK (PANORAMA_1). Each draw below is skipped AT THE
@@ -464,10 +461,10 @@ inline void record_bundles(MachineCtx* c, OrbsState& orbs_state_, OrbsDeps& orbs
         bd.label = "Main Bundle";
         c->renderer_.set_main_bundle(e.Finish(&bd));
     }
-    {   // SHADOW SUN — cast_terrain = true, which is the outdoor arm's word.
-        // The indoor spot atlas is NOT bundled: it sets a viewport and a
-        // scissor per tile and rebinds group 1 at each light's record, and
-        // a bundle can carry none of those.
+    {   // SHADOW SUN — cast_terrain = true, the only live answer. The spot
+        // atlas was never bundled: it set a viewport and a scissor per tile
+        // and rebound group 1 at each light's record, and a bundle can carry
+        // none of those. It left with the rooms (ONE_WORLD-II U4).
         wgpu::RenderBundleEncoder e = c->renderer_.make_shadow_sun_bundle_encoder();
         e.SetBindGroup(0, c->gpuState_.world_group());
         e.SetBindGroup(1, c->gpuState_.frame_r_group());

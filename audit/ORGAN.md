@@ -381,9 +381,9 @@ reader — the class of defect this witness exists to catch.
   CANVAS_TABLE         definition=1 seed=1 comment=1              
   DRIVER_TABLE         definition=1 seed=1 comment=1              
   INDOOR_TABLE         (no mention anywhere)                      
-  MOOD_TABLE           comment=25                                 
+  MOOD_TABLE           comment=4                                  
   ORB_CONSOLE          definition=1 seed=1 comment=2              
-  ORB_MOOD_TABLE       comment=7                                  
+  ORB_MOOD_TABLE       comment=3                                  
   PANEL_TABLE          definition=1 seed=1 static_assert=6 comment=2 
   PAWN_AURA_DEFAULT    definition=1 seed=1 static_assert=1 comment=3 
   RIBBON_SPAWN_TABLE   definition=1 seed=1 static_assert=2        
@@ -403,7 +403,7 @@ states a belief; only the reader proves it. The tail of its run,
 verbatim:
 
 ```
-      ! derive_indoor_lights               src/cartridges/the_board/direction/mood.hpp
+      ? census also names the bank here: init_renderer          src/cartridges/the_board/cartridge.hpp
 
   OUT OF SCOPE, with the reason:
       AGENT_ROOM   GPU-side: tier_gains and behaviors ship as whole arrays through two WriteBuffers and are read in world.wgsl

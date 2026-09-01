@@ -40,7 +40,7 @@ namespace t7 {
 namespace the_board {
 
 // THE GLOBAL DENSITY — the one term of the composition law that outlived
-// the mood and the tile. `compose_spawn_chance` reads it as the whole of
+// the mood and the tile terms. `compose_spawn_chance` reads it as the whole of
 // the world's say over a family's base chance:
 //     chance = base_chance x GLOBAL_ENTITY_DENSITY, clamped.
 // It lived at contracts/spawn_services.hpp beside the law that read it;

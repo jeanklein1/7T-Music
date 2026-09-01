@@ -673,19 +673,21 @@ namespace t7 {
                 pass.DrawIndexedIndirect(indirectArgs, indirectOffset);
             }
 
-            // STATUS: LATENT[mood_cull_opt_out] — the flag is WRITTEN every
-            // mood change (mood.hpp apply_mood, from MoodProfile::
-            // allow_frustum_cull) and READ BY NOBODY. Its one reader was
+            // STATUS: LATENT[frustum_cull_opt_out] — WRITTEN once at every
+            // world's birth and READ BY NOBODY. Its one reader was
             // render_passes.hpp's `if (!use_indirect_terrain()) return;`
-            // early-out, retired with the direct indoor path when the draw
-            // plan took every mood ("the kernel runs in EVERY mood now",
-            // dispatch_frustum_cull). So the two indoor MOOD_TABLE rows say
-            // allow_frustum_cull = false and their terrain is culled anyway
-            // — the table reads as a knob and is not one. Found by OPT_1's
-            // O0-f recensus; the cut (this pair, the MoodProfile column, its
-            // two drift asserts, and the apply_mood poke) is a positional-
-            // table edit and wants a build, so it is Jean's ruling, not a
-            // residue sweep's. Revive-or-rewire when this region is worked.
+            // early-out, retired when the draw plan took every world ("the
+            // kernel runs in EVERY mood now", dispatch_frustum_cull), so the
+            // rows that asked for allow_frustum_cull = false had their
+            // terrain culled anyway — the column read as a knob and was not
+            // one. Found by OPT_1's O0-f recensus.
+            //
+            // ONE_WORLD-II U7 RE-READ IT AND THE CASE IS NOW SIMPLER, NOT
+            // DIFFERENT. The column that fed it died with the moods (U2), so
+            // the write is the literal `true` from stage_world_birth and the
+            // pair is a constant with a setter. The cut is still a BUILD
+            // question and still Jean's ruling, not a sweep's — flagged
+            // here rather than taken.
             void set_frustum_cull_active(bool active) { useIndirectTerrainPipeline_ = active; }
             bool use_indirect_terrain() const { return useIndirectTerrainPipeline_; }
 
@@ -1692,7 +1694,7 @@ namespace t7 {
                     // units, so its meaning scales with the sun's depth
                     // range — and N2 widened that range from 599.9 wu to
                     // 1100.0 wu so the caster set fits along the light axis
-                    // in every mood. Carrying 2.8e-3 across unchanged would
+                    // in every world. Carrying 2.8e-3 across unchanged would
                     // have silently widened the ceiling from 1.680 wu to
                     // 3.080 wu, 1.83x, with nothing in the diff to show it.
                     //

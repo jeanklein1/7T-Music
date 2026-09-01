@@ -18,11 +18,9 @@
 // cannot be turned is the exact condition this campaign exists to end.
 //
 // NOT HERE, deliberately: the nine ORB_DEFAULT_* fallbacks (every
-// live path overrides them from the mood config — a dial on a default
-// nothing reads would never be seen to move), the palettes, the tier
-// sets and the three gesture registries (D5 tables, priced in the
-// ledger), and ORB_MOOD_TABLE, whose disposition is a DEFINITION and
-// not a bank (ORGAN_3 w3).
+// live path overrides them from the bank — a dial on a default nothing
+// reads would never be seen to move), the palettes, the tier sets and
+// the three gesture registries (D5 tables, priced in the ledger).
 // ────────────────────────────────────────────────────────────────────
 
 namespace t7 {
@@ -62,21 +60,17 @@ static_assert(sizeof(OrbConsole) == 4 * sizeof(float),
     "added to one is added to the other by construction");
 
 
-// ═══ THE ORB MOOD VOCABULARY, GRADUATED (ORGAN_3b P3) ═════════════
+// ═══ THE ORB VOCABULARY, GRADUATED (ORGAN_3b P3) ═════════════════
 // The agent_tiers precedent, for the same reason stated the same way:
 // the organ needs to name the definition, and THE ORGAN MAY NOT INCLUDE
 // A BODY. So OrbMoodConfig, its table, and the id constants its default
-// initialisers name move here; bodies/orbs.hpp keeps its registries, its
+// initialisers name live here; bodies/orbs.hpp keeps its registries, its
 // gestures and its impl, and includes this header as it already did.
 //
-// ORB_MOOD_TABLE is the DESIGN — the authored rows, two jobs only:
-// seeding ORB_MOOD_LIVE and standing under its assert. ORB_MOOD_LIVE is
-// the world's per-mood definition, and it is MOOD-SELECTED: unlike TIER
-// and BEHAVIOR, which are one bank the target ignores, this one has a row
-// per mood exactly as MoodProfile does, and the write's target picks it.
-//
-// The rows are POSITIONAL in mood-id order and carry no id field, so they
-// move with the ids or not at all — the MOOD_TABLE pattern, kept.
+// THE TYPE KEEPS THE MOODS' NAME (ONE_WORLD-II U7, flagged). Its rows
+// stopped being seven at U1b and there is one world now, so `OrbMoodConfig`
+// names a system that no longer exists — but a type rename is Jean's gate,
+// so the campaign reports it rather than taking it.
 
 // ── Rule-critical parameter floors ───────────────────────────────
 inline constexpr float ORB_DEFAULT_DRAG = 0.5f;
@@ -146,8 +140,8 @@ struct OrbMoodConfig {
 // ORB_LIVE the bank, the tree's ORGAN_3 shape.
 //
 // TRANSCRIBED, NOT DERIVED (the canonized pattern). The literal below is
-// ORB_MOOD_TABLE's sunset row copied verbatim — positional, in field
-// order — because a `= ORB_MOOD_TABLE[MOOD_OPEN_SUNSET]` initializer
+// the old per-mood table's sunset row copied verbatim — positional, in
+// field order — because a `= ORB_MOOD_TABLE[MOOD_OPEN_SUNSET]` initializer
 // would die with the table at U2 and leave twenty-five values to be typed
 // at the one moment nothing could check them. The witness pins every
 // field while the source still stands; it does its whole job in this

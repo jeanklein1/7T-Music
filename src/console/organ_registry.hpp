@@ -20,7 +20,7 @@
 
 #include "core/instruments.hpp"                          // PURSE_0 R2 — t7::BUILD_STAMP, the tree organ_build_stamp names
 #include "cartridges/the_board/realization/state.hpp"
-#include "cartridges/the_board/contracts/spine_state.hpp"   // MoodProfile + mood_def: the definition side
+#include "cartridges/the_board/contracts/spine_state.hpp"   // SkyState — the sky's per-world instance
 #include "cartridges/the_board/contracts/agent_tiers.hpp"    // TIER_LIVE, the world's definition bank
 #include "cartridges/the_board/contracts/pawn_surface.hpp"    // PAWN_AURA_LIVE (block 4)
 #include "cartridges/the_board/contracts/orb_surface.hpp"     // ORB_CONSOLE_LIVE (block 5)
@@ -80,9 +80,8 @@ enum : uint8_t {
                                   // and the seams are its flush
     // THE GRADUATED MODULE BANKS. Each is a contracts-tier CPU surface: a
     // module's authored console, given a live shadow so the control surface
-    // can name
-    // it. Block 3's shape — no accessor, no upload, and the readers that
-    // consume the bank each tick ARE its flush. The bit space is
+    // can name it. Block 3's shape — no accessor, no upload, and the readers
+    // that consume the bank each tick ARE its flush. The bit space is
     // organTouched_, 32 bits.
     ORGAN_BLOCK_PAWN       = 4,   // PawnAuraProfile       — PAWN_AURA_LIVE
     ORGAN_BLOCK_ORBS       = 5,   // OrbConsole            — ORB_CONSOLE_LIVE
@@ -95,27 +94,26 @@ enum : uint8_t {
     //     bits 5 and 7 already carry.
     ORGAN_BLOCK_CANVAS     = 9,   // canvas::CanvasSurface — CANVAS_LIVE
     // THE TWO DESTRUCTIVE BANKS. Both are read while a world or a ribbon is
-    // being DRAWN and never re-read, so both keep INDOOR_LIVE's
-    // temperament: a plain block id, no boundary wiring, GEN on every row.
+    // being DRAWN and never re-read, so both keep the temperament the rooms'
+    // bank founded: a plain block id, no boundary wiring, GEN on every row.
     // The stricter temperament governs.
     // 10 — WorldDrawSurface / WORLD_DRAW_LIVE, retired ONE_WORLD-II U4:
-    //      its four scheme weights fed the indoor light-scheme roll and
-    //      its only declared reader was derive_indoor_lights. A hole, as
-    //      8 is.
+    //      its four scheme weights fed a light-scheme roll whose only
+    //      declared reader died with the rooms. A hole, as 8 is.
     ORGAN_BLOCK_RIBBON_SPAWN = 11,  // RibbonSpawnSurface — RIBBON_SPAWN_LIVE
                                     // (ATRIUM_2 — the arc and the sand, read as
                                     //  the entrance is drawn and not re-read)
     // THE ATMOSPHERE (ONE_WORLD-II U1). AtmosphereBank — ATMOS_LIVE, the
-    // world's one sky as a distribution. Its author is apply_mood_lighting,
+    // world's one sky as a distribution. Its author is stage_world_birth,
     // whose whole job is to re-draw from it, so the block takes a BOUNDARY
     // cadence: a drag is many events and the sky is drawn once. It is NOT
     // destructive — the draw is re-run on the live world with the same seed,
     // which is the promise "the draw moves WITH the dial rather than
-    // re-rolling". Its rows were fifty-two definition-only rows against four
-    // regimes of MoodProfile until the roll left.
+    // re-rolling". Its rows were fifty-two definition-only rows against the
+    // four regimes of a mood definition, until the roll left.
     ORGAN_BLOCK_ATMOS        = 12,  // AtmosphereBank     — ATMOS_LIVE
     // THE ORB BANK (ONE_WORLD-II U1b). OrbMoodConfig — ORB_LIVE, the sky's
-    // one row. Nineteen definition-only rows against ORB_MOOD_LIVE[mood]
+    // one row. Nineteen definition-only rows against a per-mood array
     // until the moods stopped being seven; the applier is unchanged, so the
     // block keeps the orb console's BOUNDARY cadence and its per-field
     // touched mask (four of the twenty-five facts are baked at init and
@@ -162,12 +160,12 @@ enum : uint8_t {
 // CONVERTED, by the rule organ_set's instance path uses, and never has a
 // float's bit pattern written into it.
 
-// A KIND NAMES THE FAMILY, AND THE FAMILY ANSWERS ONE QUESTION: MOOD, what
-// this mood means (one row per mood, the target selects); TIER and
-// BEHAVIOR, what this WORLD means (one bank each, so the target is ignored
-// by design). definition_base is where that mapping lives. A KIND IS NOT A
-// FLAG — two kinds share a flag when they share an AUTHOR, which is why
-// BEHAVIOR raises TIER's.
+// A KIND NAMES THE FAMILY, AND THE FAMILY ANSWERS ONE QUESTION: what this
+// WORLD means. TIER and BEHAVIOR are the two, one bank each, so the target
+// is ignored by design. definition_base is where that mapping lives. A KIND
+// IS NOT A FLAG — two kinds share a flag when they share an AUTHOR, which
+// is why BEHAVIOR raises TIER's. The selecting kinds (one row per mood, the
+// target choosing) left with the moods at ONE_WORLD-II U6b.
 enum : uint8_t {
     ORGAN_DEF_NONE = 0,   // no definition: the home IS the only truth there is
     ORGAN_DEF_TIER = 2,   // the_board::AgentTierBank — the world's, one bank
@@ -200,7 +198,7 @@ struct OrganParam {
     uint16_t    offset;
     uint8_t     type;
     float       minv, maxv, step;
-    uint8_t     def_kind;     // ORGAN_DEF_NONE | _MOOD | _TIER | _BEHAVIOR | _ORB_MOOD
+    uint8_t     def_kind;     // ORGAN_DEF_NONE | _TIER | _BEHAVIOR
     uint16_t    def_offset;   // byte offset into the kind's own struct, if any
     uint8_t     ro;           // a WITNESS, not a dial: organ_set refuses it
     uint8_t     cad;          // ORGAN_CAD_LIVE | _GEN — the one stored cadence
@@ -243,15 +241,12 @@ struct OrganParam {
                 (uint16_t)offsetof(NS::DEFSTRUCT, DEFFIELD), 0,        \
                 ORGAN_CAD_LIVE },
 
-// A DEFINITION WITH NO INSTANCE. Some facts have a definition the control
-// surface
-// may write and no home it may address: MoodProfile's clear_color is read
-// by apply_mood_lighting into clearColor_, a cartridge member and not one
-// of the three exposed homes. The write is always a definition, preview is
-// refused, and the value shown is the live mood's meaning.
-
-// THE SENTINEL IS DERIVED FROM THE KIND, not written at the call site: one
-// mapping line per family, here, and a further family adds one #define.
+// A DEFINITION WITH NO INSTANCE. Some facts had a definition the control
+// surface could write and no home it could address — the sky's clear colour
+// was read into clearColor_, a cartridge member and not one of the three
+// exposed homes. No row in the tree is in that position today
+// (ONE_WORLD-II U6a), and the macro is kept for the family that returns to
+// it: the write is always a definition, preview is refused.
 
 #define ORGAN_PARAM_RO_NS(NS, BLOCK, STRUCT, FIELD, TYPE, GROUP, LABEL)              \
     OrganParam{ #BLOCK "." #FIELD, LABEL, GROUP,                              \
@@ -305,16 +300,9 @@ inline void note_reject(const char* id, const char* why) {
     g_last_reject += why;
 }
 
-// The live mood, BORROWED and never owned: the spine's own mood organ
-// (contracts/spine_state.hpp), so the control surface can never be looking at
-// a mood
-// the program has left. One pointer answers WHICH MOOD and WHICH REGIME
-// the world was drawn into — two windows, one home, no copy.
-
-// The live HOST, borrowed the same way and for the same reason (RIBBON_1):
-// the control surface's host row must never name a host the program has left.
-// The
-// point's house is the spine's (contracts/point.hpp).
+// The live HOST, BORROWED and never owned (RIBBON_1): the control surface's
+// host row must never name a host the program has left. The point's house is
+// the spine's (contracts/point.hpp) — one pointer, one home, no copy.
 inline const the_board::PointState* g_point = nullptr;
 
 inline void bind_home(the_board::GPUState* s) { g_home = s; }
@@ -347,14 +335,14 @@ inline void* block_base(uint8_t block) {
 // that is a property of the BLOCK rather than of the entry — so it is
 // stated once, here, rather than per line.
 inline bool block_has_boundary(uint8_t block) {
-    // The orb console's only reader is configure_orbs — the orb MOOD
-    // bank's author too — so a write to block 5 is consumed at the frame
+    // The orb console's only reader is configure_orbs — the orb bank's
+    // author too — so a write to block 5 is consumed at the frame
     // boundary rather than where it lands. THIS ANSWERS WHEN, NOT WHAT:
     // what the boundary DOES per field rides g_orb_console_dirty, not this
     // predicate, because a cadence question and a plumbing question are
     // two questions.
     // The atmosphere's only reader is draw_atmosphere, called from
-    // apply_mood_lighting — one author, one re-draw, consumed at the
+    // stage_world_birth — one author, one re-draw, consumed at the
     // boundary for the same reason: a colour drag is many events and the
     // world's sky is drawn once per frame at most.
     return block == ORGAN_BLOCK_ORBS || block == ORGAN_BLOCK_ATMOS
@@ -376,14 +364,12 @@ inline uint8_t derived_cadence(const OrganParam& e) {
 // A RULE RESTATED IN A SECOND LANGUAGE IS A RULE WITH TWO HOMES, and the
 // copy is the one that drifts (L46).
 // THE CONTROL SURFACE MUST NOT KNOW A BLOCK NUMBER OR A KIND NUMBER: it asks
-// two
-// questions, the manifest answers them, and a further definition family
+// two questions, the manifest answers them, and a further definition family
 // answers here while the control surface learns nothing.
 
 // May the control surface address this row's INSTANCE? A preview write needs
-// one;
-// a definition-only row has none, so it targets the live mood whatever
-// the mode toggle says.
+// one, and every row in the tree has one today — the question survives the
+// answer so a family without one can return without moving it.
 inline uint8_t derived_has_instance(const OrganParam& e) {
     (void)e;
     return 1u;   // ONE_WORLD-II U6a: every row has one, and the manifest
@@ -391,8 +377,8 @@ inline uint8_t derived_has_instance(const OrganParam& e) {
                  // not have to move when a family without one returns.
 }
 
-// How a DEFINITION is addressed — the export's keying and the control surface's
-// follow-the-mood refresh both turn on this and on nothing else.
+// How a DEFINITION is addressed — the export's keying turns on this and on
+// nothing else.
 enum : uint8_t {
     ORGAN_SCOPE_NONE  = 0,   // no definition behind this row
     ORGAN_SCOPE_WORLD = 2,   // one bank for the world: the target is ignored
@@ -437,12 +423,11 @@ inline float read_lane(const OrganParam& e, int lane) {
 
 // ─── THE DEFINITION WRITE PATH ────────────────────────────────────────
 // Writing a definition does NOT write the instance: the control surface says
-// what
-// the mood MEANS and the mood's own apply turns that into an instance, so
-// the control surface stays a VIEW. The re-apply is deferred to the frame
-// boundary
-// for the flush's own reason — a drag is many events, the mood is applied
-// once — and the cartridge takes the flag, owning the deps and the queue.
+// what the WORLD means and the fact's own author turns that into an
+// instance, so the control surface stays a VIEW. The re-apply is deferred to
+// the frame boundary for the flush's own reason — a drag is many events, the
+// author speaks once — and the cartridge takes the flag, owning the deps and
+// the queue.
 inline bool     g_tier_def_dirty = false;   // the world bank changed
 // THE SKY CHANGED (ONE_WORLD-II U1). One bool, not a per-field mask: the
 // boundary's answer to any atmosphere write is the same whole re-draw, so
@@ -455,21 +440,20 @@ inline bool take_atmos_dirty() {
     g_atmos_dirty = false;
     return d;
 }
-inline bool     g_orb_def_dirty  = false;   // the orb mood bank changed
+inline bool     g_orb_def_dirty  = false;   // the orb bank changed
 
-// AND WHICH MOOD IT MEANT. Both mood-selected kinds record the target, so
-// the boundary drops a write aimed at a mood the program has left rather
-// than re-speaking the live one with it. ONE SLOT, AND ITS LIMIT SAID
-// PLAINLY: two moods written between one boundary and the next leave the
-// last one's id here — reachable through a multi-mood preset import, where
-// the guard makes the case SAFE (dropped) rather than wrong.
+// NO TARGET RIDES WITH IT ANY MORE (ONE_WORLD-II U6b). The selected kinds
+// recorded WHICH MOOD a write meant so the boundary could drop one aimed at
+// a mood the program had left; there is one world now, so the raise carries
+// nothing but itself and the stale-key case is refused at organ_set's door.
 inline void raise_orb_definition() {
     g_orb_def_dirty = true;
 }
 
 // ─── THE TOUCHED MASK ─────────────────────────────────────────────
 // WHICH FIELDS the orb bank's writes touched since the boundary last
-// looked (A BIT IS AN OFFSET / 4, into OrbMoodConfig). The FLAG says THAT
+// looked (A BIT IS AN OFFSET / 4, into OrbMoodConfig — the type keeps the
+// name the moods gave it; renaming is Jean's gate). The FLAG says THAT
 // the bank changed, the MASK says WHAT, and the boundary decides how much
 // re-speak the edit requires. A RAISE WITH NO BITS MEANS EVERYTHING — what
 // door RESPEAK promises, and the answer for a caller that does not say.
@@ -481,7 +465,7 @@ inline uint32_t take_orb_def_touched() {
 }
 
 // THE CLASSIFICATION LIVES HERE, NOT AT THE BOUNDARY. Four of the nineteen
-// orb-mood facts are baked into orb_state by the init kernel — `enabled`,
+// orb facts are baked into orb_state by the init kernel — `enabled`,
 // `count`, `drag` and `palette_id` — so touching any of them re-seeds the
 // sky; the other fifteen are per-frame GPU reads the uniform upload
 // carries. It sits beside the mask because the bit convention is defined
@@ -541,8 +525,8 @@ inline bool write_definition(const OrganParam& e, const float* in) {
 
     // A U32 OR BOOL DEFINITION CONVERTS; IT DOES NOT REINTERPRET — the
     // same conversion organ_set's instance path does, applied on the
-    // definition side. Every MoodProfile target is a float run; the orb
-    // bank is what needs this, because `count`, `enabled` and the three id
+    // definition side. The surviving float-run targets never reach it; the
+    // orb bank is what needs this, because `count`, `enabled` and the three id
     // choices are the sky's most useful dials.
     if (e.type == ORGAN_U32 || e.type == ORGAN_BOOL) {
         uint32_t v = (uint32_t)(in[0] < 0.0f ? 0.0f : in[0]);
@@ -590,11 +574,11 @@ inline float read_definition(const OrganParam& e, int lane) {
 // A DOOR RAISES A FLAG THE BOUNDARY ALREADY CONSUMES AND ADDS NO AUTHOR,
 // which is why it does not violate the sovereignty boundary. The table
 // below carries ids and labels ONLY: behavior lives in the cartridge,
-// where the deps are, and this file knows neither the mood state nor the
+// where the deps are, and this file knows neither the sky state nor the
 // queue.
 
 // A DOOR IS ALSO WHERE A PLAYER-OWNED FACT BELONGS. The orb rule and the
-// flock gesture are the sky's two — the mood seeds each once and the
+// flock gesture are the sky's two — the world's birth seeds each once and the
 // player wins after, so neither can honestly wear a dial. Each door calls
 // the function its key calls: cycle_orb_motion_rule / cycle_orb_gesture,
 // the commands KP_8 and KP_7 press.
@@ -627,9 +611,8 @@ inline uint32_t take_doors_pending() {
 }
 
 // ─── THE HOST DOOR (RIBBON_1) ────────────────────────────────────
-// The same shape as the mood door: a door with a parameter. The control
-// surface asks
-// the program to hand the point to a host; the frame boundary presses
+// A DOOR WITH A PARAMETER, the shape the mood door founded. The control
+// surface asks the program to hand the point to a host; the frame boundary presses
 // possess() — the ONE transaction key R also presses, with its own guards
 // (no ribbon to ride is a refusal, not a crash). One pending id, last press
 // wins, taken once; HOST_NONE is "no request" and no host has that id.
@@ -651,7 +634,7 @@ inline bool take_tier_definition_dirty() {
     return true;
 }
 
-// The orb mood bank's re-apply, taken once by the frame boundary. Its
+// The orb bank's re-apply, taken once by the frame boundary. Its
 // applier is configure_orbs, which the cartridge can reach and this file
 // cannot.
 inline bool take_orb_definition_dirty() {
@@ -663,8 +646,7 @@ inline bool take_orb_definition_dirty() {
 // ─── THE RULE WINDOW ──────────────────────────────────────────────
 // A DIAL WHOSE EFFECT DEPENDS ON A MODE STANDS NEXT TO A TRUTHFUL READOUT
 // OF THAT MODE. Fifteen orb rows are rule-scoped, so the control surface says
-// which
-// rule is in force and a dormant row reads as dormant, not dead.
+// which rule is in force and a dormant row reads as dormant, not dead.
 
 // A WINDOW, NOT A HOME: `OrbsState.current_motion_rule` and
 // `.gesture_idx[]` are the only truth. The rule lives in `OrbsState`, a
@@ -757,7 +739,7 @@ EMSCRIPTEN_KEEPALIVE inline const char* organ_doors(void) {
 
 // Writes the member and sets the block's dirty bit. It does NOT upload:
 // the flush is once a frame at the boundary, so a slider drag is many of
-// these calls and one WriteBuffer (docs/ORGAN.md, "The write path").
+// these calls and one WriteBuffer (docs/ORGAN.md, "The write path and the masks").
 
 // TARGET. -1 is PREVIEW: write the instance, which the program's other
 // authors may take back. 0 is DEFINITION: write what the world MEANS and
@@ -817,7 +799,7 @@ EMSCRIPTEN_KEEPALIVE inline void organ_set(int block, int offset, int type,
     }
     g_home->organ_mark_dirty((uint32_t)block);
     // A BLOCK WITH A BOUNDARY RAISES ITS AUTHOR'S FLAG, PER FIELD. The orb
-    // console's only reader is configure_orbs, which is also the orb mood
+    // console's only reader is configure_orbs, which is also the orb
     // bank's applier — one author, one flag, the rule BEHAVIOR follows
     // against TIER. The raise is per FIELD so the boundary can decide what
     // each costs. The hook lives at this one site, after the clamp and the
@@ -905,16 +887,11 @@ EMSCRIPTEN_KEEPALIVE inline const char* organ_build_stamp(void) {
 }
 
 
-// The mood the program is in. The control surface needs it to address a
-// definition
-// and to key an export, and it keeps no copy of its own.
-
 // The sky's live motion rule, packed with the ACTIVE rule's gesture index,
 // whether the dome is lit and how many motes it carries. set_orb_rule_view
 // states the bit layout; this is its one reader and does not restate it.
 // The control surface reads it to say WHICH MODE the fifteen rule-scoped orb
-// rows
-// are acting in, and whether there is a sky to act on. Zero before the
+// rows are acting in, and whether there is a sky to act on. Zero before the
 // first configure reads as brownian/0 — what the program seeds to.
 EMSCRIPTEN_KEEPALIVE inline int organ_orb_rule(void) {
     return (int)t7::organ::g_orb_rule_view;
@@ -930,9 +907,8 @@ EMSCRIPTEN_KEEPALIVE inline void organ_door(uint32_t id) {
 }
 
 // Which host the point is on: 0 pawn, 1 camera, 2 ribbon. The control
-// surface's host
-// row reads it so the row can never show a host the program has left —
-// through the same borrowed pointer organ_mood() reads the mood through.
+// surface's host row reads it so the row can never show a host the program
+// has left — through the borrowed pointer, never a copy.
 EMSCRIPTEN_KEEPALIVE inline int organ_host(void) {
     return (int)t7::organ::current_host();
 }
@@ -945,7 +921,7 @@ EMSCRIPTEN_KEEPALIVE inline void organ_go_host(int host) {
 }
 
 
-// One lane of one dial's DEFINITION for one mood. Zero for a dial with no
+// One lane of one dial's DEFINITION. Zero for a dial with no
 // definition target; a consumer asks the manifest's "def" before this.
 EMSCRIPTEN_KEEPALIVE inline float organ_def_get(int index, int lane) {
     using namespace t7::organ;

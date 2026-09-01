@@ -52,12 +52,11 @@
 // new block whenever the first token changes.
 
 // ─── THE SUN ─────────────────────────────────────────────────────────
-// GPULighting::sun is the fragment shader's window, and apply_mood_lighting
-// DRAWS it — from the live regime's row, under the world's seed — at every
-// mood entry and at every MOOD definition re-speak. So its four rows are
-// witnesses: what the draw produced. The sun's BEARING is the mood's and is
-// authored here (centre + spreads); its colour, intensity and ambient are the
-// regime's and are authored under Atmosphere · Regime N, through the lens.
+// GPULighting::sun is the fragment shader's window, and stage_sky DRAWS
+// it — from ATMOS_LIVE, under the world's seed — at every world's birth and
+// at every atmosphere re-speak. So its four rows are witnesses: what the
+// draw produced. The sun's BEARING is authored here (centre + spreads); its
+// colour, intensity and ambient are authored under Atmosphere · Sky.
 ORGAN_PARAM(ATMOS, AtmosphereBank, sun_direction,     VEC3, -1.0f, 1.0f, 0.01f, "Sky & Light · Sun", "direction (centre)")
 ORGAN_PARAM(ATMOS, AtmosphereBank, sun_az_spread_deg, F32, 0.0f, 180.0f, 1.0f, "Sky & Light · Sun", "azimuth spread (±deg)")
 ORGAN_PARAM(ATMOS, AtmosphereBank, sun_el_spread_deg, F32, 0.0f, 45.0f,  0.5f, "Sky & Light · Sun", "elevation spread (±deg)")
@@ -80,8 +79,8 @@ ORGAN_PARAM(ORBS, OrbConsole, dome_radius, F32, 0.0f, 2000.0f, 5.0f,   "Sky & Li
 ORGAN_PARAM(ORBS, OrbConsole, base_size,   F32, 0.0f, 12.0f,   0.05f,  "Sky & Light · Dome", "base size")
 
 // ─── Sky & Light · Orbs ─────────────────────────────────────────────
-// ORB_MOOD_LIVE (contracts/orb_surface.hpp), definition-only and
-// mood-selected. Four of these five re-seed the sky; brightness rides.
+// ORB_LIVE (contracts/orb_surface.hpp), the world's one row. Four of these
+// five re-seed the sky; brightness rides.
 ORGAN_PARAM(ORB_BANK, OrbMoodConfig, enabled, BOOL, 0.0f,   1.0f,     1.0f,    "Sky & Light · Orbs", "enabled")
 ORGAN_PARAM(ORB_BANK, OrbMoodConfig, count, U32,  0.0f,   256.0f,   1.0f,    "Sky & Light · Orbs", "count")
 ORGAN_PARAM(ORB_BANK, OrbMoodConfig, palette_id, U32,  0.0f,   3.0f,     1.0f,    "Sky & Light · Orbs", "palette id")
@@ -124,8 +123,8 @@ ORGAN_PARAM(ORB_BANK, OrbMoodConfig, flock_max_speed, F32,  1.0f,   240.0f,   1.
 //
 // FIFTY-TWO ROWS STOOD HERE (ONE_WORLD-II U1): four regime-weight dials
 // and four identical twelve-row blocks, one per regime, definition-only
-// against MoodProfile. Every mood weighted regime 0 alone, so three of the
-// blocks addressed slots no world ever wore and the weights steered a walk
+// against a mood definition. Every mood weighted regime 0 alone, so three
+// of the blocks addressed slots no world ever wore and the weights steered a walk
 // with one destination. Twelve rows say the same thing, and they address
 // an INSTANCE now, so preview works on them.
 ORGAN_PARAM(ATMOS, AtmosphereBank, sun_color,           VEC3, 0.0f, 1.0f,  0.01f,   "Atmosphere · Sky", "sun colour")
@@ -234,7 +233,7 @@ ORGAN_PARAM(CONFIG, GPUDesignConfig, mosaic_blend,         F32, 0.0f, 1.0f,  0.0
 ORGAN_PARAM(CONFIG, GPUDesignConfig, mosaic_facet,         F32, 0.0f, 1.0f,  0.005f, "Terrain · Mosaic", "facet lean")
 
 // ─── Pawn · Aura (the drivers' room + its witnesses) ─────────────────
-// The intent is the presence ramp's rest TARGET; key 3 and the mood policy
+// The intent is the presence ramp's rest TARGET; key 3 and the aura policy
 // door write it here too. The two driven outputs witness below.
 ORGAN_PARAM(DRIVERS, DriverSurface, aura.intent,      BOOL, 0.0f, 1.0f,  1.0f,    "Pawn · Aura", "intent")
 ORGAN_PARAM(DRIVERS, DriverSurface, aura.attack,      F32,  0.05f, 8.0f, 0.05f,   "Pawn · Aura", "attack (1/s)")

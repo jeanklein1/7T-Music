@@ -26,7 +26,7 @@
 //   }
 
 #include "core/input_event.hpp"
-#include "core/boot_params.hpp"   // DOMESDAY_1 B9 — --seed= / --mood= / --msaa=, read once at boot
+#include "core/boot_params.hpp"   // DOMESDAY_1 B9 — --seed= / --cap= / --msaa=, read once at boot
 #include "core/instruments.hpp"  // WIT_2 — t7::g_dropped_submits, the frame-validity witness
 
 #include <webgpu/webgpu_cpp.h>
