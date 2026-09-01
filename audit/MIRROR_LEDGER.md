@@ -15,8 +15,8 @@ carry those facts, or leave them in place and patch around them.
 
 | field | value |
 |---|---|
-| source commit | `8b792ad08513ce5c42e234c030f1062e8fba9e90` |
-| | ONE_SURFACE-II U3: the sweep, and the census tool comes back from the dead with an answer |
+| source commit | `59688501c983b885be2f1db1d7bc3d22df8cf48e` |
+| | ONE_SURFACE-II U4: the extent witness, built and proven to bite |
 | `src/cartridges/the_board/realization/binding_registry.hpp` | `sha256:351eccaedd6902900df3b13a57c7a818ff10cf4280debbfb9034b0ffabcfcc73` |
 | `src/cartridges/the_board/realization/world.wgsl` | `sha256:43f720db613b6c5f37c058fb5d3369b55c1219d968e0febeaf7cb7bfcb40ecef` |
 | `src/cartridges/the_board/realization/state.hpp` | `sha256:3dfc4cf35f8c3411c01a94827ed703480cf483ee7b52a04f4e15ad3b0965b622` |
