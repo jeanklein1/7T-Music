@@ -249,7 +249,14 @@ static void offer_controls_when_ready() {
         std::chrono::steady_clock::now() - app->world_live).count();
     if (waited < OVERTURE_READY_TIMEOUT_S) return;
     app->controls_offered = true;
-    std::cout << "Controls: WASD=move, Mouse=camera, Esc=quit\n\n";
+    std::cout << "Controls: WASD=move, Mouse=camera, Esc=quit\n";
+    // THE HAND'S ONE-LINER (THE_PANEL II U4). It rides the offer rather
+    // than printing on its own, because the offer IS the moment the
+    // program says what a person can do — and until this campaign the
+    // answer was three keys. A dial surface that nobody is told about is
+    // a dial surface nobody turns.
+    std::cout << "          type `help` for the panel: "
+                 "list / get / set / door / import / export\n\n";
 }
 
 // =========================================================================

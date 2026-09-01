@@ -5,8 +5,8 @@ Read-only: a census of the program's pass and submit surface.
 
 ## Provenance
 
-Last commit touching any scanned file: `b86b68c603fb27abb09ca9c47221e4835782fa30`
-(THE_PANEL I U3c: THE VEIL'S NAMES GO, AND THE MIGRATION GETS ITS LEDGER)
+Last commit touching any scanned file: `6e5333942146b2b9b947033b1224d7ae7906408c`
+(THE_PANEL II U2: THE HAND — a stdin REPL whose vocabulary is the manifest                  (and U3 discharged: the shell gate RETARGETS))
 
 | file scanned | sha256 |
 |---|---|
@@ -17,7 +17,7 @@ Last commit touching any scanned file: `b86b68c603fb27abb09ca9c47221e4835782fa30
 | `src/cartridges/the_board/surface/automaton.hpp` | `sha256:e98d2e703e4b4fd148d65502565de16e9ab36babd3a09ab5759677c4962aebe4` |
 | `src/cartridges/the_board/bodies/pawn.hpp` | `sha256:7915ec242a2a3094537882c50a2980c9494e4f1460a3a2f786232b67ec6ead12` |
 | `src/cartridges/the_board/bodies/orbs.hpp` | `sha256:475d3de82ddd4d979d55ad146039937cd3316a0148466ed5c1db5566bde9a8b1` |
-| `src/the_board.cpp` | `sha256:881c85d13a689571ae69cf1fed7ac8e69d35dffd3d20750772277838498579fa` |
+| `src/the_board.cpp` | `sha256:8325035057687612d5a968157bdd4eb6f3bf9422b27541a1f1810537bc84767e` |
 | `src/console/console.hpp` | `sha256:ba58d7ab33c88c08d8b53b11dc72ed6baa28841f39e63be2c46af6d1eda80e8a` |
 
 The handoff named `render_passes.hpp` and `renderer.hpp`; the
@@ -55,7 +55,7 @@ in `console.hpp`.
 |---|---|---|---|
 | 1 | `queue.Submit` | `birth_the_automaton` | `src/cartridges/the_board/cartridge.hpp:2125` |
 | 2 | `queue.Submit` | `build_world` | `src/cartridges/the_board/surface/patch_system.hpp:564` |
-| 3 | `app->queue.Submit` | `frame` | `src/the_board.cpp:337` |
+| 3 | `app->queue.Submit` | `frame` | `src/the_board.cpp:386` |
 
 3 submit sites. The frame's one submit rides the pawn's
 render tick; the GoL derive flush issues its own (the cartridge
@@ -85,7 +85,7 @@ every landing.
 |---|---|---|---|
 | 1 | `"birth_the_automaton"` | `birth_the_automaton` | `src/cartridges/the_board/cartridge.hpp:2122` |
 | 2 | `"build_world"` | `build_world` | `src/cartridges/the_board/surface/patch_system.hpp:558` |
-| 3 | `"frame"` | `frame` | `src/the_board.cpp:328` |
+| 3 | `"frame"` | `frame` | `src/the_board.cpp:377` |
 
 ## §3 — the swapchain reconfigure trigger
 

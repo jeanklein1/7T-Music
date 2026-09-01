@@ -7,7 +7,8 @@ here is an author the program did not have, and nothing here is a home for a
 fact that has one elsewhere.
 
 **THE CHANNEL IS argv (THE_PANEL I U5).** `--seed=N` pins the world, `--msaa=`
-picks the sample count, `--probe=N` runs the device gate and exits on the
+picks the sample count, `--scene=<file>` applies a scene and watches it
+(THE_PANEL II U1), `--probe=N` runs the device gate and exits on the
 device's own verdict, `--probe-backend=` picks its adapter ladder. Read once at
 boot before the device request, never re-read, never mutated mid-run; anything
 accepted prints one `[Params]` line, because a switch that fired should be
@@ -205,27 +206,86 @@ THE ABLETON SEAM); the browser panel that drove it is attic'd at tag
 
 ## The shell
 
-**THERE IS NO SHELL, and this section says so rather than describing one.**
-`web/` does not exist — it left WHOLE at `web-sunset`, not merely its build —
-so `web/organ_panel.js` and the `shell_gate` that proved the C++↔shell seam are
-both archaeology from that tag. The ABI above is what survives, on purpose:
-`extern "C"`, name-stable, and costing the sunset nothing because
-`EMSCRIPTEN_KEEPALIVE` self-defines away off the web.
-
-**WHAT COMES NEXT, AND WHAT IT MUST SATISFY.** THE_PANEL II builds the native
-hands on the tree's own one-road law: `--scene=<file>` plus a watched scene
-file as THE ROAD, and a stdin REPL as THE HAND. Its acceptance test is one
-sentence and it belongs here:
+**IT EXISTS (THE_PANEL II).** The road and the hand are native, both on the
+tree's one-road law — *one write path, many doors onto it* — and both
+name-blind by construction. The acceptance test is the banner and it holds:
 
 > **A new dial is one line in `organ_params.inc` and zero lines in the shell.**
 
-That test is already TRUE of the ABI and only untrue of the shell.
-`organ_manifest` emits the whole vocabulary with each row's CURRENT value, so a
-name-blind reader needs no per-dial code; `organ_doors` emits the door roster
-the same way. What is missing is a road and a hand, not a surface. **This
-section is filled in by the campaign that builds them** — it is left saying
-what is absent, because a doc describing a shell that does not exist is how
-this document came to open on `?organ=1`.
+Nothing in `console/organ_scene.hpp` or `console/organ_repl.hpp` names a
+dial, a block, a type, a range or a section. `list` derives its sections by
+splitting a row's own group string; `set` reads the lane count off the row's
+type; `get` prints the cadence `derived_cadence()` computes. Add a row to the
+enrollment list and every verb carries it on the next build, unedited.
+
+### THE ROAD — `--scene=<file>`, watched
+
+`console/organ_scene.hpp`. Parses a scene's `block.field` keys, resolves each
+against the manifest, applies through `organ_set`, presses `RESPEAK` once per
+file when a definition landed. `--scene=` at boot, and a **second
+`FileWatcher` instance** — the same class the shader reload uses, one file,
+one stat per check, no dependency — re-applies the whole file on every save.
+Live editing is any text editor.
+
+**Three laws it keeps, each paid for by a finding:**
+- **A scene never half-applies.** Two passes: resolve every key writing
+  nothing, and only a file that resolves WHOLE reaches the write. A file that
+  half-lands leaves behind a world nobody authored.
+- **Whole-id matching, never a prefix.** Block *ids* are never re-packed, but
+  block *names* are reusable and one has been reused — `WORLD.*` meant the
+  retired world-draw block before it meant block 15.
+- **Loud, by name, by line.** A parse failure names its line; an unknown key
+  names itself and takes the file with it; a refusal is `organ_set`'s own.
+
+The road opens **after the renderer**, not at `parse_boot_params`: the ABI is
+inert until `bind_home`, so a scene applied earlier would write nothing and
+say it had.
+
+### THE HAND — a stdin REPL
+
+`console/organ_repl.hpp`. Nine verbs: `list [filter]`, `get <id>`,
+`set <id> <v…>`, `doors`, `door <n>`, `export <file>`, `import <file>`,
+`probe <N>`, `help`. Polled once per frame with `poll()` on fd 0 —
+non-blocking, because the frame loop is a busy `while (running())` with a
+blocking `present()` and `getline` on the render thread would stall the world
+between keystrokes. It drains the pipe each turn, so a pasted session does not
+cost one frame per line, and it sits before `begin_frame` so a `set` typed
+this frame is reconciled at THIS frame's boundary.
+
+`probe <N>` arms the device gate from the hand, writing the same
+`boot_params` the flag writes — a probe asked for here and one asked for at
+argv are the same run.
+
+**POSIX today.** The tree's Windows lane is the Visual Studio build, where the
+equivalent is `WaitForSingleObject` on the console handle: a second `#ifdef`
+arm of one function and no other line. It is absent and says so rather than
+shipping an arm nobody can run.
+
+### THE SMOKE TEST
+
+`tools/gates/shell_gate/run.py` — the name is a **retarget, not a revival**.
+A `shell_gate` proved the C++ ↔ browser seam until WEB_SUNSET and left with
+the shell it proved. II §1.4 ruled that what it alone proved "either
+retargets to the REPL's smoke test or retires claimed"; there is a shell
+again, so it retargets. It **compiles, links and RUNS** the shell: five
+scenes down the road, a scripted session through the hand, and the export →
+import round trip. Every other gate in this tree reads text; this one
+executes.
+
+**What it cannot prove, and this is structural.** The APPLY path is not
+deviceless: `block_base` returns null until `bind_home`, and binding a home
+needs a `GPUState`, whose wgpu handle members pull Dawn at LINK time. So the
+gate proves the shell REFUSES correctly and the probe proves it APPLIES.
+Neither claim is made by the other.
+
+### PARKED SKINS — Jean-gated, and written where he will find them
+
+Neither is started, and both are in `docs/OPEN.md`'s PANEL section:
+- **the graphical overlay** — a skin over this same manifest and this same
+  road, adding no author;
+- **the Ableton CC map** — CC# → `block.field` through the same `organ_set`.
+  It is the panel meeting the music, so it belongs beside the Ableton seam
+  and waits for the coupling campaign.
 
 ## Presets
 
@@ -320,10 +380,13 @@ ONE_WORLD-I. All of it is gone now.
 | `tools/organ_readers.py` | a declared reader names every enrolled field |
 | `tools/organ_ledger.py` | `audit/ORGAN.md` — every row with range, step and cadence; the music campaign's target map |
 | `tools/gates/console_gate/run.py` | the translation units type-check, two tiers, zero diagnostics |
+| `tools/gates/shell_gate/run.py` | **it RUNS the shell** — five scenes down the road, a scripted session through the hand, the export→import round trip. The one gate here that executes rather than reads |
+| `tools/mirror_offsets.py` | not an organ tool, named here because it is the other half of L3: every mirrored member's offset derived from `world.wgsl` and asserted by the C++ compiler |
 
-`tools/gates/shell_gate/run.py` stood in this table and left with the browser
-panel at WEB_SUNSET: it proved the C++ ↔ shell seam, and there is no shell to
-be at the other end of it. The three organ tools share `tools/organ_parse.py`.
+`tools/gates/shell_gate/run.py` stood in this table, left with the browser
+panel at WEB_SUNSET because there was no shell at the other end of it, and
+**is back at THE_PANEL II U2 with a native one** — same path, same name, same
+job. The three organ tools share `tools/organ_parse.py`.
 
 **EVERY INSTRUMENT IN THIS TABLE READS TEXT, AND THE DEVICE IS A GATE OF ITS
 OWN (L48).** They parse the enrollment list, type-check the TUs and diff

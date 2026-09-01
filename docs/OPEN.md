@@ -1418,15 +1418,33 @@ this.**
 > (U4), ORGAN.md rewritten native (U5), instruments + battery + probe
 > (U6).
 >
-> **II — THE SHELL** gives the surface native hands on the tree's own
-> one-road law: `--scene=<file>` plus a watched scene file as THE ROAD,
-> a stdin REPL as THE HAND, the web shell's fate executed, ORGAN.md's
-> shell sections written native. Its acceptance test is one sentence and
-> it goes in the banner: **a new dial is one line in
-> `organ_params.inc` and zero lines in the shell.**
+> **II — THE SHELL — LANDED.** `--scene=<file>` plus a watched scene file
+> as THE ROAD (`console/organ_scene.hpp`), a stdin REPL as THE HAND
+> (`console/organ_repl.hpp`), the web shell's fate DISCHARGED (it was not
+> standing — `web/` left whole at the sunset), the shell gate RETARGETED
+> to the REPL's smoke test, ORGAN.md's shell sections written native.
+> **Its acceptance test holds: a new dial is one line in
+> `organ_params.inc` and zero lines in the shell.** Nothing in either
+> file names a dial, a block, a type, a range or a section.
+> **What is Jean's and only Jean's**: the apply path. `block_base`
+> returns null until `bind_home`, and binding a home needs a `GPUState`
+> that pulls Dawn at link time — so the gate proves the shell REFUSES
+> correctly and the probe proves it APPLIES.
 >
-> The graphical skin and the **Ableton CC map** are explicitly Jean-gated
-> skins, parked — see the parked-skins line at the end of this section.
+> **THE PARKED SKINS, and neither is started (II §1.5).**
+> * **The graphical overlay** — a skin over the SAME manifest and the SAME
+>   road, adding no author. The ABI already emits every row with its
+>   current value and every door with its label; an overlay is a renderer
+>   over `organ_manifest`, not a second surface.
+> * **The Ableton CC map** — CC# → `block.field` through the same
+>   `organ_set`. It is the panel meeting the music, so it belongs beside
+>   THE ABLETON SEAM and waits for the coupling campaign; the atlas
+>   (`docs/COUPLING_ATLAS.md`) is what it will be designed on, and the
+>   cadence tag on every candidate dial is there because a CC that turns
+>   a GEN row and a CC that turns a LIVE one are different instruments.
+> Both are **Jean-gated**: how the knobs look and what plays them are his
+> next sentences, and the campaign that made every knob addressable is
+> deliberately not the campaign that answers them.
 > What remains open after that campaign is exactly the musical horizon,
 > which is the reason the fork exists.
 
