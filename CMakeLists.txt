@@ -814,11 +814,42 @@ add_custom_command(TARGET the_board POST_BUILD
 # call. Both must land in the exe directory after a clean build.
 #
 # P1 — ASSERT-AND-GUARD. Dawn lives OUT OF TREE (DAWN_DIR, default
-# C:/dev/dawn) and this repo cannot open it, so whether that build carries
-# DXC is a HYPOTHESIS, not a checked fact. The Windows SDK path below is a
-# hypothesis too. Therefore: search, and if nothing is found, SAY SO and
-# keep configuring. A missing pair must not fail the build — it must
-# produce a boot that fails loudly with a log line pointing back here.
+# C:/dev/dawn) and this repo cannot open it, so search, and if nothing is
+# found, SAY SO and keep configuring. A missing pair must not fail the
+# build — it must produce a boot that fails loudly with a log line
+# pointing back here.
+#
+# ─── EMBER_0 — THE HYPOTHESIS WAS CHECKED, AND IT WAS FALSE ──────────
+# P1 called Dawn's DXC carriage "a HYPOTHESIS, not a checked fact".
+# EMBER_0's RECON.4 checked it at pin 56f332d7 and the answer is no:
+# EnsureDXCLibraries — the ONLY site in the D3D12 backend that opens
+# dxcompiler.dll and dxil.dll — is wrapped whole in
+# `#if defined(DAWN_USE_BUILT_DXC)` with NO `#else`
+# (PlatformFunctionsD3D12.cpp: the #if, the function, the #endif, then
+# the namespace close). C:/dev/dawn/out is built with
+# DAWN_USE_BUILT_DXC:BOOL=OFF, and dawn_native only gets the define
+# inside `if (DAWN_USE_BUILT_DXC)`, so the loader is ABSENT from the
+# library this program links. The gate is comprehensive — BackendD3D12
+# and PhysicalDeviceD3D12 sit behind the same define.
+#
+# CONSEQUENCE, PLAINLY: any pair copied here is INERT until Dawn is
+# rebuilt with that option ON. No placement of DLLs reaches code that
+# was never compiled. The copy is not useless — it is the correct
+# machinery, one build option early.
+#
+# THE WINDOWS SDK GLOB IS GONE (EMBER_0, and it dies now rather than
+# after the rebuild, while removing it can break nothing). It resolved
+# first on every machine that had an SDK, which meant this build shipped
+# whatever DXC generation the host happened to carry, beside a Dawn
+# pinned at 56f332d7 — an UNDECLARED MACHINE DEPENDENCY and a generation
+# skew, which is N10's vcpkg phantom wearing a second costume. Proof it
+# was firing rather than idle: the boot log read
+# `DXC runtime: C:/Program Files (x86)/Windows Kits/10/bin/10.0.26100.0/x64`.
+# The candidates are now Dawn's own build directories alone, which is
+# what the comment below always said it wanted: the pair that sits
+# beside the libs and MATCHES the Dawn being linked. T7_DXC_DIR still
+# overrides, deliberately — an explicit path a human typed is a
+# declared dependency, which is the whole difference.
 #
 # Set T7_DXC_DIR at configure time to override the search entirely.
 if(WIN32)
@@ -836,16 +867,9 @@ if(WIN32)
         "${DAWN_BUILD}/Release"
         "${DAWN_BUILD}"
     )
-    # Then the Windows SDK, which ships both. Newest first; the version
-    # segment is glob-expanded rather than pinned so a host with a
-    # different SDK still resolves.
-    file(GLOB T7_SDK_DXC_DIRS
-        "C:/Program Files (x86)/Windows Kits/10/bin/*/x64")
-    if(T7_SDK_DXC_DIRS)
-        list(SORT T7_SDK_DXC_DIRS)
-        list(REVERSE T7_SDK_DXC_DIRS)
-        list(APPEND T7_DXC_CANDIDATES ${T7_SDK_DXC_DIRS})
-    endif()
+    # (The Windows SDK glob stood here and was excised at EMBER_0 — see
+    # the banner above. An unpinned ambient provider is not a fallback,
+    # it is a silent substitution.)
 
     set(T7_DXC_FOUND_DIR "")
     foreach(CAND IN LISTS T7_DXC_CANDIDATES)
@@ -868,17 +892,38 @@ if(WIN32)
         # The honest else-branch P1 requires. Not FATAL_ERROR: a tree that
         # will not configure teaches nothing, and the Vulkan plan needs
         # neither dll.
-        message(WARNING
-            "PIVOT_0: dxcompiler.dll + dxil.dll NOT FOUND. Searched: "
-            "${T7_DXC_CANDIDATES}. "
-            "The CompilerPlan::D3D12_Dxc boot will fail at device or "
-            "pipeline creation until both sit beside the exe. Fixes, in "
-            "order of preference: rebuild Dawn with DAWN_USE_BUILT_DXC=ON; "
-            "or pass -DT7_DXC_DIR=<dir> naming a directory holding both; "
-            "or set kCompilerPlan to Vulkan in src/console/console.hpp, "
-            "which needs neither.")
+        message(STATUS
+            "  DXC runtime: NOT FOUND in ${T7_DXC_CANDIDATES} — expected "
+            "until Dawn is rebuilt with DAWN_USE_BUILT_DXC=ON "
+            "(tools/ember_route_a.py). The resident Vulkan plan needs "
+            "neither dll; only CompilerPlan::D3D12_Dxc does, and that "
+            "lane is halted until the rebuild lands (docs/OPEN.md: "
+            "EMBER_0).")
     endif()
 endif()
+
+# ─── EMBER_0 — THE POST-BUILD MANIFEST ──────────────────────────────
+# A post-build step that does not run is invisible: its COMMENT prints
+# when the step is REACHED, not when it succeeds. That is not a
+# hypothesis either — after a certified MSBuild build whose log showed
+# both copy comments, `dir /s /b out\build\the-board-full-release\*.dll`
+# returned File Not Found with the tree present. docs/OPEN.md's own
+# reopening clause for the pwsh finding names exactly that condition,
+# and it has fired.
+#
+# So the last post-build step reports what is ACTUALLY beside the exe.
+# A silent non-landing becomes a visible ABSENT line. It reports and
+# never fails — a witness that can break the build is a witness nobody
+# leaves armed.
+add_custom_command(TARGET the_board POST_BUILD
+    COMMAND ${CMAKE_COMMAND}
+        -DT7_EXE_DIR=$<TARGET_FILE_DIR:the_board>
+        -DT7_EXE_NAME=$<TARGET_FILE_NAME:the_board>
+        -DT7_WANT_DXC=$<BOOL:${T7_DXC_FOUND_DIR}>
+        -P "${CMAKE_CURRENT_SOURCE_DIR}/tools/post_build_manifest.cmake"
+    COMMENT "EMBER_0: post-build manifest — what landed beside the exe"
+    VERBATIM
+)
 
 source_group(TREE "${CMAKE_CURRENT_SOURCE_DIR}/src/cartridges/${T7_RENDER_CARTRIDGE}"
     PREFIX "Render Cartridge"
