@@ -15,8 +15,8 @@ carry those facts, or leave them in place and patch around them.
 
 | field | value |
 |---|---|
-| source commit | `815c0f9973b6761490a868c1588698858dea46a7` |
-| | ONE_SURFACE-I U5a: the readback still asked for three slots |
+| source commit | `bc6c2b3568b99eab922f76c55727efb5b77f642e` |
+| | ONE_SURFACE-I: the mosaic is unreachable, and a correction I owe U4 |
 | `src/cartridges/the_board/realization/binding_registry.hpp` | `sha256:968d2d0dcbaa4ffe35f30b8349de93b4912cb3da09a16c56965408c90fc3ad9c` |
 | `src/cartridges/the_board/realization/world.wgsl` | `sha256:5969680e9d9e8c484bf5fe02691abc1aff939798eec391f2ee0602558fd03b7f` |
 | `src/cartridges/the_board/realization/state.hpp` | `sha256:f2f03971f79c08f9ad748044485cab813deccd5ef1e7b28f957607a12eaa2f49` |
