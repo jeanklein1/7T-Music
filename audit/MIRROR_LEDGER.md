@@ -15,15 +15,15 @@ carry those facts, or leave them in place and patch around them.
 
 | field | value |
 |---|---|
-| source commit | `99c2891f7c7d46d20d66c856ea0a2161f91599b7` |
-| | ONE_WORLD-I: rebirth_world stands marked — SEAM[spine:P8] |
+| source commit | `39a7ad035ac0b3d1879b98fd4e3606c6d92f73ba` |
+| | ONE_WORLD-II U0: the persistence ladder moves before the region that would take it |
 | `src/cartridges/the_board/realization/binding_registry.hpp` | `sha256:0d52022e0374572d09dd65f1103dcafe148f576c46b39b9d27801be3c09cc966` |
 | `src/cartridges/the_board/realization/world.wgsl` | `sha256:801d13cc8e62e14a42f350728e5b47d2a8223c9592a35fc0d47f34ead193e1e7` |
 | `src/cartridges/the_board/realization/state.hpp` | `sha256:154bfa9ea07a580f5293b72fd834ac88115d78f936b20786752ca154d5dfb82b` |
 | `src/cartridges/the_board/realization/binding_surface.gen.inc` | `sha256:c477d75c9d516f69314a6b96a4a225a45e4aa29e135ad3670684daef09986797` |
 | `src/cartridges/the_board/realization/renderer.hpp` | `sha256:5f6c8b39ef462b960b5674b81523342abc131456553b6b908c44492e6b7d26a3` |
 | `tools/binding_ledger.py` | `sha256:a3c75bab894774eb0302686e5efd52275b280e14abfcf4e8753b28d5b5086692` |
-| `audit/BINDING_LEDGER.md` | `sha256:51a12a6ac39f9834946b4094529bd46cc78bddabf416573e16ed187d0d1be3c9` |
+| `audit/BINDING_LEDGER.md` | `sha256:25409fafa4281a45a216fadc34cadd811bc59e7d1b8d5efe670a1d2273b5c5f9` |
 
 `tools/binding_ledger.py` is an input because its parsers are IMPORTED,
 not copied — one parse, two artifacts, no drift between instruments.
@@ -337,7 +337,7 @@ declarations: 0 (the handoff expected 0).
 
 ### (b) `.binding =` with a non-registry right side
 
-Boundary: the comment-stripped text of all 81 `*.hpp` under `src/`
+Boundary: the comment-stripped text of all 82 `*.hpp` under `src/`
 (the handoff's sweep), extended to the 8 `.cpp`/`.h`/`.cc` files
 there so a seat assignment in a translation unit cannot hide on the
 wrong extension (0 hit(s) on the extension). state.hpp is read

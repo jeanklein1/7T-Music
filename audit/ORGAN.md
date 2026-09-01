@@ -425,7 +425,7 @@ reader — the class of defect this witness exists to catch.
   CANVAS_TABLE         definition=1 seed=1 comment=1              
   DRIVER_TABLE         definition=1 seed=1 comment=1              
   INDOOR_TABLE         definition=1 seed=1 static_assert=2 comment=1 
-  MOOD_TABLE           definition=1 seed=7 static_assert=31 comment=28 
+  MOOD_TABLE           definition=1 seed=7 static_assert=31 comment=30 
   ORB_CONSOLE          definition=1 seed=1 comment=2              
   ORB_MOOD_TABLE       definition=1 seed=7 comment=6              
   PANEL_TABLE          definition=1 seed=1 static_assert=6 comment=2 
@@ -447,20 +447,20 @@ states a belief; only the reader proves it. The tail of its run,
 verbatim:
 
 ```
-      · derive_indoor_lights               src/cartridges/the_board/direction/mood.hpp
+          src/cartridges/the_board/contracts/atmosphere_surface.hpp:113  && ATMOS_TABLE.clear_color[2]     == ATMOS_SUNSET.regime[0].clear_color[2]
+          … and 8 more
+  MOOD           atmos.regime[3].clear_color_spread  Atmosphere · Regime 4
+        MECHANICAL? — named outside the declared readers at:
+          src/cartridges/the_board/contracts/atmosphere_surface.hpp:114  && ATMOS_TABLE.clear_color_spread == ATMOS_SUNSET.regime[0].clear_color_spread
+          src/cartridges/the_board/contracts/atmosphere_surface.hpp:114  && ATMOS_TABLE.clear_color_spread == ATMOS_SUNSET.regime[0].clear_color_spread
+          src/cartridges/the_board/contracts/atmosphere_surface.hpp:128  && ATMOS_TABLE.clear_color_spread == 0.0f,
+          src/cartridges/the_board/contracts/spine_state.hpp:498  static_assert(MOOD_TABLE[MOOD_OPEN_NIGHT].atmos.regime[3].clear_color_spread =
+          src/cartridges/the_board/contracts/spine_state.hpp:498  static_assert(MOOD_TABLE[MOOD_OPEN_NIGHT].atmos.regime[3].clear_color_spread =
+          src/cartridges/the_board/contracts/spine_state.hpp:530  && a.regime[0].clear_color_spread == 0.0f
+          … and 1 more
 
-  OUT OF SCOPE, with the reason:
-      AGENT_ROOM   GPU-side: tier_gains and behaviors ship as whole arrays through two WriteBuffers and are read in world.wgsl
-      CONFIG       GPU-side: config_ is uploaded whole and read in world.wgsl (the kernel's ledger, a future instrument)
-      LIGHTING     GPU-side: lightingStage_ ships through upload_lighting as a whole struct and is read in world.wgsl
-
-THE ANSWER, ROW BY ROW
-------------------------------------------------------------------------
-  proved    256   a declared reader names the field
-  SUSPECT     0   no declared reader names it
-  witness    18   an _RO meter: the question is inverted (blind spot 5)
-  scope      80   GPU-side or whole-struct (blind spots 2, 3)
-
-NO SUSPECTS. Every enrolled dial's field is named in the body of
-a function this tool can read.
+A SUSPECT IS A QUESTION, NOT A VERDICT. Read the body before
+acting: a helper that takes the value by parameter names it at the
+call site, and a reader this table forgot is a stale table rather
+than a dead dial.
 ```

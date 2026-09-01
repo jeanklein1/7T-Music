@@ -312,7 +312,6 @@ inline void bind_home(the_board::GPUState* s) { g_home = s; }
 inline void bind_mood(const the_board::MoodState* ms) { g_mood = ms; }
 inline void bind_point(const the_board::PointState* p) { g_point = p; }
 inline uint32_t current_mood()       { return g_mood ? g_mood->active     : 0u; }
-inline uint32_t current_regime()     { return g_mood ? g_mood->regime     : 0u; }
 inline uint32_t current_host()       { return g_point ? (uint32_t)g_point->host : 0u; }
 
 inline void* block_base(uint8_t block) {
@@ -901,17 +900,6 @@ EMSCRIPTEN_KEEPALIVE inline const char* organ_build_stamp(void) {
 // and to key an export, and it keeps no copy of its own.
 EMSCRIPTEN_KEEPALIVE inline int organ_mood(void) {
     return (int)t7::organ::current_mood();
-}
-
-// The regime the live world was drawn into: the Atmosphere.regime[] INDEX
-// (0-based; the control surface shows it as the label's number). Read through
-// the
-// same borrowed pointer as organ_mood(), so the control surface's regime
-// lines can
-// never name a regime the draw has left. The seed drew it and RESPEAK
-// keeps the seed; only a weight dial moves it without a transition.
-EMSCRIPTEN_KEEPALIVE inline int organ_regime(void) {
-    return (int)t7::organ::current_regime();
 }
 
 // The sky's live motion rule, packed with the ACTIVE rule's gesture index,

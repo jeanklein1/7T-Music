@@ -33,8 +33,8 @@ only — `draw_orbs` is called from `bodies/orbs.hpp`, not from
 | `src/cartridges/the_board/bodies/orbs.hpp` | `a3bde8f506af81f67844572f51e88f2f0cb9336b9cfbddbc946883faef8d4a0c` |
 | `src/cartridges/the_board/bodies/pawn.hpp` | `bac566779a35e46048585b51426d4bfe7b971093ea5e38e9b0219150774b3fbf` |
 | `src/cartridges/the_board/cartridge.hpp` | `f50fe3345947360389bf65337b86297eb4842d11993586274b78f2e020a0c947` |
-| `src/cartridges/the_board/contracts/spine_state.hpp` | `080f7c0228c551915383e2d798a67436ae67399044851327735a534687690bf1` |
-| `src/cartridges/the_board/direction/mood.hpp` | `062584c0189c514d439a62199599d83e8dfe879be4e463aef9b34f48fff56040` |
+| `src/cartridges/the_board/contracts/spine_state.hpp` | `db05b71f5bbd02c4a737b623a240a0d5944aecdec86326581ac60a5de2e09267` |
+| `src/cartridges/the_board/direction/mood.hpp` | `e4665959b6a31d09f94212d295f7d9058de900a71b83511d733c9d047519f0a5` |
 | `src/cartridges/the_board/realization/render_passes.hpp` | `951833669b61e2c60b334d216e34df63d0d4fcb9225db1fb4bcd68e5f33d7135` |
 | `src/cartridges/the_board/surface/patch_system.hpp` | `f448ff115f91c0d9ebbd9f3db29625ac590bbddc912727624db6722f274fee3e` |
 

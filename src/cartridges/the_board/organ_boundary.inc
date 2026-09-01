@@ -44,7 +44,6 @@
                     // The roll, then the sky: a weight dial moves this
                     // world's regime under the same seed, and the sky is
                     // re-drawn from the regime it landed in.
-                    apply_mood_regime(&mood_deps_, mood_def(def_mood));
                     apply_mood_lighting(&mood_deps_, mood_def(def_mood), queue);
                 }
                 // The tier bank changed, so its author re-speaks the whole

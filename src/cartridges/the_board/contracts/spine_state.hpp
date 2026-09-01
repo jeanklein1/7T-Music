@@ -113,10 +113,6 @@ struct MoodState {
     // values. Fails loud.
     float sun_intensity = 0.0f;
     float sun_ambient   = 0.0f;
-    uint32_t regime = 0;                    // REGIME_1 — which Regime this world was drawn into:
-                                            // the WORLD's fact, rolled by apply_mood_regime from the
-                                            // mood's regime_weight; every subscriber indexes its own
-                                            // columns with it
     // ATMOS_1 — the fog's REST, drawn per world from the mood's atmosphere.
     // The U4 seam (phase_motion_drivers) composes the canvas's deviation
     // over it every frame. 0 is the same fails-loud choice as the sun's:
