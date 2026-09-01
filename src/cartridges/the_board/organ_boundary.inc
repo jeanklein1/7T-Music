@@ -12,6 +12,28 @@
                 // what it does every frame. A definition write is durable
                 // but not immediate, and this is that round trip.
                 const uint32_t doors = t7::organ::take_doors_pending();
+                // THE SEED DOOR, FIRST OF ALL OF THEM (THE_PANEL I U1).
+                // `rebirth_world`'s first caller — the P8 seam's forward
+                // cue, answered. WORLD_LIVE.next_seed is the dial; this is
+                // the press; the verb is unchanged and walks the machine's
+                // own fixed sequence (O-3).
+                //
+                // FIRST, AND THE ORDER IS THE POINT. Every other line in
+                // this function makes the STANDING world match the banks;
+                // after a rebirth the standing world is a different one.
+                // So the destructive door goes before them and the frame's
+                // remaining edits — a colour turned in the same breath as
+                // the seed, a scene file that sets and presses in one pass
+                // — land on the world that will still be here to show
+                // them. A rebirth re-draws from the same banks on its way
+                // through, so the worst this order costs is one idempotent
+                // re-speak; the other order costs the edit.
+                //
+                // C3 DESTRUCTIVE, so no guard and no coalescing beyond the
+                // bitmask's own: two presses between two boundaries are
+                // one world, which is exactly right.
+                if (doors & (1u << t7::organ::ORGAN_DOOR_REBIRTH))
+                    rebirth_world(WORLD_LIVE.next_seed, queue);
                 if (doors & (1u << t7::organ::ORGAN_DOOR_RESPEAK)) {
                     t7::organ::g_tier_def_dirty = true;
                     t7::organ::raise_orb_definition();

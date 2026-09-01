@@ -32,13 +32,19 @@
 //   are explicit latent infrastructure: aura_presence is live here;
 //   the other deferred fields await the unified entity layer.
 //   Pattern P8 visible in source.
-// SEAM[spine:P8] rebirth_world stands UNCALLED AND MARKED — the
-//   file's second P8, and the larger one. Its caller is the panel's
-//   seed dial (gen cadence, C3-destructive), arriving with the PANEL
-//   campaign; boot walks become_world alone and by ruling always
-//   will. Ten teardown/reseed verbs are latent WITH it, plus one
-//   transitive GPUState upload. The category, the forward cue and
-//   the whole latent chain are named at the verb.
+// SEAM[spine:P8] rebirth_world — RETIRED AT THE_PANEL I U1, the cue
+//   answered. It stood UNCALLED AND MARKED for two campaigns as the
+//   file's second P8 and the larger one, and the mark named its
+//   caller in advance: "the panel's seed dial (gen cadence,
+//   C3-destructive), arriving with the PANEL campaign". That caller
+//   exists — block 15's WORLD_LIVE.next_seed and the REBIRTH door,
+//   pressed at the frame boundary (organ_boundary.inc). Ten
+//   teardown/reseed verbs came out of latency with it. Boot still
+//   walks become_world alone and by ruling always will, which is the
+//   half of the mark that was never about latency.
+//   A TOMBSTONED GRADUATION, not a deletion: the seam is kept here,
+//   struck, because a forward cue that came true is the evidence the
+//   category works. The first P8 above is untouched and still latent.
 // SEAM[spine:family-dispatch] all evict_<family> (owner-side),
 //   dispatch_prepare_mesh_<family>, dispatch_mesh_gen_<family>
 //   wrapper functions land here — referenced by FAMILY_DISPATCH and
@@ -496,6 +502,19 @@ namespace t7 {
                 // is what keeps a randomized world reportable.
                 std::cout << "[World] Boot seed=" << world_state_.active_seed
                           << " (" << seed_origin << ")\n";
+                // THE SEED DIAL IS SEATED FROM THE SEED THAT WAS DRAWN
+                // (THE_PANEL I U1). WORLD_LIVE has no design table — a
+                // world's seed was never authored, so there is no constant
+                // to graduate from — and this is the one line that can know
+                // the answer: after boot_seed(), after the `--seed=`
+                // override, before any consumer can read the manifest.
+                //
+                // It is the manifest's own law applied: a surface opens
+                // showing the PROGRAM, not its own defaults. And it makes
+                // the untouched door a REDRAW — press rebirth without
+                // turning the dial and the same world is torn down and
+                // built again, which is the honest first half of the walk.
+                WORLD_LIVE.next_seed = world_state_.active_seed;
 
                 // BOOT IS A BIRTH FROM NOTHING — IN FACT (ATRIUM_0).
                 // The SEED is settled above and is now the whole of what a
@@ -1216,17 +1235,35 @@ namespace t7 {
             // root organ, so the verb IS the assembly and cannot live
             // anywhere else without a deps face wider than the root itself.
             //
-            // SEAM[spine:P8] — EXPLICIT LATENT INFRASTRUCTURE, the same
-            // category PlayerState's deferred fields carry (contracts/
-            // spine_state.hpp). Zero callers today: MARKED, not dead.
-            // A zero-caller verb may not stand UNMARKED; this is the mark.
+            // SEAM[spine:P8] — RETIRED, THE CUE ANSWERED (THE_PANEL I
+            // U1). The mark stood here for two campaigns: EXPLICIT LATENT
+            // INFRASTRUCTURE, the same category PlayerState's deferred
+            // fields carry (contracts/spine_state.hpp), zero callers,
+            // MARKED and not dead, because a zero-caller verb may not
+            // stand UNMARKED.
             //
-            // THE FORWARD CUE. The caller is THE PANEL'S SEED DIAL —
-            // cadence GEN (once per rebirth, never per frame),
-            // C3-DESTRUCTIVE (it tears the standing world down before it
-            // re-draws one) — and it arrives with the PANEL campaign. The
-            // six keys that used to ignite a transition are gone and are
-            // not coming back; the dial is the door that replaces them.
+            // AND THE FORWARD CUE CAME TRUE VERBATIM. It read: "The
+            // caller is THE PANEL'S SEED DIAL — cadence GEN (once per
+            // rebirth, never per frame), C3-DESTRUCTIVE (it tears the
+            // standing world down before it re-draws one) — and it
+            // arrives with the PANEL campaign. The six keys that used to
+            // ignite a transition are gone and are not coming back; the
+            // dial is the door that replaces them."
+            //
+            // What arrived is that sentence and nothing else: block 15,
+            // `WORLD_LIVE.next_seed` (contracts/world_surface.hpp), a GEN
+            // row over a bank with no boundary wiring, and
+            // ORGAN_DOOR_REBIRTH pressing THIS verb at the frame boundary
+            // (organ_boundary.inc). The verb did not move a line to
+            // receive its caller, which is the whole claim the category
+            // was making.
+            //
+            // THE TOMBSTONE IS THE POINT, so the mark is struck rather
+            // than deleted (L41): a P8 is a bet that a named future
+            // caller will arrive, and this is the file's evidence that
+            // the bet paid. The FIRST P8 above — PlayerState's deferred
+            // fields — is untouched and still latent, still waiting on
+            // the unified entity layer.
             //
             // BOOT-AS-CALLER IS REFUSED, NOT DEFERRED. Boot and mid-run
             // rebirth are different operations sharing one door: a birth
@@ -1244,10 +1281,15 @@ namespace t7 {
             // door the two operations DO share, and it is the whole of
             // what they share.
             //
-            // THE LATENT CHAIN. Each verb below has exactly one call site
-            // tree-wide and it is inside this body, so each is latent
-            // WITH the seam and is read as MARKED by this note — not as
-            // an orphan a sweep may take:
+            // THE CHAIN THAT WAS LATENT WITH IT. Each verb below has
+            // exactly one call site tree-wide and it is inside this body.
+            // Until U1 that made each of them latent WITH the seam, read
+            // as MARKED by this note rather than as an orphan a sweep may
+            // take; the door gave all ten a live caller in one press, so
+            // the list is now an ownership map and not a shield. It is
+            // KEPT because the single-call-site fact is what makes this
+            // body the whole of their lifetime, which is still what a
+            // sweep needs to know:
             //   teardown_entities (bodies/grounded.hpp)
             //   teardown_automaton (surface/automaton.hpp)
             //   teardown_ribbon, release_finite_ribbons (bodies/ribbon.hpp)
@@ -1259,8 +1301,8 @@ namespace t7 {
             //   reseed_player_body (bodies/agents.hpp)
             // One hop deeper: GPUState::upload_automaton_config has TWO
             // callers and only one is in the chain — teardown_automaton
-            // (latent) and birth_automaton (LIVE, at every world's birth),
-            // so it is NOT latent and a sweep must not read it as such.
+            // and birth_automaton (at every world's birth) — which is why
+            // it never read as latent even while the chain did.
             // That changed at ONE_SURFACE-II U1: the zones' equivalent
             // (upload_zone_config) was teardown's alone, because the zones
             // were born a slot at a time through a derive queue rather
@@ -1274,26 +1316,31 @@ namespace t7 {
             // in the frame.
             //
             // THE CHAIN IS GATE-HELD, not merely tolerated. The score
-            // census (tools/gates/score/run.py, Direction A) names seven
-            // of them — the sphere/ribbon/cube/gol/pawn_aura/orbs
-            // teardowns and the ribbon finite release — and asserts each
-            // roster bit's gated call site in THIS file. Those sites are
-            // the ones below. Deleting the seam takes the roster/spine
-            // bijection with it, which is why the graduation kept the
-            // machine's ordering knowledge as living code instead of
-            // attic archaeology (L30).
+            // census (tools/gates/score/run.py, Direction A) names six
+            // of them — the sphere/ribbon/cube/pawn_aura/orbs teardowns
+            // and the ribbon finite release — and asserts each roster
+            // bit's gated call site in THIS file. Those sites are the ones
+            // below. (The seventh was the GoL teardown; the ground took
+            // its place at ONE_SURFACE-II U1 and is UNGATED, for the
+            // reason given at its line.) Deleting the seam takes the
+            // roster/spine bijection with it, which is why the graduation
+            // kept the machine's ordering knowledge as living code instead
+            // of attic archaeology (L30).
             //
-            // MAINTAINED, NOT FROZEN — latency is not exemption. Later
-            // campaigns treat this body as a first-class reader: its bank
-            // reads rewire like any live caller's, its narration rides
-            // probate, twin-room discipline applies. A latent verb rots
-            // if a campaign walks past it.
+            // MAINTAINED, NOT FROZEN — latency was not exemption, and the
+            // rule outlived the latency it was written for. Campaigns
+            // treated this body as a first-class reader while it had no
+            // caller: its bank reads rewired like any live caller's, its
+            // narration rode probate, twin-room discipline applied. That
+            // discipline is why a door could be pointed at it with no
+            // repair round first.
             //
-            // THE VOICE IS KEPT. The [World] Rebirth complete line at the
-            // tail is the honest voice for the caller that is coming; it
-            // never prints at boot, because boot never enters here. Its
-            // TRANSCRIPT belongs to the campaign that gives the verb a
-            // caller — parked in docs/OPEN.md with the panel candidates.
+            // THE VOICE IS SPOKEN NOW. The [World] Rebirth complete line
+            // at the tail was the honest voice for a caller that was
+            // coming; the caller is here and the line prints for a living
+            // reason. It still never prints at boot, because boot never
+            // enters here — which is what makes it a REBIRTH witness and
+            // not a birth one.
             void rebirth_world(uint32_t seed, wgpu::Queue& queue) {
                 // ═══ THE FIXED SEQUENCE (O-3) ══════════════════════
                 // SEAM[spine:P5] world_state_.world_gen++ at the top is the

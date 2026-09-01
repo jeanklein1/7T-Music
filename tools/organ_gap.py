@@ -80,8 +80,13 @@ HOMES = {
     "RibbonSurface":         "src/cartridges/the_board/contracts/ribbon_surface.hpp",
     "CanvasSurface":         "src/coupling/canvas_surface.hpp",
     "CubeBank":              "src/cartridges/the_board/bodies/cube_behaviors.hpp",
-    # the destructive bank
+    # the destructive banks
     "RibbonSpawnSurface":    "src/cartridges/the_board/contracts/ribbon_surface.hpp",
+    # THE_PANEL I U1 — one field, and it is the seed door's dial. The bank
+    # has NO PAIR below on purpose: a world's seed was never authored, so
+    # there is no design constant it graduated from and nothing for the
+    # reader witness to prove. "(not a graduation)" is the true answer.
+    "WorldSurface":          "src/cartridges/the_board/contracts/world_surface.hpp",
 }
 # MoodProfile, IndoorSurface and WorldDrawSurface stood here with their
 # homes; all three left with their subjects at ONE_WORLD-II U2 and U4,

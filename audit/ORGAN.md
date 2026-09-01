@@ -23,6 +23,7 @@ generator, so the book and the manifest cannot disagree. `driven` is an
 
 | section | label | id | block / family | type | range | step | cadence | def-kind | ro |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| World · Seed | next world's seed | `WORLD.next_seed` | WORLD | U32 | 0 … 4294967040 | 1 | gen | none |  |
 | Sky & Light · Sun | direction (centre) | `ATMOS.sun_direction` | ATMOS | VEC3 | -1 … 1 | 0.01 | live | none |  |
 | Sky & Light · Sun | azimuth spread (±deg) | `ATMOS.sun_az_spread_deg` | ATMOS | F32 | 0 … 180 | 1 | live | none |  |
 | Sky & Light · Sun | elevation spread (±deg) | `ATMOS.sun_el_spread_deg` | ATMOS | F32 | 0 … 45 | 0.5 | live | none |  |
@@ -335,14 +336,14 @@ generator, so the book and the manifest cannot disagree. `driven` is an
 
 | | |
 | --- | --- |
-| entries | **307** |
-| by section | Agents 102 · Ribbon 55 · Terrain 37 · Sky & Light 30 · Atmosphere 28 · Interaction 22 · Pawn 18 · Population 5 · Debug 4 · Camera 3 · Measure 3 |
-| by cadence | boundary 106 · driven 14 · gen 25 · live 162 |
-| by macro form | PARAM 166 · PARAM_DEF 102 · PARAM_GEN 25 · PARAM_RO 14 |
-| definition kinds | BEHAVIOR 70 · NONE 205 · TIER 32 |
+| entries | **308** |
+| by section | Agents 102 · Ribbon 55 · Terrain 37 · Sky & Light 30 · Atmosphere 28 · Interaction 22 · Pawn 18 · Population 5 · Debug 4 · Camera 3 · Measure 3 · World 1 |
+| by cadence | boundary 106 · driven 14 · gen 26 · live 162 |
+| by macro form | PARAM 166 · PARAM_DEF 102 · PARAM_GEN 26 · PARAM_RO 14 |
+| definition kinds | BEHAVIOR 70 · NONE 206 · TIER 32 |
 | witnesses (`ro`) | 14 |
-| blocks and sentinels used | AGENTS, AGENT_ROOM, ATMOS, CANVAS, CONFIG, DRIVERS, LIGHTING, ORBS, ORB_BANK, PANEL, PAWN, RIBBON, RIBBON_SPAWN |
-| namespaces | canvas 15 · the_board 292 |
+| blocks and sentinels used | AGENTS, AGENT_ROOM, ATMOS, CANVAS, CONFIG, DRIVERS, LIGHTING, ORBS, ORB_BANK, PANEL, PAWN, RIBBON, RIBBON_SPAWN, WORLD |
+| namespaces | canvas 15 · the_board 293 |
 
 ### Doors
 
@@ -355,6 +356,7 @@ from `kOrganDoors`, never restated.
 | 0 `ORGAN_DOOR_RESPEAK` | Re-speak definitions |
 | 1 `ORGAN_DOOR_ORB_RULE` | Cycle orb rule |
 | 2 `ORGAN_DOOR_ORB_GESTURE` | Cycle orb gesture |
+| 3 `ORGAN_DOOR_REBIRTH` | Rebirth the world |
 
 ## THE GAP
 
@@ -400,7 +402,7 @@ states a belief; only the reader proves it. The tail of its run,
 verbatim:
 
 ```
-      ? census also names the bank here: init_renderer          src/cartridges/the_board/cartridge.hpp
+      · organ_flush                        src/cartridges/the_board/organ_boundary.inc
 
   OUT OF SCOPE, with the reason:
       AGENT_ROOM   GPU-side: tier_gains and behaviors ship as whole arrays through two WriteBuffers and are read in world.wgsl
@@ -409,7 +411,7 @@ verbatim:
 
 THE ANSWER, ROW BY ROW
 ------------------------------------------------------------------------
-  proved    215   a declared reader names the field
+  proved    216   a declared reader names the field
   SUSPECT     0   no declared reader names it
   witness    14   an _RO meter: the question is inverted (blind spot 5)
   scope      78   GPU-side or whole-struct (blind spots 2, 3)

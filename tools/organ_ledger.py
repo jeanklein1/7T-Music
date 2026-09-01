@@ -61,6 +61,14 @@ def num(tok):
     if not m:
         return t.replace("the_board::", "")
     v = float(m.group(1))
+    # AN INTEGRAL BOUND PRINTS AS AN INTEGER, however large. "%g" carries
+    # six significant digits, so the seed row's ceiling — the largest u32 a
+    # float represents exactly — rendered as `4.29497e+09`: a number no one
+    # can grep for and not the number on the enrollment line. Every bound in
+    # the tree below a million already printed this way under "%g"; this
+    # only changes the ones that reach past it (THE_PANEL I U1).
+    if v == int(v) and abs(v) < 2.0 ** 53:
+        return str(int(v))
     return ("%g" % v)
 
 

@@ -148,6 +148,16 @@ READERS = {
     "ATMOS": ("ATMOS_LIVE", "AtmosphereBank", [
         ("src/cartridges/the_board/direction/sky.hpp", "draw_atmosphere"),
     ]),
+    # THE WORLD'S BANK (THE_PANEL I U1). ONE ROW, ONE READER, and the
+    # reader is a door: the frame boundary hands `next_seed` to
+    # `rebirth_world`. The composition root WRITES it at boot, seating the
+    # dial from the seed that was drawn; a write is not a read, so the
+    # ctor is not listed. The census does not name it either — a
+    # constructor with a member-init list is not the `name(...) {` shape
+    # the body parser looks for — so nothing here is being suppressed.
+    "WORLD": ("WORLD_LIVE", "WorldSurface", [
+        ("src/cartridges/the_board/organ_boundary.inc", "organ_flush"),
+    ]),
     # ── the definition kinds: a definition's reader is its APPLIER ────
     # MOOD (MOOD_LIVE / MoodProfile) was the third, and the last of the
     # SELECTING kinds. It left with the moods at ONE_WORLD-II U2; the two

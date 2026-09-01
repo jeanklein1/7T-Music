@@ -59,10 +59,11 @@ triple that is not an entry, counts the refusal, and names it.
 | 12 `ATMOS` | `ATMOS_LIVE` — the world's one sky, as a distribution | the boundary re-draws from it |
 | 13 `ORB_BANK` | `ORB_LIVE` — the sky's one orb row | `configure_orbs`, per-field mask |
 | 14 `AGENTS` | `AGENTS_LIVE` — how many walk this world, and what they are | the next spawn — destructive |
+| 15 `WORLD` | `WORLD_LIVE` — the seed the next world is drawn from | the next rebirth — destructive; the REBIRTH door is that event |
 
 Blocks 0–2 are reached through three accessors on `GPUState` and no others. GPU
 truth — positions, camera, simulation state — has no accessor and therefore no
-block id; a panel that cannot name a thing cannot write it. Blocks 3–14 are
+block id; a panel that cannot name a thing cannot write it. Blocks 3–15 are
 contracts-tier CPU banks whose base is the instance itself. There is
 deliberately no Camera section: pose is GPU truth, and the camera's dials under
 `Interaction · Camera` are input grammar.
@@ -149,6 +150,16 @@ coalesce in a bitmask.
 - `RESPEAK` — raise every definition flag at once.
 - `ORB_RULE`, `ORB_GESTURE` — the commands keys KP_8 / KP_7 press; the sky's
   two player-owned facts, which is why they are doors and not dials.
+- `REBIRTH` (THE_PANEL I U1) — presses `rebirth_world` with block 15's
+  `next_seed`. The only door with no key behind it: the six keys that once
+  ignited a world change left with the transition machine (ONE_WORLD-I), and
+  this is their replacement rather than a duplicate of one. It is also the
+  only DESTRUCTIVE door, which is why the seed is a `GEN` dial and the press
+  is separate — a dial that rebuilt the world on every event of a drag would
+  destroy it once per event on the way to the number the hand wanted. Taken
+  FIRST at the boundary, before the re-speaks: every other line there makes
+  the standing world match the banks, and after a rebirth the standing world
+  is a different one.
 
 The mood door (`organ_go_mood`) stood here until ONE_WORLD-I: it pressed
 `request_mood_transition`, and door and request left together with the

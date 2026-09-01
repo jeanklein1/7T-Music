@@ -51,6 +51,30 @@
 // opens a
 // new block whenever the first token changes.
 
+// ─── World · Seed ────────────────────────────────────────────────────
+// THE FILE'S ORDER IS THE CONTROL SURFACE'S TABLE OF CONTENTS, so the
+// surface opens on the one number every other row is drawn against:
+// terrain, the activity lattice, the waves, the automaton's seeding,
+// agent spawn, every entity placement and the finite radius itself all
+// hang off the world's master seed (DRAW_0).
+//
+// WORLD_LIVE (contracts/world_surface.hpp) — one row, C3 DESTRUCTIVE.
+// This is the seed the NEXT world is drawn from, not a window on the
+// standing one: writing it moves nothing until the REBIRTH DOOR is
+// pressed, which is what GEN means and why the row wears the chip. The
+// bank has no boundary wiring at all (L44), because re-speaking this
+// author on a drag would tear the world down once per event.
+//
+// THE RANGE IS THE FULL u32 BECAUSE THAT IS THE SEED'S DOMAIN — the
+// door hands `rebirth_world` the number whole. The ABI's float wire
+// carries every integer below 2^24 exactly and quantizes above it, so
+// the ceiling is written as the largest u32 a float represents
+// exactly (0xFFFFFF00): a max the wire cannot deliver would be a range
+// that lies, and the clamp above `organ_set`'s integer write now holds
+// a consumer to it. The full u32 still reaches the world at boot,
+// through the T7_WORLD_SEED pin and `--seed=`.
+ORGAN_PARAM_GEN(WORLD, WorldSurface, next_seed, U32, 0.0f, 4294967040.0f, 1.0f, "World · Seed", "next world's seed")
+
 // ─── THE SUN ─────────────────────────────────────────────────────────
 // GPULighting::sun is the fragment shader's window, and stage_sky DRAWS
 // it — from ATMOS_LIVE, under the world's seed — at every world's birth and

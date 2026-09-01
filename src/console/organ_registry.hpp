@@ -29,7 +29,8 @@
 #include "coupling/canvas_surface.hpp"                        // CANVAS_LIVE (block 9, t7::canvas)
 #include "cartridges/the_board/contracts/driver_surface.hpp"  // the drivers' room (block 3)
 #include "cartridges/the_board/contracts/atmosphere_surface.hpp" // ATMOS_LIVE (block 12)
-#include "cartridges/the_board/contracts/agent_surface.hpp"      // AGENTS_LIVE (block 15)
+#include "cartridges/the_board/contracts/agent_surface.hpp"      // AGENTS_LIVE (block 14)
+#include "cartridges/the_board/contracts/world_surface.hpp"      // WORLD_LIVE (block 15)
 
 #include <cstddef>
 #include <cstdint>
@@ -93,10 +94,15 @@ enum : uint8_t {
     //     would silently re-point them. Same law DrawBit's holes at
     //     bits 5 and 7 already carry.
     ORGAN_BLOCK_CANVAS     = 9,   // canvas::CanvasSurface — CANVAS_LIVE
-    // THE TWO DESTRUCTIVE BANKS. Both are read while a world or a ribbon is
-    // being DRAWN and never re-read, so both keep the temperament the rooms'
-    // bank founded: a plain block id, no boundary wiring, GEN on every row.
-    // The stricter temperament governs.
+    // THE DESTRUCTIVE BANKS. Each is read while a world, a ribbon or a
+    // population is being DRAWN and never re-read, so each keeps the
+    // temperament the rooms' bank founded: a plain block id, no boundary
+    // wiring, GEN on every row. The stricter temperament governs.
+    //
+    // THEY WERE TWO WHEN THIS BANNER WAS WRITTEN — 10 and 11 — and 10 is a
+    // hole now. The ids that carry the temperament today are 11
+    // (RIBBON_SPAWN), 14 (AGENTS) and 15 (WORLD), each with the reason at
+    // its own line; the banner counts nothing, so it cannot go stale again.
     // 10 — WorldDrawSurface / WORLD_DRAW_LIVE, retired ONE_WORLD-II U4:
     //      its four scheme weights fed a light-scheme roll whose only
     //      declared reader died with the rooms. A hole, as 8 is.
@@ -130,7 +136,18 @@ enum : uint8_t {
     // so enrolling it needs a contracts seat founded for it first — the
     // same move agent_surface.hpp was at U1c. Flagged, not forced.
     ORGAN_BLOCK_AGENTS       = 14,  // AgentPopulationBank — AGENTS_LIVE
-    ORGAN_BLOCK_COUNT        = 15,
+    // THE WORLD (THE_PANEL I U1). WorldSurface — WORLD_LIVE, one row: the
+    // seed the NEXT world is drawn from. The THIRD destructive bank and
+    // the strictest of them — its author does not tear down a spawn or a
+    // ribbon but the world — so it keeps the same temperament for the
+    // same reason: no boundary wiring, GEN on its row.
+    //
+    // 15, NOT 10. WorldDrawSurface held 10 and its id is a HOLE by the law
+    // stated above it; re-packing onto a retired id would silently
+    // re-point every stored preset key that names it. A new bank takes a
+    // new number, and the count moves with it.
+    ORGAN_BLOCK_WORLD        = 15,  // WorldSurface       — WORLD_LIVE
+    ORGAN_BLOCK_COUNT        = 16,
 };
 
 // A definition-only entry has no instance anywhere: block_base answers
@@ -325,6 +342,7 @@ inline void* block_base(uint8_t block) {
     case ORGAN_BLOCK_ATMOS:      return &the_board::ATMOS_LIVE;
     case ORGAN_BLOCK_ORB_BANK:   return &the_board::ORB_LIVE;
     case ORGAN_BLOCK_AGENTS:     return &the_board::AGENTS_LIVE;
+    case ORGAN_BLOCK_WORLD:      return &the_board::WORLD_LIVE;
     default:                     return nullptr;
     }
 }
@@ -581,11 +599,26 @@ inline float read_definition(const OrganParam& e, int lane) {
 // player wins after, so neither can honestly wear a dial. Each door calls
 // the function its key calls: cycle_orb_motion_rule / cycle_orb_gesture,
 // the commands KP_8 and KP_7 press.
+
+// AND A DOOR IS WHERE A DESTRUCTIVE VERB BELONGS (THE_PANEL I U1). The
+// seed door is the pair to block 15: the dial says WHICH world, the door
+// says NOW. Splitting them is not ceremony — a dial that rebuilt the world
+// on every event of a drag would destroy it a hundred times on the way to
+// the number the hand wanted, which is exactly the temperament L44 names.
+// So the seed is a GEN row that lands at its author's next natural event,
+// and this door IS that event.
+//
+// IT IS THE ONLY DOOR WITHOUT A KEY. The other three press machinery a
+// keystroke also presses; the six keys that once ignited a world change
+// left with the transition machine (ONE_WORLD-I) and are not coming back.
+// The door is the replacement, not a duplicate.
 enum : uint32_t {
     ORGAN_DOOR_RESPEAK     = 0,   // raise every definition flag at once
     ORGAN_DOOR_ORB_RULE    = 1,   // cycle the sky's motion rule (player-owned)
     ORGAN_DOOR_ORB_GESTURE = 2,   // cycle the active rule's gesture
-    ORGAN_DOOR_COUNT       = 3,
+    ORGAN_DOOR_REBIRTH     = 3,   // tear this world down and draw
+                                  // WORLD_LIVE.next_seed's — C3 destructive
+    ORGAN_DOOR_COUNT       = 4,
 };
 
 struct OrganDoor { uint32_t id; const char* label; };
@@ -594,6 +627,7 @@ inline constexpr OrganDoor kOrganDoors[] = {
     { ORGAN_DOOR_RESPEAK,     "Re-speak definitions" },
     { ORGAN_DOOR_ORB_RULE,    "Cycle orb rule" },
     { ORGAN_DOOR_ORB_GESTURE, "Cycle orb gesture" },
+    { ORGAN_DOOR_REBIRTH,     "Rebirth the world" },
 };
 static_assert(sizeof(kOrganDoors) / sizeof(kOrganDoors[0]) == ORGAN_DOOR_COUNT,
     "one row per door id — the manifest emits this table and a consumer "

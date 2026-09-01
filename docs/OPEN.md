@@ -235,10 +235,13 @@ program moves between worlds.
 | U5 | The proximity subsystem (five tables, unexercised since PRUNE_2), the PASSER's `route` field, the arch slack dial, and the prose probate. |
 
 **A REBIRTH IS A HARD CUT** — the crossfade left with the machine that
-drove it. `rebirth_world` has no caller by ruling; the panel's seed dial
-is the caller it waits for. FLAGGED for Jean's visual gate. The verb now
-stands **marked** — `SEAM[spine:P8]`, with its latent chain named at the
-verb; the forward cue is THE PANEL below.
+drove it. FLAGGED for Jean's visual gate, and the flag is LIVE now: the
+verb waited two campaigns marked `SEAM[spine:P8]` with no caller, and
+**THE_PANEL I U1 gave it one** — block 15's seed dial and the REBIRTH
+door. The mark is struck at the verb, tombstoned rather than deleted,
+because the forward cue it carried came true verbatim. The hard cut has
+never been seen; Jean's walk is the first thing that will watch a world
+die.
 
 ### PRUNE_2 — THE GROUNDED FIVE (landed)
 
@@ -391,6 +394,10 @@ opinion; two are parked with a named destination and one is closed.
   states a belief nothing proves (L45), so the graduation rides the
   campaign that gives it a caller. The pin works meanwhile; nothing in
   the world is waiting on it.
+  **THE BLOCKER IS GONE (THE_PANEL I U1).** `rebirth_world` has a caller,
+  so a gen-cadence radius dial is exercisable for the first time. The
+  enrollment is U3's, and it is now an ordinary ORGAN_3 graduation with
+  nothing left waiting on it.
 - **`world_box_clamp_xz`'s `has_bounds` — KEEP, and closed.** It reads
   like a finiteness test the pin makes constant. **It is not.** It is the
   uninitialised-config guard wearing a finiteness costume:
@@ -1133,7 +1140,8 @@ press machinery the program still has.
 
 **7. `rebirth_world`'s P8 SEAM is UNCHANGED and still uncalled** —
 `SEAM[spine:P8]`, explicit latent infrastructure. U1's seed door is its
-first caller, and the chain's membership moved at ONE_SURFACE-II U1
+first caller — **and U1 has now landed it, so this recon line is
+answered**; the chain's membership moved at ONE_SURFACE-II U1
 (`teardown_gol` -> `teardown_automaton`) with one INVERSION recorded
 there: `upload_automaton_config` has two callers now, so it is LIVE and
 a sweep must not read it as latent.
@@ -1198,9 +1206,10 @@ this.**
 > **SCHEDULED.** THE_PANEL arrived as two handoffs and runs after
 > ONE_SURFACE-II closes green, probe included.
 >
-> **I — THE DIALS** finishes the parametric surface: the seed door (U1,
-> the P8 seam's first caller and the rebirth transcript witness finally
-> authored), the deliberate DesignConfig relayout (U2), enrollment
+> **I — THE DIALS** finishes the parametric surface: the seed door (**U1
+> LANDED**, PROBE-PENDING — the P8 seam's first caller; the transcript
+> witness awaits Jean's run, not a caller), the deliberate DesignConfig
+> relayout (U2), enrollment
 > completion + the preset migration (U3, where the two parked
 > preset-wire breakers below finally move), the orphan verbs disposed
 > (U4), ORGAN.md rewritten native (U5), instruments + battery + probe
@@ -1220,11 +1229,33 @@ this.**
 
 
 
+### LANDED AT THE_PANEL I U1 — THE SEED DOOR IS BUILT (PROBE-PENDING)
+
+Everything below described a socket. It is a plug now, and the paragraphs
+are kept because what they PROMISED is exactly what arrived, which is the
+evidence a forward cue is worth writing:
+
+* **Block 15, `WORLD_LIVE.next_seed`** (`contracts/world_surface.hpp`) —
+  one row, GEN cadence, C3 destructive, no boundary wiring (L44). The one
+  enrolled bank with no design TABLE: a world's seed was never authored,
+  so the composition root seats it from the seed DRAW_0 actually drew.
+* **`ORGAN_DOOR_REBIRTH`** — pressed at the frame boundary, FIRST of the
+  doors, calling `rebirth_world(WORLD_LIVE.next_seed, queue)`. The only
+  door with no key behind it, and the only destructive one.
+* **The P8 mark is struck** at both its sites in `cartridge.hpp`, kept as
+  a tombstone. The ten-verb latent chain has a live caller; the note is an
+  ownership map now, not a shield.
+* **PROBE-PENDING.** No device has run this. THE WRAP ORDER §0 rules that
+  the flag rides the report and Jean's verdict at the tip converts it; a
+  RED verdict fires the standing quarantine on this unit.
+* **The rebirth transcript witness is AUTHORABLE and NOT AUTHORED** — see
+  its own bullet below, which is re-dated rather than struck.
+
 A seed dial the player turns: one gen-cadence, C3-destructive control that
 re-draws the standing world under a new seed. It is the named future caller
-of `rebirth_world`, which stands uncalled and **marked `SEAM[spine:P8]` —
-explicit latent infrastructure** since ONE_WORLD-I. Boot-as-caller was
-**refused, not deferred**: a birth from nothing and a rebirth are different
+of `rebirth_world`, which stood uncalled and **marked `SEAM[spine:P8]` —
+explicit latent infrastructure** from ONE_WORLD-I to THE_PANEL I U1.
+Boot-as-caller was **refused, not deferred**: a birth from nothing and a rebirth are different
 operations sharing one door (`become_world`, L10), and one wrapper over both
 loses to the PRIME INVARIANT's byte-for-byte boot order.
 
@@ -1238,11 +1269,16 @@ the seam's. The dial has to author a seed and call one verb; nothing else in
 the program has to move first.
 
 **Parked here, for the campaign that lands the dial:**
-* **The rebirth transcript.** The verb keeps its `[World] Rebirth complete`
-  line — the honest voice for a caller that does not exist yet, and it never
-  prints at boot. A side-by-side transcript witness can only be written once
-  something turns the dial, so the duty parks here rather than going stale
-  in a campaign that cannot exercise it.
+* **The rebirth transcript — RE-DATED, NOT STRUCK (THE_PANEL I U1).** The
+  verb keeps its `[World] Rebirth complete` line, and it prints for a living
+  reason now; it still never prints at boot, which is what makes it a
+  REBIRTH witness rather than a birth one. The duty parked here because
+  nothing could turn the dial. **That blocker is gone and a second one is
+  named in its place**: the transcript is a RUN, and CC has no built Dawn
+  and no display (THE DEVICE GATE). So it moves from "cannot be authored"
+  to "awaits the one hand that can author it" — one mid-run rebirth quoted
+  beside one boot, from Jean's walk, at the same sitting as the probe
+  verdict that converts U1's PROBE-PENDING flag.
 * **The voice gate** (print-literal probate against each campaign's kill
   vocabulary). Parked as a PANEL-era candidate by the rulings after
   ONE_WORLD-I: no gate sees a print literal today, and the standing cover is

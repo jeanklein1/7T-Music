@@ -1146,11 +1146,21 @@ reader and nine destructive ones, so its bank has none.
 
 **STRUCK-NOTE (ONE_WORLD-II U4, noted U7).** The example died: the rooms'
 height cap left with the ceilings it capped, and its bank with it. The LAW is
-untouched and still governs — `RIBBON_SPAWN_LIVE` and the world-draw bank are
-the two destructive banks that keep its temperament today (see
-`src/console/organ_registry.hpp`, "THE TWO DESTRUCTIVE BANKS"). The example is
+untouched and still governs — see `src/console/organ_registry.hpp`, "THE
+DESTRUCTIVE BANKS", for the ids that keep its temperament. The example is
 kept rather than replaced because the reason it was paid for is the reason it
 is worth reading.
+
+**AND THE NOTE ITSELF WENT STALE, WHICH IS THE LAW'S OWN LESSON TWICE
+(THE_PANEL I U1).** It named "`RIBBON_SPAWN_LIVE` and the world-draw bank" as
+the two banks keeping the temperament — but the world-draw bank had left at
+the very unit this note records, and `AGENTS_LIVE` had arrived at U6b. A law
+that ENUMERATES its instances acquires a second home for a list that lives
+somewhere else (L46), so the enumeration is gone: the registry names them at
+their own lines, where they are declared, and this law names none. `WORLD_LIVE`
+— the seed the next world is drawn from, whose author tears the world down —
+is the third and the strictest, and it needed no amendment here to be
+governed.
 
 ## L45 — AN ENROLLMENT STATES A BELIEF; ONLY THE READER PROVES IT
 
