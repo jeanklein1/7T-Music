@@ -1079,6 +1079,96 @@ The organ GROUP was renamed at U3b (`Terrain · GoL` → `Terrain · Automaton
 couplings`) because a group string is prose and costs nothing. The FIELD
 names were not, and the difference is the mirror.
 
+## THE HANDOVER LIST (THE_PANEL's close — the coupling campaign's table)
+
+**THE WRAP ORDER §2.3 asks that the next campaign's handoff be authorable
+from the wrap report and the atlas ALONE, with no fresh recon round.** This
+is the durable half of that report: the same list, in the register that
+outlives a chat.
+
+### 1 · THE TWO DOCUMENTS THAT ARE THE SUBSTRATE
+
+| what | where | what it carries |
+|---|---|---|
+| **THE COUPLING ATLAS** | `docs/COUPLING_ATLAS.md` | five tables by symbol — SOURCES (55 published, 12 heard, **43 unheard**), PIPES (PARAM_LAYOUT's eight), EARS (the zoetrope's seven), THE UNCOUPLED NEW WORLD (every candidate dial **with its cadence**), THE ORPHANED |
+| **THE SEAM SCOUT** | the atlas's own appendix | the native analysis side as it stands — the clock end to end, the loopMIDI lane, `StatLayoutView`'s publish/bind seam, `AnalysisSignal`'s shape — and the three transports with costs. **No transport chosen: that is Jean's.** |
+
+### 2 · THE LIVE DIAL INVENTORY, WITH CADENCES
+
+**326 enrolled rows across 15 blocks.** By cadence: **boundary 106 · live
+156 · gen 50 · driven 14**. The generated book is `audit/ORGAN.md` and it
+is the authority; this table is the shape a composer needs.
+
+| block | rows | cadence | what a voice into it would be |
+|---|---|---|---|
+| `AGENT_ROOM` | 102 | boundary | the agents' tier/behaviour definitions |
+| `CONFIG` | 82 | live 72 · driven 10 | the GPU design mirror — **the largest live surface** |
+| `AUTOMATON` | 22 | **gen** | the ground's whole vocabulary |
+| `RIBBON_SPAWN` | 20 | **gen** | the next ribbon drawn |
+| `ORB_BANK` | 19 | boundary | the sky's one orb row |
+| `ATMOS` | 15 | boundary | the sky as a distribution |
+| `CANVAS` | 15 | live | the coupling layer's own dials |
+| `DRIVERS` | 14 | live | the rests and gains at the seams |
+| `PAWN` / `PANEL` | 9 / 9 | live | the aura; the field and the input grammar |
+| `AGENTS` | 5 | **gen** | how many walk this world |
+| `LIGHTING` | 4 | driven | witnesses — the drawn sun |
+| `ORBS` | 4 | boundary | the orb console |
+| `WORLD` | 3 | **gen** | the seed and the radius range |
+| `RIBBON` | 3 | live | reference bpm, the mount's eases |
+
+**CADENCE IS THE COMPOSER'S REAL CONSTRAINT, and it is DERIVED, not
+chosen** (`derived_cadence()`, one home). A voice into a `gen` row is
+heard once per world and needs a DOOR to land; a `driven` row refuses a
+voice outright. **Every automaton dial is `gen`** — so the ground is a
+composer's instrument, not a performer's, until a door is bound to an
+event.
+
+**SEVEN DOORS**, and they are the layer's unexplored mechanism: every
+coupling today is a continuous value, and a door is where it could speak
+in EVENTS. `RESPEAK` · `ORB_RULE` · `ORB_GESTURE` · **`REBIRTH`** ·
+`CUBE_BEHAVIOR` · `ZOETROPE` · `CUBE_KITE`.
+
+### 3 · THE SURFACE THE CAMPAIGN INHERITS
+
+- **One write road**: `organ_set`, whitelisted by the manifest, clamping
+  floats AND integers, naming every refusal. The REPL, the scene file and
+  any future CC map are doors onto it — none is a second author.
+- **Two consumers already built**: `--scene=<file>` (watched) and a stdin
+  REPL. Both name-blind: **a new dial is one line in `organ_params.inc`
+  and zero lines in the shell.**
+- **A gate that RUNS**: `tools/gates/shell_gate/run.py`.
+- **39 named absences** remain across the enrolled homes (`organ_gap.py`),
+  the largest being `RibbonSurface`'s 16 — and **every one of those moves
+  MOVEMENT**.
+
+### 4 · THE PARKED CC-MAP SPEC
+
+Stated in full at THE PANEL's parked-skins block below, and its shape is
+settled by the seam scout: **CC# → `block.field` through `organ_set`**, a
+map plus a callback on the existing MIDI lane, no new dependency, zero GPU
+seams. **The design question it must answer is cadence** (see 2 above),
+and the atlas tags every candidate dial for exactly that.
+
+### 5 · WHAT IS STILL OPEN, EVERY LINE
+
+| section | state |
+|---|---|
+| **N-a DAWN ACQUISITION** · **N-b ARM RE-INSERTION** | open — Jean's, and upstream of everything |
+| **THE DEVICE GATE** | open — the probe is unproven code until Jean runs GREEN at the tip and RED at `2905ed68` |
+| **ONE_SURFACE-II — THE AUTOMATON** | the close is Jean's |
+| **NATIVE PRESET INGESTION** | the reader is BUILT (`--scene=`); what remains is whether `presets/` earns its keep once scenes are exported from the REPL |
+| **THE BUDGET AFTER THE AUDIENCE** · **THE DEBUG ARMING** | open, both Jean-gated |
+| **THE RADIAL PULSE RING** | open — gen-1 retired, decision unmade |
+| **CUT_1c LEFTOVERS** · **DOC NITS** | open, low |
+| **THE TIME SOURCE AFTER THE SPLICE** | open — Jean-observed |
+| **THE GoL VOCABULARY OUTLIVED THE GoL** | open — three renames priced, wire-checked, naming is Jean's |
+| **THE ABLETON SEAM** | held — and it is what the next campaign collects |
+| **THE PANEL** | I and II landed; three PROBE-PENDING flags await one verdict |
+
+**What remains after the probe verdict and the walk is exactly the musical
+horizon** — the seam, the CC map, the coupling vocabulary. Which is the
+reason the fork exists.
+
 ## THE ABLETON SEAM (held, after N)
 
 > **THE MAP FOR THIS SEAM IS `docs/COUPLING_ATLAS.md`** — five tables,
