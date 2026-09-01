@@ -15,15 +15,15 @@ carry those facts, or leave them in place and patch around them.
 
 | field | value |
 |---|---|
-| source commit | `bc6c2b3568b99eab922f76c55727efb5b77f642e` |
-| | ONE_SURFACE-I: the mosaic is unreachable, and a correction I owe U4 |
+| source commit | `33d41af515a5b8c022d5c7a22b232b141d87bef9` |
+| | ONE_SURFACE HOTFIX: the WGSL room never moved, and the world could not draw |
 | `src/cartridges/the_board/realization/binding_registry.hpp` | `sha256:968d2d0dcbaa4ffe35f30b8349de93b4912cb3da09a16c56965408c90fc3ad9c` |
 | `src/cartridges/the_board/realization/world.wgsl` | `sha256:4ff20a57b7f75bcfcb25040036070b97b86739d3b63f2ed54dc75b926516da46` |
 | `src/cartridges/the_board/realization/state.hpp` | `sha256:52f57445f2be8d4c021957d78b93cd8701284e6a736a3254e7a74e1fef49a93c` |
 | `src/cartridges/the_board/realization/binding_surface.gen.inc` | `sha256:0b98dfab809edd83752dedf7803f758fcf4ce502009763642a37cbf03b2a8446` |
 | `src/cartridges/the_board/realization/renderer.hpp` | `sha256:8631ccbce89ede0e3f19f55d40f1daa3a6b6c88c1111955fe4fd032702b8cb6b` |
 | `tools/binding_ledger.py` | `sha256:a3c75bab894774eb0302686e5efd52275b280e14abfcf4e8753b28d5b5086692` |
-| `audit/BINDING_LEDGER.md` | `sha256:389de845ce5095e7d2550832041d7086985c17b311022b27c71ad8af81c4cc3a` |
+| `audit/BINDING_LEDGER.md` | `sha256:d2c83aca23a8fb32873b27c02bc5ef79684754c67613ab7ea1713ff9f76bb7aa` |
 
 `tools/binding_ledger.py` is an input because its parsers are IMPORTED,
 not copied — one parse, two artifacts, no drift between instruments.

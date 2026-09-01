@@ -5,14 +5,14 @@ Read-only: a census of the program's pass and submit surface.
 
 ## Provenance
 
-Last commit touching any scanned file: `c9b284213ae8945f539644fcc52e466c42dbd62c`
-(ONE_SURFACE-I U6: the sweep, and most of what it swept was older than the campaign)
+Last commit touching any scanned file: `33d41af515a5b8c022d5c7a22b232b141d87bef9`
+(ONE_SURFACE HOTFIX: the WGSL room never moved, and the world could not draw)
 
 | file scanned | sha256 |
 |---|---|
-| `src/cartridges/the_board/realization/render_passes.hpp` | `sha256:5b6285b2d3a4b377829d01821f8a16141173707ef5f65766b39b2b392296b85c` |
-| `src/cartridges/the_board/realization/renderer.hpp` | `sha256:6d20d67bd53745eb70e14d05f324b4d12b45df9a2bb087cd62547777467bac1d` |
-| `src/cartridges/the_board/cartridge.hpp` | `sha256:2007423d45cc697561ffa4148b3f2ee61381c09a60b06cdd0203033649fd0c99` |
+| `src/cartridges/the_board/realization/render_passes.hpp` | `sha256:960666b2391d539b7f60f2863a2b9c27aeb813b3b135409964ae50103a66b358` |
+| `src/cartridges/the_board/realization/renderer.hpp` | `sha256:8631ccbce89ede0e3f19f55d40f1daa3a6b6c88c1111955fe4fd032702b8cb6b` |
+| `src/cartridges/the_board/cartridge.hpp` | `sha256:dd94dfee5780b1350ae0dcb4ef28580b5b555e118321fe0882dcff7e65a6999b` |
 | `src/cartridges/the_board/surface/patch_system.hpp` | `sha256:7f4f335b182cc1c2ebc0ad3ecfd56062502b415b0383ccbfce0cf7d9d2ab8a0a` |
 | `src/cartridges/the_board/bodies/gol_zones.hpp` | `sha256:40df3f6531d37752bede4eba9f6173ea24907f3e3537b9c53c7f59158cc99f7b` |
 | `src/cartridges/the_board/bodies/pawn.hpp` | `sha256:7915ec242a2a3094537882c50a2980c9494e4f1460a3a2f786232b67ec6ead12` |
@@ -36,7 +36,7 @@ in `console.hpp`.
 | 2 | Frustum Cull Patches | compute | `dispatch_frustum_cull` | `src/cartridges/the_board/realization/render_passes.hpp:219` | — | — | — |
 | 3 | Shadow Pass | render | `render_shadow_pass` | `src/cartridges/the_board/realization/render_passes.hpp:261` | (none: depth-only) | Clear/Store, readOnly (absent) → `c->gpuState_.shadow_map_view()` | (no stencil aspect) |
 | 4 | Rasterized Scene | render | `render_main_pass` | `src/cartridges/the_board/realization/render_passes.hpp:530` | Clear/Store or Discard → `backbuffer or msaaColor` resolve → `backbuffer` | Clear/Discard, readOnly (absent) → `depth` | (no stencil aspect) |
-| 5 | Entity Mesh Gen | compute | `phase_entity_mesh_gen` | `src/cartridges/the_board/cartridge.hpp:1985` | — | — | — |
+| 5 | Entity Mesh Gen | compute | `phase_entity_mesh_gen` | `src/cartridges/the_board/cartridge.hpp:1988` | — | — | — |
 | 6 | Patch Bake (fused) | compute | `generate_patch_batch` | `src/cartridges/the_board/surface/patch_system.hpp:154` | — | — | — |
 | 7 | Zone Derive Params | compute | `flush_zone_derive_requests` | `src/cartridges/the_board/bodies/gol_zones.hpp:824` | — | — | — |
 | 8 | GoL Zone Sync | compute | `dispatch_zone_sync` | `src/cartridges/the_board/bodies/gol_zones.hpp:905` | — | — | — |
