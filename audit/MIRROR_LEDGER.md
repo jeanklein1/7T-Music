@@ -15,8 +15,8 @@ carry those facts, or leave them in place and patch around them.
 
 | field | value |
 |---|---|
-| source commit | `c9b284213ae8945f539644fcc52e466c42dbd62c` |
-| | ONE_SURFACE-I U6: the sweep, and most of what it swept was older than the campaign |
+| source commit | `7d7a023b879636c503a1bcfc576a94630e5dc7c4` |
+| | ONE_SURFACE-I U7: the audit room, and what L33's witness actually requires |
 | `src/cartridges/the_board/realization/binding_registry.hpp` | `sha256:968d2d0dcbaa4ffe35f30b8349de93b4912cb3da09a16c56965408c90fc3ad9c` |
 | `src/cartridges/the_board/realization/world.wgsl` | `sha256:5969680e9d9e8c484bf5fe02691abc1aff939798eec391f2ee0602558fd03b7f` |
 | `src/cartridges/the_board/realization/state.hpp` | `sha256:b9affa26fac9d9abaf3e72de669b90ff7ffd0150883492ddb5fec5804594d0d5` |
