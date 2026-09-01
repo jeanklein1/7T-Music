@@ -304,12 +304,15 @@ five units writing `MOOD_LIVE[mood].atmos.*` while the draw read `ATMOS_LIVE`
 — an atmosphere dial turned and nothing happened, and no gate in the tree
 could see it.
 
-**Parked with THE PANEL (below), not done here:** the orphan console verbs
-the sweep surfaced — `cycle_cube_behavior_override`, `reveal_zoetrope`,
-`toggle_cube_kite_mode`, `unrecord_entity` and roughly forty accessor leads —
-each reachable from no key and no door. None is this campaign's subject; they
-await the panel's own recon, which is the sitting that can say what a control
-surface needs.
+**Parked with THE PANEL, and DISPOSED AT THE_PANEL I U4.** The orphan
+console verbs this sweep surfaced — `cycle_cube_behavior_override`,
+`reveal_zoetrope`, `toggle_cube_kite_mode`, `unrecord_entity` and roughly
+forty accessor leads — were each reachable from no key and no door, and
+were left for "the panel's own recon, which is the sitting that can say
+what a control surface needs". That sitting ran; its verdicts are in THE
+PANEL's section below, and the short form is: three verbs graduated to
+doors, one had already died, twenty-nine leaves were cut, and the rest got
+a verdict naming why they are not this campaign's.
 
 **The close.** Every gate green at the pushed tip: TU PASS/PASS · G-LAW 2
 GREEN · WGSL PASS · score census GREEN · binding surface all witnesses (S-6
@@ -1252,13 +1255,52 @@ recorded here rather than improvised into U2.
 [F2]. That is Handoff II's `--scene=` road, and its own OPEN.md section
 (NATIVE PRESET INGESTION) already names the walk.
 
-**6. THE ORPHAN VERBS**, unchanged since ONE_WORLD-II parked them:
-`cycle_cube_behavior_override`, `reveal_zoetrope`,
-`toggle_cube_kite_mode`, `unrecord_entity`, and ~40 accessor leads —
-each reachable from no key and no door. U4's pre-resolved default
-(an honest lever graduates to a DOOR; a verb whose subject died, dies)
-survives this recon intact: the cube cycles and the zoetrope reveal both
-press machinery the program still has.
+**6. THE ORPHAN VERBS — DISPOSED AT U4, every lead with a verdict.**
+
+**THE THREE CUBE VERBS GRADUATED TO DOORS.** `cycle_cube_behavior_override`
+(id 4), `reveal_zoetrope` (id 5) and `toggle_cube_kite_mode` (id 6) each
+press machinery the program still has, each is already a complete
+transaction with its own guards and its own printed line, and each was
+missing only a caller. Nothing inside them moved to receive one. They are
+`ROSTER.cube`-gated at the boundary, like every other cube call site in
+the spine: with the family off there are no active cubes and all three
+would print "0 cube(s)" — an honest no-op, but a door does not get an
+exemption from the rule that a disabled family is not walked.
+
+**`unrecord_entity` WAS ALREADY DEAD, and the parking was stale.** It left
+with the entity-ref registry at ONE_SURFACE-I U3 — `EntityRef`,
+`entity_refs[]`, `entity_ref_count`, `record_entity` and it, all together,
+because their one consumer walked a registry of patches that do not die in
+a world built once. The parking was written at ONE_WORLD-II and named a
+verb that had already gone. **Verdict: no subject; the line dies here.**
+
+**THE "~40 ACCESSOR LEADS" WERE NEVER ENUMERATED, so U4 enumerated them.**
+The census is mechanical, and it was RUN rather than estimated: every
+function DEFINED under `src/` whose name appears nowhere else in `src/`
+outside comments and string literals. **983 definitions scanned, 127 with
+zero call sites.** The verdicts, by subject:
+
+| leads | verdict |
+|---|---|
+| **26** GPUState accessors (`state.hpp`) | **CUT.** Listed by name at the tombstone in the class. |
+| **2** `entity_spread` / `entity_tint` (`entity_pipeline.hpp`) | **CUT**, with their two constants. |
+| **1** `cpu_smoothstep` (`seed_utils.hpp`) | **CUT** — the one leaf of that header with no reader. |
+| **1** `drawable_table_encoder_witness` | **KEEP, MARKED.** It exists to be uncalled: taking the address of both `draw_table` instantiations forces the TU gate to type-check the bundle encoder's arm. Its own banner says "Never called; emits no code". |
+| **14** the organ ABI exports | **KEEP.** Being called from outside the tree is what an ABI IS. A census of `src/` cannot see its callers by construction — this is the census's own blind spot, printed rather than acted on. |
+| **6** `main` | entry points. |
+| **~10** `core/types.hpp` + `core/cartridge_manager.hpp` + `render/render_cartridge.hpp` + `console/console.hpp` | **NOT THIS CAMPAIGN'S.** A math vocabulary (`dot`, `cross`, `lerp`, `saturate`, `xyz`, `length_squared`), the multi-cartridge framework's own latent surface (`transition_to`, `return_to_hub`, `return_to_previous`, `active_id`), and framework virtuals (`supports_backspace`, `get_pending_transition`). The_board is one cartridge in a frame built for several; cutting the frame's surface because the one cartridge does not use it is the sweep exceeding its subject. |
+| **~50** `musical/`, `sources/`, `analysis/` | **NOT THIS CAMPAIGN'S, and NAMED AS THE NEXT ONE'S.** This is the analysis side, and `docs/COUPLING_ATLAS.md` already published exactly this census in its own terms: 55 published names, 12 heard, 43 unheard. An unheard accessor there is not dead code, it is an unconnected pipe — the coupling campaign's whole subject. Cutting them would delete the seam before it is built. |
+| **~15** `external/RtMidi.cpp` | vendored third party. Out of scope by the same law that keeps `third_party/` out of every sweep. |
+
+**THE ONE FINDING WORTH THE SITTING.** `entity_spread` / `entity_tint`
+carried a banner reading "PRUNE_2 excised that family and the pyramid is
+now the only consumer". **The pyramid had stopped calling them too, and
+nothing said so.** A probate exists to catch exactly that, and this one
+outlived two campaigns because no instrument in the battery asks "does
+anything call this". The census that found it is one 40-line script; it is
+recorded here rather than added to the battery, because a zero-call-site
+scan over a tree with an ABI and a framework tier produces judgement calls,
+not verdicts, and a gate that needs judgement is a gate that gets waived.
 
 **7. `rebirth_world`'s P8 SEAM is UNCHANGED and still uncalled** —
 `SEAM[spine:P8]`, explicit latent infrastructure. U1's seed door is its

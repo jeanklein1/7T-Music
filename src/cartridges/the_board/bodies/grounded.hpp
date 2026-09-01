@@ -49,8 +49,11 @@ inline constexpr float PAWN_HEIGHT_UNITS = 1.5f;     // matches WGSL PAWN_HEIGHT
 // a field the eye averages across, while a body wears its whole spread
 // at once. 0.16 is a body reading as its palette color in a different
 // light; 0.23 is a body reading as a different color.
-inline constexpr float ENTITY_SPREAD_BASE = 0.02f;
-inline constexpr float ENTITY_SPREAD_SPAN = 0.16f;
+// ENTITY_SPREAD_BASE / ENTITY_SPREAD_SPAN stood here. They were the
+// spread law's two numbers, read only by entity_spread/entity_tint
+// (machine/entity_pipeline.hpp), which had lost their own last caller
+// without anyone noticing. All four leave together at THE_PANEL I U4 —
+// the constants die with the arithmetic that was their only reader.
 // ═══ VOCABULARY: PYRAMID ═════════════════════════════════════════
 
 enum class PyramidTier : uint32_t {

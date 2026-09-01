@@ -2582,9 +2582,6 @@ namespace t7 {
             // array they argued about, so the argument is closed by
             // subtraction: there is one light, it is the sun, and its VP
             // lives at light_vp below.
-            wgpu::Buffer vp_buffer() const { return vpBuffer_; }
-            static constexpr size_t light_vp_offset() { return offsetof(GPUVPMatrix, light_vp); }
-            static constexpr size_t light_vp_size() { return 16 * sizeof(float); }
 
 
             // THE BATCH'S PARAMS, one contiguous write (LATTICE_1). The bake
@@ -2727,7 +2724,6 @@ namespace t7 {
                 queue.WriteBuffer(fieldBusBuffer_, offsetof(GPUFieldBus, authored),
                     &t, sizeof(GPUFieldAuthored));
             }
-            const GPUFieldAuthored& field_authored_stage() const { return fieldAuthoredStage_; }
 
             void upload_cube_follow_pawn(wgpu::Queue& queue, uint32_t slot, uint32_t follow) {
                 size_t base = (Dim::CUBE_SLOT_OFFSET + slot) * sizeof(GPUFloatingEntityState);
@@ -2784,7 +2780,6 @@ namespace t7 {
             wgpu::BindGroup cull_state_group() const { return cullStateGroup_; }
             wgpu::BindGroup frame_k_state_group() const { return frameKStateGroup_; }
             wgpu::BindGroup frame_k_textures_group() const { return frameKTexturesGroup_; }
-            wgpu::BindGroup meshgen_state_group() const { return meshgenStateGroup_; }
             wgpu::BindGroup orbs_a_state_group() const { return orbsAStateGroup_; }
             wgpu::BindGroup orbs_b_state_group() const { return orbsBStateGroup_; }
             wgpu::BindGroup patchgen_state_group() const { return patchgenStateGroup_; }
@@ -2800,11 +2795,6 @@ namespace t7 {
             wgpu::BindGroup empty_group() const { return emptyGroup_; }
 
             // Muting
-            void set_mute_coupling(uint32_t b, bool m) {
-                uint32_t prev = config_.mute_couplings;
-                if (m) config_.mute_couplings |= b; else config_.mute_couplings &= ~b;
-                if (config_.mute_couplings != prev) configDirty_ = true;
-            }
 
             // ─── The point's host + fly speed ────────────────────────
             void set_point_host(uint32_t h) {
@@ -2812,9 +2802,6 @@ namespace t7 {
             }
             void set_point_fly_speed(float s) {
                 if (config_.point_fly_speed != s) { config_.point_fly_speed = s; configDirty_ = true; }
-            }
-            void set_shadow_pcf_taps(uint32_t n) {
-                if (config_.shadow_pcf_taps != n) { config_.shadow_pcf_taps = n; configDirty_ = true; }
             }
             // THE SUBTRACTION MASKS ARE THE BUNDLES' ONE LIVE RAISER
             // (BUNDLE_1). PANORAMA_1's rule is that a cleared bit is skipped
@@ -2826,12 +2813,6 @@ namespace t7 {
             // working. Nothing in the tree could have caught that: it is not
             // a type error, not a validation error, and not a wrong pixel —
             // it is a dial that stopped answering.
-            void set_draw_mask(uint32_t m) {
-                if (config_.draw_mask != m) { config_.draw_mask = m; configDirty_ = true; bundlesDirty_ = true; }
-            }
-            void set_shadow_mask(uint32_t m) {
-                if (config_.shadow_mask != m) { config_.shadow_mask = m; configDirty_ = true; bundlesDirty_ = true; }
-            }
 
             // BUNDLES CAPTURE OBJECTS, NOT VALUES. Raised by every site that
             // recreates a bind group or a buffer a bundle holds — R-B found
@@ -2839,7 +2820,6 @@ namespace t7 {
             // and again whenever a mask dial turns. A NEW recreation site
             // must raise it; that is the standing rule, filed in OPEN.md.
             bool bundles_dirty() const { return bundlesDirty_; }
-            void raise_bundles_dirty() { bundlesDirty_ = true; }
             void clear_bundles_dirty() { bundlesDirty_ = false; }
             void set_fpv_mode(uint32_t m) {
                 if (config_.fpv_mode != m) { config_.fpv_mode = m; configDirty_ = true; }
@@ -3025,7 +3005,49 @@ namespace t7 {
             float draw_ring()   const { return config_.draw_ring; }
             const GPUDesignConfig& config() const { return config_; }
 
-            uint32_t get_fpv_mode() const { return config_.fpv_mode; }
+            // ═══ TWENTY-SIX ACCESSORS STOOD IN THIS CLASS AND NOTHING
+            //     CALLED THEM (THE_PANEL I U4) ══════════════════════════
+            //
+            // ONE_WORLD-II's sweep parked "roughly forty accessor leads,
+            // each reachable from no key and no door" and left them for
+            // the panel's own recon, "the sitting that can say what a
+            // control surface needs". This is that sitting, and the answer
+            // it gives is that a control surface needs the MANIFEST — not
+            // a hand-written getter per fact. The organ reaches config_,
+            // lightingStage_ and agentRoomStage_ through three accessors
+            // and an offset; every other row it addresses, it addresses by
+            // computing an address. So an accessor that exists "for the
+            // panel" was never the panel's road.
+            //
+            // The census that found them is mechanical and was run rather
+            // than estimated: every function DEFINED under src/ whose name
+            // appears nowhere else in src/ outside comments and strings.
+            // These twenty-six were this class's share:
+            //
+            //   agent_slot_size · curtains_active · field_authored_stage
+            //   get_fpv_mode · light_vp_offset · light_vp_size
+            //   live_card_view · meshgen_state_group · meter_gpu_supported
+            //   orb_config_buffer · patch_index_buffer_lod0_live
+            //   patch_index_count_lod0_live · patch_index_count_ring_clean
+            //   patch_index_count_ring_zoned · raise_bundles_dirty
+            //   ribbon_buffer · ribbon_vertex_count · ring_transforms_buffer
+            //   set_draw_mask · set_mute_coupling · set_shadow_mask
+            //   set_shadow_pcf_taps · upload_orb_color_dynamics
+            //   upload_orb_flock_intensity · upload_orb_force · vp_buffer
+            //
+            // THE FOUR `set_*` ARE THE INSTRUCTIVE ONES. draw_mask,
+            // shadow_mask and shadow_pcf_taps are all ENROLLED ORGAN ROWS,
+            // and the organ writes config_ at an offset — so the setters
+            // were a second, unused road to a field the panel already
+            // reaches. set_mute_coupling wrote `mute_couplings`, which no
+            // organ row names and nothing else writes: that field is its
+            // boot value and now says so.
+            //
+            // THE MEMBERS BEHIND THEM STAY. An accessor is a road; the
+            // state it reached is still written and still read by the
+            // program's own paths, and cutting a member because its
+            // getter was dead would be the sweep exceeding its subject.
+
 
             // --- Compute pass ---
             // Live-contributor textures (Group 1) for compute pipelines that
@@ -3055,16 +3077,7 @@ namespace t7 {
             // readerless before that campaign, so retiring it is its own
             // reading, not a prune's side effect (PRUNE_1 R7).
             void set_curtains_active(bool a) { curtainsActive_ = a; }
-            bool curtains_active() const { return curtainsActive_; }
-            wgpu::Buffer patch_index_buffer_lod0_live() const {
-                return curtainsActive_ ? patchIndexBuffer_ : patchIndexBufferCapOnly_;
-            }
-            uint32_t patch_index_count_lod0_live() const {
-                return curtainsActive_ ? patchIndexCount_ : patchIndexCountCapOnly_;
-            }
             wgpu::Buffer patch_index_buffer_lod1() const { return patchIndexBufferLOD1_; }
-            uint32_t patch_index_count_ring_clean() const { return patchIndexCountRingClean_; }
-            uint32_t patch_index_count_ring_zoned() const { return patchIndexCountRingZoned_; }
             // OPT_1e — flag + the flag-selected LOD1 count (ONE buffer;
             // the clean count is a prefix of the zoned IB, so only the
             // count moves and the pair can never split). Staged once per
@@ -3214,8 +3227,6 @@ namespace t7 {
             }
 
 
-            static constexpr uint32_t ribbon_vertex_count() { return Dim::RIBBON_VERTEX_COUNT; }
-            wgpu::Buffer ribbon_buffer() const { return ribbonBuffer_; }
             wgpu::Buffer agent_state_buffer() const { return agentStateBuffer_; }
             wgpu::Buffer agent_state_readback_staging() const { return agentStateReadbackStaging_; }
             wgpu::Buffer floating_entity_readback_staging() const { return floatingEntityReadbackStaging_; }
@@ -3227,7 +3238,6 @@ namespace t7 {
             }
             static constexpr size_t agent_state_buffer_size() { return Dim::MAX_AGENTS * sizeof(GPUAgentState); }
             static constexpr size_t camera_state_buffer_size() { return sizeof(GPUCameraState); }   // ATRIUM_11
-            static constexpr size_t agent_slot_size() { return sizeof(GPUAgentState); }
             // The point readback (option A): camera-host
             // only — the spine copies the camera state to staging and
             // harvests pos.xz as THE POINT's position. Pawn-host never
@@ -3238,7 +3248,6 @@ namespace t7 {
                     configDirty_ = true;
                 }
             }
-            wgpu::Buffer ring_transforms_buffer() const { return ringTransformsBuffer_; }
 
             // ─── THE FRAME METER — GPU half (arming + resolve plumbing) ───
             // arm fills the next writes struct { querySet, i, i+1 }, records
@@ -3249,7 +3258,6 @@ namespace t7 {
             // writes types (older Dawn) or the same merged one (newer).
             // Index reuse across frames is safe: queue order puts last
             // frame's resolve before this frame's writes.
-            bool meter_gpu_supported() const { return meterEnabled_; }
             void meter_frame_begin() { meterPairCount_ = 0; meterNextIndex_ = 0; }
             uint32_t meter_arm_alloc(uint32_t row) {   // shared allocator: begin index or UINT32_MAX
                 // THE DIAL first: a compile-time refusal, so every one of the
@@ -3302,11 +3310,9 @@ namespace t7 {
             static constexpr uint32_t pawn_aura_workgroups() { return PAWN_AURA_N / 8; }
 
             // Live card accessors (GROUND_CARD_1)
-            wgpu::TextureView live_card_view() const { return liveCardView_; }
 
             // Orb sky layer accessors
             wgpu::Buffer orb_state_buffer() const { return orbStateBuffer_; }
-            wgpu::Buffer orb_config_buffer() const { return orbConfigBuffer_; }
             wgpu::Buffer orb_quad_vb() const { return orbQuadVB_; }
             wgpu::Buffer orb_quad_ib() const { return orbQuadIB_; }
             void upload_orb_config(wgpu::Queue& queue, const GPUOrbConfig& cfg) {
@@ -3320,10 +3326,6 @@ namespace t7 {
                     "orb frame pair: t_seconds must ride dt for the coalesced write");
                 float frame[2] = { dt, t_seconds };
                 queue.WriteBuffer(orbConfigBuffer_, offsetof(GPUOrbConfig, dt), frame, sizeof(frame));
-            }
-            void upload_orb_force(wgpu::Queue& queue, float radial) {
-                queue.WriteBuffer(orbConfigBuffer_,
-                    offsetof(GPUOrbConfig, force_radial), &radial, sizeof(float));
             }
             // The PANEL's writer, reached through the cartridge's
             // console-mask block. The kernel reads noise_amp every frame, so
@@ -3340,11 +3342,6 @@ namespace t7 {
             void upload_orb_dome_radius(wgpu::Queue& queue, float radius) {
                 queue.WriteBuffer(orbConfigBuffer_,
                     offsetof(GPUOrbConfig, dome_radius), &radius, sizeof(float));
-            }
-            void upload_orb_flock_intensity(wgpu::Queue& queue, float intensity) {
-                queue.WriteBuffer(orbConfigBuffer_,
-                    offsetof(GPUOrbConfig, flock_coupling_intensity),
-                    &intensity, sizeof(float));
             }
             // Pass 10: runtime motion rule switch (no orb-state reset).
             void upload_orb_motion_rule(wgpu::Queue& queue, uint32_t rule) {
@@ -3390,13 +3387,6 @@ namespace t7 {
             // Per-frame color dynamics: pulse / converge / surge intensities.
             // hue_converge_target lives at offset 156 and changes only at a
             // world's birth, so it's written via the full upload_orb_config path.
-            void upload_orb_color_dynamics(wgpu::Queue& queue,
-                float pulse, float converge, float surge) {
-                struct { float pulse, converge, surge; } packed = { pulse, converge, surge };
-                queue.WriteBuffer(orbConfigBuffer_,
-                    offsetof(GPUOrbConfig, color_pulse),
-                    &packed, sizeof(packed));
-            }
             // Partial upload of the palette slice (palette_count..pal3_weight).
             // 72 bytes contiguous from offset 72. Preserves per-frame fields
             // (dt, t_seconds, noise_amp, force_radial) elsewhere in the struct.

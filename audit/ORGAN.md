@@ -381,6 +381,9 @@ from `kOrganDoors`, never restated.
 | 1 `ORGAN_DOOR_ORB_RULE` | Cycle orb rule |
 | 2 `ORGAN_DOOR_ORB_GESTURE` | Cycle orb gesture |
 | 3 `ORGAN_DOOR_REBIRTH` | Rebirth the world |
+| 4 `ORGAN_DOOR_CUBE_BEHAVIOR` | Cycle cube behaviour |
+| 5 `ORGAN_DOOR_ZOETROPE` | Zoetrope: gather / reveal / release |
+| 6 `ORGAN_DOOR_CUBE_KITE` | Toggle cube kite mode |
 
 ## THE GAP
 

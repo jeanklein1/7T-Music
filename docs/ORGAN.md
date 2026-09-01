@@ -151,6 +151,11 @@ coalesce in a bitmask.
 - `RESPEAK` — raise every definition flag at once.
 - `ORB_RULE`, `ORB_GESTURE` — the commands keys KP_8 / KP_7 press; the sky's
   two player-owned facts, which is why they are doors and not dials.
+- `CUBE_BEHAVIOR`, `ZOETROPE`, `CUBE_KITE` (THE_PANEL I U4) — the three
+  orphan console verbs, graduated. Each pressed machinery the program still
+  had and each was reachable from no key and no door since ONE_WORLD-II
+  parked them; a door is the caller each was missing. `ROSTER.cube`-gated
+  at the boundary, like every other cube call site in the spine.
 - `REBIRTH` (THE_PANEL I U1) — presses `rebirth_world` with block 15's
   `next_seed`. The only door with no key behind it: the six keys that once
   ignited a world change left with the transition machine (ONE_WORLD-I), and

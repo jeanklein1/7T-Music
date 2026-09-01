@@ -5,8 +5,8 @@ Read-only: a census of the program's pass and submit surface.
 
 ## Provenance
 
-Last commit touching any scanned file: `d174157eb89d03f70e1f63507163550021115c30`
-(THE_PANEL I U3a: THE RADIUS PAIR GRADUATES — a dial over a capacity)
+Last commit touching any scanned file: `b86b68c603fb27abb09ca9c47221e4835782fa30`
+(THE_PANEL I U3c: THE VEIL'S NAMES GO, AND THE MIGRATION GETS ITS LEDGER)
 
 | file scanned | sha256 |
 |---|---|

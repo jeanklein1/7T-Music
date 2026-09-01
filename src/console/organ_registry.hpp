@@ -630,7 +630,19 @@ enum : uint32_t {
     ORGAN_DOOR_ORB_GESTURE = 2,   // cycle the active rule's gesture
     ORGAN_DOOR_REBIRTH     = 3,   // tear this world down and draw
                                   // WORLD_LIVE.next_seed's — C3 destructive
-    ORGAN_DOOR_COUNT       = 4,
+    // THE ORPHAN VERBS, DISPOSED (THE_PANEL I U4). Three console verbs
+    // stood reachable from no key and no door since ONE_WORLD-II parked
+    // them. Each presses machinery the program still has and each prints
+    // its own line, so each is a DOOR by the standing default — a verb
+    // that is an honest lever GRADUATES; a verb whose subject died, dies.
+    // They are ROSTER-gated at the boundary, like every other cube call
+    // site in the spine.
+    ORGAN_DOOR_CUBE_BEHAVIOR = 4, // cycle_cube_behavior_override
+    ORGAN_DOOR_ZOETROPE      = 5, // reveal_zoetrope — roam → scatter →
+                                  // screen → roam, one door three
+                                  // destinations
+    ORGAN_DOOR_CUBE_KITE     = 6, // toggle_cube_kite_mode
+    ORGAN_DOOR_COUNT       = 7,
 };
 
 struct OrganDoor { uint32_t id; const char* label; };
@@ -640,6 +652,9 @@ inline constexpr OrganDoor kOrganDoors[] = {
     { ORGAN_DOOR_ORB_RULE,    "Cycle orb rule" },
     { ORGAN_DOOR_ORB_GESTURE, "Cycle orb gesture" },
     { ORGAN_DOOR_REBIRTH,     "Rebirth the world" },
+    { ORGAN_DOOR_CUBE_BEHAVIOR, "Cycle cube behaviour" },
+    { ORGAN_DOOR_ZOETROPE,      "Zoetrope: gather / reveal / release" },
+    { ORGAN_DOOR_CUBE_KITE,     "Toggle cube kite mode" },
 };
 static_assert(sizeof(kOrganDoors) / sizeof(kOrganDoors[0]) == ORGAN_DOOR_COUNT,
     "one row per door id — the manifest emits this table and a consumer "

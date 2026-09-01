@@ -65,19 +65,19 @@ namespace the_board {
 
 // ═══ GENERIC HELPERS ═════════════════════════════════════════════
 
-// THE SPREAD LAW's one arithmetic (MOSAIC_2d) — median + jitter·spread,
-// clamped. One home for both paths (palette and sandstone), so "varied"
-// has a single definition. It sat above its first consumer, the column's
-// color derivation; PRUNE_2 excised that family and the pyramid is now the
-// only consumer, so the law comes up here to the generic helpers where a
-// shared arithmetic belongs and where C++ still sees it first.
-inline float entity_spread(uint32_t seed, uint32_t prop) {
-    return ENTITY_SPREAD_BASE + cpu_hash_f(seed, prop) * ENTITY_SPREAD_SPAN;
-}
-inline float entity_tint(float median, uint32_t seed, uint32_t prop, float spread) {
-    const float v = median + (cpu_hash_f(seed, prop) - 0.5f) * 2.0f * spread;
-    return v < 0.0f ? 0.0f : (v > 1.0f ? 1.0f : v);
-}
+// THE SPREAD LAW (MOSAIC_2d) STOOD HERE — `entity_spread` and
+// `entity_tint`, median + jitter·spread, clamped, one home for both the
+// palette and the sandstone paths. It sat above its first consumer, the
+// column's colour derivation; PRUNE_2 excised that family and the banner
+// was rewritten to say "the pyramid is now the only consumer".
+//
+// THE PYRAMID STOPPED CALLING IT TOO, and nothing said so (THE_PANEL I
+// U4). Both helpers had ZERO call sites tree-wide when the orphan census
+// finally ran — so the banner was describing a consumer that had left,
+// which is the failure mode a probate exists to catch and this one
+// outlived two campaigns. Both leave here; ENTITY_SPREAD_BASE and
+// ENTITY_SPREAD_SPAN (bodies/grounded.hpp) were theirs alone and leave
+// with them.
 
 // ─── Generic Color Derivation ────────────────────────────────────
 

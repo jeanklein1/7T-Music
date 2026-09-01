@@ -54,10 +54,10 @@ inline uint32_t cpu_lattice_node_seed(uint32_t master_seed, int32_t nx, int32_t 
     return h;
 }
 
-inline float cpu_smoothstep(float e0, float e1, float x) {
-    float t = std::max(0.0f, std::min(1.0f, (x - e0) / (e1 - e0)));
-    return t * t * (3.0f - 2.0f * t);
-}
+
+// `cpu_smoothstep` stood here — the CPU twin of WGSL's smoothstep, and
+// the one leaf of this header nothing called (THE_PANEL I U4). Its
+// siblings all have live readers; a math leaf with none is a leaf.
 
 // CPU-side Gaussian sampling that mirrors the WGSL sample_gaussian exactly.
 // (seed, property) → Box-Muller → truncated at ±3σ.

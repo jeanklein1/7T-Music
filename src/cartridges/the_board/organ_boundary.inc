@@ -46,6 +46,27 @@
                 if (doors & (1u << t7::organ::ORGAN_DOOR_ORB_GESTURE))
                     cycle_orb_gesture(orbs_state_, &orbs_deps_, queue);
 
+                // THE CUBE'S THREE (THE_PANEL I U4) — the orphan verbs
+                // ONE_WORLD-II parked, graduated. Each was already a
+                // complete transaction with its own guards and its own
+                // printed line; a door is the caller each was missing, and
+                // nothing inside them moved to receive it.
+                //
+                // ROSTER-GATED, like every other cube call site in this
+                // file. With the family off there are no active cubes and
+                // all three would walk an empty array printing "0 cube(s)"
+                // — an honest no-op, but the spine's rule is that a
+                // disabled family is not walked at all, and a door does
+                // not get an exemption from it.
+                if constexpr (ROSTER.cube) {   // ROSTER-GATE cube (d) — the three console doors
+                    if (doors & (1u << t7::organ::ORGAN_DOOR_CUBE_BEHAVIOR))
+                        cycle_cube_behavior_override(cube_behaviors_state_, &cube_deps_, queue);
+                    if (doors & (1u << t7::organ::ORGAN_DOOR_ZOETROPE))
+                        reveal_zoetrope(cube_behaviors_state_, &cube_deps_, queue);
+                    if (doors & (1u << t7::organ::ORGAN_DOOR_CUBE_KITE))
+                        toggle_cube_kite_mode(cube_behaviors_state_, &cube_deps_, queue);
+                }
+
                 // THE HOST DOOR (RIBBON_1) — the same transaction key R
                 // presses, with its own guards. A door with a parameter,
                 // taken once; possess() early-returns on a no-op and on a
