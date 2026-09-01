@@ -429,6 +429,12 @@ and no built Dawn, no GLFW and no display; the TU gate type-checks
 witness about it. Its first run is Jean's, and it is the pre-walk for
 every constructive GPU commit from here.
 
+**UNTIL BOTH RUNS LAND, THE PROBE GUARDS NOTHING BUT HOPE**
+(AFTER_AUTOMATON §2). A clean run at the tip is the tip's evidence in
+spirit; it is the RED run at `2905ed68` that proves the instrument bites.
+An untested gate reporting GREEN is indistinguishable from a gate that
+cannot fail.
+
 **THE AMENDMENT-A INJECTION IS ORDERED, AND IT IS TWO RUNS, NOT ONE.**
 Before the probe's first load-bearing use it must be proven to bite: run
 it at the tip (must be GREEN) **and** at `2905ed68` (must be RED, with the
@@ -552,9 +558,17 @@ the probe in CI. Nothing in the current campaign needs it.
 
 ## THE MOSAIC IS UNREACHABLE (Jean's ruling; DEFAULT SET at ONE_SURFACE's close)
 
+> **THE WINDOW IS NOW DATED (AFTER_AUTOMATON §2).** The default no longer
+> fires at "ONE_SURFACE's close" — a moment that has passed — but at a
+> named unit: **MOSAIC_2 RETIRES IN THE_PANEL-I U5** unless Jean says
+> *keep the grain* before that unit runs. U5 is the sweep that rewrites
+> `docs/ORGAN.md` to native truth, which is the right sitting for an
+> excision that takes a law's worked example with it. **Silence executes
+> the default**; that is what makes it a default rather than a question.
+>
 > **THE RULING, WITH ITS DEFAULT.** This is Jean's to make by eye, and it
-> waits for a walk of a world that can draw. **If ONE_SURFACE closes
-> without it being spoken: IT RETIRES.** Excision theology — the tree
+> waits for a walk of a world that can draw. **If U5 arrives unspoken:
+> IT RETIRES.** Excision theology — the tree
 > holds living matter only (L30), and unreachable code with a law resting
 > on it is worse than either the code or the law alone. On retirement L12
 > takes the struck-note treatment L10 and L44 already carry: the law stays
@@ -936,6 +950,36 @@ actually freezes is Jean's second acceptance pass to observe.
   a byte-identical tree) therefore does not hold at master. LIGATURE_1 did
   not regenerate it: that is the tool's job, run deliberately, not a
   campaign's side effect.
+
+## THE COUPLING ATLAS (landed — `docs/COUPLING_ATLAS.md`)
+
+Commissioned by AFTER_AUTOMATON §3 as the music campaign's design
+substrate: five tables, every row by symbol, **no rewiring**. Jean
+composes on it; the coupling campaign builds what he composes.
+
+**The reassurance held and the tree proved it**: eight pipes, twelve
+bindings, two seams, one composition law, all live. The atlas corrected
+two premises of its own commission —
+
+- **there are no misses.** LIGATURE_1 retired `BeatClock`, so all twelve
+  sources resolve; Jean's boot log is the witness (`ears bound: 7 of 7`,
+  and no `[SignalLayout] … unbound` line, which prints only on a miss).
+  The seam's shape is one bit further out: `loopMIDI open=0/1`.
+- **cadence is FOUR, not three** — LIVE / GEN / BOUNDARY / DRIVEN, and
+  the fourth is load-bearing: a DRIVEN row is a METER and `organ_set`
+  refuses it, so it can never carry a voice.
+
+**The finding that reframes the campaign**: the layer's problem is not
+rot, it is REACH. canvas_1 publishes 55 names and **12 are heard** — the
+entire pc-DFT capability (16 names) and every voice's `distance` contour
+have no consumer anywhere in the tree. Meanwhile the automaton adds 15
+candidate dials of which NONE is enrolled. 43 unheard publications on one
+side, 15 unreachable dials on the other, and a 256-slot bank that is 6%
+allocated.
+
+Also settled there, for PANEL-I U4: **`reveal_zoetrope` is a DOOR, not a
+death** — the ears are bound 7 of 7 and the rows are struck every tick,
+so it is an honest lever on live machinery.
 
 ## THE ABLETON SEAM (held, after N)
 
