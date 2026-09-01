@@ -15,15 +15,15 @@ carry those facts, or leave them in place and patch around them.
 
 | field | value |
 |---|---|
-| source commit | `6639ecd012f9e120962fd9435f814a4d002f78aa` |
-| | ONE_SURFACE-II U1: the Game of Life stops being a thing in the world and becomes the world's ground |
+| source commit | `70ad302139fd6380ba7a6d1ac3e8b83ebbef2600` |
+| | ONE_SURFACE-II U2: the GOL family falls, and it is a TAIL CUT |
 | `src/cartridges/the_board/realization/binding_registry.hpp` | `sha256:351eccaedd6902900df3b13a57c7a818ff10cf4280debbfb9034b0ffabcfcc73` |
 | `src/cartridges/the_board/realization/world.wgsl` | `sha256:240fd76fa9104ae47fc9f33b5a9cfdcfb409329ced649b7475581cb39534af79` |
 | `src/cartridges/the_board/realization/state.hpp` | `sha256:3dfc4cf35f8c3411c01a94827ed703480cf483ee7b52a04f4e15ad3b0965b622` |
 | `src/cartridges/the_board/realization/binding_surface.gen.inc` | `sha256:10e301844bd75099919b6e0aa5b0fde9d3e723f0c59b11072bc821a4ca97e682` |
 | `src/cartridges/the_board/realization/renderer.hpp` | `sha256:06607597f8dc50c80f2dd99c042ba8b1d12f3caaec25640cc9e65f6755fbe84a` |
 | `tools/binding_ledger.py` | `sha256:a3c75bab894774eb0302686e5efd52275b280e14abfcf4e8753b28d5b5086692` |
-| `audit/BINDING_LEDGER.md` | `sha256:ee7db19ca602b9ea500a4d0a206ac2f5078f63fb438f87e6ea4ad14da2f52849` |
+| `audit/BINDING_LEDGER.md` | `sha256:fece3a3de0a0d024e90ef3a5bcaa7b123e4c3daaa4fe1e4702069e9830dfaa4c` |
 
 `tools/binding_ledger.py` is an input because its parsers are IMPORTED,
 not copied — one parse, two artifacts, no drift between instruments.
