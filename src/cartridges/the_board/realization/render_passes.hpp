@@ -261,10 +261,11 @@ inline void render_shadow_pass(MachineCtx* c, wgpu::CommandEncoder& encoder) {
 
         wgpu::RenderPassEncoder pass = encoder.BeginRenderPass(&desc);
 
-        // OIL_1 U12 — the pass-head binds (see the atlas arm above).
-        // Outdoor draws for the sun, which shadow_light_vp() reads from
-        // frame_r.vp.light_vp; shadow_slot is unread on this path
-        // (spots.count == 0) and binds record 0 for determinism.
+        // OIL_1 U12 — the pass-head binds. The sun's draws, whose VP
+        // shadow_light_vp() reads from frame_r.vp.light_vp. The
+        // dynamic-offset seat this bind used to pass an offset on
+        // (shadow_slot) left with the spot lights at ONE_WORLD-II U4, so
+        // the bind is a plain one now.
         // BUNDLE_1: the sun's whole draw list is one recorded bundle, head
         // binds included — ExecuteBundles resets pass state, so the bundle
         // carries its own. The direct arm below is not a fallback that can
@@ -536,8 +537,9 @@ inline void render_main_pass(MachineCtx* c, wgpu::CommandEncoder& encoder,
     // this pass, so they bind once here. Group 2 is set by the plan
     // slot helper — since B5 all three slots bind the ONE scene group,
     // and the table draws inherit it after slot C.
-    // Group 1 carries the shadow_slot dynamic seat, so the bind passes
-    // one offset; nothing outside the shadow atlas reads it.
+    // Group 1 carried the shadow_slot dynamic seat and this bind passed
+    // one offset; the seat left with the spot lights (ONE_WORLD-II U4) and
+    // the program has no dynamic-offset binding at all now.
     // BUNDLE_1: the opaque list is one recorded bundle, head binds included
     // — ExecuteBundles resets pass state, so the bundle carries its own.
     // Nothing draws after it now (ONE_WORLD-I took the fade), so the reset

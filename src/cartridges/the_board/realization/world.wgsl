@@ -4063,10 +4063,21 @@ struct DirectionalLight {
 //
 // IT HELD THREE ARRAYS AND NOW HOLDS ONE (ONE_WORLD-II U4). The SPOT
 // array — four ceiling cones, each carrying its own shadow VP — left
-// with the indoor rooms. The POINT array left with it and for a colder
+// with the rooms. The POINT array left with it and for a colder
 // reason: `points.count = 0` was the only write it ever took, so 272
 // bytes of the program's most-shared uniform were a permanently empty
 // passenger. Sun and ambient are the whole of the light, in both rooms.
+//
+// THE NAMES THIS CUT RETIRED FROM THIS MODULE, so the G-LAW 2 record
+// diff has a claim for each: `SpotLight`, `SpotLightArray`,
+// `MAX_SPOT_LIGHTS`, `SPOT_PCF_RADIUS_TEXELS`, `calc_spot_light`,
+// `sample_spot_shadow_pcf`, `spot_shadow_map` and `shadow_slot` (the
+// spot half); `PointLight`, `PointLightArray`, `MAX_POINT_LIGHTS` and
+// `calc_point_lights` (the empty passenger); `ShellVertexInput`,
+// `shell_vs` and `shadow_shell_vs` (the shell mesh, §8's two entry
+// points); and `indoor_bounds_resolve`, which did not die but was
+// RENAMED — it is `finite_bounds_resolve` below, and its own banner
+// says why the old name was never true.
 struct Lighting {
     sun    : DirectionalLight,   // offset   0
 }                                // size 48, uniform-legal

@@ -1624,7 +1624,9 @@ namespace t7 {
         // and the comparison stack must stay comparison-only — no
         // filterable-float read of a unorm depth texture. FORMAT_1's U0
         // verified the second at this HEAD: every shadow read in world.wgsl
-        // is textureSampleCompare or textureSampleCompareLevel.
+        // is textureSampleCompare or textureSampleCompareLevel. (The former's
+        // last call site was the spot kernel; U4 took it, and the sun's
+        // shadow read is textureSampleCompareLevel alone.)
         // FORMAT_1 U2 — Depth16Unorm. Core WebGPU (absent from
         // GPUFeatureName, so no grant is needed), 2 B/texel: both shadow
         // textures halve, 16 -> 8 MiB each, resident 32 -> 16, and the
@@ -1918,11 +1920,13 @@ namespace t7 {
             inline constexpr uint32_t MainPass            = 16;
         }
 
-        // GROUP 1 CARRIES A DYNAMIC SEAT (shadow_slot), so every bind of it
-        // passes one offset. Everything outside the shadow atlas loop reads
-        // record 0, which holds light 0. It lives here because its binder,
-        // render_passes.hpp, includes this file.
-        inline constexpr uint32_t kFrameSlotZero = 0;
+        // GROUP 1 CARRIED A DYNAMIC SEAT (shadow_slot) and `kFrameSlotZero`
+        // stood here as the offset every bind outside the shadow atlas loop
+        // passed. The seat was the program's only dynamic one and left with
+        // the spot lights at ONE_WORLD-II U4 (see the generated
+        // FLOOR_MAX_DYNAMIC_UNIFORM_BUFFERS_PER_PIPELINE_LAYOUT = 0, which
+        // has said so since); the constant outlived it with no reader, and
+        // the glaw2 record ritual at U8 is what found it.
 
         class GPUState {
           public:
