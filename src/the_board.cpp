@@ -61,6 +61,7 @@
 #include "core/instruments.hpp"   // THE INSTRUMENTS DIAL: INSTRUMENTS.watcher_ticks gates the hot-reload progress dot
 #include "core/boot_params.hpp"   // DOMESDAY_1 B9 — parse_boot_params at the top of main
 #include "console/organ_scene.hpp"  // THE_PANEL II U1 — the scene road: apply_scene over the manifest
+#include "console/organ_repl.hpp"   // THE_PANEL II U2 — the hand: a stdin lane whose vocabulary is the manifest
 #include <iostream>
 #include <chrono>
 
@@ -299,6 +300,15 @@ static void frame() {
         s_frame0 = std::chrono::steady_clock::now();
         s_t0 = s_frame0;
     }
+
+    // THE HAND, POLLED ONCE PER FRAME (THE_PANEL II U2). Non-blocking:
+    // poll() on fd 0 answers "is there a line" and returns immediately
+    // when there is not, so a world between keystrokes runs at full rate.
+    // It sits BEFORE begin_frame's event pump and the organ flush, so a
+    // `set` typed this frame is reconciled at THIS frame's boundary
+    // rather than the next one — the same reason the flush sits where it
+    // does.
+    t7::organ::repl_poll();
 
     float dt = app->console.begin_frame();
     // ORGAN — THE DIRTY FLUSH, at the frame boundary and nowhere else.
