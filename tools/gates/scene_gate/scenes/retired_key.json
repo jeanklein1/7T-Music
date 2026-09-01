@@ -1,0 +1,6 @@
+{
+ "schema": 2,
+ "CONFIG.pawn_speed": [1.5],
+ "WORLD.scheme_weights[0]": [0.25],
+ "0/OrbMoodConfig.enabled": [1]
+}

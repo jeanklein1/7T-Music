@@ -332,7 +332,7 @@ declarations: 0 (the handoff expected 0).
 
 ### (b) `.binding =` with a non-registry right side
 
-Boundary: the comment-stripped text of all 83 `*.hpp` under `src/`
+Boundary: the comment-stripped text of all 84 `*.hpp` under `src/`
 (the handoff's sweep), extended to the 8 `.cpp`/`.h`/`.cc` files
 there so a seat assignment in a translation unit cannot hide on the
 wrong extension (0 hit(s) on the extension). state.hpp is read

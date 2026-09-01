@@ -60,6 +60,7 @@
 
 #include "core/instruments.hpp"   // THE INSTRUMENTS DIAL: INSTRUMENTS.watcher_ticks gates the hot-reload progress dot
 #include "core/boot_params.hpp"   // DOMESDAY_1 B9 — parse_boot_params at the top of main
+#include "console/organ_scene.hpp"  // THE_PANEL II U1 — the scene road: apply_scene over the manifest
 #include <iostream>
 #include <chrono>
 
@@ -156,6 +157,14 @@ struct App {
     t7::canvas_1::Canvas analysis;
     RenderCartridge render;
     FileWatcher watcher;
+    // THE SCENE'S OWN WATCHER (THE_PANEL II U1). A SECOND INSTANCE of the
+    // class above, not a new mechanism: FileWatcher is `watch(path)` +
+    // `check()` over one mtime with the error_code overload — one file,
+    // one stat per check, no dependency — which is word for word what a
+    // scene watcher needs. It shares the ~30-frame poll with the shader
+    // reload, so a save lands within half a second and the frame loop
+    // gains one stat.
+    FileWatcher scene_watcher;
     int reload_frame_counter = 0;
     wgpu::Queue queue;
     bool world_ready = false;   // PORT_1c: init_world() ran (post-device init)
@@ -207,7 +216,20 @@ static bool init_world() {
     // stays there: printing it here would offer the controls before the
     // world is ready.
     app->watcher.watch(app->render.shader_path());
-    std::cout << "[The Board] Hot reload enabled: " << app->render.shader_path() << "\n\n";
+    std::cout << "[The Board] Hot reload enabled: " << app->render.shader_path() << "\n";
+
+    // THE SCENE ROAD OPENS HERE AND NOWHERE EARLIER (THE_PANEL II U1).
+    // The ABI is inert until bind_home runs at the end of cartridge init,
+    // and every entry point returns harmlessly before that — so a scene
+    // applied at parse_boot_params would write nothing and say it had.
+    // This is the first line after the renderer is up, which is the first
+    // moment organ_set can land a value.
+    if (t7::boot_params().has_scene) {
+        t7::organ::apply_scene(t7::boot_params().scene);
+        app->scene_watcher.watch(t7::boot_params().scene);
+        std::cout << "[The Board] Scene watched: " << t7::boot_params().scene << "\n";
+    }
+    std::cout << "\n";
     app->queue = app->console.queue();
     app->world_live = std::chrono::steady_clock::now();
     app->world_ready = true;
@@ -301,6 +323,16 @@ static void frame() {
         if (app->watcher.check()) {
             std::cout << "\n[FileWatcher] Change detected!\n";
             app->render.reload_shaders();
+        }
+        // THE SCENE, RE-APPLIED ON SAVE. Whole-file every time, which is
+        // what makes a text editor a control surface: the file IS the
+        // state, so deleting a line puts that dial back where the C++
+        // authored it only if the file is the whole truth — and it is,
+        // because apply_scene refuses a file it cannot resolve WHOLE
+        // rather than landing the half it understood.
+        if (app->scene_watcher.check()) {
+            std::cout << "\n[Scene] change detected\n";
+            t7::organ::apply_scene(t7::boot_params().scene);
         }
     }
 

@@ -13,12 +13,14 @@
 //   seed — u32, overrides the drawn boot seed (the [World] line then
 //          says "(param)" instead of "(drawn)")
 //   msaa — {1, 4}, the multisample count the pipelines are created with
+//   scene — a scene FILE, applied through the organ once the ABI is
+//          bound and re-applied on every save (THE_PANEL II U1)
 //   probe — THE DEVICE GATE. Run N frames and exit on the device's own
 //          verdict. See the banner below; it is the one parameter that
 //          changes what the program DOES rather than what it looks like.
 //   probe-backend — {any, null, cpu}, the probe's adapter ladder.
 //
-// Channel: `--seed= --msaa= --probe= --probe-backend=` on argv, read ONCE at boot before
+// Channel: `--seed= --msaa= --scene= --probe= --probe-backend=` on argv, read ONCE at boot before
 // the device request, never reread, never mutated mid-run. Absent or
 // malformed values are silently ignored; anything accepted prints one
 // [Params] line (P6 — a switch that fired is visible). The URL channel
@@ -26,6 +28,7 @@
 // at tag web-sunset — their only consumers were its presentation layer.
 
 #include <cstdint>
+#include <string>   // --scene='s path (THE_PANEL II U1)
 #include <cstdlib>
 #include <cstring>
 #include <iostream>
@@ -71,6 +74,14 @@ namespace t7 {
 
     struct BootParams {
         bool has_seed = false; uint32_t seed = 0;
+        // THE SCENE ROAD (THE_PANEL II U1). A path, not a name: the web
+        // channel's `?preset=<name>` indexed a shelf the page fetched, and
+        // a native program with a file system does not need an index to
+        // open a file. It is also WATCHED — the same FileWatcher the
+        // shader reload uses, a second instance — so `--scene=` is both
+        // "apply this at boot" and "apply this again whenever it is
+        // saved". One flag, one road.
+        bool has_scene = false; std::string scene;
         bool has_msaa = false; uint32_t msaa = 1;   // DOMESDAY_2 B10: 1 or 4; anything else -> 1
         bool has_probe = false; uint32_t probe_frames = 120;
         ProbeBackend probe_backend = ProbeBackend::Any;
@@ -110,9 +121,10 @@ namespace t7 {
         if (p.has_msaa && p.msaa != 4u) {
             p.msaa = 1u;   // B10: {1, 4} only; anything else -> 1
         }
-        if (p.has_seed || p.has_msaa || p.has_probe) {
+        if (p.has_seed || p.has_msaa || p.has_probe || p.has_scene) {
             std::cout << "[Params]";
             if (p.has_seed) std::cout << " seed=" << p.seed;
+            if (p.has_scene) std::cout << " scene=" << p.scene;
             if (p.has_msaa) std::cout << " msaa=" << p.msaa;
             if (p.has_probe) {
                 std::cout << " probe=" << p.probe_frames << " probe-backend="
@@ -133,6 +145,14 @@ namespace t7 {
                 if (end && *end == '\0' && end != a + 7 && v <= 0xFFFFFFFFull) {
                     p.has_seed = true; p.seed = static_cast<uint32_t>(v);
                 }
+            } else if (std::strncmp(a, "--scene=", 8) == 0) {
+                // A PATH IS ACCEPTED AS TYPED and never validated here.
+                // Boot params are read before the device request; whether
+                // the file opens, parses and resolves is the import walk's
+                // question, asked once the ABI is bound and answered out
+                // loud (console/organ_scene.hpp). A silent drop here would
+                // hide a typo behind a world that looks merely default.
+                if (a[8] != '\0') { p.has_scene = true; p.scene = a + 8; }
             } else if (std::strncmp(a, "--msaa=", 7) == 0) {
                 unsigned long long v = std::strtoull(a + 7, &end, 10);
                 if (end && *end == '\0' && end != a + 7 && v <= 0xFFFFFFFFull) {

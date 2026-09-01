@@ -1,0 +1,8 @@
+{
+ "schema": 2,
+ "note": "a scene may carry prose; the parser skips a non-array value by SHAPE, never by name",
+ "CONFIG.pawn_speed": [1.5],
+ "AUTOMATON.density": [0.2],
+ "ATMOS.sun_direction": [0.94, -0.29, -0.13],
+ "WORLD.next_seed": [42]
+}
