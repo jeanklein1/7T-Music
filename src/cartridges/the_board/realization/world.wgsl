@@ -8649,9 +8649,21 @@ fn update_other_agents(@builtin(global_invocation_id) gid: vec3<u32>) {
 }
 
 // ─── THE WORLD BOX — one spelling of the finite-bounds inset ─────
-// [bmin + margin, bmax - margin] on both axes; identity outdoors.
+// [bmin + margin, bmax - margin] on both axes.
 // The vec2's .y IS THE Z AXIS — config.world_bound_min/max are (x, z),
 // as the vec3 callers' `bmin.y → p.z` line already was.
+//
+// `has_bounds` IS NOT A FINITENESS TEST, THOUGH IT READS LIKE ONE, AND IT
+// STAYS (ruled at ONE_SURFACE's close). Since the pin every world is
+// finite and carries bounds, so as a finiteness test this branch would be
+// constant-true and dead. It is not that test. It is the UNINITIALISED-
+// CONFIG guard wearing a finiteness costume: GPUState::initializeState
+// zeroes world_bound_min/max and uploads them unconditionally, so a boot
+// frame really does arrive here with (0,0), and without the guard that
+// frame evaluates clamp(p.x, 0 + margin, 0 - margin) — low above high,
+// which WGSL leaves undefined. The costume is the whole hazard; the
+// comment is the cure. Delete the guard only together with the
+// zero-upload that makes it necessary.
 //
 // THE BOX IS HALF-OPEN. bmax is the EXCLUSIVE edge of the outermost
 // patch: bmax = (finite_radius + 1) * PATCH_EXTENT, and patches run to

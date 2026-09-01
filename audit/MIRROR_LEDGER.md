@@ -18,7 +18,7 @@ carry those facts, or leave them in place and patch around them.
 | source commit | `d767852a0159436789b69350ba334e744577f40d` |
 | | ONE_SURFACE HOTFIX: the ledgers' stamps settle |
 | `src/cartridges/the_board/realization/binding_registry.hpp` | `sha256:968d2d0dcbaa4ffe35f30b8349de93b4912cb3da09a16c56965408c90fc3ad9c` |
-| `src/cartridges/the_board/realization/world.wgsl` | `sha256:4ff20a57b7f75bcfcb25040036070b97b86739d3b63f2ed54dc75b926516da46` |
+| `src/cartridges/the_board/realization/world.wgsl` | `sha256:dd38aa75601bef745624aa797fffa7a7daf652de8c1f7b78ecfc2d473de71b31` |
 | `src/cartridges/the_board/realization/state.hpp` | `sha256:52f57445f2be8d4c021957d78b93cd8701284e6a736a3254e7a74e1fef49a93c` |
 | `src/cartridges/the_board/realization/binding_surface.gen.inc` | `sha256:0b98dfab809edd83752dedf7803f758fcf4ce502009763642a37cbf03b2a8446` |
 | `src/cartridges/the_board/realization/renderer.hpp` | `sha256:8631ccbce89ede0e3f19f55d40f1daa3a6b6c88c1111955fe4fd032702b8cb6b` |
@@ -246,11 +246,11 @@ emit-one-block vs patch-in-place — that call is LOOM_1's.
 | 10 | 6640–6665 | 11 | `bilinear_sampler` | `patch_cell_color_array_read` |
 | 11 | 6954–6969 | 11 | `zone_config` | `live_card_write` |
 | 12 | 6996–6996 | 1 | `zone_derive_requests` | `zone_derive_requests` |
-| 13 | 10496–10497 | 2 | `photo_heightfield` | `photo_sampler` |
-| 14 | 10512–10512 | 1 | `patch_grid` | `patch_grid` |
-| 15 | 10655–10659 | 5 | `fc_config` | `fc_indirect` |
-| 16 | 10691–10691 | 1 | `fc_draw_plan` | `fc_draw_plan` |
-| 17 | 11037–11049 | 5 | `orb_state` | `orb_state_prev_rw` |
+| 13 | 10508–10509 | 2 | `photo_heightfield` | `photo_sampler` |
+| 14 | 10524–10524 | 1 | `patch_grid` | `patch_grid` |
+| 15 | 10667–10671 | 5 | `fc_config` | `fc_indirect` |
+| 16 | 10703–10703 | 1 | `fc_draw_plan` | `fc_draw_plan` |
+| 17 | 11049–11061 | 5 | `orb_state` | `orb_state_prev_rw` |
 
 Line numbers are non-authoritative hints; cite symbols.
 
@@ -299,20 +299,20 @@ Line numbers are non-authoritative hints; cite symbols.
 | `pawn_aura_tex_write` | 6968 | 11 | — | — |
 | `live_card_write` | 6969 | 11 | — | — |
 | `zone_derive_requests` | 6996 | 12 | — | — |
-| `photo_heightfield` | 10496 | 13 | yes | — |
-| `photo_sampler` | 10497 | 13 | — | — |
-| `patch_grid` | 10512 | 14 | — | — |
-| `fc_config` | 10655 | 15 | yes | — |
-| `fc_vp` | 10656 | 15 | — | — |
-| `fc_patches` | 10657 | 15 | — | — |
-| `fc_visible` | 10658 | 15 | — | **yes** |
-| `fc_indirect` | 10659 | 15 | — | **yes** |
-| `fc_draw_plan` | 10691 | 16 | — | — |
-| `orb_state` | 11037 | 17 | — | **yes** |
-| `orb_config` | 11038 | 17 | — | — |
-| `orb_state_prev` | 11042 | 17 | yes | **yes** |
-| `orb_state_ro` | 11048 | 17 | yes | — |
-| `orb_state_prev_rw` | 11049 | 17 | — | — |
+| `photo_heightfield` | 10508 | 13 | yes | — |
+| `photo_sampler` | 10509 | 13 | — | — |
+| `patch_grid` | 10524 | 14 | — | — |
+| `fc_config` | 10667 | 15 | yes | — |
+| `fc_vp` | 10668 | 15 | — | — |
+| `fc_patches` | 10669 | 15 | — | — |
+| `fc_visible` | 10670 | 15 | — | **yes** |
+| `fc_indirect` | 10671 | 15 | — | **yes** |
+| `fc_draw_plan` | 10703 | 16 | — | — |
+| `orb_state` | 11049 | 17 | — | **yes** |
+| `orb_config` | 11050 | 17 | — | — |
+| `orb_state_prev` | 11054 | 17 | yes | **yes** |
+| `orb_state_ro` | 11060 | 17 | yes | — |
+| `orb_state_prev_rw` | 11061 | 17 | — | — |
 
 ## M3 — the fifth-home grep
 
@@ -503,15 +503,15 @@ is LOOM_1 / panel work.
 | `AgentState` | 891 | `agent_state`, `render_agents` | `GPUAgentState` | `src/cartridges/the_board/realization/state.hpp:926` | 2 |
 | `CameraState` | 1032 | `camera_state` | `GPUCameraState` | `src/cartridges/the_board/realization/state.hpp:1100` | 1 |
 | `DesignConfig` | 1645 | `config`, `fc_config` | `GPUDesignConfig` | `src/cartridges/the_board/realization/state.hpp:542` | 3 |
-| `DrawPlanParams` | 10684 | `fc_draw_plan` | `GPUDrawPlanParams` | `src/cartridges/the_board/realization/state.hpp:1617` | 2 |
+| `DrawPlanParams` | 10696 | `fc_draw_plan` | `GPUDrawPlanParams` | `src/cartridges/the_board/realization/state.hpp:1617` | 2 |
 | `FieldBus` | 2738 | `field_bus` | `GPUFieldBus` | `src/cartridges/the_board/realization/state.hpp:1859` | 2 |
 | `FloatingEntityArray` | 1100 | `floating_entities`, `render_floating` | **none found** under the prescribed names | — | 0 |
 | `FrameR` | 6620 | `frame_r` | `GPUFrameR` | `src/cartridges/the_board/realization/state.hpp:1888` | 4 |
 | `FrameSignal` | 857 | `signal` | `GPUFrameSignal` | `src/cartridges/the_board/realization/state.hpp:482` | 2 |
 | `GoLZoneArray` | 6854 | `zone_config`, `zone_params` | `GPUGoLZoneArray` | `src/cartridges/the_board/realization/state.hpp:1340` | 1 |
-| `OrbConfig` | 10875 | `orb_config` | `GPUOrbConfig` | `src/cartridges/the_board/realization/state.hpp:1431` | 2 |
-| `OrbState` | 10860 | `orb_state`, `orb_state_prev`, `orb_state_prev_rw`, `orb_state_ro` | `GPUOrbState` | `src/cartridges/the_board/realization/state.hpp:1415` | 1 |
-| `PatchGrid` | 10505 | `patch_grid` | `GPUPatchGrid` | `src/cartridges/the_board/realization/state.hpp:1726` | 1 |
+| `OrbConfig` | 10887 | `orb_config` | `GPUOrbConfig` | `src/cartridges/the_board/realization/state.hpp:1431` | 2 |
+| `OrbState` | 10872 | `orb_state`, `orb_state_prev`, `orb_state_prev_rw`, `orb_state_ro` | `GPUOrbState` | `src/cartridges/the_board/realization/state.hpp:1415` | 1 |
+| `PatchGrid` | 10517 | `patch_grid` | `GPUPatchGrid` | `src/cartridges/the_board/realization/state.hpp:1726` | 1 |
 | `PatchInstance` | 1155 | `fc_patches`, `patch_instances` | `GPUPatchInstance` | `src/cartridges/the_board/realization/state.hpp:1716` | 1 |
 | `PatchParams` | 1147 | `patch_params_batch` | `GPUPatchParams` | `src/cartridges/the_board/realization/state.hpp:1710` | 1 |
 | `PawnAuraCell` | 6937 | `pawn_aura_cells` | `GPUPawnAuraCell` | `src/cartridges/the_board/realization/state.hpp:1396` | 1 |

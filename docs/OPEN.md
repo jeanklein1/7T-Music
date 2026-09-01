@@ -365,23 +365,42 @@ Entity SELECTION is seed-driven and unchanged; what can differ is which
 of two entities wins ground both want, since footprints register at PLACE
 in candidate order.
 
-**Flagged, not taken:**
-- `veil_ring` and `veil_icing` carry the veil's name for the draw
-  authority and the grain's band. A CONFIG field's name IS its organ row
-  id, and a row id is a stored preset's key — this rename breaks the
-  wire, unlike `cull_point`'s, which was checked and does not.
-- `FINITE_RADIUS_MIN/MAX` are still `constexpr`, not dials.
-  ONE_WORLD-II §1.7 said the pin would enroll them; §1.4 here presumes
-  they are dials whose gen-cadence edits reach the world through rebirth.
-  Enrolling them is an ORGAN_3 graduation — a constructive change neither
-  handoff scoped — and the only thing that could exercise one is THE
-  PANEL, which is also the only thing that can call `rebirth_world`.
-- `world_box_clamp_xz`'s `has_bounds` guard reads like a finiteness test
-  the pin makes constant. **It is not.** It is also the uninitialised-
-  config guard: `GPUState::initializeState` zeroes the bounds and uploads
-  them unconditionally, so a boot frame really does carry (0,0), and
-  removing the guard turns `clamp(p.x, 0+m, 0-m)` — low above high, which
-  WGSL leaves undefined — into a body test. Left alone deliberately.
+**Flagged, not taken — AND NOW RULED (ONE_SURFACE's close).** All three
+were raised as findings during the campaign and held for a decision. The
+decisions are below, so nothing on this list is still waiting on an
+opinion; two are parked with a named destination and one is closed.
+
+- **`veil_ring` / `veil_icing` — PARKED TO THE PANEL.** They carry the
+  veil's name for what are now the draw authority and the grain's band. A
+  CONFIG field's name IS its organ row id (`ORGAN_PARAM_NS`, one row id
+  per `#BLOCK "." #FIELD`), and a row id is a stored preset's key — so
+  this rename breaks the wire, unlike `cull_point`'s, which was checked
+  and does not. **The names are wrong and the rename is right**; what it
+  needs is a migration moment, and the panel's enrollment IS that moment.
+  Renaming before there is anything to migrate spends the breakage and
+  buys nothing.
+- **`FINITE_RADIUS_MIN/MAX` — PARKED TO THE PANEL, and WEATHER's promise
+  is amended to say so.** ONE_WORLD-II §1.7 said the pin would enroll
+  them; it did not, and ONE_SURFACE §1.4 then presumed they were dials
+  whose gen-cadence edits reach the world through rebirth. Neither is
+  true today: they are `constexpr`. Enrolling them is an ORGAN_3
+  graduation — a constructive change neither handoff scoped — and the
+  only thing that could ever exercise one is THE PANEL, which is also the
+  only thing that can call `rebirth_world`. **The promise is not
+  abandoned, it is re-dated**: an unexercisable dial is an enrollment that
+  states a belief nothing proves (L45), so the graduation rides the
+  campaign that gives it a caller. The pin works meanwhile; nothing in
+  the world is waiting on it.
+- **`world_box_clamp_xz`'s `has_bounds` — KEEP, and closed.** It reads
+  like a finiteness test the pin makes constant. **It is not.** It is the
+  uninitialised-config guard wearing a finiteness costume:
+  `GPUState::initializeState` zeroes the bounds and uploads them
+  unconditionally, so a boot frame really does carry (0,0), and removing
+  the guard turns `clamp(p.x, 0+m, 0-m)` — low above high, which WGSL
+  leaves undefined — into a body test. The costume was the whole hazard,
+  so the cure is the comment: `world_box_clamp_xz`'s banner now says what
+  the guard is for and what must die with it. **No further action; this
+  bullet is a record, not a task.**
 
 ## THE DEVICE GATE (open — the probe is unproven code)
 
@@ -424,7 +443,24 @@ console change (an offscreen colour target replacing the swapchain, chosen
 at one seam rather than at two boot paths), and it belongs to whoever wants
 the probe in CI. Nothing in the current campaign needs it.
 
-## THE MOSAIC IS UNREACHABLE (open, found at ONE_SURFACE-I's close)
+## THE MOSAIC IS UNREACHABLE (Jean's ruling; DEFAULT SET at ONE_SURFACE's close)
+
+> **THE RULING, WITH ITS DEFAULT.** This is Jean's to make by eye, and it
+> waits for a walk of a world that can draw. **If ONE_SURFACE closes
+> without it being spoken: IT RETIRES.** Excision theology — the tree
+> holds living matter only (L30), and unreachable code with a law resting
+> on it is worse than either the code or the law alone. On retirement L12
+> takes the struck-note treatment L10 and L44 already carry: the law stays
+> readable with its subject named as gone, because the REASONING in L12
+> (distance takes the grain, never the material) is a good rule about
+> anything with a far term, and outlives the one mechanism that
+> illustrated it.
+>
+> **Revival stays one line away** and that is the reason a default is safe
+> here: writing `out.mosaic_seed = <something>` in each entity VS is the
+> whole of it, and the branch it feeds is intact in history. A default
+> that costs one line to undo is a default; a default that costs a
+> campaign is a decision in disguise.
 
 **MOSAIC_2's whole apparatus is dead code, and L12 — a LAW — rests on
 it.** Found by the campaign's own recon reading the tree after the units
@@ -491,6 +527,37 @@ GREEN." ONE_SURFACE-I is green on every gate CC can run, but its close is
 `glaw1, build, **the walk**` — and the walk is the whole point of a
 campaign whose acceptance test is "the world must look untouched". Two
 of those three are Jean's.
+
+### THE LIVE CARD'S REST LAW — RULED (for U1)
+
+U1 must not carry this decision as an open question, so it is made here.
+
+`live_card_is_live()` (cartridge.hpp) is a three-term disjunction:
+`pulse_count > 0`, `terrain_time > 0`, and **any GoL zone active**. The
+third term dies with the zones — there are no zones in the automaton
+world, only the ground. **U1 takes that conjunct out with the zone scan
+it reads, and does not replace it**: an automaton over the whole cell
+grid is live by construction, every frame, everywhere.
+
+**Which means the rest-close optimization retires**, and the ruling says
+so rather than leaving a skip that can never fire. OPT_1a's whole
+apparatus — `liveCardRestClean_`, the entering-rest clearing write, the
+`live_card_state_label` two-word vocabulary — goes with it, replaced by a
+TOMBSTONE at the site citing GROUND_CARD_1, saying what the skip was, what
+made it unreachable, and the one condition that brings it back.
+
+**Jean's boot log already shows this is the state.** `[Card] live-card
+field: LIVE — writer runs every frame (boot)` — before U1, on the world
+as it stands. The optimization is not being taken away from a program that
+was using it; it is being retired from a program that had already stopped
+reaching it. That is the difference between a cut and a loss, and it is
+worth stating in the commit that makes it.
+
+**And it comes back if idleness does.** If the panel era ever adds an
+automaton pause dial, "the ground is not advancing" becomes a real state
+again and the rest law is the right answer to it — one condition, at the
+tombstone, which is why the tombstone names it. Decided on purpose, not
+by omission.
 
 That matters more here than it would elsewhere. Every unit of I was a
 REMOVAL whose behaviour could be reasoned to exactly — a fold table, a
@@ -733,3 +800,12 @@ the program has to move first.
   the narration rule — narration dies with its subject, in the subject's own
   commit. ONE_WORLD-II's close payload may restate this line; it is recorded
   here now because the rebirth transcript parks beside it.
+* **Two ONE_SURFACE parkings, ruled at its close** — the
+  `FINITE_RADIUS_MIN/MAX` enrollment and the `veil_ring`/`veil_icing`
+  rename. Both are stated in full under ONE_SURFACE-I's "Flagged, not
+  taken — AND NOW RULED"; they are named here and not restated (L46),
+  because this is where their caller arrives. The common shape is worth
+  seeing: one is a dial nothing can exercise until the panel exists, the
+  other a row-id rename that breaks stored preset keys and therefore wants
+  the panel's enrollment-and-migration moment. Both are cheap once there is
+  a panel and expensive in every campaign before it.
