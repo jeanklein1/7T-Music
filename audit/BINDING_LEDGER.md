@@ -14,8 +14,8 @@ merge rows the API charges separately.
 | field | value |
 |---|---|
 | demo column censused | `full` |
-| source commit | `8b9762cdf1b7b77017f1029945ab712ab25ec667` |
-| | THE_PANEL I U5a: THE MOSAIC RETIRES — the default fired unspoken (PROBE-PENDING) |
+| source commit | `5dd30a929428ef1bc701de380130db6ed0048083` |
+| | THE_PANEL I U6a: THE MIRROR'S PER-FIELD WITNESS — the hole U2 found, closed |
 | `src/cartridges/the_board/realization/state.hpp` | `sha256:5bed076b63f2186def02c0d55c6acf853616dcc598c801e8c637111210b282f2` |
 | `src/cartridges/the_board/realization/binding_surface.gen.inc` | `sha256:10e301844bd75099919b6e0aa5b0fde9d3e723f0c59b11072bc821a4ca97e682` |
 | `src/cartridges/the_board/realization/binding_registry.hpp` | `sha256:351eccaedd6902900df3b13a57c7a818ff10cf4280debbfb9034b0ffabcfcc73` |

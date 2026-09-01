@@ -15,15 +15,15 @@ carry those facts, or leave them in place and patch around them.
 
 | field | value |
 |---|---|
-| source commit | `948b1f308db8e30ff5cc4e3bb62a16805c9c56f8` |
-| | THE_PANEL I U5c: PROSE PROBATE — three citations naming a deleted file |
+| source commit | `5dd30a929428ef1bc701de380130db6ed0048083` |
+| | THE_PANEL I U6a: THE MIRROR'S PER-FIELD WITNESS — the hole U2 found, closed |
 | `src/cartridges/the_board/realization/binding_registry.hpp` | `sha256:351eccaedd6902900df3b13a57c7a818ff10cf4280debbfb9034b0ffabcfcc73` |
 | `src/cartridges/the_board/realization/world.wgsl` | `sha256:c66ba9cbd82d0ed8b61ee6b3b7d04a6d2a5aa44423f55e46517c3f183b4a1ea3` |
 | `src/cartridges/the_board/realization/state.hpp` | `sha256:5bed076b63f2186def02c0d55c6acf853616dcc598c801e8c637111210b282f2` |
 | `src/cartridges/the_board/realization/binding_surface.gen.inc` | `sha256:10e301844bd75099919b6e0aa5b0fde9d3e723f0c59b11072bc821a4ca97e682` |
 | `src/cartridges/the_board/realization/renderer.hpp` | `sha256:06607597f8dc50c80f2dd99c042ba8b1d12f3caaec25640cc9e65f6755fbe84a` |
 | `tools/binding_ledger.py` | `sha256:a3c75bab894774eb0302686e5efd52275b280e14abfcf4e8753b28d5b5086692` |
-| `audit/BINDING_LEDGER.md` | `sha256:a253098f94c43603efd161ab1e786c37e27a20224b48c03eca56f6cc58f7dd20` |
+| `audit/BINDING_LEDGER.md` | `sha256:6722620ce8718fd08261d495066fa32d60eb14d2c86056788eb7969fb1101865` |
 
 `tools/binding_ledger.py` is an input because its parsers are IMPORTED,
 not copied — one parse, two artifacts, no drift between instruments.
