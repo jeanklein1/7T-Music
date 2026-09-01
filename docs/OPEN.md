@@ -142,6 +142,109 @@ session, so this entry rests on the negative probes above rather than on a
 diagnosis of the message itself; anyone who has the text and wants to close
 it properly should paste it here.
 
+### THE CLAUSE FIRED (EMBER_0) — and the answer is a witness, not a hunt
+
+The condition above is met. On the certified MSBuild lane,
+`dir /s /b out\build\the-board-full-release\*.dll` returned **File Not
+Found** with the tree present — no `dxcompiler.dll`, no `dxil.dll` — after
+a build whose log printed both post-build COMMENT lines. The Ninja tree
+holds both. So the entry's central claim, *"the essentials land anyway"*,
+is **false for the DXC half on the VS lane**, and it was believed because
+a COMMENT prints when a step is REACHED, not when it succeeds.
+
+**Consequence today: nil.** EMBER_0's RECON.4 proved the pair is inert at
+this Dawn build regardless (see EMBER_0 below), so nothing was lost. The
+class is real all the same, and it becomes load-bearing the moment route
+(a) lands.
+
+**What was done about it, and what was not.** Not a hunt through MSBuild's
+log: the last POST_BUILD step now prints a manifest of what is actually
+beside the exe, so a silent non-landing reads as a visible `ABSENT` line
+(`tools/post_build_manifest.cmake`). It reports and never fails. The
+*cause* is still undiagnosed and still not this tree's — the three
+negative probes above stand — and `assets/` was never checked on that
+lane, which the manifest now answers on every build. **Open for Jean:**
+one `dir /b out\build\the-board-full-release\Release` says whether
+`assets\` landed there too; the next VS build answers it for free.
+
+## EMBER_0 — THE WINDOWS COMPILER LANES (open; the rebuild waits on Jean)
+
+Three values in `kCompilerPlan`, three statuses, all now written at the
+constant per **L49**. The resident plan is **Vulkan** and it carries the
+music. What EMBER_0 settled, by recon rather than assumption:
+
+| lane | status | the block, named |
+|---|---|---|
+| `Vulkan` | **SUPPORTED** | resident; Tint→SPIR-V; the boot of record |
+| `D3D12_Dxc` | **NOT YET TRUE** | Dawn at pin `56f332d7` wraps `EnsureDXCLibraries` — the only site opening `dxcompiler.dll`/`dxil.dll` — in `#if defined(DAWN_USE_BUILT_DXC)` with **no `#else`**, and `C:/dev/dawn/out` is built with that option `OFF`. The loader is absent from the linked library; no DLL placement reaches code never compiled |
+| `D3D12_Fxc` | **BLOCKED — shader shape** | six uniform blocks carry an array of structs subscripted by a non-constant expression. Worst: `TileGrid`, `array<TileGridEntry, 1024>`, **16,400 B** |
+
+**RULING.4, and its anchor is not the one the handoff was written with.**
+The FXC block was stamped on WALLET_0's occupier windows — and those left
+the tree at PRUNE_2 U4 (`occupier_cmg`) and ONE_WORLD-I U3
+(`occupier_amg`) before EMBER executed. The RECON.8 **refresh**
+re-established the finding at master against the cliff's mechanism rather
+than its old address, surveying all fourteen `var<uniform>` blocks with
+every claim adversarially refuted by an independent reader:
+
+| block | bytes | the array |
+|---|---|---|
+| `TileGrid` | 16,400 | `array<TileGridEntry, 1024>`, read at `tile_grid.entries[lz * s + lx]`, `s` runtime |
+| `SceneConstants` | 4,336 | `array<PawnFigure, 14>` @ 288 B, indexed by a storage-derived skin id in `pawn_vs` **and** `shadow_pawn_vs` |
+| `DesignConfig` | 672 | `pulse_data[8]` + two palette arrays |
+| `AgentRoomConstants` | 512 | `behaviors[10]` + `tier_gains[4]` |
+| `PyramidArray` | 272 | `instances[8]` |
+| `DrawPlanParams` | 144 | `rects[8]` |
+
+Six blocks hold no arrays at all; `FieldBus` is dynamically indexed but its
+array is `array<vec4<f32>, 8>` — a native cbuffer indexed load, not the
+pathological struct expansion — and one claim (`DesignConfig` at its
+`fc_config` binding) was refuted and is not counted. **So the lane was
+never briefly unblocked when the occupier windows left; no window was
+missed.** The fork does not reshape its shaders to court a legacy
+compiler: the shader shape is the program's law and FXC is the old road.
+If a stage ever demands FXC, that is a design campaign entered with the
+cliff on the map.
+
+**Stated honestly, because the FXC record demands it.** 20,227 ms was
+MEASURED. These six are shape-matched PREDICTIONS. The measurement would
+be a boot this ruling declines to spend (L49's evidence clause).
+
+**What is open, and it is one thing: Jean's button.**
+`python tools\ember_route_a.py` discovers in seconds and changes nothing;
+`--go` fetches `third_party/dxc` at Dawn's own DEPS pin, configures with
+`DAWN_USE_BUILT_DXC=ON`, rebuilds **both** configs, and reports the
+`dawn_lib` manifest delta by N6's method — a report, never an edit,
+because whether `dxcompiler`'s shared linkage leaves an import library
+this repo must link is a ruling. Overnight is its natural home.
+
+**Then, and only then, UNIT.1.** `kCompilerPlan = D3D12_Dxc`, and the
+witness is a boot log showing `Compiler plan (request): DXC` **and**
+`use_dxc` inside the `GetTogglesUsed` line — both, or the lane is not
+true. That pair is the exact negative-space of the PIVOT_0a defect, and
+`--probe=120` is what turns it into an exit code. **UNIT.1 is halted until
+the rebuild lands**: selecting DXC today reproduces PIVOT_0a's signature
+for a third reason — not mis-chained, not driver-refused, compiled out —
+and would burn a stop condition on an answered question.
+
+**One deferred amendment, stamped.** `use_dxc` is `ToggleStage::Adapter`
+at this pin (RECON.3 re-read the registry; L21's citation is sound), but
+both arms chain on the **instance** descriptor, one inheritance hop above
+that stage — and L21 itself closes debt 12 as MOOT with that hop never
+witnessed carrying a toggle. The hopless root is `RequestAdapterOptions`,
+which this program does not construct (`EnumerateAdapters()` is called
+bare, deliberately unfiltered so the boot log lists every adapter).
+Re-siting both arms onto it is **UNIT.1's work, with a boot to prove it** —
+a boot-path change no witness runs is precisely what PIVOT_0a was.
+
+**Closed at EMBER_0, no longer open:** the Windows SDK glob in E3 (an
+unpinned ambient provider that resolved first on any host with an SDK —
+N10's phantom in a second costume; excised while removing it could break
+nothing); E3's "HYPOTHESIS, not a checked fact" banner (checked, false,
+rewritten); the FXC arm resting on Dawn's default for `use_dxc` (it now
+chains `disabledToggles` explicitly — a default is Dawn's to flip, a
+disabled toggle is ours).
+
 ## THE PRUNING CAMPAIGN AHEAD (S1 + S2 CLOSED at PRUNE_1)
 
 Phase W — the web strip — landed first (docs/LAWS.md: WEB_SUNSET).
