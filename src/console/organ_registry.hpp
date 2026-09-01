@@ -123,19 +123,16 @@ enum : uint8_t {
 // on it is refused. Its `offset` carries def_offset, so the triple stays
 // unique and the manifest round-trips.
 
-// ONE SENTINEL PER FAMILY, because a definition-only entry's `offset` is
-// an offset into ITS OWN struct: two families on one sentinel would let
-// two structs' offsets collide at the same number and resolve to each
-// other. The convention DESCENDS from 255 — a third family takes 253 —
-// which keeps the real ids growing upward and keeps `is_defonly` an
-// explicit list rather than a range test.
-enum : uint8_t {
-    ORGAN_BLOCK_NONE     = 255,   // the_board::MoodProfile family
-    // 254 stood here for the OrbMoodConfig family until ONE_WORLD-II U1b
-    // gave that struct an instance (ORB_LIVE, block 13) and its rows
-    // stopped being definition-only. The convention still descends: the
-    // next family takes 254 again.
-};
+// THE DEFINITION-ONLY SENTINELS ARE GONE (ONE_WORLD-II U6a). A row was
+// definition-only when its family had no live instance anywhere — the
+// MoodProfile family on 255, the OrbMoodConfig family on 254 — and the
+// sentinel stood in the block slot so two families' offsets could not
+// collide at the same number. U1a gave the atmosphere an instance
+// (ATMOS_LIVE, block 12) and U1b gave the orbs one (ORB_LIVE, block 13);
+// no row in the tree is definition-only any more, so the sentinels, the
+// ORGAN_PARAM_DEFONLY macro pair and the is_defonly predicate all leave.
+// A future family with no instance re-founds the convention descending
+// from 255.
 
 // ─── Definition targets ───────────────────────────────────────────────
 // Where a dial's DEFINITION lives, if it has one. An entry's home is its
@@ -156,7 +153,6 @@ enum : uint8_t {
 // BEHAVIOR raises TIER's.
 enum : uint8_t {
     ORGAN_DEF_NONE = 0,   // no definition: the home IS the only truth there is
-    ORGAN_DEF_MOOD = 1,   // the_board::MoodProfile — per-mood, target selects
     ORGAN_DEF_TIER = 2,   // the_board::AgentTierBank — the world's, one bank
     ORGAN_DEF_BEHAVIOR = 3,  // AgentBehaviorBank — the world's; raises TIER's flag
 };
@@ -239,22 +235,7 @@ struct OrganParam {
 
 // THE SENTINEL IS DERIVED FROM THE KIND, not written at the call site: one
 // mapping line per family, here, and a further family adds one #define.
-#define ORGAN_DEFONLY_BLOCK_MOOD     ORGAN_BLOCK_NONE
 
-#define ORGAN_PARAM_DEFONLY_NS(NS, TYPE, MIN, MAX, STEP, GROUP, LABEL,               \
-                            DEFKIND, DEFSTRUCT, DEFFIELD)                     \
-    OrganParam{ #DEFSTRUCT "." #DEFFIELD, LABEL, GROUP,                       \
-                ORGAN_DEFONLY_BLOCK_##DEFKIND,                                \
-                (uint16_t)offsetof(NS::DEFSTRUCT, DEFFIELD), \
-                ORGAN_##TYPE, MIN, MAX, STEP,                                  \
-                ORGAN_DEF_##DEFKIND,                                          \
-                (uint16_t)offsetof(NS::DEFSTRUCT, DEFFIELD), 0,        \
-                ORGAN_CAD_LIVE },
-
-// A WITNESS, NOT A DIAL. The same offsetof plumbing pointed at a DRIVEN
-// value: the control surface meters it and organ_set refuses to write it. No
-// min/max/step, because a meter has no range to clamp against — the
-// driver's own dials carry the ranges and enroll with ORGAN_PARAM above.
 #define ORGAN_PARAM_RO_NS(NS, BLOCK, STRUCT, FIELD, TYPE, GROUP, LABEL)              \
     OrganParam{ #BLOCK "." #FIELD, LABEL, GROUP,                              \
                 ORGAN_BLOCK_##BLOCK,                                          \
@@ -271,7 +252,6 @@ struct OrganParam {
 #define ORGAN_PARAM(...)         ORGAN_PARAM_NS(the_board, __VA_ARGS__)
 #define ORGAN_PARAM_GEN(...)     ORGAN_PARAM_GEN_NS(the_board, __VA_ARGS__)
 #define ORGAN_PARAM_DEF(...)     ORGAN_PARAM_DEF_NS(the_board, __VA_ARGS__)
-#define ORGAN_PARAM_DEFONLY(...) ORGAN_PARAM_DEFONLY_NS(the_board, __VA_ARGS__)
 #define ORGAN_PARAM_RO(...)      ORGAN_PARAM_RO_NS(the_board, __VA_ARGS__)
 
 inline const OrganParam kOrganParams[] = {
@@ -280,14 +260,10 @@ inline const OrganParam kOrganParams[] = {
 #undef ORGAN_PARAM
 #undef ORGAN_PARAM_GEN
 #undef ORGAN_PARAM_DEF
-#undef ORGAN_PARAM_DEFONLY
 #undef ORGAN_PARAM_RO
 #undef ORGAN_PARAM_NS
 #undef ORGAN_PARAM_GEN_NS
 #undef ORGAN_PARAM_DEF_NS
-#undef ORGAN_PARAM_DEFONLY_NS
-#undef ORGAN_DEFONLY_BLOCK_MOOD
-#undef ORGAN_DEFONLY_BLOCK_ORB_MOOD
 #undef ORGAN_PARAM_RO_NS
 
 inline constexpr size_t kOrganParamCount =
@@ -352,12 +328,6 @@ inline void* block_base(uint8_t block) {
     }
 }
 
-// A DEFINITION-ONLY ENTRY'S BLOCK. One helper rather than a literal at
-// three call sites: the convention descends from 255 (see the block enum),
-// so a further family adds one name here and none at a call site.
-inline bool is_defonly(uint8_t block) {
-    return block == ORGAN_BLOCK_NONE;
-}
 
 // DOES A WRITE TO THIS BLOCK RAISE A RE-SPEAK FLAG? A bank whose author is
 // re-spoken at the frame boundary gives its dials BOUNDARY cadence, and
@@ -384,7 +354,7 @@ inline bool block_has_boundary(uint8_t block) {
 // a meter and a meter's cadence is its author's.
 inline uint8_t derived_cadence(const OrganParam& e) {
     if (e.ro) return ORGAN_CAD_DRIVEN;
-    if (e.def_kind != ORGAN_DEF_NONE || is_defonly(e.block)
+    if (e.def_kind != ORGAN_DEF_NONE
         || block_has_boundary(e.block)) return ORGAN_CAD_BOUNDARY;
     return e.cad;                       // LIVE or the stored GEN
 }
@@ -402,19 +372,20 @@ inline uint8_t derived_cadence(const OrganParam& e) {
 // a definition-only row has none, so it targets the live mood whatever
 // the mode toggle says.
 inline uint8_t derived_has_instance(const OrganParam& e) {
-    return is_defonly(e.block) ? 0u : 1u;
+    (void)e;
+    return 1u;   // ONE_WORLD-II U6a: every row has one, and the manifest
+                 // keeps the field so the control surface's question does
+                 // not have to move when a family without one returns.
 }
 
 // How a DEFINITION is addressed — the export's keying and the control surface's
 // follow-the-mood refresh both turn on this and on nothing else.
 enum : uint8_t {
     ORGAN_SCOPE_NONE  = 0,   // no definition behind this row
-    ORGAN_SCOPE_MOOD  = 1,   // one row per mood: the write's target picks it
     ORGAN_SCOPE_WORLD = 2,   // one bank for the world: the target is ignored
 };
 inline uint8_t derived_scope(const OrganParam& e) {
     switch (e.def_kind) {
-    case ORGAN_DEF_MOOD:
     case ORGAN_DEF_TIER:
     case ORGAN_DEF_BEHAVIOR: return ORGAN_SCOPE_WORLD;
     default:                 return ORGAN_SCOPE_NONE;
@@ -438,11 +409,6 @@ inline const OrganParam* find_entry(int block, int offset, int type) {
 inline float read_definition(const OrganParam& e, uint32_t mood, int lane);
 
 inline float read_lane(const OrganParam& e, int lane) {
-    // A definition-only entry has no instance to read, so its "value" is
-    // the LIVE mood's definition: the manifest and any meter show what the
-    // current mood means.
-    if (is_defonly(e.block))
-        return read_definition(e, current_mood(), lane);
     void* base = block_base(e.block);
     if (!base || lane < 0 || lane >= lanes_of(e.type)) return 0.0f;
     const char* p = static_cast<const char*>(base) + e.offset;
@@ -547,7 +513,6 @@ static_assert(offsetof(the_board::OrbConsole, dome_radius) == 0
 // world's single bank and ignores it.
 inline char* definition_base(const OrganParam& e, uint32_t mood) {
     switch (e.def_kind) {
-    case ORGAN_DEF_MOOD: return reinterpret_cast<char*>(&the_board::mood_def(mood));
     case ORGAN_DEF_TIER: return reinterpret_cast<char*>(&the_board::TIER_LIVE);
     case ORGAN_DEF_BEHAVIOR: return reinterpret_cast<char*>(&the_board::BEHAVIOR_LIVE);
     default:             return nullptr;
@@ -801,14 +766,6 @@ EMSCRIPTEN_KEEPALIVE inline void organ_set(int block, int offset, int type,
     const OrganParam* e = find_entry(block, offset, type);
     if (!e)    { note_reject(nullptr, "not in the manifest"); return; }
     if (e->ro) { note_reject(e->id, "a witness, not a dial"); return; }
-    if (is_defonly(e->block)) {            // definition-only:
-        const float lanes_only[4] = { x, y, z, w };
-        if (target < 0 || !write_definition(*e, (uint32_t)target, lanes_only))
-            note_reject(e->id, target < 0                  // no instance to fall back to
-                ? "preview on a definition-only row — there is no instance to show"
-                : "the definition write did not land");
-        return;
-    }
     void* base = block_base((uint8_t)block);
     if (!base) { note_reject(e->id, "the block has no home"); return; }
 

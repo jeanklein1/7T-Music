@@ -15,8 +15,8 @@ carry those facts, or leave them in place and patch around them.
 
 | field | value |
 |---|---|
-| source commit | `30740becd1a3be1f795288f2f82926f2dbd31180` |
-| | ONE_WORLD-II U1c: the cube and the agents get their banks, and two hidden mood reads come out |
+| source commit | `a8d151cedd1d45dca6efd2900d2a4c66ae1fc87b` |
+| | ONE_WORLD-II U3: the theme engine falls, and the population panel is what is left |
 | `src/cartridges/the_board/realization/binding_registry.hpp` | `sha256:0d52022e0374572d09dd65f1103dcafe148f576c46b39b9d27801be3c09cc966` |
 | `src/cartridges/the_board/realization/world.wgsl` | `sha256:801d13cc8e62e14a42f350728e5b47d2a8223c9592a35fc0d47f34ead193e1e7` |
 | `src/cartridges/the_board/realization/state.hpp` | `sha256:154bfa9ea07a580f5293b72fd834ac88115d78f936b20786752ca154d5dfb82b` |

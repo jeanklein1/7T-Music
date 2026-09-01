@@ -13,7 +13,7 @@
 // ═══════════════════════════════════════════════════════════════════════
 
 // ─── ADDING A DIAL IS ONE LINE IN THIS FILE ────────────────────────────
-// Nothing else, anywhere. Five forms, and EVERY FORM HAS AN _NS TWIN
+// Nothing else, anywhere. Four forms, and EVERY FORM HAS AN _NS TWIN
 // taking the enrolled struct's NAMESPACE first — the plain names forward
 // `the_board`, so a line that does not care never sees the parameter:
 //
@@ -23,10 +23,6 @@
 //                                      and the row wears `on respawn`
 //   ORGAN_PARAM_DEF(… , DEFKIND, DEFSTRUCT, DEFFIELD)
 //                                      the same, plus the DEFINITION it writes
-//   ORGAN_PARAM_DEFONLY(TYPE, MIN, MAX, STEP, GROUP, LABEL,
-//                       DEFKIND, DEFSTRUCT, DEFFIELD)
-//                                      a definition with NO INSTANCE:
-//                                      preview on it is refused
 //   ORGAN_PARAM_RO(BLOCK, STRUCT, FIELD, TYPE, GROUP, LABEL)
 //                                      a WITNESS: metered, never written,
 //                                      and carrying no range
@@ -39,8 +35,10 @@
 //
 // ELIGIBILITY: a field is a definition only if its applier is the field's
 // ONE runtime reader, and a kind shares a flag when it shares an author.
-// DEFKIND is MOOD, TIER, BEHAVIOR or ORB_MOOD; a definition-only row's
-// block is a SENTINEL DERIVED FROM ITS KIND.
+// DEFKIND is TIER or BEHAVIOR — both the world's single banks, so the
+// write's target is ignored. MOOD and ORB_MOOD were the per-mood kinds and
+// left with the moods (ONE_WORLD-II U1a/U1b/U6a), and the definition-only
+// form left with them: every row addresses an instance now.
 
 // GROUP IS A PATH, "Section · Group": a consumer splits on the FIRST
 // separator and renders two levels, never three. A dial sits under its

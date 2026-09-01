@@ -5,8 +5,8 @@ Read-only: a census of the program's pass and submit surface.
 
 ## Provenance
 
-Last commit touching any scanned file: `30740becd1a3be1f795288f2f82926f2dbd31180`
-(ONE_WORLD-II U1c: the cube and the agents get their banks, and two hidden mood reads come out)
+Last commit touching any scanned file: `a8d151cedd1d45dca6efd2900d2a4c66ae1fc87b`
+(ONE_WORLD-II U3: the theme engine falls, and the population panel is what is left)
 
 | file scanned | sha256 |
 |---|---|
