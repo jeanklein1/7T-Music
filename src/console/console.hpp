@@ -84,25 +84,58 @@ namespace t7 {
     // A grant is a schema edit plus Jean's gate — never an edit here.
 #include "console/features_wallet.gen.inc"
 
-    // ═══ THE COMPILER PLAN (PIVOT_0, 2026-08-12) ═════════════════════
+    // ═══ THE COMPILER PLAN (PIVOT_0, 2026-08-12 · re-ruled at EMBER_0)
     //
-    // PIVOT_0 — the shader-compiler plan. world.wgsl is single-source
-    // across all values.
-    //
-    // Why it exists: WALLET_0's occupier cbuffer arrays stalled
-    // update_player_agent at 20,227 ms under FXC and then
-    // D3DCompiler_47 access-violated on the next room kernel. Jean
-    // ruled the floor up rather than the shader down. The audience
-    // floor is WebGPU core through modern compilers — Tint→DXC
+    // world.wgsl is single-source across all three values; the plan
+    // chooses only which compiler Dawn hands it to. The resident plan
+    // is Vulkan (Tint→SPIR-V), and it is what carries the music today.
+    // The floor is WebGPU core through modern compilers — Tint→DXC
     // (SM6.0+), Tint→MSL, Tint→SPIR-V, naga.
     //
-    // D3D12_Fxc exists for ARCHAEOLOGY ONLY. It reproduces the retired
-    // gate so a historical result can be re-run; it is not a supported
-    // floor and nothing should be shaped to satisfy it. The laws it
-    // used to impose are in docs/FXC_LAWS_RECORD.md.
+    // WHY THE PLAN EXISTS, as history: WALLET_0 demoted the occupier
+    // windows into the uniform address space; FXC stalled
+    // update_player_agent at 20,227 ms and then D3DCompiler_47
+    // access-violated on the next room kernel. Jean ruled the floor up
+    // rather than the shader down. Those two windows are themselves
+    // gone now — occupier_cmg at PRUNE_2 U4, occupier_amg at
+    // ONE_WORLD-I U3 — and the cliff is not.
     //
-    // Plan B is one line: if DXC fails on a given driver, set this to
-    // Vulkan, rebuild, boot. That IS the fallback, not a failure.
+    // D3D12_Fxc IS A DOCUMENTED-UNSUPPORTED LANE, BLOCKED BY SHADER
+    // SHAPE. It is no longer archaeology: it is a real lane of this
+    // fork carrying a named, standing block. EMBER_0's RECON.8 refresh
+    // surveyed every uniform block at master and found SIX carrying
+    // the cliff's actual mechanism — an array of structs in the
+    // uniform address space subscripted by a non-constant expression.
+    // Worst is TileGrid: array<TileGridEntry, 1024>, 16,400 B, read at
+    // tile_grid.entries[lz * s + lx] with s the runtime side. Then
+    // SceneConstants' array<PawnFigure, 14>, 288 B each, indexed by a
+    // storage-buffer-derived skin id in pawn_vs AND shadow_pawn_vs;
+    // then AgentRoomConstants, DesignConfig, PyramidArray,
+    // DrawPlanParams. The fork does not reshape its shaders to court a
+    // legacy compiler (EMBER_0 RULING.4) — the shader shape is the
+    // program's law and FXC is the old road. So the lane stays
+    // selectable and stays unsupported: choose it and expect a stall
+    // or a death inside D3DCompiler_47 — loud and named, never
+    // mysterious. STATED HONESTLY: 20,227 ms was MEASURED; these six
+    // are shape-matched PREDICTIONS. The measurement would be the boot
+    // this ruling declines to spend. The laws FXC used to impose stay
+    // an archive in docs/FXC_LAWS_RECORD.md — that record's own text
+    // demands re-witnessing on the new floor, and this is a census.
+    //
+    // D3D12_Dxc IS NOT YET TRUE ON THIS MACHINE. Dawn at the pin puts
+    // EnsureDXCLibraries — the only site that opens dxcompiler.dll and
+    // dxil.dll — inside #if defined(DAWN_USE_BUILT_DXC), with no #else,
+    // and C:/dev/dawn/out is built with that option OFF. The symbol is
+    // therefore absent from the dawn_native this program links, and no
+    // placement of DLLs can reach code that was never compiled.
+    // Selecting DXC today reproduces PIVOT_0a's signature — the log
+    // says DXC, GetTogglesUsed lacks use_dxc — for a third reason
+    // neither PIVOT_0a nor TOGGLE_0 faced: not mis-chained, not
+    // driver-refused, compiled out. The acquisition is scripted at
+    // tools/ember_route_a.py and waits on Jean (docs/OPEN.md: EMBER_0).
+    //
+    // Plan B is one line: if a lane fails on a given driver, set this
+    // to Vulkan, rebuild, boot. That IS the fallback, not a failure.
     enum class CompilerPlan { D3D12_Dxc, Vulkan, D3D12_Fxc };
     inline constexpr CompilerPlan kCompilerPlan = CompilerPlan::Vulkan;
 
@@ -461,7 +494,35 @@ namespace t7 {
             if constexpr (kCompilerPlan == CompilerPlan::D3D12_Dxc) {
                 toggles.enabledToggleCount = 1;
                 toggles.enabledToggles = kDxcToggle;
+            } else if constexpr (kCompilerPlan == CompilerPlan::D3D12_Fxc) {
+                // EMBER_0 RULING.3 — THE FXC ARM DECLARES ITS COMPILER.
+                // Until now this arm chained nothing and rested on Dawn's
+                // DEFAULT for use_dxc. A default is Dawn's to flip and a
+                // disabled toggle is ours: resting on one makes an
+                // unstated intent indistinguishable from an unnoticed
+                // change of default, and there is no witness that can
+                // tell them apart after the fact. Same toggle name, same
+                // descriptor, opposite field.
+                toggles.disabledToggleCount = 1;
+                toggles.disabledToggles = kDxcToggle;
             }
+            // WHERE THIS CHAIN BELONGS, AND WHY IT IS STILL HERE.
+            // EMBER_0 RECON.3 re-read the registry at pin 56f332d7:
+            // use_dxc is ToggleStage::Adapter (Toggles.cpp, beside
+            // disable_robustness at ToggleStage::Device). L21's citation
+            // holds. But this root is the INSTANCE descriptor, one
+            // inheritance hop above that stage, and L21 itself records
+            // that the hop has never been witnessed carrying a toggle —
+            // debt 12 closed MOOT, branch (b) unproven. The consuming
+            // root with no hop at all is RequestAdapterOptions, which
+            // this program does not construct: EnumerateAdapters() is
+            // called bare, deliberately unfiltered so the boot log lists
+            // every adapter. EMBER_0 stamps the re-siting of BOTH arms
+            // onto RequestAdapterOptions as UNIT.1's work, WITH a boot to
+            // prove it — because a change on the boot path that no
+            // witness ever runs is exactly what PIVOT_0a was. Until then
+            // the declaration stands where its sibling stands, and the
+            // FXC lane's block (the banner above) means no boot is owed.
             // The toggles ride BEHIND the WGSL control: independent links
             // in one chain, not two WGSL enablement mechanisms. Named so
             // a future edit that guards or deletes the F3-a block cannot
