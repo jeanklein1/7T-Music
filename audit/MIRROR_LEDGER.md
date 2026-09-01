@@ -15,8 +15,8 @@ carry those facts, or leave them in place and patch around them.
 
 | field | value |
 |---|---|
-| source commit | `5dd30a929428ef1bc701de380130db6ed0048083` |
-| | THE_PANEL I U6a: THE MIRROR'S PER-FIELD WITNESS — the hole U2 found, closed |
+| source commit | `38476f7e5e829550d88e2c163e33d870f6f4415e` |
+| | THE_PANEL I U6b: the ledgers' stamps settle (first of two) |
 | `src/cartridges/the_board/realization/binding_registry.hpp` | `sha256:351eccaedd6902900df3b13a57c7a818ff10cf4280debbfb9034b0ffabcfcc73` |
 | `src/cartridges/the_board/realization/world.wgsl` | `sha256:c66ba9cbd82d0ed8b61ee6b3b7d04a6d2a5aa44423f55e46517c3f183b4a1ea3` |
 | `src/cartridges/the_board/realization/state.hpp` | `sha256:5bed076b63f2186def02c0d55c6acf853616dcc598c801e8c637111210b282f2` |
