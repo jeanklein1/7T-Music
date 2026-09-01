@@ -983,6 +983,11 @@ so it is an honest lever on live machinery.
 
 ## THE ABLETON SEAM (held, after N)
 
+> **THE MAP FOR THIS SEAM IS `docs/COUPLING_ATLAS.md`** — five tables,
+> every row by symbol, cadence on every candidate dial. Linked, not
+> restated (L46): the atlas is the one home for what the coupling layer
+> is, and the campaign that collects this seam is authored on it.
+>
 > **A CUE ARRIVED FROM ONE_SURFACE-II** (recorded in full at that
 > section): the automaton's `tick_period` is in BEATS and is one dial, so
 > stepping the ground on the bar is a matter of pointing `beats` at a
