@@ -133,13 +133,19 @@ READERS = {
         # dismount is a reader of the draw's four dials in its own right.
         ("src/cartridges/the_board/bodies/ribbon.hpp", "ribbon_on_dismount"),
     ]),
-    # ── the definition kinds: a definition's reader is its APPLIER ────
-    # Two handles: the regime law is MoodProfile's own field (read by
-    # apply_mood_regime through `m`), the rest is atmos.* (read by
-    # draw_atmosphere through `a`).
-    "MOOD": ("MOOD_LIVE", ("MoodProfile", "Atmosphere"), [
-        ("src/cartridges/the_board/direction/mood.hpp", "apply_mood_regime"),
+    # THE ATMOSPHERE BANK (ONE_WORLD-II U1). An INSTANCE family, not a
+    # definition one: the twelve sky rows address ATMOS_LIVE, and its
+    # applier is the draw that reads it through `a`. It was MOOD's second
+    # handle — `atmos.*` on MoodProfile, across four regimes — until the
+    # roll left and the bank took the fact.
+    "ATMOS": ("ATMOS_LIVE", "AtmosphereBank", [
         ("src/cartridges/the_board/direction/mood.hpp", "draw_atmosphere"),
+    ]),
+    # ── the definition kinds: a definition's reader is its APPLIER ────
+    # MoodProfile keeps only its SHAPE half here: apply_mood_lighting reads
+    # m.shape.terrain_amp_ceiling and m.shape.indoor / .wall_height. The
+    # atmosphere handle and apply_mood_regime left with the roll.
+    "MOOD": ("MOOD_LIVE", "MoodProfile", [
         ("src/cartridges/the_board/direction/mood.hpp", "apply_mood_lighting"),
     ]),
     "TIER": ("TIER_LIVE", "AgentTierBank", [

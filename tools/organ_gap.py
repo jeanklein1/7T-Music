@@ -62,6 +62,7 @@ HOMES = {
     "GPULighting":           "src/cartridges/the_board/realization/state.hpp",
     "GPUAgentRoomConstants": "src/cartridges/the_board/realization/state.hpp",
     "DriverSurface":         "src/cartridges/the_board/contracts/driver_surface.hpp",
+    "AtmosphereBank":        "src/cartridges/the_board/contracts/atmosphere_surface.hpp",
     "AgentTierBank":         "src/cartridges/the_board/contracts/agent_tiers.hpp",
     "AgentBehaviorBank":     "src/cartridges/the_board/contracts/agent_tiers.hpp",
     "MoodProfile":           "src/cartridges/the_board/contracts/spine_state.hpp",

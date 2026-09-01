@@ -30,6 +30,7 @@
 #include "cartridges/the_board/contracts/mood_constants.hpp"  // WORLD_DRAW_LIVE (block 10, destructive)
 #include "coupling/canvas_surface.hpp"                        // CANVAS_LIVE (block 9, t7::canvas)
 #include "cartridges/the_board/contracts/driver_surface.hpp"  // the drivers' room (block 3)
+#include "cartridges/the_board/contracts/atmosphere_surface.hpp" // ATMOS_LIVE (block 12)
 
 #include <cstddef>
 #include <cstdint>
@@ -98,7 +99,16 @@ enum : uint8_t {
     ORGAN_BLOCK_RIBBON_SPAWN = 11,  // RibbonSpawnSurface — RIBBON_SPAWN_LIVE
                                     // (ATRIUM_2 — the arc and the sand, read as
                                     //  the entrance is drawn and not re-read)
-    ORGAN_BLOCK_COUNT        = 12,
+    // THE ATMOSPHERE (ONE_WORLD-II U1). AtmosphereBank — ATMOS_LIVE, the
+    // world's one sky as a distribution. Its author is apply_mood_lighting,
+    // whose whole job is to re-draw from it, so the block takes a BOUNDARY
+    // cadence: a drag is many events and the sky is drawn once. It is NOT
+    // destructive — the draw is re-run on the live world with the same seed,
+    // which is the promise "the draw moves WITH the dial rather than
+    // re-rolling". Its rows were fifty-two definition-only rows against four
+    // regimes of MoodProfile until the roll left.
+    ORGAN_BLOCK_ATMOS        = 12,  // AtmosphereBank     — ATMOS_LIVE
+    ORGAN_BLOCK_COUNT        = 13,
 };
 
 // A definition-only entry has no instance anywhere: block_base answers
@@ -329,6 +339,7 @@ inline void* block_base(uint8_t block) {
     case ORGAN_BLOCK_CANVAS:     return &canvas::CANVAS_LIVE;
     case ORGAN_BLOCK_WORLD:      return &the_board::WORLD_DRAW_LIVE;
     case ORGAN_BLOCK_RIBBON_SPAWN: return &the_board::RIBBON_SPAWN_LIVE;
+    case ORGAN_BLOCK_ATMOS:      return &the_board::ATMOS_LIVE;
     default:                     return nullptr;
     }
 }
@@ -351,7 +362,11 @@ inline bool block_has_boundary(uint8_t block) {
     // what the boundary DOES per field rides g_orb_console_dirty, not this
     // predicate, because a cadence question and a plumbing question are
     // two questions.
-    return block == ORGAN_BLOCK_ORBS;
+    // The atmosphere's only reader is draw_atmosphere, called from
+    // apply_mood_lighting — one author, one re-draw, consumed at the
+    // boundary for the same reason: a colour drag is many events and the
+    // world's sky is drawn once per frame at most.
+    return block == ORGAN_BLOCK_ORBS || block == ORGAN_BLOCK_ATMOS;
 }
 
 // THE ONE PLACE THE CADENCE RULE LIVES. Every reader of a row's cadence
@@ -444,6 +459,17 @@ inline float read_lane(const OrganParam& e, int lane) {
 inline bool     g_def_dirty = false;
 inline uint32_t g_def_dirty_mood = 0;
 inline bool     g_tier_def_dirty = false;   // the world bank changed
+// THE SKY CHANGED (ONE_WORLD-II U1). One bool, not a per-field mask: the
+// boundary's answer to any atmosphere write is the same whole re-draw, so
+// a field's identity buys the consumer nothing. The orb console's mask
+// exists because ITS boundary decides what each field costs; this one does
+// not have that choice to make.
+inline bool     g_atmos_dirty = false;
+inline bool take_atmos_dirty() {
+    const bool d = g_atmos_dirty;
+    g_atmos_dirty = false;
+    return d;
+}
 inline bool     g_orb_def_dirty  = false;   // the orb mood bank changed
 
 // AND WHICH MOOD IT MEANT. Both mood-selected kinds record the target, so
@@ -823,6 +849,8 @@ EMSCRIPTEN_KEEPALIVE inline void organ_set(int block, int offset, int type,
     // write succeed, keyed on the block, and never in the control surface.
     if (block == ORGAN_BLOCK_ORBS)
         g_orb_console_dirty |= (1u << (e->offset / 4u));
+    if (block == ORGAN_BLOCK_ATMOS)
+        g_atmos_dirty = true;
 }
 
 // BY INDEX, LIKE ITS SIBLINGS. The manifest index IS the index in

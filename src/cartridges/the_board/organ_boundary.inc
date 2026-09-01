@@ -41,10 +41,18 @@
                 uint32_t def_mood = 0;
                 if (t7::organ::take_definition_dirty(def_mood)
                     && def_mood == mood_state_.active) {
-                    // The roll, then the sky: a weight dial moves this
-                    // world's regime under the same seed, and the sky is
-                    // re-drawn from the regime it landed in.
+                    // The sky, re-drawn: a mood definition write lands on
+                    // this world under the same seed.
                     apply_mood_lighting(&mood_deps_, mood_def(def_mood), queue);
+                }
+                // THE ATMOSPHERE BANK'S OWN FLAG (ONE_WORLD-II U1). The
+                // twelve sky rows address ATMOS_LIVE directly now, so they
+                // raise no mood-definition flag and are not a mood's to
+                // guard: there is one sky and it is always this world's.
+                // Same applier, same re-draw, same seed — the dial moves
+                // the instance rather than re-rolling it.
+                if (t7::organ::take_atmos_dirty()) {
+                    apply_mood_lighting(&mood_deps_, mood_def(mood_state_.active), queue);
                 }
                 // The tier bank changed, so its author re-speaks the whole
                 // registry in its own voice — idempotent by construction.
