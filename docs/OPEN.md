@@ -383,6 +383,92 @@ in candidate order.
   removing the guard turns `clamp(p.x, 0+m, 0-m)` — low above high, which
   WGSL leaves undefined — into a body test. Left alone deliberately.
 
+## ONE_SURFACE-II — THE AUTOMATON (U0 landed; U1-U4 held)
+
+The Game of Life stops being an ENTITY and becomes a PROPERTY OF THE
+GROUND: one automaton over the whole finite cell grid, WRAP topology, the
+GOL family retired. U0's recon is done and is below. **U1 is HELD, and
+the handoff's own precondition is why**: "RUN AFTER THE STILLNESS CLOSES
+GREEN." ONE_SURFACE-I is green on every gate CC can run, but its close is
+`glaw1, build, **the walk**` — and the walk is the whole point of a
+campaign whose acceptance test is "the world must look untouched". Two
+of those three are Jean's.
+
+That matters more here than it would elsewhere. Every unit of I was a
+REMOVAL whose behaviour could be reasoned to exactly — a fold table, a
+reader census, an arithmetic bound. II's U1 is CONSTRUCTIVE: a new
+world-sized field, two new kernels, a reshaped bind group, and a swapped
+contributor row. "It type-checks and the gates are green" is much weaker
+evidence about a shader that has never run.
+
+### §1.5 IS ANSWERED, and the answer is BOTH — with a precision the
+handoff's phrasing leaves open.
+
+**(a) The pedestal is a LIVE-CARD contributor, not a patch-bake one.**
+`contrib_gol_zones_at(world_xz)` is evaluated inside the live-card
+kernel and stored in the card's **`.a` channel**
+(`textureStore(live_card_write, ..., vec4(height, grad_x, grad_z,
+contrib_gol_zones_at(p_here)))`). Ground consumers then compose
+`h += contrib_gol_zones_at(xz); h -= contrib_gol_suppression_at(xz,
+consumer_pos)`. So the contributor DAG row the handoff names is real, and
+it feeds the LIVE CARD — the patch heightfield bake is a different lane.
+
+**(b) The tint is a draw-time texture sample.** `zone_life_read`
+(`texture_2d_array<f32>`, g3:102) sampled in the terrain FS at
+`i32(z)` — the ZONE INDEX is the array layer — feeding
+`apply_gol_color(base_color, zp, cx, cy, blend)`. Globalizing means the
+layer index has nothing to select and the sample becomes a single plane.
+
+### THE HAZARD U0 FOUND, and the handoff does not mention it
+
+**THE LIVE CARD'S REST LAW HAS A CONJUNCT THE AUTOMATON WOULD FALSIFY
+EVERYWHERE.** The card is at rest — and `phase_live_card_write` returns
+before its dispatch, gated by `liveCardRestClean_` — only when ALL of:
+
+  (1) `config.terrain_time <= 0`      [MUSICAL]
+  (2) the pulse ring is empty         [MUSICAL]
+  (3) **no zone covers the texel**    [NOT MUSICAL]
+
+The shader's own note says why (3) is the awkward one: *"silence the
+music and a living zone still lifts."* With eight zones that is a LOCAL
+condition and the card reaches rest whenever they are quiet or absent.
+A world-sized automaton makes conjunct (3) false wherever ANY cell is
+alive — which, at a seeded density over the whole grid, is essentially
+always. The rest gate would never close again, and the live-card
+dispatch would run every frame for the life of the program.
+
+That is not a reason not to do it. It is a decision U1 has to make ON
+PURPOSE — re-found the rest law on the automaton's own tick (the card is
+clean between ticks), or accept a per-frame card and price it — rather
+than discover afterwards that an optimisation quietly stopped firing.
+
+### The rest of U0's enumeration
+
+- **Zone-shaped WGSL** (dies as indexing, survives as algorithm):
+  `zone_config` / `zone_life` (g2:101/102, read_write storage),
+  `zone_life_tex_write` / `zone_life_read` (g3:101/102),
+  `GoLZoneConfig`, `GoLZoneArray`, `ZoneDeriveRequest` and the derive
+  kernel, `apply_gol_color`, `contrib_gol_zones_at`'s
+  `for z in 0..zone_config.count` walk. The ALGORITHMS — the neighbour
+  rule, the pulse fields, the birth mask, `apply_boundary` — are
+  index-free and survive whole.
+- **The zone organ** (C++): `GoLZoneState[MAX_GOL_ZONES]`,
+  `active_slot_count`, `gol_tier_extent`, `GoLZoneProp`'s per-zone
+  Gaussian bands (930-938), `GOL_PULSE_ALGORITHM_CHANCE` (0.35),
+  `pending_derive_requests`.
+- **The derive-submit seam dies with its cause**, as §1.6 predicts:
+  `SEAM[gol:derive-submit]` exists because runtime zone SPAWNS must
+  derive mid-frame. With seeding birth-only there are no runtime spawns.
+  Note that ONE_SURFACE-I already removed the only thing that created
+  patches after birth, so the seam's premise is already half gone.
+- **The roster's last excision** is the GOL family: PYRAMID 0, SPHERE 1,
+  RIBBON 2, CUBE 3, COUNT 4. `FamilyDispatch` now carries the positional
+  net U3 added and proved, so a re-columning failure lands at the
+  contract.
+- **The beat header** is already what §1.2 wants: `GolDeps` carries
+  `TimeState` and the config header reads BEATS, so `tick_period`
+  becomes one global dial in units the header already speaks.
+
 ## NATIVE PRESET INGESTION (open, born at WEB_SUNSET)
 
 `presets/` holds the authored scenes the web panel used to fetch
