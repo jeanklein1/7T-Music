@@ -267,3 +267,197 @@ voice, while all eight pipes and all twelve bindings work.
 already in beats, and the automaton's tick gate already crosses on
 `floor(beats / tick_period)`. The ground stepping on Ableton's bar is a
 transport away — no automaton change at all.
+
+---
+
+# APPENDIX — THE SEAM SCOUT (THE WRAP ORDER §1.4)
+
+**Probe-free, no builds.** The transport choice is Jean's and is made on
+these facts. What follows is the analysis side AS IT STANDS, then the
+three candidate transports at the level the wrap order asked for: *what
+exists in-tree, what each adds, which seams each touches.*
+
+## A — THE NATIVE ANALYSIS SIDE, AS IT STANDS
+
+### A.1 The correction the scout's own commission needed
+
+The wrap order's §1.4 asks the scout to enumerate "the **BeatClock's empty
+layout**". **There is no `BeatClock`.** It was retired at LIGATURE_1, and
+the atlas already corrected the same stale premise in its §0(a): every one
+of the twelve heard sources RESOLVES. There are no misses, and therefore
+no misses that "ARE the Ableton seam's shape". The seam's shape is the
+**forty-three unheard publications** of §1 — a much better fact, because a
+miss is a bug and an unheard publication is a pipe waiting for a listener.
+
+### A.2 The clock, end to end — the single most important fact here
+
+| step | where | what it is |
+|---|---|---|
+| MIDI bytes | `MidiPort` (`sources/midi_port.hpp`) | RtMidi input thread, one system port, opened by name at startup |
+| pulses | `MidiTransport::feed` (`sources/transport.hpp`) | **counts 0xF8 timing clocks, 24 per quarter.** Also 0xFA start / 0xFB continue / 0xFC stop / 0xF2 song-position |
+| beats | `MidiTransport::beats()` | `pulses / 24`, a `double`. **Exact and phase-locked** |
+| the frame's beat | `canvas_1::advance` | `const float beat = (float)port_.beats();  // the DAW's clock` |
+| the signal | `AnalysisSignal::t_beats` | stamped in `publish(beat)` |
+| the world | `phase_advance_clock` | `time_state_.beats = signal.t_beats` |
+| the ground | `upload_automaton_header` | `floor(beats / tick_period)` crosses → one tick |
+
+**POSITION IS COUNTED, TEMPO IS ESTIMATED, AND THE TWO ARE NOT THE SAME
+FACT.** `transport.hpp` says it outright: *"tempo is estimated only for
+display and is never used to advance the beat."* `bpm()` exists and **has
+no reader in the render side at all**. The world's own `TimeState::
+beat_rate` is derived independently, downstream, as `db/dt` per frame,
+held through silence, defaulting to 100 BPM.
+
+**This is the fact every transport question turns on.** The world already
+runs on a counted, phase-locked musical position from an external
+timeline. It does not need a beat clock. What it lacks is not TIME.
+
+### A.3 The loopMIDI lane, as it stands
+
+- **Opens by name at startup**, in `canvas_1::initialize`; prints
+  `[canvas] loopMIDI open=<0|1>` and `[The Board] canvas_1 ready (loopMIDI
+  open|closed)`.
+- **Degrades silently and correctly**: closed port → `beats()` stays 0 →
+  `t_beats` 0 → the tempo follower holds its 100 BPM default and the world
+  runs on authored idle motion. Nothing in the render side tests
+  `is_open()`.
+- **One direction only.** It READS. Nothing in the tree writes MIDI.
+- Channels 0–6 are the seven voices; `ch1` is the chordal piano and
+  carries two of the five couplings.
+
+### A.4 `StatLayoutView` — who publishes it and who binds it
+
+- **Published by** `canvas_1::stat_layout()` (an `AnalysisCartridge`
+  override), a non-owning view over `layout_[]`, filled by
+  `publish_reading(...)` — **55 calls, and the count IS the census** of
+  §1.
+- **Bound by** `render.bind_signal_layout(...)`, once, in `init_world()`,
+  before the first frame. The render side **resolves by NAME**
+  (`musical/signal_layout.hpp`); an absent name takes the graceful path —
+  one stderr warning, `valid=false`, that coupling disabled.
+- **A new source is one `publish_reading` line and one name to bind.**
+  This is the analysis side's exact analogue of the organ's "one line in
+  `organ_params.inc`", and it is why §1's 43 unheard names are cheap to
+  hear.
+
+### A.5 `AnalysisSignal` — the shape
+
+`alignas(16)`, mirrored into the GPU's `GPUFrameSignal` (80 B, its own
+`static_assert`). Carries `t_beats`, `t_seconds`, `dt`, and the slot array
+every published reading writes into by address. **The slots are a fixed
+grid, not a list**: an unpublished reading is neither written nor
+computed, and its slot stays value-initialised at zero.
+
+## B — THE THREE TRANSPORTS
+
+Read A.2 first. The world has musical POSITION already; each transport
+below is judged on what it adds beyond that.
+
+### B.1 — Ableton **Link** (tempo / beat / phase)
+
+**In-tree today:** nothing. Link is a third-party C++ library (header +
+source, Apache-2.0) and would be the tree's **second** vendored dependency
+after RtMidi.
+
+**What it adds:** peer-to-peer tempo and **phase** on a LAN, with no DAW
+transport required and no cable. Its distinctive fact is **phase** — where
+in the bar you are — shared across applications, plus a `quantum`.
+
+**What it adds OVER what exists:** less than it first appears. MIDI clock
+already gives counted position, and phase within a bar is
+`fmod(beats, quantum)` from a number the tree already has. **Link's real
+gain is that it needs no DAW and no virtual cable** — two machines, or
+Live plus this program, agree with zero setup.
+
+**Seams touched:** ONE. `canvas_1::advance`'s `port_.beats()` becomes a
+choice of clock source. Nothing downstream moves — not the signal, not
+`TimeState`, not the automaton's tick gate.
+
+**Cost:** a vendored dependency, a build-system change (Link wants
+platform socket code), a clock-source seam, and a runtime choice between
+two transports. **Verdict: the highest ceiling and the highest cost.** It
+is the right answer if the instrument is ever played beside Live on
+another machine, and an expensive way to get a number the tree already
+counts if it is not.
+
+### B.2 — **MIDI** through the existing lane
+
+**In-tree today:** all of it. `MidiPort`, `MidiTransport`, seven voices,
+the clock, start/stop/continue/song-position, and 55 published readings.
+
+**What it adds:** **the return direction, which is the actual gap.** The
+lane reads and never writes. Two things become possible with no new
+mechanism:
+1. **CC IN → `organ_set`.** A CC# → `block.field` map over the manifest,
+   through the same one write road the REPL and the scene file use. This
+   is the CC MAP already parked in OPEN.md's PANEL section, and after
+   THE_PANEL II it is *a map plus a callback* — the road exists.
+2. **CC/note OUT** — the world speaking back to the DAW. Nothing in the
+   tree does this and nothing asks for it yet.
+
+**Seams touched:** the MIDI callback (a second consumer beside
+`transport.feed`), and `organ_set` — which is already the one write road
+and needs no change. **Zero GPU seams. Zero analysis seams.**
+
+**Cost: by far the lowest, and it is the only one that touches the PANEL
+rather than the clock.** The dependency is vendored, the port is open, the
+manifest is the whitelist, and the refusal path is built and gated.
+**Verdict: the cheapest real capability in the list, and the one the two
+PANEL handoffs were the groundwork for.**
+
+**The one design question it raises**, and it is a genuine one for Jean:
+**cadence.** A CC turning a `live` row is an instrument. A CC turning a
+`gen` row (the seed, the whole automaton) is a *trigger* — it moves
+nothing until a door fires. A CC turning a `driven` row is refused
+outright. The atlas tags every candidate dial with its cadence for exactly
+this reason, and a CC map that ignores cadence produces knobs that appear
+dead.
+
+### B.3 — **DAW audio loopback**
+
+**In-tree today:** nothing. No audio input, no FFT, no device layer.
+
+**What it adds:** the one thing MIDI structurally cannot give — **the
+sound itself**: amplitude envelopes, spectral content, the character of a
+synth rather than the notes behind it. It also hears material that has no
+MIDI representation (audio clips, external instruments, anything
+recorded).
+
+**What it costs:** an audio device layer (a third dependency, or platform
+APIs), a real-time audio thread with its own hard latency budget, an FFT
+and the whole feature-extraction question, and a **second analysis
+vocabulary** beside the pc/DFT one canvas_1 already publishes. The atlas's
+§1 shows the existing vocabulary is 43/55 UNHEARD — so this adds sources
+to a world that is not listening to the ones it has.
+
+**Seams touched:** the largest set — a new source tier under `sources/`, a
+new analysis path, new `publish_reading` names, plus the same clock
+question B.1 raises (audio gives no beat; it would still need MIDI or Link
+for position).
+
+**Verdict: the highest capability and the wrong next step.** It is a
+campaign, not a seam, and it is the only one of the three that does not
+make the existing 43 unheard publications any more heard.
+
+## C — WHAT THE SCOUT CONCLUDES (facts, not a choice)
+
+1. **The world already has phase-locked musical position from an external
+   timeline.** No transport is needed to make the ground step on the bar —
+   `AUTO_LIVE.tick_period` is in beats and the tick gate already crosses
+   on `floor(beats / tick_period)`. **That coupling is a wiring line, not
+   a transport.**
+2. **The gap is not INPUT, it is the RETURN DIRECTION and the LISTENERS.**
+   43 published sources are unheard; the MIDI lane cannot be written to;
+   the panel has no player. All three are addressed by B.2 and none needs
+   a new dependency.
+3. **B.1 buys independence from the cable**, not information. Its case is
+   "played beside Live, without loopMIDI", and that is a real case — but
+   it is a convenience case, not a capability one.
+4. **B.3 buys a genuinely new sense** and costs a campaign, into a world
+   already not listening to most of what it is told.
+5. **Cadence is the constraint any of them meets**, and the atlas already
+   tags it. This is the fact most likely to surprise: the automaton's
+   entire vocabulary is `gen`, so a CC over it is a *composer's* control,
+   not a *performer's* — until a door is bound to a note.
+
+**No transport is chosen here. No build is proposed.**
