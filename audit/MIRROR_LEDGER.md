@@ -15,8 +15,8 @@ carry those facts, or leave them in place and patch around them.
 
 | field | value |
 |---|---|
-| source commit | `33d41af515a5b8c022d5c7a22b232b141d87bef9` |
-| | ONE_SURFACE HOTFIX: the WGSL room never moved, and the world could not draw |
+| source commit | `d767852a0159436789b69350ba334e744577f40d` |
+| | ONE_SURFACE HOTFIX: the ledgers' stamps settle |
 | `src/cartridges/the_board/realization/binding_registry.hpp` | `sha256:968d2d0dcbaa4ffe35f30b8349de93b4912cb3da09a16c56965408c90fc3ad9c` |
 | `src/cartridges/the_board/realization/world.wgsl` | `sha256:4ff20a57b7f75bcfcb25040036070b97b86739d3b63f2ed54dc75b926516da46` |
 | `src/cartridges/the_board/realization/state.hpp` | `sha256:52f57445f2be8d4c021957d78b93cd8701284e6a736a3254e7a74e1fef49a93c` |
