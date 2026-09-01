@@ -6,11 +6,19 @@ the registry emits; a door presses machinery the program already has. Nothing
 here is an author the program did not have, and nothing here is a home for a
 fact that has one elsewhere.
 
-`?organ=1` opens the panel (the backtick folds it; on a phone, the pill).
-`?preset=<name>` boots a scene with no panel. `?seed=N` pins the world — it
-was `?mood=N&seed=N` until ONE_WORLD-II U2, and a world is chosen by its seed
-alone now. With none of these the shell returns on its second statement and the
-audience path is byte-identical.
+**THE CHANNEL IS argv (THE_PANEL I U5).** `--seed=N` pins the world, `--msaa=`
+picks the sample count, `--probe=N` runs the device gate and exits on the
+device's own verdict, `--probe-backend=` picks its adapter ladder. Read once at
+boot before the device request, never re-read, never mutated mid-run; anything
+accepted prints one `[Params]` line, because a switch that fired should be
+visible. `src/core/boot_params.hpp` is the one home.
+
+*This paragraph read `?organ=1` opens the panel (the backtick folds it; on a
+phone, the pill). `?preset=<name>` boots a scene with no panel. `?seed=N` pins
+the world.* Not one of those roads exists: the URL channel, the pixel cap and
+the pace lever went with the web twin at tag `web-sunset`, and their only
+consumers were its presentation layer. It was the doc tree's largest surviving
+falsehood and it was in this document's second paragraph.
 
 ## The compiled registry
 
@@ -197,16 +205,58 @@ THE ABLETON SEAM); the browser panel that drove it is attic'd at tag
 
 ## The shell
 
-The browser panel (`web/organ_panel.js`) is attic'd at tag `web-sunset`
-with the twin it drove. The ABI above is what survives it, on purpose:
-extern "C", name-stable, waiting for the native control surface — the
-OSC/MIDI/Link seam OPEN.md holds as THE ABLETON SEAM.
+**THERE IS NO SHELL, and this section says so rather than describing one.**
+`web/` does not exist — it left WHOLE at `web-sunset`, not merely its build —
+so `web/organ_panel.js` and the `shell_gate` that proved the C++↔shell seam are
+both archaeology from that tag. The ABI above is what survives, on purpose:
+`extern "C"`, name-stable, and costing the sunset nothing because
+`EMSCRIPTEN_KEEPALIVE` self-defines away off the web.
+
+**WHAT COMES NEXT, AND WHAT IT MUST SATISFY.** THE_PANEL II builds the native
+hands on the tree's own one-road law: `--scene=<file>` plus a watched scene
+file as THE ROAD, and a stdin REPL as THE HAND. Its acceptance test is one
+sentence and it belongs here:
+
+> **A new dial is one line in `organ_params.inc` and zero lines in the shell.**
+
+That test is already TRUE of the ABI and only untrue of the shell.
+`organ_manifest` emits the whole vocabulary with each row's CURRENT value, so a
+name-blind reader needs no per-dial code; `organ_doors` emits the door roster
+the same way. What is missing is a road and a hand, not a surface. **This
+section is filled in by the campaign that builds them** — it is left saying
+what is absent, because a doc describing a shell that does not exist is how
+this document came to open on `?organ=1`.
 
 ## Presets
 
-The shelf moved to `/presets` at WEB_SUNSET — authored scenes,
-currently reader-less, held for the native ingestion (docs/OPEN.md,
-NATIVE PRESET INGESTION). The `?preset=` boot road went with the panel.
+The shelf moved to `/presets` at WEB_SUNSET — authored scenes, **still
+reader-less**, held for the native ingestion (docs/OPEN.md, NATIVE PRESET
+INGESTION). The `?preset=` boot road went with the panel and `--scene=` is
+THE_PANEL II's to build.
+
+**THE MIGRATION RECORD LANDED AHEAD OF THE READER (THE_PANEL I U3c).**
+`presets/index.json` is **schema 2** and carries the refusal contract plus a
+`retired_ids` ledger — data, not code, so the importer is written against a
+census rather than a guess. **49 of `baseline.json`'s 232 keys name families
+that no longer exist**, and that file stays stamped schema 1 deliberately:
+re-stamping it would make the version a lie and hide 49 refusals an importer
+should print.
+
+Two things in that ledger are law for whoever writes the reader:
+- **A stale key is refused OUT LOUD, BY NAME, and the file with it** — never
+  skipped, never aliased. A scene that half-applies leaves behind a world
+  nobody authored. The precedent is `organ_set`'s own refusal of a definition
+  target above 0.
+- **Match ids WHOLE, never by prefix.** Block *ids* are never re-packed (8 and
+  10 are permanent holes), but block *NAMES* are reusable and one has been
+  reused: `WORLD.*` in a schema-1 file means the dead world-draw block, while
+  `WORLD.next_seed` is block 15 and alive.
+
+**And an export must walk the MANIFEST, not the struct.** Nine of those stale
+keys are `RIBBON_SPAWN` ARRAY members over a block that is very much alive —
+the manifest has no row shape for an array, so no `organ_set` call could ever
+have accepted them. The web panel's export walked the struct and wrote a file
+the program cannot read back.
 
 ## The tuning loop
 
@@ -220,16 +270,37 @@ It was `?organ=1&mood=N&seed=N` into one of seven moods, with a lens that
 followed the regime the seed drew, and a preset file carrying every mood's
 definitions keyed `"<mood>/<param>"`. The regime roll left at U1, the moods at
 U2, and the witness lost a term at each: it printed `(mood, seed, regime)` and
-prints one seed now. A preset shelved before those cuts is REFUSED by key,
-loudly and by name.
+prints one seed now.
+
+*This paragraph ended "A preset shelved before those cuts is REFUSED by key,
+loudly and by name."* **No program does that, because no program reads a
+preset** — the refusal is a CONTRACT written down (see Presets above) and its
+enforcement is THE_PANEL II's. `organ_set` does refuse a definition target
+above 0 by name, which is the precedent the contract descends from, and that
+one is live.
 
 ## The world
 
 ONE WORLD, ONE SKY. A world is a SEED and nothing else: `--seed=` on argv
 or a drawn one, and every fact the program used to look up per mood is a
 LIVE BANK the panel owns — `ATMOS_LIVE` (the sky as a distribution),
-`ORB_LIVE`, `CUBE_LIVE`, `AGENTS_LIVE`. The world is pinned FINITE and its
-radius draws from `FINITE_RADIUS_MIN/MAX` under the same seed.
+`ORB_LIVE`, `AGENTS_LIVE`, and since ONE_SURFACE-II `AUTO_LIVE`, the ground's
+own vocabulary. The world is pinned FINITE and its radius draws under the same
+seed from **`WORLD_LIVE.radius_min/max`** (THE_PANEL I U3), a range the panel
+turns, bounded by the compile-time `FINITE_RADIUS_MAX` that sizes the
+automaton's life buffer and the frustum-cull segments.
+
+**`CUBE_LIVE` was named in this list and is NOT a bank the panel owns.** It has
+no enrolled row: `CubeBank` lives in a body, and the organ may not include one
+(L38), so enrolling it needs a contracts seat founded for it first — the move
+`agent_surface.hpp` was. `organ_gap` reports it as a home with zero named
+members. Flagged, not forced, and now said here instead of implied.
+
+**AND A WORLD CAN BE RE-DRAWN WITHOUT RESTARTING (THE_PANEL I U1).** Block 15
+carries `next_seed`; `ORGAN_DOOR_REBIRTH` presses `rebirth_world` with it.
+Turn the seed and press, and the standing world is torn down and another
+drawn; press without turning and the same world is rebuilt from the same
+number.
 
 `## Moods` stood here until ONE_WORLD-II U7. It described seven variants,
 their positional tables (`MOOD_TABLE`, `ORB_MOOD_TABLE`,
@@ -253,8 +324,13 @@ ONE_WORLD-I. All of it is gone now.
 `tools/gates/shell_gate/run.py` stood in this table and left with the browser
 panel at WEB_SUNSET: it proved the C++ ↔ shell seam, and there is no shell to
 be at the other end of it. The three organ tools share `tools/organ_parse.py`.
-Every instrument reads text; the NATIVE boot is the witness of record for
-everything past the type surface.
+
+**EVERY INSTRUMENT IN THIS TABLE READS TEXT, AND THE DEVICE IS A GATE OF ITS
+OWN (L48).** They parse the enrollment list, type-check the TUs and diff
+idioms; not one of them runs a dial against a device. `the-board --probe=N`
+boots, runs N frames and exits on the device's own verdict, and it is the row
+that RUNS. A dial that is green here and refused there is a defect no reading
+finds.
 
 ## What has no dial, and why
 
@@ -272,7 +348,7 @@ outlives the fact.
 | ~~`THEME_BASE_WEIGHT`~~ | it was one scalar over a 5×N weight construction; the honest dial was the whole `MOOD_SPAWN_MULT` matrix, D5-large — **struck, ONE_WORLD-II U3** | a composite editor (D5) |
 | ~~`INDOOR_PALETTES[]`~~ | mixed-shape rows, count read from `INDOOR_PALETTE_COUNT` (D5) — **struck, ONE_WORLD-II U4** | a composite editor (D5) |
 | `tierset_id` | its "none" value is `0xFFFFFFFF`, and a 0…1 slider cannot express a sentinel without lying (D1(d)). `organ_gap` reports it, by name, as the one absent member of `OrbConfig` | a composite editor (D5) |
-| `mute_couplings` | a bitmask: `Coupling::ALL` is `0x1FFFFF` and a slider from 0 to 2 097 151 is not a dial. It wants a checkbox per bit — a shell feature, not an enrollment line — and **the bits are not there to check**: 21 bits wide, 8 of them named, so twenty-one checkboxes would be thirteen toggles over bits nothing reads. `Coupling::` is also a hand-kept mirror of `world.wgsl`'s `COUPLING_*` block, which D1's third branch reserves | a checkbox grid over a roster the C++ emits — priced, unbuilt, and **not CC's to choose** |
+| `mute_couplings` | a bitmask: `Coupling::ALL` is `0x1FFFFF` and a slider from 0 to 2 097 151 is not a dial. It wants a checkbox per bit — a shell feature, not an enrollment line — and **the bits are not there to check**: 21 bits wide, 8 of them named, so twenty-one checkboxes would be thirteen toggles over bits nothing reads. `Coupling::` is also a hand-kept mirror of `world.wgsl`'s `COUPLING_*` block, which D1's third branch reserves. **Its one setter left at THE_PANEL I U4** (`set_mute_coupling`, zero callers), so the field is now its boot value and nothing can change it at all — which makes the missing dial visible instead of merely absent | a checkbox grid over a roster the C++ emits — priced, unbuilt, and **not CC's to choose** |
 
 `D5` is the composite-editor deferral: a fact whose honest control is a grid
 rather than a slider, priced rather than promised. `D1(d)` is the range
@@ -291,28 +367,27 @@ is.
 
 ## The tally
 
-**310 entries — 295 dials and 15 witnesses.** Cut from `audit/ORGAN.md`, which
-`tools/organ_ledger.py` regenerates from the enrollment list.
+**THE HAND-WRITTEN TALLY IS GONE (THE_PANEL I U5), and that is the fix.**
 
-| section | rows |
-| --- | --- |
-| Agents | 102 |
-| Ribbon | 55 |
-| Terrain | 37 |
-| Atmosphere | 31 |
-| Sky & Light | 30 |
-| Interaction | 22 |
-| Pawn | 18 |
-| Population | 5 |
-| Debug | 4 |
-| Camera | 3 |
-| Measure | 3 |
+It read *"310 entries — 295 dials and 15 witnesses"* under a line saying "Cut
+from `audit/ORGAN.md`, which `tools/organ_ledger.py` regenerates" — and it had
+drifted on FOUR of its numbers at once. The recon that found it counted three;
+its own adversarial pass found the fourth (`live`: the doc said 164, the tool
+said 162). A hand-written tally beside a generated one is the thing this unit
+exists to end: the copy is the one that drifts (L46), and a tally is nothing
+BUT a copy.
 
-By cadence: `boundary` 106 · `live` 164 · `gen` 25 · `driven` 15.
-By definition kind: none 208 · BEHAVIOR 70 · TIER 32.
+**The tallies live in `audit/ORGAN.md` and nowhere else.** Its header block
+carries entries, by section, by cadence, by macro form, definition kinds,
+witnesses, blocks used and namespaces, and it is regenerated by
+`python3 tools/organ_ledger.py` from the enrollment list. It is committed and
+searchable, which is why this document should point at it rather than quote it.
 
-It was **365 — 348 and 17** before ONE_WORLD-II. The atmosphere lost 40 rows
-at U1 (fifty-two definition-only rows against four regimes became twelve
-against one bank), the moods took the `MOOD` kind's 55 and `ORB_MOOD`'s 19
-became ORB_BANK's instance rows, and U6b added the agents' five and the
-population panel's. Every number here is the ledger's, never hand-counted.
+What belongs HERE is what a tally cannot say — the shape of the surface and
+why it has that shape — and that is the rest of this document.
+
+**Two numbers ARE worth stating in prose, because they are claims and not
+counts.** Every enrolled row has a declared reader (`organ_readers.py`: NO
+SUSPECTS), and every graduated design table has no surviving runtime reader
+(`organ_gap.py --gate`: PASS). Those are the two things the tally was really
+being used to imply.
