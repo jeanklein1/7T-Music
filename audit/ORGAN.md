@@ -377,18 +377,18 @@ its seed and its asserts. Anything else is a surviving runtime
 reader — the class of defect this witness exists to catch.
 
   AGENT_BEHAVIORS      definition=1 seed=10 comment=7             
+  AGENTS_TABLE         definition=1 seed=1 comment=1              
   AGENT_TIER_GAINS     definition=1 seed=4 static_assert=2 comment=6 
+  ATMOS_TABLE          definition=1 seed=1 static_assert=8 comment=4 
   CANVAS_TABLE         definition=1 seed=1 comment=1              
+  CUBE_TABLE           definition=1 seed=1 static_assert=3 comment=1 
   DRIVER_TABLE         definition=1 seed=1 comment=1              
-  INDOOR_TABLE         (no mention anywhere)                      
-  MOOD_TABLE           comment=4                                  
   ORB_CONSOLE          definition=1 seed=1 comment=2              
-  ORB_MOOD_TABLE       comment=3                                  
+  ORB_TABLE            definition=1 seed=1 comment=4              
   PANEL_TABLE          definition=1 seed=1 static_assert=6 comment=2 
   PAWN_AURA_DEFAULT    definition=1 seed=1 static_assert=1 comment=3 
   RIBBON_SPAWN_TABLE   definition=1 seed=1 static_assert=2        
   RIBBON_TABLE         definition=1 seed=1 static_assert=3 comment=2 
-  WORLD_DRAW_TABLE     (no mention anywhere)                      
 
 SURVIVING RUNTIME READERS ACROSS 13 GRADUATED PAIRS: 0
 

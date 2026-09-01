@@ -14,8 +14,8 @@ merge rows the API charges separately.
 | field | value |
 |---|---|
 | demo column censused | `full` |
-| source commit | `5d5bb39716c0d4f6062602c77a10c2749edb926b` |
-| | ONE_WORLD-II U7: the sweep — the prose follows the code |
+| source commit | `2250854b809b117d8632227a6d404ecba46346b1` |
+| | ONE_WORLD-II U8a: the instruments — the record ritual finds one more |
 | `src/cartridges/the_board/realization/state.hpp` | `sha256:c24bf0e1afb801438c83d5aa99eb466d433eabc0f84c44669ee0d965e2884d6a` |
 | `src/cartridges/the_board/realization/binding_surface.gen.inc` | `sha256:0b98dfab809edd83752dedf7803f758fcf4ce502009763642a37cbf03b2a8446` |
 | `src/cartridges/the_board/realization/binding_registry.hpp` | `sha256:968d2d0dcbaa4ffe35f30b8349de93b4912cb3da09a16c56965408c90fc3ad9c` |

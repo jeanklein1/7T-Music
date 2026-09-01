@@ -66,37 +66,49 @@ HOMES = {
     "AgentPopulationBank":   "src/cartridges/the_board/contracts/agent_surface.hpp",
     "AgentTierBank":         "src/cartridges/the_board/contracts/agent_tiers.hpp",
     "AgentBehaviorBank":     "src/cartridges/the_board/contracts/agent_tiers.hpp",
-    "MoodProfile":           "src/cartridges/the_board/contracts/spine_state.hpp",
     "PawnAuraProfile":       "src/cartridges/the_board/contracts/pawn_surface.hpp",
     "OrbConsole":            "src/cartridges/the_board/contracts/orb_surface.hpp",
     "OrbMoodConfig":         "src/cartridges/the_board/contracts/orb_surface.hpp",
     "PanelSurface":          "src/cartridges/the_board/contracts/control_panel.hpp",
     "RibbonSurface":         "src/cartridges/the_board/contracts/ribbon_surface.hpp",
-    "IndoorSurface":         "src/cartridges/the_board/contracts/indoor_module.hpp",
     "CanvasSurface":         "src/coupling/canvas_surface.hpp",
-    # the two destructive banks
-    "WorldDrawSurface":      "src/cartridges/the_board/contracts/mood_constants.hpp",
+    "CubeBank":              "src/cartridges/the_board/bodies/cube_behaviors.hpp",
+    # the destructive bank
     "RibbonSpawnSurface":    "src/cartridges/the_board/contracts/ribbon_surface.hpp",
 }
+# MoodProfile, IndoorSurface and WorldDrawSurface stood here with their
+# homes; all three left with their subjects at ONE_WORLD-II U2 and U4,
+# and their rows printed STRUCT NOT FOUND — blind spot 2 doing its job —
+# until U8 cut them. CubeBank is a HOME with NO ENROLLED ROW: the bank
+# rose at U1c and cannot be enrolled while it lives in a body, because
+# the organ may not include one (L38). It is listed so the reader witness
+# can see it; the `*` in the file table is the honest mark for it.
 
 # ─── THE GRADUATED PAIRS (the reader witness) ─────────────────────────
 # home struct -> (DESIGN symbol, LIVE bank symbol). A home with no pair
 # (the three GPU rooms) was never a graduation and has nothing to witness.
 PAIRS = {
-    "MoodProfile":       ("MOOD_TABLE",        "MOOD_LIVE"),
     "DriverSurface":     ("DRIVER_TABLE",      "DRIVER_LIVE"),
+    "AtmosphereBank":    ("ATMOS_TABLE",       "ATMOS_LIVE"),
+    "AgentPopulationBank": ("AGENTS_TABLE",    "AGENTS_LIVE"),
+    "CubeBank":          ("CUBE_TABLE",        "CUBE_LIVE"),
     "AgentTierBank":     ("AGENT_TIER_GAINS",  "TIER_LIVE"),
     "AgentBehaviorBank": ("AGENT_BEHAVIORS",   "BEHAVIOR_LIVE"),
     "PawnAuraProfile":   ("PAWN_AURA_DEFAULT", "PAWN_AURA_LIVE"),
     "OrbConsole":        ("ORB_CONSOLE",       "ORB_CONSOLE_LIVE"),
-    "OrbMoodConfig":     ("ORB_MOOD_TABLE",    "ORB_LIVE"),
+    "OrbMoodConfig":     ("ORB_TABLE",         "ORB_LIVE"),
     "PanelSurface":      ("PANEL_TABLE",       "PANEL_LIVE"),
     "RibbonSurface":     ("RIBBON_TABLE",      "RIBBON_LIVE"),
-    "IndoorSurface":     ("INDOOR_TABLE",      "INDOOR_LIVE"),
     "CanvasSurface":     ("CANVAS_TABLE",      "CANVAS_LIVE"),
-    "WorldDrawSurface":  ("WORLD_DRAW_TABLE",  "WORLD_DRAW_LIVE"),
     "RibbonSpawnSurface":("RIBBON_SPAWN_TABLE","RIBBON_SPAWN_LIVE"),
 }
+# THE FOUR BANKS ONE_WORLD-II BUILT are witnessed here for the first
+# time at U8. AtmosphereBank and AgentPopulationBank were HOMES with no
+# PAIR — the tool called them "(not a graduation)" when each is exactly
+# one — and OrbMoodConfig's pair named ORB_MOOD_TABLE, the seven-row
+# table U2 took, rather than ORB_TABLE, the design row that seeds
+# ORB_LIVE today. A pair naming a symbol that does not exist witnesses
+# nothing and reports zero readers for it, which reads as a pass.
 SRC_EXT = (".hpp", ".cpp", ".inc", ".h")
 
 

@@ -279,7 +279,7 @@ from the seed between two dials.
 | U5 | **The pin.** `WORLD_FINITE` boots true and nothing unsets it; the radius derives from the seed between `FINITE_RADIUS_MIN/MAX`. `become_world` prints the world it made. |
 | U6a / U6b | **The organ re-homed.** The definition-only mechanism retired whole — the 255/254 sentinels, the `ORGAN_PARAM_DEFONLY` pair, `is_defonly` — because every row addresses an instance now. Blocks 12/13/14 (`ATMOS`, `ORB_BANK`, `AGENTS`) enrolled; the selecting kinds' target parameter left, and a definition target above 0 is REFUSED OUT LOUD by name. |
 | U7 | **The sweep.** Prose probate across `src/`, `tools/` and `docs/`; three orphaned `*_INDOOR_RESCALE_PARAMS` tables U4 left behind; a stale `spotShadowMapTexture_` row in `binding_schema.py`; `mood.hpp` → `sky.hpp`, `apply_mood_lighting` → `stage_sky`, `apply_aura_mood_policy` → `apply_aura_policy`; struck-notes on L10 and L44; the ledgers' hand-copied tally corrected against the tool. |
-| U8 | Instruments, the audit room, the L33 witness and the full battery. |
+| U8 | Instruments, the audit room, the L33 witness and the full battery. The G-LAW 2 record found `kFrameSlotZero` — a constant three live sentences called the offset every group-1 bind passes, referenced by nothing since U4 took the dynamic seat. `tools/organ_gap.py` carried three dead pairs that witnessed nothing and reported zero readers for them, which reads as a pass; the three banks this campaign built were HOMES with no pair at all. Thirteen pairs, all real, zero surviving readers. |
 
 **AMENDMENT B GREW A THIRD CLAUSE, and it was paid for three times.**
 Deletion regions anchor on **symbols, never on banners**; a banner-to-banner
@@ -306,6 +306,18 @@ the sweep surfaced — `cycle_cube_behavior_override`, `reveal_zoetrope`,
 each reachable from no key and no door. None is this campaign's subject; they
 await the panel's own recon, which is the sitting that can say what a control
 surface needs.
+
+**The close.** Every gate green at the pushed tip: TU PASS/PASS · G-LAW 2
+GREEN · WGSL PASS · score census GREEN · binding surface all witnesses (S-6
+on a clean tree at the pushed tip) · organ gap PASS · organ ledger NO
+SUSPECTS · mirror census all witnesses · command census all witnesses. L33's
+standing witness was RUN at the closing commit — the five files in `audit/`
+deleted, the five tools re-run, all five byte-identical. **G-LAW 1 and the
+visual gate are Jean's and are not claimed here**, and neither is the boot
+transcript the rider's §C.2 asks for: it comes from a build, and a build is
+Jean's gate. The `[Atmos]` line to expect is one field shorter than the
+target on record — `seed= int= amb= sun el= az= fog=`, no `mood=`, no
+`regime=` — and `[World] Born FINITE radius=R (SxS patches)` is new.
 
 **Flagged, not taken (naming and build are Jean's gates):**
 - `OrbMoodConfig` still wears the moods' name. Its rows stopped being seven at
