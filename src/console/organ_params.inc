@@ -148,16 +148,23 @@ ORGAN_PARAM_RO(CONFIG, GPUDesignConfig, fog_density,  F32,  "Atmosphere · Fog",
 ORGAN_PARAM_RO(CONFIG, GPUDesignConfig, fog_color,    VEC3, "Atmosphere · Fog", "colour (driven)")
 
 // ─── Atmosphere · Veil ───────────────────────────────────────────────
-// THE VEIL CHAIN BOUNDS THESE THREE AND THE RANGES CARRY IT: EXIST(350) >
-// ring > lod0, and ring − icing > lod0. Widen one and re-prove the chain.
+// TWO ROWS LEFT THIS SECTION AT ONE_SURFACE-I U4, and neither could move a
+// pixel when it did. `veil_dither` chose between the icing's tint and
+// dither arms, and the pin had held `veil` at zero — where both arms
+// return the same colour. `veil_strength` was the RO meter of that zero.
+//
+// THE CHAIN STILL BOUNDS WHAT IS LEFT, and the ranges still carry it:
+// EXIST(350) > ring > lod0, and ring − icing > lod0. Widen one and
+// re-prove the chain. What the fold table changed is what the two survivors
+// MEAN: `veil_ring` is the DRAW AUTHORITY, read by four gates that never
+// asked about strength and still culling inside a walled world; `veil_icing`
+// is the GRAIN's band, its one surviving reader being veil_t's smoothstep
+// under entity_fs' `grain = 1 - veil_t` (L12). The names are the veil's and
+// the facts are not; renaming a CONFIG field renames its row id, which is a
+// stored preset's key, so the rename is flagged for Jean and not taken.
 ORGAN_PARAM(CONFIG, GPUDesignConfig, veil_ring,   F32, 265.0f, 349.0f, 0.5f,  "Atmosphere · Veil", "ring (draw authority)")
-ORGAN_PARAM(CONFIG, GPUDesignConfig, veil_icing,  F32, 0.0f,   60.0f,  0.25f, "Atmosphere · Veil", "icing band")
+ORGAN_PARAM(CONFIG, GPUDesignConfig, veil_icing,  F32, 0.0f,   60.0f,  0.25f, "Atmosphere · Veil", "grain band")
 ORGAN_PARAM(CONFIG, GPUDesignConfig, lod0_radius, F32, 0.0f,   175.0f, 1.0f,  "Atmosphere · Veil", "LOD0 core")
-ORGAN_PARAM(CONFIG, GPUDesignConfig, veil_dither, F32, 0.0f,   1.0f,   1.0f,  "Atmosphere · Veil", "rim dither (>0.5)")
-// veil_strength has ONE author and it is not a dial: the cartridge writes
-// `finite_mode ? 0 : 1`, a world-shape fact. The control surface meters it — 1
-// outdoors, 0 wherever walls define the edge.
-ORGAN_PARAM_RO(CONFIG, GPUDesignConfig, veil_strength, F32, "Atmosphere · Veil", "authority (driven)")
 
 // ─── Atmosphere · Checker ─────────────────────────────────────────
 // Dials on the driver's seam (out = rest + gain·(driven − rest)); the driven

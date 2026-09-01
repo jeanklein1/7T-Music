@@ -181,7 +181,6 @@ void clear_input_deltas(InputDeps* c);
 // Camera / view commands
 void toggle_fpv_mode(InputDeps* c);
 void possess(InputDeps* c, PointHost next);   // THE ONE TRANSACTION — capture the edge, flip the host both rooms, start the ease
-void toggle_veil_dither(InputDeps* c);   // THE RIM knob (key V): icing tint <-> dither-dissolve
 void nudge_look_sensitivity(InputDeps* c, bool up);   // KP_+ / KP_- — multiplicative, clamped
 
 
@@ -257,7 +256,8 @@ inline void on_key_down(InputDeps* c, int key,
     // radius anyway — the keys had not been able to change a visible thing
     // since the pin. A radius change is a REBIRTH now (the handoff's 1.4),
     // and the rebirth's caller is THE PANEL's to build.
-    case GLFW_KEY_V:              toggle_veil_dither(c);                                   break;  // THE RIM: icing tint <-> dither-dissolve
+    // V drove toggle_veil_dither — THE RIM knob — and left at
+    // ONE_SURFACE-I U4 with the icing whose two arms it chose between.
 
     // ── Look dial (numpad) ───────────────────────────────────────
     case GLFW_KEY_KP_ADD:      nudge_look_sensitivity(c, true);   break;
@@ -517,15 +517,9 @@ inline void possess(InputDeps* c, PointHost next) {
 // through request_recenter. Both its subject and its door left at
 // ONE_SURFACE-I U2.
 
-// THE RIM knob (key V): flip the veil's icing between TINT (fade to fog,
-// default) and DITHER-DISSOLVE (geometry condenses). Reads the current
-// config value and flips it — the dirty-gated setter rides the next U8
-// config drain (no queue needed here).
-inline void toggle_veil_dither(InputDeps* c) {
-    bool on = c->gpuState_.config().veil_dither > 0.5f;
-    c->gpuState_.set_veil_dither(on ? 0.0f : 1.0f);
-    std::cout << "[the_board] Veil rim: " << (on ? "TINT (fade to fog)" : "DITHER-DISSOLVE") << std::endl;
-}
+// `toggle_veil_dither` stood here — the RIM knob's door. Its subject was
+// the icing's tint/dither fork, and both arms had returned the same colour
+// since the pin (ONE_SURFACE-I U4).
 
 } // namespace the_board
 } // namespace t7

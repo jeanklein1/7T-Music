@@ -355,21 +355,23 @@ inline void band_patches(MachineCtx* c, wgpu::Queue& queue) {
     GPUPatchInstance instances[Dim::MAX_ACTIVE_PATCHES];
     uint32_t lod0Count = 0;
     uint32_t lod1Count = 0;
-    uint32_t pregenCount = 0;
 
-    // Temporary arrays for each band
+    // Temporary arrays for each band. THE PREGEN BAND LEFT AT
+    // ONE_SURFACE-I U4: it held patches OUTSIDE the ring, built but not
+    // drawn, and the finite arm of the gate below made it unreachable the
+    // day the world was pinned.
     GPUPatchInstance lod0[Dim::MAX_ACTIVE_PATCHES];
     GPUPatchInstance lod1[Dim::MAX_ACTIVE_PATCHES];
-    GPUPatchInstance pregen[Dim::MAX_ACTIVE_PATCHES];
 
     float point_wx = c->point_.x;   // THE POINT (1-frame stale by law E-4)
     float point_wz = c->point_.z;
     float half = Dim::PATCH_EXTENT * 0.5f;
 
-    // THE VEIL CHAIN, live: THE RING is the draw authority (nothing draws
-    // beyond it); lod0 is the full/half-mesh split. The same config values
-    // the GPU gate + the fragment icing read — one yardstick everywhere.
-    const float ring_sq = c->gpuState_.veil_ring()   * c->gpuState_.veil_ring();
+    // lod0 is the full/half-mesh split — the same config value the GPU
+    // gate reads, one yardstick in both rooms. The RING's square stood
+    // beside it and gated the pregen band; a walled world draws every
+    // patch it has, and the ring reaches the BODIES on those patches
+    // through the four VS/FS gates, not the patch set.
     const float lod0_sq = c->gpuState_.lod0_radius() * c->gpuState_.lod0_radius();
 
     for (uint32_t i = 0; i < c->world_state_.active_patch_count; i++) {
@@ -387,25 +389,19 @@ inline void band_patches(MachineCtx* c, wgpu::Queue& queue) {
 
         float d2 = patch_distance_sq(point_wx, point_wz, ox, oz, half);
 
-        // Finite mode: all patches visible (walls define boundary, not fog)
-        if (c->world_state_.finite_mode || d2 <= ring_sq) {
-            if (d2 <= lod0_sq) {
-                lod0[lod0Count++] = inst;
-            }
-            else {
-                lod1[lod1Count++] = inst;
-            }
+        // EVERY PATCH IS VISIBLE: a walled world draws all of what it has.
+        if (d2 <= lod0_sq) {
+            lod0[lod0Count++] = inst;
         }
         else {
-            pregen[pregenCount++] = inst;
+            lod1[lod1Count++] = inst;
         }
     }
 
-    // Pack: LOD-0, then LOD-1, then pregen
+    // Pack: LOD-0, then LOD-1
     uint32_t w = 0;
     std::memcpy(instances + w, lod0, lod0Count * sizeof(GPUPatchInstance)); w += lod0Count;
     std::memcpy(instances + w, lod1, lod1Count * sizeof(GPUPatchInstance)); w += lod1Count;
-    std::memcpy(instances + w, pregen, pregenCount * sizeof(GPUPatchInstance)); w += pregenCount;
 
     c->gpuState_.upload_patch_instances(queue, instances, w);
     c->world_state_.lod0_patch_count = lod0Count;

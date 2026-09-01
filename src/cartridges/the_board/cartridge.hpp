@@ -1160,10 +1160,11 @@ namespace t7 {
                 else {
                     gpuState_.set_world_bounds(0.0f, 0.0f, 0.0f, 0.0f);
                 }
-                // THE VEIL (ruled): OFF in finite mode — the bounds define the
-                // edge there, not fog (the same law that makes all patches
-                // visible in finite mode). Dirty-gated; rides the U8 drain.
-                gpuState_.set_veil_strength(world_state_.finite_mode ? 0.0f : 1.0f);
+                // THE VEIL'S STRENGTH was staged here, 0 in a finite world.
+                // It left at ONE_SURFACE-I U4 with the icing it scaled — the
+                // fold table found every reader of it multiplying by zero.
+                // The RING is untouched and is not the veil's: it is the draw
+                // authority, and it still culls inside the wall.
             }
 
             // L10 — A WORLD BECOMES THE WORLD THROUGH ONE DOOR. Boot walks

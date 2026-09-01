@@ -609,11 +609,13 @@ namespace t7 {
             // Slot index of the player's current body in agent_state[].
             // Piggybacks on the existing _pulse_pad triple (size witnessed by the sizeof static_assert below — 560).
             uint32_t possessed_slot;          // slot 0 at session start
-            // THE RIM taste knob (config-gated): 0 = icing tints to fog
-            // (default); >0.5 = icing DITHER-dissolves (geometry condenses
-            // instead of tinting) at the two icing FS sites. Repurposes one
-            // of the pulse pad floats — no struct-size delta.
-            float veil_dither;
+            // THE RIM taste knob stood here (ONE_SURFACE-I U4): 0 = the
+            // icing tinted to fog, >0.5 = it DITHER-dissolved. Both arms
+            // read `veil` — which is `veil_t * veil_strength * veil_scale`,
+            // and a finite world stages strength 0 — so the knob had not
+            // been able to move a pixel since the pin. A PAD, and the
+            // repurposed pulse-pad float it always was.
+            float _pad_veil_dither_retired;
             // The GoL lift cap: it bounded each new zone's alive_height so
             // the MAXIMUM realised cell lift equalled it exactly. A PAD TWICE
             // OVER (ONE_WORLD-II U4): it was the last pulse pad before the
@@ -640,23 +642,40 @@ namespace t7 {
             uint32_t point_host;              // 0 = pawn (the kite), 1 = camera (free-fly), 2 = ribbon
             float point_fly_speed;            // W/S/A/D velocity; 0 → WGSL PAWN_SPEED fallback
 
-            // ─── THE VEIL (re-ruled: RING = draw authority, fog = icing) ──
-            // veil_ring: the SOLE draw authority (325 default) — terrain
-            //   banding, entity cull, agent/floater VS gates all read
-            //   it; nothing draws beyond it. Live-tunable.
-            // veil_icing: δ — the narrow fade band [ring−δ, ring] in
-            //   shade_lit (cosmetic; joins materialize inside it).
-            // veil_strength: 1 in an open world, 0 in a finite one — the
-            //   CONTAINMENT WALL defines the boundary there, not fog
-            //   (staged per frame by U5). Its predicate was always
-            //   finite_mode and never a room's, so ONE_WORLD-II U4 changed
-            //   nothing but the sentence: the rooms are gone and the
-            //   invisible wall the b3 ruling named is what remains.
+            // ─── THE RING AND THE GRAIN (ONE_SURFACE-I U4) ───────────────
+            //
+            // THE CHAIN CAME APART AND ONLY ONE STRAND WAS THE VEIL'S. The
+            // fold table at strength 0 says so reader by reader: the icing
+            // composite in shade_lit goes to `fogged` exactly, the dither
+            // arm never discards — and NOT ONE of the four ring gates is
+            // gated by strength at all.
+            //
+            // veil_ring: THE DRAW AUTHORITY, and it always was. Four live
+            //   gates read it — patch_terrain_fs' rim discard, pawn_vs,
+            //   sphere_vs, cube_vs — and none of them asks about strength.
+            //   IT STILL CULLS IN A WALLED WORLD: at radius 4 the box
+            //   diagonal is 636 wu against a ring of 342, so a body inside
+            //   the wall can stand outside the ring. Deleting it would make
+            //   distant bodies appear, which is the opposite of untouched.
+            // veil_icing: δ, and the grain's band now. Its only surviving
+            //   reader is veil_t's smoothstep, whose only surviving caller
+            //   is entity_fs' `grain = 1 - veil_t`. MOSAIC_2 bound the two
+            //   together so a body would materialize at the ring already
+            //   ceramic (L12's closing paragraph); the second band that
+            //   argument was about is the one that just left, and the
+            //   grain's own band is what it always described.
             // lod0_radius: the terrain full-mesh/half-mesh split (175) —
             //   read by the CPU band AND the GPU LOD0 gate (one yardstick).
+            //
+            // `veil_strength` stood between icing and lod0. It was 1 in an
+            // open world and 0 in a finite one, and the pin made it a
+            // constant 0 — so every reader of it was a multiply by zero.
+            // A PAD: this struct's layout is pinned by sizeof 704 and
+            // offsetof(lod_point_x) 336, and a hole upstream would move
+            // every field behind it and part the WGSL mirror.
             float veil_ring;
             float veil_icing;
-            float veil_strength;
+            float _pad_veil_strength_retired;
             float lod0_radius;
 
             // ─── The palette mirror (FORK-tier graduation) ───────────────
@@ -2826,12 +2845,9 @@ namespace t7 {
             // Dirty-gated config setters (ride the U8 drain); getters feed
             // the CPU band + entity cull so every draw gate and the GPU
             // share ONE live value.
-            void set_veil_strength(float s) {
-                if (config_.veil_strength != s) { config_.veil_strength = s; configDirty_ = true; }
-            }
-            void set_veil_dither(float d) {   // THE RIM knob: 0 tint / >0.5 dither-dissolve
-                if (config_.veil_dither != d) { config_.veil_dither = d; configDirty_ = true; }
-            }
+            // `set_veil_strength` and `set_veil_dither` stood here. The
+            // first wrote a value the pin made constant; the second wrote a
+            // knob whose two arms had been identical since (ONE_SURFACE-I U4).
             float veil_ring()   const { return config_.veil_ring; }
             float lod0_radius() const { return config_.lod0_radius; }
             const GPUDesignConfig& config() const { return config_; }
@@ -4357,9 +4373,9 @@ namespace t7 {
                 // world). Boot open-on.
                 config_.veil_ring   = Dim::VEIL_RING_DEFAULT;
                 config_.veil_icing  = Dim::VEIL_ICING_DEFAULT;
-                config_.veil_strength = 1.0f;
+                config_._pad_veil_strength_retired = 0.0f;
                 config_.lod0_radius = Dim::LOD0_RADIUS_DEFAULT;
-                config_.veil_dither = 0.0f;   // THE RIM: default = icing tints (mechanism 1 alone)
+                config_._pad_veil_dither_retired = 0.0f;
                 // THE MOSAIC (MOSAIC_0/1) — trencadís dials, pinned at rest.
                 // THE MOSAIC IS ON (MOSAIC_2). The probe's reason for a
                 // runtime gate is discharged — the walk compiles on the

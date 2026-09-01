@@ -5,15 +5,15 @@ Read-only: a census of the program's pass and submit surface.
 
 ## Provenance
 
-Last commit touching any scanned file: `43edc6ef26816a023279639ec8b55aaee3f73b8a`
-(ONE_SURFACE-I U2: the conductor falls)
+Last commit touching any scanned file: `f6636f5012439b6782a32ccb59a82c785b069373`
+(ONE_SURFACE-I U3: the eviction lane, under its guard)
 
 | file scanned | sha256 |
 |---|---|
 | `src/cartridges/the_board/realization/render_passes.hpp` | `sha256:7fa36d18358a8e524e1b1b48a6b55cd4c41a7688a490244370640336155ae267` |
 | `src/cartridges/the_board/realization/renderer.hpp` | `sha256:6d20d67bd53745eb70e14d05f324b4d12b45df9a2bb087cd62547777467bac1d` |
-| `src/cartridges/the_board/cartridge.hpp` | `sha256:a69937866b1c3af5584d17f84c953e5268459ce9a561ccb3915c41bcc6d32b2d` |
-| `src/cartridges/the_board/surface/patch_system.hpp` | `sha256:4a28dc7e4eaa78602195090e70d0aab1a5aecab34386e6a4e6097f616d73760e` |
+| `src/cartridges/the_board/cartridge.hpp` | `sha256:3752beb5478c4332fcaf233761c35ff68b6fe84f377586f2357bb2088ab9b724` |
+| `src/cartridges/the_board/surface/patch_system.hpp` | `sha256:59292ae445809f72ae86da6c24330f925f886388a282e427054ed4fe0186ffe5` |
 | `src/cartridges/the_board/bodies/gol_zones.hpp` | `sha256:40df3f6531d37752bede4eba9f6173ea24907f3e3537b9c53c7f59158cc99f7b` |
 | `src/cartridges/the_board/bodies/pawn.hpp` | `sha256:7915ec242a2a3094537882c50a2980c9494e4f1460a3a2f786232b67ec6ead12` |
 | `src/cartridges/the_board/bodies/orbs.hpp` | `sha256:475d3de82ddd4d979d55ad146039937cd3316a0148466ed5c1db5566bde9a8b1` |
@@ -36,7 +36,7 @@ in `console.hpp`.
 | 2 | Frustum Cull Patches | compute | `dispatch_frustum_cull` | `src/cartridges/the_board/realization/render_passes.hpp:220` | — | — | — |
 | 3 | Shadow Pass | render | `render_shadow_pass` | `src/cartridges/the_board/realization/render_passes.hpp:262` | (none: depth-only) | Clear/Store, readOnly (absent) → `c->gpuState_.shadow_map_view()` | (no stencil aspect) |
 | 4 | Rasterized Scene | render | `render_main_pass` | `src/cartridges/the_board/realization/render_passes.hpp:532` | Clear/Store or Discard → `backbuffer or msaaColor` resolve → `backbuffer` | Clear/Discard, readOnly (absent) → `depth` | (no stencil aspect) |
-| 5 | Entity Mesh Gen | compute | `phase_entity_mesh_gen` | `src/cartridges/the_board/cartridge.hpp:1981` | — | — | — |
+| 5 | Entity Mesh Gen | compute | `phase_entity_mesh_gen` | `src/cartridges/the_board/cartridge.hpp:1982` | — | — | — |
 | 6 | Patch Bake (fused) | compute | `generate_patch_batch` | `src/cartridges/the_board/surface/patch_system.hpp:169` | — | — | — |
 | 7 | Zone Derive Params | compute | `flush_zone_derive_requests` | `src/cartridges/the_board/bodies/gol_zones.hpp:824` | — | — | — |
 | 8 | GoL Zone Sync | compute | `dispatch_zone_sync` | `src/cartridges/the_board/bodies/gol_zones.hpp:905` | — | — | — |
@@ -53,7 +53,7 @@ in `console.hpp`.
 
 | # | receiver | enclosing function | site |
 |---|---|---|---|
-| 1 | `queue.Submit` | `build_world` | `src/cartridges/the_board/surface/patch_system.hpp:600` |
+| 1 | `queue.Submit` | `build_world` | `src/cartridges/the_board/surface/patch_system.hpp:596` |
 | 2 | `queue.Submit` | `flush_zone_derive_requests` | `src/cartridges/the_board/bodies/gol_zones.hpp:841` |
 | 3 | `app->queue.Submit` | `frame` | `src/the_board.cpp:337` |
 
@@ -83,7 +83,7 @@ every landing.
 
 | # | label | enclosing function | site |
 |---|---|---|---|
-| 1 | `"build_world"` | `build_world` | `src/cartridges/the_board/surface/patch_system.hpp:594` |
+| 1 | `"build_world"` | `build_world` | `src/cartridges/the_board/surface/patch_system.hpp:590` |
 | 2 | `"flush_zone_derive_requests"` | `flush_zone_derive_requests` | `src/cartridges/the_board/bodies/gol_zones.hpp:817` |
 | 3 | `"frame"` | `frame` | `src/the_board.cpp:328` |
 

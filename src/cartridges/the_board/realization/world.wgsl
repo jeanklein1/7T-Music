@@ -1704,7 +1704,7 @@ struct DesignConfig {
     // agent_state[]. Piggybacks on the radial-pulse pad triple (no
     // struct size delta). Order matches GPUDesignConfig in state.hpp.
     possessed_slot: u32,
-    veil_dither: f32,     // THE RIM taste knob: >0.5 → icing dither-dissolves (mirror of GPUDesignConfig)
+    _pad_veil_dither_retired: f32,   // ONE_SURFACE-I U4 — THE RIM knob. Both its arms read `veil`, which the pin held at 0, so it had not moved a pixel since. Mirror of GPUDesignConfig.
     _pad_indoor_height_cap_retired: f32,  // ONE_WORLD-II U4 — the GoL lift cap. A pad twice over: it was the last pulse pad before the indoor module repurposed it, and it is one again.
     pulse_data: array<vec4<f32>, 8>,  // each: (origin_x, origin_z, onset_seconds, amplitude)
     // CPU-banded POINT position for LOD0/LOD1 partition (renamed
@@ -1721,17 +1721,24 @@ struct DesignConfig {
     point_fly_speed: f32,
     // THE VEIL (re-ruled: RING = draw authority, fog = icing). Mirrors
     // GPUDesignConfig (state.hpp):
-    //   veil_ring — the SOLE draw authority (325): the band's outer
+    //   veil_ring — THE DRAW AUTHORITY (342), and the one strand of the
+    //     veil chain that was never the veil's: four gates read it and
+    //     none is gated by strength. It still CULLS in a walled world —
+    //     at radius 4 the box diagonal is 636 wu against a ring of 342.
+    //     Formerly described as the band's outer
     //     gate, the entity cull, and every VS draw gate read it;
     //     nothing draws beyond it.
     //   veil_icing — δ: the narrow fade band [ring−δ, ring] in
     //     shade_lit (cosmetic; joins materialize inside it).
-    //   veil_strength — 1 in an open world, 0 in a finite one (staged by U5).
+    //   _pad_veil_strength_retired — it was 1 in an open world and 0 in a
+    //     finite one, and the pin made it a constant 0, so every reader was
+    //     a multiply by zero (ONE_SURFACE-I U4). A PAD: this block's offsets
+    //     are pinned in both rooms.
     //   lod0_radius — the terrain full/half-mesh split (175), read by
     //     the frustum-cull LOD0 gate + the CPU band (one yardstick).
     veil_ring: f32,
     veil_icing: f32,
-    veil_strength: f32,
+    _pad_veil_strength_retired: f32,
     lod0_radius: f32,
     // ── The palette mirror (FORK-tier graduation) — C++ twin in
     //    GPUDesignConfig; rest = the pre-graduation literals. rgb in
@@ -4312,13 +4319,9 @@ fn calc_directional_light(world_pos: vec3<f32>, normal: vec3<f32>, geo_normal: v
 }
 
 
-// --- Unified Shading
-// THE RIM dither knob's noise — world-space stipple so the dissolve sticks
-// to the geometry (it "condenses" rather than screen-crawls). Taste knob;
-// off by default.
-fn veil_dither_noise(p: vec2<f32>) -> f32 {
-    return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453);
-}
+// `veil_dither_noise` stood here — the RIM knob's blue-noise threshold,
+// and the icing's dither arm was its only caller. Both left at
+// ONE_SURFACE-I U4.
 
 // THE ICING's t — factored (MOSAIC_2) so the veil and the mosaic's
 // grain read ONE value. Point-anchored, XZ, exactly as the veil law
@@ -4330,15 +4333,16 @@ fn veil_t(world_pos: vec3<f32>) -> f32 {
                       distance(world_pos.xz, render_point_pos().xz));
 }
 
-// veil_scale: 1.0 = the family joins the veil (terrain + all entity_fs
-// users); 0.0 = a ruled exemption (ribbon — a flown structure that shares
-// ENTITY_FS but must stay visible at range). NOT an anchor knob — the
-// veil always measures from the point.
+// `veil_scale` stood in this signature (ONE_SURFACE-I U4): 1.0 = the
+// family joined the veil, 0.0 = a ruled exemption for the ribbon, a flown
+// structure that shares ENTITY_FS and had to stay whole at range. Its one
+// use was the icing composite, and a parameter that scales a value the
+// pin holds at zero is a parameter with one answer.
 // geo_normal is the GEOMETRIC normal — see calc_directional_light. Callers
 // whose shading normal IS the geometry (every entity) pass it twice; the
 // terrain passes its pre-aura normal.
 
-fn shade_lit(world_pos: vec3<f32>, normal: vec3<f32>, geo_normal: vec3<f32>, base_color: vec3<f32>, veil_scale: f32) -> vec3<f32> {
+fn shade_lit(world_pos: vec3<f32>, normal: vec3<f32>, geo_normal: vec3<f32>, base_color: vec3<f32>) -> vec3<f32> {
     // Ambient (always present)
     let ambient = base_color * frame_r.lighting.sun.ambient;
 
@@ -4355,20 +4359,17 @@ fn shade_lit(world_pos: vec3<f32>, normal: vec3<f32>, geo_normal: vec3<f32>, bas
     let fog = 1.0 - exp(-dist * config.fog_density);
     let fogged = mix(lit, config.fog_color, fog);
 
-    // THE ICING (re-ruled) — the POINT-anchored fade band AT the ring,
-    // composed AFTER the eye-fog. Cosmetic, not concealment: the RING is
-    // the draw authority (nothing is drawn beyond it), and this narrow
-    // band [ring−δ, ring] is where draw-set joins materialize. Zero
-    // inside ring−δ (pixel-identical there); full fog/horizon color at
-    // the ring (the rim melts into sky). strength: 0 in a finite world.
-    let veil = veil_t(world_pos) * config.veil_strength * veil_scale;
-    // THE RIM taste knob: veil_dither > 0.5 → the icing band DITHER-
-    // dissolves (geometry condenses) instead of tinting to fog.
-    if (config.veil_dither > 0.5) {
-        if (veil_dither_noise(world_pos.xz) < veil) { discard; }
-        return fogged;
-    }
-    return mix(fogged, config.fog_color, veil);
+    // THE ICING STOOD HERE (ONE_SURFACE-I U4), and the fold table is the
+    // proof it was already a no-op. It composed a POINT-anchored fade band
+    // at the ring — `veil = veil_t(p) * config.veil_strength * veil_scale`
+    // — and a walled world stages strength 0, so `veil` was identically
+    // zero: the tint arm returned `mix(fogged, fog_color, 0)`, which IS
+    // `fogged`, and the dither arm's `veil_dither_noise(p) < 0` never
+    // discarded. Two arms, one value, and this line is that value.
+    //
+    // The band it faded existed to hide an EDGE — the far rim of a
+    // streamed plane melting into sky. A walled world has a wall.
+    return fogged;
 }
 
 // ═══ THE MOSAIC (MOSAIC_0/1/2) — trencadís for the mesh-gen families ═══
@@ -4929,7 +4930,7 @@ fn patch_terrain_fs(in: PatchTerrainVarying) -> @location(0) vec4<f32> {
         }
     }
 
-    var out_colour = shade_lit(in.world_pos, normal, geo_normal, base_color, 1.0);
+    var out_colour = shade_lit(in.world_pos, normal, geo_normal, base_color);
 
     // DEBUG_VIEW 6 — THE SHELL RINGS: each ring is an influence radius
     // the code actually uses; the grey patch ring is the world's own
@@ -5388,15 +5389,23 @@ fn entity_fs(in: EntityVarying) -> @location(0) vec4<f32> {
         albedo = s.color;
         n = normalize(geo_n + s.facet * (config.mosaic_facet * grain));
     }
-    return vec4(shade_lit(in.world_pos, n, geo_n, albedo, 1.0), 1.0);
+    return vec4(shade_lit(in.world_pos, n, geo_n, albedo), 1.0);
 }
 
-// Ribbon FS — same shading as entity_fs but veil-EXEMPT (ruled fork): the
-// ribbon is a flown sky structure, meant to be seen/ridden far beyond the
-// band; veil_scale 0.0 keeps it whole while everything else condenses.
+// Ribbon FS — same shading as entity_fs, and it no longer has to say so.
+// It was the veil's ONE ruled exemption: a flown sky structure meant to be
+// seen and ridden far beyond the band, passing veil_scale 0.0 to keep
+// itself whole while everything else condensed. The icing left at
+// ONE_SURFACE-I U4 and every family is whole, so the fork is two entry
+// points that differ only in whether they consult a mosaic.
+//
+// IT IS STILL EXEMPT FROM SOMETHING, and that survives on its own: the
+// ribbon has no VS ring gate. pawn_vs, sphere_vs and cube_vs each collapse
+// their geometry outside config.veil_ring; the ribbon does not, which is
+// the same ruling reaching it through a different mechanism.
 @fragment
 fn ribbon_fs(in: EntityVarying) -> @location(0) vec4<f32> {
-    return vec4(shade_lit(in.world_pos, normalize(in.normal), normalize(in.normal), in.entity_color, 0.0), 1.0);
+    return vec4(shade_lit(in.world_pos, normalize(in.normal), normalize(in.normal), in.entity_color), 1.0);
 }
 
 // --- Monolith vertex shader (imperfect cube, per-face color from seed)
