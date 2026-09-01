@@ -5,7 +5,6 @@
 #include <cmath>          // std::floor, std::sqrt, std::abs   // (impl, merged)
 #include <algorithm>      // std::min, std::max   // (impl, merged)
 #include <cstring>        // std::memcpy (instance banding)   // (impl, merged)
-#include <unordered_set>  // the O(1) existence scan (continuous allocation)   // (impl, merged)
 #include <iostream>       // DIAG blocks (lifecycle audit + evict trace)   // (impl, merged)
 #include <cstdio>         // std::fprintf — RIBBON_5's conservation witness (always-on, every build)
 #include "core/instruments.hpp"   // RIBBON_5 — INSTRUMENTS.frame_meter gates the [STREAM] line
@@ -44,9 +43,9 @@ inline ActivePatch* find_patch(MachineCtx* c, int32_t gx, int32_t gz) {
 // OIL_1 U8/U9 — THE RAISES THIS PRIMITIVE OWES BUT DOES NOT MAKE:
 // removing a patch changes the grid set (patch_instances_dirty) and
 // frees a layer (alloc_scan_pending). Both raises live in this
-// function's ONE caller, the eviction block in stream_patches, which
-// batches them after its compaction. A second call site would have to
-// carry them itself.
+// function's ONE caller was the eviction block in the streaming
+// conductor, which batched them after its compaction. The conductor left
+// at ONE_SURFACE-I U2 and this primitive is callerless; U3 takes it.
 inline void evict_patch(MachineCtx* c, uint32_t pi, wgpu::Queue& queue) {
     free_layer(c, c->patch_system_state_.patches_[pi].layer);
     evict_patch_entities(c, c->patch_system_state_.patches_[pi], queue);
@@ -72,13 +71,6 @@ inline void evict_patch_entities(MachineCtx* c, ActivePatch& patch, wgpu::Queue&
 // called by the score's TEARDOWN movement; this core keeps the
 // surface's own concerns — patches, tiles, themes, dispatch queues,
 // footprints — plus the world-rebirth GPU staging lines.
-// ── The recenter door (deps-form) ─────────────────────────────────
-inline void request_recenter(WorldState& ws) {
-    ws.last_center_x = INT32_MAX;
-    ws.last_center_z = INT32_MAX;
-    ws.world_young = true;   // RIBBON_6: a re-centred window is a world beginning again
-}
-
 // THE ONE SURFACE RESET. Called from BOTH paths — boot and rebirth_world
 // — because boot is a birth from nothing (LAWS L10). Every line
 // below was already true at boot, but by in-struct default rather than by
@@ -146,14 +138,13 @@ inline void init_patch_system(MachineCtx* c, TileWorldState& tile_world_state) {
     c->world_state_.ground_entries_dirty = true;
     c->world_state_.patch_instances_dirty = true;
     c->world_state_.placement_dirty = true;
-    c->world_state_.alloc_scan_pending = true;   // OIL_1 U9 — a fresh pool is all demand
 }
 
 // ── Patch generation ───────────────────────────────────────────────
 
 // The params ride a read-only STORAGE array: one contiguous write for the
 // whole batch before the pass is recorded, and workgroup_id.z picks the
-// record. ONE BATCH A FRAME (LATTICE_1) — see stream_patches' bake block.
+// record. ONE BATCH PER SUBMIT (LATTICE_1) — see build_world's bake loop.
 // ONE PASS, TWO DISPATCHES, THE WHOLE BATCH (LATTICE_1). This was a pass PAIR
 // per patch: N patches cost 2N passes and 3N dispatches, each pass carrying a
 // bind and a boundary that existed to order a scratch buffer which no longer
@@ -174,7 +165,12 @@ inline void generate_patch_batch(MachineCtx* c, wgpu::CommandEncoder& encoder, w
 
     wgpu::ComputePassDescriptor cpd{};
     cpd.label = "Patch Bake (fused)";
-    cpd.timestampWrites = c->gpuState_.meter_arm_compute(meter_row::StreamPatches);
+    // THE BAKE IS A BIRTH PASS AND THE FRAME METER CANNOT HOLD IT
+    // (ONE_SURFACE-I U2). It armed meter_row::StreamPatches while the
+    // conductor baked one patch a frame. build_world is its only caller now,
+    // and meter_frame_begin() resets the allocator at every frame head — so
+    // a pair allocated at birth is discarded before any resolve can read it.
+    // An arm that can never be read is a lie in the meter's own table.
     wgpu::ComputePassEncoder cp = encoder.BeginComputePass(&cpd);
     // LOOM_2 pass head: WORLD + FRAME are every pipeline's strata 0/1.
     { cp.SetBindGroup(0, c->gpuState_.world_group());
@@ -232,13 +228,6 @@ inline void free_layer(MachineCtx* c, uint32_t layer) {
     c->patch_system_state_.freeLayerStack_[c->world_state_.free_layer_count++] = layer;
 }
 
-// Check if grid coordinate is within the allocation window (world_state_.active_radius = Dim::PATCH_PREGEN_RADIUS)
-inline bool in_render_window(MachineCtx* c, int32_t gx, int32_t gz, int32_t cx, int32_t cz) {
-    int32_t r = (int32_t)c->world_state_.active_radius;
-    return gx >= cx - r && gx <= cx + r &&
-        gz >= cz - r && gz <= cz + r;
-}
-
 // ── Visibility cylinder ────────────────────────────────────────────
 
 // Distance² from point (px,pz) to nearest edge of a patch AABB.
@@ -282,13 +271,6 @@ inline uint32_t collect_sorted_patches(MachineCtx* c, PatchCandidate* out,
         out[j] = key;
     }
     return count;
-}
-
-// Check if grid coordinate is within the priority window (Dim::PATCH_GRID_RADIUS)
-inline bool in_priority_window(MachineCtx* c, int32_t gx, int32_t gz, int32_t cx, int32_t cz) {
-    int32_t r = (int32_t)Dim::PATCH_GRID_RADIUS;
-    return gx >= cx - r && gx <= cx + r &&
-        gz >= cz - r && gz <= cz + r;
 }
 
 // Process entity spawn for pre-collected patch candidates.
@@ -499,24 +481,6 @@ inline void build_patch_grid(MachineCtx* c, wgpu::Queue& queue) {
     c->gpuState_.upload_patch_grid(queue, grid);
 }
 
-// ── build_active_patch_set (the (gx,gz) existence set — O(1) lookup) ────
-// Rebuilt from the registry each call — a per-scan LOCAL, NOT a maintained
-// member (evict/compaction keep patches_ correct; this reads it fresh). It
-// enumerates ALL active-count entries (no .valid filter — matching the raw
-// scans it replaces, so existence is bit-identical). Shared by the alloc
-// window scan AND the fullRegen re-roll (killing that inner scan's O(N^2)).
-// find_patch stays the O(N) single-lookup handle — a persistent index for
-// one lookup isn't worth an alloc/evict/compaction invariant. Bit-safe:
-// existence, not value.
-inline std::unordered_set<GridKey, GridKeyHash> build_active_patch_set(MachineCtx* c) {
-    std::unordered_set<GridKey, GridKeyHash> set;
-    set.reserve(c->world_state_.active_patch_count);
-    for (uint32_t i = 0; i < c->world_state_.active_patch_count; i++) {
-        set.insert({ c->patch_system_state_.patches_[i].grid_x, c->patch_system_state_.patches_[i].grid_z });
-    }
-    return set;
-}
-
 // ══ build_world — THE ONE-SHOT BUILDER (ONE_SURFACE-I U1) ═══════════
 //
 // A FINITE WORLD IS BUILT ONCE. The conductor below streams a window
@@ -602,6 +566,29 @@ inline void build_world(MachineCtx* c, wgpu::Device& device, wgpu::Queue& queue,
         }
     }
 
+    // ── 3b. THE CONSERVATION WITNESS, at the one moment it can be broken ──
+    // RIBBON_5 ran this every second inside the conductor, because alloc and
+    // evict churned every frame and a leaked layer was a world that stopped
+    // growing. Nothing churns now: the pool is drawn from once, here, and
+    // never returned to. So the check moves to the only edge that remains —
+    // the allocation loop above — and stays ALWAYS-ON and outside the
+    // instruments dial, for RIBBON_5's own reason: a broken world must say
+    // so in every build, including the shipped one.
+    {
+        uint32_t valid_count = 0;
+        for (uint32_t i = 0; i < c->world_state_.active_patch_count; i++)
+            if (c->patch_system_state_.patches_[i].valid) valid_count++;
+        const uint32_t want = (uint32_t)((2 * r + 1) * (2 * r + 1));
+        if (valid_count != want ||
+            valid_count + c->world_state_.free_layer_count != Dim::MAX_ACTIVE_PATCHES) {
+            std::fprintf(stderr,
+                "[Ground] CONSERVATION BROKEN AT BIRTH — valid=%u (wanted %u) "
+                "+ free=%u != %u. The world was built short.\n",
+                valid_count, want, c->world_state_.free_layer_count,
+                Dim::MAX_ACTIVE_PATCHES);
+        }
+    }
+
     // ── 4. Spawn — every patch, nearest first from the point ──────────
     {
         PatchCandidate cands[Dim::MAX_ACTIVE_PATCHES];
@@ -656,460 +643,39 @@ inline void build_world(MachineCtx* c, wgpu::Device& device, wgpu::Queue& queue,
               << " patches (" << (2 * r + 1) << "x" << (2 * r + 1) << ")\n";
 }
 
-// --- Patch streaming: determine active 7×7 grid, generate new patches ---
-// THE CONDUCTOR: the per-frame step — recenter,
-// eviction, allocation, spawn + generation budgets, visibility
-// banding, deferred uploads.
-// SEAM[patch:spawn-trigger] the S3-trigger calls are the declared
-//   seam face: select_entities_for_patch / place_entity_queue /
-//   commit_entity_queue (via spawn_selected_patches), plus
-//   update_entity_draw_visibility at the frame tail — the surface
-//   machine waking the occupier machine.
-inline void stream_patches(MachineCtx* c, wgpu::CommandEncoder& encoder, wgpu::Queue& queue,
-    TileWorldState& tile_world_state,
-    TileWorldDeps& tile_world_deps, SkyDeps& sky_deps) {
-    // ─── Patch Generation Pipeline ─────────────────────────────────
-
-    int32_t centerX, centerZ;
-    // ONE BAKE BATCH A FRAME (LATTICE_1's R-D fold). A LOCAL, and that is
-    // the whole mechanism: it is false at the top of every frame by
-    // construction, so there is no reset to forget. It replaced a params-
-    // ring cursor, which existed because a full regen made two batches into
-    // one encoder and the queue orders every WriteBuffer ahead of the whole
-    // command buffer — the second batch's write would have landed on the
-    // first's records before either dispatch ran. With one batch there is
-    // nothing to cursor.
-    bool bakedThisFrame = false;
-    bool tileGridDirty = false;        // coalesce tile grid uploads to one per frame
-    if (c->world_state_.finite_mode) {
-        centerX = 0;
-        centerZ = 0;
-    }
-    else {
-        centerX = (int32_t)std::floor(c->point_.x / Dim::PATCH_EXTENT);
-        centerZ = (int32_t)std::floor(c->point_.z / Dim::PATCH_EXTENT);
-    }
-
-    // In finite mode, cap the effective radius
-    uint32_t savedRadius = c->world_state_.active_radius;
-    if (c->world_state_.finite_mode && c->world_state_.active_radius > c->world_state_.finite_radius) {
-        c->world_state_.active_radius = c->world_state_.finite_radius;
-    }
-
-    bool gridChanged = (centerX != c->world_state_.last_center_x || centerZ != c->world_state_.last_center_z);
-
-    if (gridChanged) {
-        int32_t oldCX = c->world_state_.last_center_x;
-        int32_t oldCZ = c->world_state_.last_center_z;
-        c->world_state_.last_center_x = centerX;
-        c->world_state_.last_center_z = centerZ;
-        c->world_state_.alloc_scan_pending = true;   // OIL_1 U9 — the window moved: new cells may be empty
-
-        bool fullRegen = (oldCX == INT32_MAX);  // first frame
-
-        // Lightweight cache maintenance (no GPU buffer writes). CONTAINMENT
-        // (FIX_TILE_PATCH_CONTAINMENT): spare every tile a live patch stands on.
-        // build_active_patch_set enumerates the registry with no .valid filter
-        // and runs BEFORE the budgeted patch-eviction pass below, so it includes
-        // patches already out of the render window but not yet drained -- exactly
-        // the ones a centre jump would orphan.
-        auto liveTiles = build_active_patch_set(c);
-        evict_distant_tiles(tile_world_state, centerX, centerZ,
-            [&](const GridKey& k) { return liveTiles.count(k) > 0; });
-
-        if (!fullRegen) {
-            tileGridDirty = true;
-        }
-
-        // ─── FULLREGEN: synchronous bootstrap ────────────────────
-        //
-        if (fullRegen) {
-            int32_t rr = (int32_t)c->world_state_.active_radius;
-            static constexpr int32_t TILE_PAD = 1;
-            int32_t rp = rr + TILE_PAD;
-            for (int32_t gz = centerZ - rp; gz <= centerZ + rp; gz++) {
-                for (int32_t gx = centerX - rp; gx <= centerX + rp; gx++) {
-                    ensure_tile(tile_world_state, &tile_world_deps, gx, gz);  // owner door
-                }
-            }
-            // Built ONCE before the window loop: bit-identical to the old
-            // per-cell O(N) scan (each cell is unique, so a patch added at an
-            // earlier cell never matches a later one). Kills the O(N^2).
-            auto existingPatches = build_active_patch_set(c);
-            for (int32_t gz = centerZ - rr; gz <= centerZ + rr; gz++) {
-                for (int32_t gx = centerX - rr; gx <= centerX + rr; gx++) {
-                    bool found = existingPatches.count({ gx, gz }) > 0;
-                    if (!found && c->world_state_.free_layer_count > 0) {
-                        // RIBBON_5: the array bound, stated not derived (see the
-                        // continuous loop for why). This loop's own guard is
-                        // per-iteration already, so the pool cannot empty under it.
-                        if (c->world_state_.active_patch_count >= Dim::MAX_ACTIVE_PATCHES) continue;
-                        uint32_t layer = alloc_layer(c);
-                        if (layer == UINT32_MAX) continue;   // the pool refused
-                        c->patch_system_state_.patches_[c->world_state_.active_patch_count] = ActivePatch{};
-                        c->patch_system_state_.patches_[c->world_state_.active_patch_count].grid_x = gx;
-                        c->patch_system_state_.patches_[c->world_state_.active_patch_count].grid_z = gz;
-                        c->patch_system_state_.patches_[c->world_state_.active_patch_count].layer = layer;
-                        c->patch_system_state_.patches_[c->world_state_.active_patch_count].valid = true;
-                        c->world_state_.active_patch_count++;
-                    }
-                }
-            }
-            tileGridDirty = true;
-
-            // Spawn inner patches
-            PatchCandidate spawnCands[Dim::MAX_ACTIVE_PATCHES];
-            uint32_t spawnCount = collect_sorted_patches(c, spawnCands,
-                c->point_.x, c->point_.z,
-                [&](const ActivePatch& p) {
-                    return p.phase == PatchPhase::ALLOCATED &&
-                        in_priority_window(c, p.grid_x, p.grid_z, centerX, centerZ);
-                }, true);
-            spawn_selected_patches(c, spawnCands, spawnCount, queue);
-
-            // Generate inner patches
-            PatchCandidate genCands[Dim::MAX_ACTIVE_PATCHES];
-            uint32_t genCount = collect_sorted_patches(c, genCands,
-                c->point_.x, c->point_.z,
-                [&](const ActivePatch& p) {
-                    return p.phase == PatchPhase::SPAWNED &&
-                        in_priority_window(c, p.grid_x, p.grid_z, centerX, centerZ);
-                }, true);
-            generate_selected_patches(c, genCands, genCount,
-                encoder, queue, tileGridDirty, tile_world_state, tile_world_deps);
-            bakedThisFrame = true;
-
-            // THE BIRTH CENSUS (OVERTURE_0). `boot` prints before population
-            // and reads zero by construction; this is the first count of a
-            // world that exists. Always-on, like boot: once per fullRegen,
-            // never per frame.
-            dump_entity_census(c, "born");
-        }
-    }
-
-    // ─── A WORLD IS YOUNG ONCE (RIBBON_6) ─────────────────────────
-    //
-    // RIBBON_5 asked the registry every frame whether the window was mostly
-    // unbuilt — but a world that has fallen BEHIND while moving looks exactly
-    // like a world being born, so a fast flight was handed a rebirth's burst,
-    // cleared it, fell behind, and was handed another. Six whole bakes in one
-    // frame is ~14 ms of GPU on an 11 ms base frame: a missed refresh, a few
-    // times a second, only while moving, worse the faster you go. RIBBON_5's
-    // FLAG-40 saw the oscillation and priced it as harmless. Both arms made
-    // progress; one of them cost a frame.
-    //
-    // Youth is not an observation; it is an AGE. It is set when a world BEGINS
-    // — a rebirth, a boot, a radius change — and cleared once, when the window
-    // it was given is three quarters built. Nothing the player does sets it
-    // again, so the oscillation cannot exist.
-    //
-    // The count runs only while young: a whole world pays nothing for this.
-    if (c->world_state_.world_young) {
-        uint32_t built = 0, cells = 2u * c->world_state_.active_radius + 1u;
-        cells *= cells;
-        for (uint32_t i = 0; i < c->world_state_.active_patch_count; i++) {
-            if (!c->patch_system_state_.patches_[i].valid) continue;
-            const PatchPhase ph = c->patch_system_state_.patches_[i].phase;
-            if (ph == PatchPhase::GENERATED || ph == PatchPhase::NEEDS_REGEN) built++;
-        }
-        if (built * 4u >= cells * 3u) c->world_state_.world_young = false;
-    }
-    const bool young = c->world_state_.world_young;
-
-    // ─── CONTINUOUS PATCH EVICTION ────────────────────────────────
-    //
-    {
-        PatchCandidate candidates[Dim::MAX_ACTIVE_PATCHES];
-        uint32_t count = collect_sorted_patches(c, candidates,
-            c->point_.x, c->point_.z,
-            [&](const ActivePatch& p) {
-                return !in_render_window(c, p.grid_x, p.grid_z,
-                    c->world_state_.last_center_x, c->world_state_.last_center_z);
-            }, false);  // farthest first
-
-        // RIBBON_6: EVICT is 4 again and matches ALLOC, so the pool balances
-        // by symmetry as well as by refusal (RIBBON_5's FLAG-38 — the spend
-        // side was the break). `young` selects the same number either way; the
-        // branch is kept because the two are different FACTS, and a later
-        // round may move one without the other.
-        uint32_t evictThisFrame = std::min(count, young ? 4u : EVICT_BUDGET_PER_FRAME);
-        for (uint32_t e = 0; e < evictThisFrame; e++) {
-            evict_patch(c, candidates[e].idx, queue);
-        }
-
-        if (evictThisFrame > 0) {
-            uint32_t write = 0;
-            for (uint32_t i = 0; i < c->world_state_.active_patch_count; i++) {
-                if (c->patch_system_state_.patches_[i].valid) c->patch_system_state_.patches_[write++] = c->patch_system_state_.patches_[i];
-            }
-            c->world_state_.active_patch_count = write;
-            c->world_state_.patch_instances_dirty = true;
-            // OIL_1 U9 — layers were freed: a capacity-blocked vacancy
-            // (counted as zero candidates while free_layer_count was 0)
-            // can now allocate, so the scan must run again.
-            c->world_state_.alloc_scan_pending = true;
-        }
-    }
-
-    // ─── CONTINUOUS PATCH ALLOCATION ──────────────────────────────
-    //
-    // OIL_1 U9 (ledger: R3 continuous allocation, C2): the scan — a
-    // fresh unordered_set heap build plus the 15x15 window walk — runs
-    // only while demand can exist (alloc_scan_pending; raiser census at
-    // the flag's home in surface_services.hpp). Steady frames skip it;
-    // a budget-capped pass re-arms itself below.
-    {
-        // The box raiser: the candidate set is box ∩ window, and the box
-        // follows the pawn cell — an input no other raiser tracks once
-        // the window is pinned (finite mode). Two compares, and the gate
-        // stops depending on why the box and the window agree.
-        const int32_t scanGX = (int32_t)std::floor(c->point_.x / Dim::PATCH_EXTENT);
-        const int32_t scanGZ = (int32_t)std::floor(c->point_.z / Dim::PATCH_EXTENT);
-        if (scanGX != c->world_state_.last_alloc_scan_gx ||
-            scanGZ != c->world_state_.last_alloc_scan_gz) {
-            c->world_state_.last_alloc_scan_gx = scanGX;
-            c->world_state_.last_alloc_scan_gz = scanGZ;
-            c->world_state_.alloc_scan_pending = true;
-        }
-    }
-    if (c->world_state_.alloc_scan_pending) {
-        int32_t pawnGX = (int32_t)std::floor(c->point_.x / Dim::PATCH_EXTENT);
-        int32_t pawnGZ = (int32_t)std::floor(c->point_.z / Dim::PATCH_EXTENT);
-        int32_t rr = (int32_t)c->world_state_.active_radius;
-        float point_wx = c->point_.x;
-        float point_wz = c->point_.z;
-        float half = Dim::PATCH_EXTENT * 0.5f;
-
-        // O(1) patch existence lookup (replaces O(N) inner scan)
-        auto activePatchSet = build_active_patch_set(c);
-
-        struct AllocCandidate { int32_t gx, gz; float dist2; };
-        AllocCandidate candidates[Dim::MAX_ACTIVE_PATCHES];
-        uint32_t candidateCount = 0;
-        uint32_t vacancies_blocked = 0;   // RIBBON_5 — cells that wanted a layer and found none
-
-        for (int32_t gz = pawnGZ - rr; gz <= pawnGZ + rr; gz++) {
-            for (int32_t gx = pawnGX - rr; gx <= pawnGX + rr; gx++) {
-                // Must be within allocation window of grid center
-                if (!in_render_window(c, gx, gz, c->world_state_.last_center_x, c->world_state_.last_center_z)) continue;
-                bool found = activePatchSet.count({ gx, gz }) > 0;
-                // RIBBON_5: a vacancy the POOL refused is demand that still
-                // exists; the re-arm below needs to know it was seen.
-                if (!found && c->world_state_.free_layer_count == 0) vacancies_blocked++;
-                if (!found && c->world_state_.free_layer_count > 0 && candidateCount < Dim::MAX_ACTIVE_PATCHES) {
-                    float ox = (gx + 0.5f) * Dim::PATCH_EXTENT;
-                    float oz = (gz + 0.5f) * Dim::PATCH_EXTENT;
-                    float d2 = patch_distance_sq(point_wx, point_wz, ox, oz, half);
-                    candidates[candidateCount++] = { gx, gz, d2 };
-                }
-            }
-        }
-
-        // Sort by distance (nearest first)
-        for (uint32_t i = 1; i < candidateCount; i++) {
-            AllocCandidate key = candidates[i];
-            uint32_t j = i;
-            while (j > 0 && candidates[j - 1].dist2 > key.dist2) {
-                candidates[j] = candidates[j - 1];
-                j--;
-            }
-            candidates[j] = key;
-        }
-
-        bool allocated_any = false;
-        uint32_t allocThisFrame = std::min(candidateCount, ALLOC_BUDGET_PER_FRAME);
-        for (uint32_t a = 0; a < allocThisFrame; a++) {
-            int32_t gx = candidates[a].gx;
-            int32_t gz = candidates[a].gz;
-            // Ensure tile cache entry (primary — ticks terrain tokens),
-            // then cache neighbors for tile grid padding — both through
-            // the owner's doors.
-            ensure_tile(tile_world_state, &tile_world_deps, gx, gz);
-            for (int dz = -1; dz <= 1; dz++) for (int dx = -1; dx <= 1; dx++) {
-                ensure_tile_padding(tile_world_state, &tile_world_deps, gx + dx, gz + dz);
-            }
-            // RIBBON_5 — TWO GUARDS, AND THEY ARE INDEPENDENT ON PURPOSE.
-            // The capacity check that mattered used to sit in the CANDIDATE
-            // SCAN above, which decrements nothing: with free=2 and 15 vacant
-            // cells every cell became a candidate, allocThisFrame was
-            // min(15, ALLOC_BUDGET_PER_FRAME)=4, and iterations 2 and 3
-            // allocated against an empty pool. The second guard is the array
-            // bound, stated rather than derived: patches_ is exactly
-            // MAX_ACTIVE_PATCHES long and freeLayerStack_ is the member
-            // immediately after it, so an overrun here corrupts the free list
-            // itself. It must not rest on the pool arithmetic being right.
-            if (c->world_state_.active_patch_count >= Dim::MAX_ACTIVE_PATCHES) break;
-            uint32_t layer = alloc_layer(c);
-            if (layer == UINT32_MAX) break;   // the pool refused; no patch on a stolen layer
-            c->patch_system_state_.patches_[c->world_state_.active_patch_count] = ActivePatch{};
-            c->patch_system_state_.patches_[c->world_state_.active_patch_count].grid_x = gx;
-            c->patch_system_state_.patches_[c->world_state_.active_patch_count].grid_z = gz;
-            c->patch_system_state_.patches_[c->world_state_.active_patch_count].layer = layer;
-            c->patch_system_state_.patches_[c->world_state_.active_patch_count].valid = true;
-            c->world_state_.active_patch_count++;
-            allocated_any = true;
-        }
-
-        // Mark tile grid and patch instances dirty whenever new patches were allocated
-        if (allocated_any) {
-            tileGridDirty = true;
-            c->world_state_.patch_instances_dirty = true;
-        }
-
-        // OIL_1 U9 — the backlog carry: a pass capped by
-        // ALLOC_BUDGET_PER_FRAME leaves live candidates, so the scan
-        // stays armed; a drained pass (every candidate allocated, or
-        // none found) disarms it. A vacancy blocked by zero capacity
-        // counts no candidate and disarms too — the eviction that
-        // eventually frees a layer is the raiser that re-arms (see the
-        // eviction block above).
-        // RIBBON_5 — THE RE-ARMER'S HOLE. A vacancy blocked by ZERO CAPACITY
-        // counted no candidate, so the line below disarmed the scan and left
-        // the only re-armer an eviction. If the registry ever sits with real
-        // vacancies and an empty pool, and nothing is evictable that frame,
-        // the scan sleeps and the world stops growing. Capacity is a
-        // TEMPORARY blocker, so it must not disarm: stay armed while a
-        // vacancy exists that only the pool refused.
-        c->world_state_.alloc_scan_pending =
-            (candidateCount > allocThisFrame) ||
-            (vacancies_blocked > 0 && c->world_state_.free_layer_count == 0);
-    }
-
-    // THE LOOK-AHEAD (RIBBON_4): under a rider the point moves at flight speed,
-    // and the patches that matter are the ones ahead. The spawn and bake scans
-    // order their candidates from a point PATCH_LOOK_AHEAD along the flight —
-    // the saddle's heading, from the same readback the point mirror is filled
-    // by. Flight is −dir(heading) (the ribbon's law). The allocation window and
-    // the eviction stay on the point itself: the window is the authority on
-    // what EXISTS, and only the order in which existing work is served moves.
-    const float look = (c->point_.host == PointHost::RIBBON) ? PATCH_LOOK_AHEAD : 0.0f;
-    const float gen_cx = c->point_.x - std::cos(c->point_.heading) * look;
-    const float gen_cz = c->point_.z - std::sin(c->point_.heading) * look;
-
-    // ─── DISTANCE-DRIVEN ENTITY SPAWNING ─────────────────────────
-    //
-    {
-        PatchCandidate candidates[Dim::MAX_ACTIVE_PATCHES];
-        uint32_t count = collect_sorted_patches(c, candidates,
-            gen_cx, gen_cz,
-            [](const ActivePatch& p) {
-                return p.phase == PatchPhase::ALLOCATED;
-            }, true);
-        // RIBBON_5: the burst is the young world's, the one-a-frame is the
-        // steady world's.
-        spawn_selected_patches(c, candidates,
-            std::min(count, young ? 4u : SPAWN_BUDGET_PER_FRAME), queue);
-    }
-
-    // ─── HEIGHTFIELD GENERATION — ONE ARM (RIBBON_6) ─────────────
-    //
-    // A FRAME BAKES ONE PATCH, UNLESS THE WORLD IS BEING BORN. One list over
-    // both pending phases, nearest first from the look-ahead point, and
-    // exactly BAKE_BUDGET_PER_FRAME of them baked whole.
-    //
-    // NEAREST FIRST IS THE WHOLE PRIORITY LAW: a hole beside the eye outranks
-    // a pyramid's stale ground three patches away, and neither needs a phase
-    // of its own to say so. That is why the two arms RIBBON_4 split and
-    // RIBBON_5 kept are one again — the split existed to give the sliced
-    // conductor a phase it could own, and there is no sliced conductor.
-    {
-        PatchCandidate candidates[Dim::MAX_ACTIVE_PATCHES];
-        uint32_t count = collect_sorted_patches(c, candidates, gen_cx, gen_cz,
-            [](const ActivePatch& p) {
-                return p.phase == PatchPhase::SPAWNED ||
-                       p.phase == PatchPhase::NEEDS_REGEN;
-            }, true);
-        // ONE BAKE BATCH A FRAME (LATTICE_1, the R-D fold). The fullRegen arm
-        // above already spent this frame's bake — on the whole priority window,
-        // which the batch shape makes a single dispatch — and the params buffer
-        // is written once per frame at record 0. A second batch in the same
-        // encoder would have its write land on the first's records before
-        // EITHER dispatch ran, because the queue orders every WriteBuffer ahead
-        // of the command buffer. That is what the retired 256-byte ring cursor
-        // was for.
-        //
-        // The cost of folding is that up to SPAWN_BUDGET's worth of patches
-        // spawned later in this same frame wait one frame to bake. They are the
-        // ones OUTSIDE the priority window — further from the point than
-        // anything the fullRegen just baked — and nearest-first already serves
-        // them last. Behind the veil at boot and behind the fade at a portal.
-        if (!bakedThisFrame) {
-            generate_selected_patches(c, candidates,
-                std::min(count, young ? BAKE_BUDGET_YOUNG : BAKE_BUDGET_PER_FRAME),
-                encoder, queue, tileGridDirty, tile_world_state, tile_world_deps);
-        }
-    }
-
-    // The conductor tail as a sequence of named units (was one inline block).
-    band_patches(c, queue);
-    // OIL_1 U8 (ledger: R3 build_patch_grid, C1): the grid reads only the
-    // patch registry — no point input — so it rebuilds and re-uploads only
-    // when the registry changed. patch_instances_dirty is read HERE, before
-    // its consumption-and-clear below, and its raiser set covers every
-    // grid-content change (re-verified at edit time): boot/reset
-    // (init_patch_system, and the flag boots true), a patch entering the
-    // grid set (generation -> GENERATED), and a patch leaving it (eviction
-    // compaction). GENERATED -> NEEDS_REGEN keeps both phases inside the
-    // set with identical (gx,gz,layer), so the grid bytes cannot move on
-    // that transition.
-    if (c->world_state_.patch_instances_dirty) build_patch_grid(c, queue);
-    // GPU Y-correction is additive (ground_y += terrain), so ground
-    // entries must be re-uploaded with offset-only values whenever
-    // the heightfield changes. Tie groundEntriesDirty to patch changes.
-    c->world_state_.ground_entries_dirty = c->world_state_.ground_entries_dirty || c->world_state_.patch_instances_dirty;
-    c->world_state_.placement_dirty = c->world_state_.placement_dirty || c->world_state_.patch_instances_dirty;
-    c->world_state_.patch_instances_dirty = false;
-
-    // ─── Entity distance culling ─────────────────────────────
-    c->world_state_.entities_culled = update_entity_draw_visibility(c, queue);
-
-    // ─── Deferred uploads (one per frame max) ────────────────
-    if (tileGridDirty) upload_tile_grid_now(tile_world_state, &tile_world_deps, queue, c->world_state_.last_center_x, c->world_state_.last_center_z);
-
-    // ─── THE CONSERVATION WITNESS (RIBBON_5) ─────────────────
-    //
-    // Always-on, O(N), once a second: valid patches + free layers == the pool.
-    // A drift here IS the one-patch world — every comer on a recycled layer,
-    // one heightfield mutating under a moving player — and it used to say
-    // nothing. This is deliberately NOT behind the instruments dial: a broken
-    // world must say so in every build, including the shipped one. The
-    // [STREAM] line beside it is diagnosis and rides the meter; this is an
-    // alarm and rides nothing.
-    {
-        static uint32_t s_wit = 0;
-        if ((s_wit++ % 60u) == 0u) {
-            uint32_t valid_count = 0;
-            uint32_t ph[4] = {};
-            for (uint32_t i = 0; i < c->world_state_.active_patch_count; i++) {
-                if (!c->patch_system_state_.patches_[i].valid) continue;
-                valid_count++;
-                ph[(uint32_t)c->patch_system_state_.patches_[i].phase]++;
-            }
-            if (valid_count + c->world_state_.free_layer_count != Dim::MAX_ACTIVE_PATCHES) {
-                std::fprintf(stderr,
-                    "[Patch] CONSERVATION BROKEN — valid=%u + free=%u != %u "
-                    "(active=%u). Layers leaked; the world will stop growing.\n",
-                    valid_count, c->world_state_.free_layer_count,
-                    Dim::MAX_ACTIVE_PATCHES, c->world_state_.active_patch_count);
-            }
-            if constexpr (t7::INSTRUMENTS.frame_meter) {
-                std::fprintf(stderr,
-                    "[STREAM] active=%u free=%u | ALLOC=%u SPAWN=%u GEN=%u REGEN=%u | "
-                    "young=%d center=(%d,%d) point=(%.0f,%.0f)\n",
-                    c->world_state_.active_patch_count, c->world_state_.free_layer_count,
-                    ph[(uint32_t)PatchPhase::ALLOCATED], ph[(uint32_t)PatchPhase::SPAWNED],
-                    ph[(uint32_t)PatchPhase::GENERATED],
-                    ph[(uint32_t)PatchPhase::NEEDS_REGEN],
-                    young ? 1 : 0,
-                    c->world_state_.last_center_x, c->world_state_.last_center_z,
-                    (double)c->point_.x, (double)c->point_.z);
-            }
-        }
-    }
-
-    // Restore radius if we capped it for finite mode
-    if (c->world_state_.finite_mode) { c->world_state_.active_radius = savedRadius; }
-}
+// ══ THE CONDUCTOR STOOD HERE (ONE_SURFACE-I U2) ═════════════════════
+//
+// `stream_patches` was the per-frame step of an endless plane: it
+// recentred the window on the point, evicted what fell out, allocated
+// what fell in, spawned and baked under per-frame budgets, banded, and
+// re-armed its own scan. Nine hundred lines of answer to a question a
+// finite world does not ask — the window never moves, nothing ever falls
+// out, and the whole grid is known the moment the radius is drawn.
+//
+// TAKEN BY ENUMERATION (Amendment B clause 3), each death-verified:
+//   stream_patches · request_recenter · in_render_window ·
+//   in_priority_window · build_active_patch_set · the six budgets
+//   (SPAWN/ALLOC/EVICT/BAKE_BUDGET_PER_FRAME, BAKE_BUDGET_YOUNG,
+//   PATCH_LOOK_AHEAD) · alloc_scan_pending and its two scan-box cursors ·
+//   the [STREAM] diagnostic · the per-second conservation witness (its
+//   assertion moved into build_world, where it can still be violated) ·
+//   evict_distant_tiles' KeepFn overload (the moved-window sweep) ·
+//   set_render_radius and the [ ] keys that drove it.
+//
+// WHAT WAS PER-FRAME AND STILL IS: band_patches, which re-bands the draw
+// set as the point moves and stages the point the cull kernel re-bands
+// on, and update_entity_draw_visibility, the entity distance cull. Both
+// are functions of a MOVING POINT, not of a moving window, so both keep
+// their cadence and moved to phase_surface_visibility.
+//
+// WHAT WAS THE CONDUCTOR'S AND IS NOW THE BUILDER'S: build_patch_grid and
+// the tile-grid upload. Neither can change after a birth — nothing raises
+// patch_instances_dirty once the grid is whole — so a per-frame gate on
+// them was a gate on a constant.
+//
+// The eviction lane it drove (evict_patch, evict_patch_entities,
+// free_layer, the entity_refs registry) still compiles and is now
+// callerless; U3 takes it under its own guard.
 
 } // namespace the_board
 } // namespace t7

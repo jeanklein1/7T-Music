@@ -1908,7 +1908,7 @@ namespace t7 {
             // still owns the rest law — only the timestamp pair retired.
             // Every id below dropped ONE at ONE_WORLD-I: the PortalTrigger
             // row sat at index 1 and left with the doors.
-            inline constexpr uint32_t StreamPatches       = 1;
+            inline constexpr uint32_t SurfaceVisibility   = 1;
             inline constexpr uint32_t EntityMeshGen       = 5;
             inline constexpr uint32_t DispatchCompute     = 8;
             inline constexpr uint32_t GolDeriveFlush      = 10;

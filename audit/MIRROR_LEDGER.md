@@ -15,15 +15,15 @@ carry those facts, or leave them in place and patch around them.
 
 | field | value |
 |---|---|
-| source commit | `f7d66dd80bdad9124c37979b25c3c6b04ccd0597` |
-| | ONE_SURFACE-I U0 housekeeping: two names ONE_WORLD-II flagged and could not take |
+| source commit | `e6bf833abc1b3b66af061a8eac8aed63a7753403` |
+| | ONE_SURFACE-I U1: the builder rises |
 | `src/cartridges/the_board/realization/binding_registry.hpp` | `sha256:968d2d0dcbaa4ffe35f30b8349de93b4912cb3da09a16c56965408c90fc3ad9c` |
 | `src/cartridges/the_board/realization/world.wgsl` | `sha256:d7e536c6e2d8c5d856fc8eb1da2142340926988037334f33e9abe5440cb30ec0` |
-| `src/cartridges/the_board/realization/state.hpp` | `sha256:c24bf0e1afb801438c83d5aa99eb466d433eabc0f84c44669ee0d965e2884d6a` |
+| `src/cartridges/the_board/realization/state.hpp` | `sha256:042cba71e1cd8b14930eb7baf8b391fb0bb0f2871a34cd7e3c8ad90277341858` |
 | `src/cartridges/the_board/realization/binding_surface.gen.inc` | `sha256:0b98dfab809edd83752dedf7803f758fcf4ce502009763642a37cbf03b2a8446` |
 | `src/cartridges/the_board/realization/renderer.hpp` | `sha256:6d20d67bd53745eb70e14d05f324b4d12b45df9a2bb087cd62547777467bac1d` |
 | `tools/binding_ledger.py` | `sha256:a3c75bab894774eb0302686e5efd52275b280e14abfcf4e8753b28d5b5086692` |
-| `audit/BINDING_LEDGER.md` | `sha256:3b4de260e8315a252084659b4e70c57415f93355e01b4587af026e05dc725db7` |
+| `audit/BINDING_LEDGER.md` | `sha256:fda43fc1c3a7c56eaa40589aed0370d0673769222a7e3e58ddfda3ef9a9cb083` |
 
 `tools/binding_ledger.py` is an input because its parsers are IMPORTED,
 not copied — one parse, two artifacts, no drift between instruments.
@@ -848,8 +848,8 @@ wrapper, 18 wrapper calls) and are not recounted here.
 
 | site (line hint) | enclosing function | idx | group member(s) | dynamic offsets |
 |---|---|---|---|---|
-| `cartridge.hpp:1975` | `phase_entity_mesh_gen` | 0 | `worldGroup_` | — |
-| `cartridge.hpp:1976` | `phase_entity_mesh_gen` | 1 | `frameCGroup_` | — |
+| `cartridge.hpp:1983` | `phase_entity_mesh_gen` | 0 | `worldGroup_` | — |
+| `cartridge.hpp:1984` | `phase_entity_mesh_gen` | 1 | `frameCGroup_` | — |
 | `gol_zones.hpp:824` | `flush_zone_derive_requests` | 0 | `worldGroup_` | — |
 | `gol_zones.hpp:825` | `flush_zone_derive_requests` | 1 | `frameCGroup_` | — |
 | `gol_zones.hpp:912` | `dispatch_zone_sync` | 0 | `worldGroup_` | — |
@@ -919,8 +919,8 @@ wrapper, 18 wrapper calls) and are not recounted here.
 | `renderer.hpp:629` | `dispatch_zone_seed_mask` | 2 | `zonesStateGroup_` | — |
 | `renderer.hpp:630` | `dispatch_zone_seed_mask` | 3 | `zonesTexturesGroup_` | — |
 | `renderer.hpp:666` | `draw_patch_terrain_plan_slot` | 2 | `sceneStateGroup_` | — |
-| `patch_system.hpp:180` | `generate_patch_batch` | 0 | `worldGroup_` | — |
-| `patch_system.hpp:181` | `generate_patch_batch` | 1 | `frameCGroup_` | — |
+| `patch_system.hpp:176` | `generate_patch_batch` | 0 | `worldGroup_` | — |
+| `patch_system.hpp:177` | `generate_patch_batch` | 1 | `frameCGroup_` | — |
 
 ## Appendix — the renderer handle convention
 

@@ -173,10 +173,11 @@ struct TileWorldState {
 // by the spawn preamble and the surface samplers (estimate_terrain_
 // height / terrain_tile_warm) — the interface trio's memory member.
 
-// evict_distant_tiles: the tile eviction sweep. The KeepFn overload spares
-// tiles a caller marks load-bearing (a live patch stands on them); the 3-arg
-// form forwards with an always-false keep (nothing spared) -- its historical
-// behavior, so no other call site changes.
+// evict_distant_tiles: the tile eviction sweep. The KeepFn overload spared
+// tiles a caller marked load-bearing (a live patch stood on them) and its
+// one caller was the conductor's moved-window block; it left at
+// ONE_SURFACE-I U2 with the moving window. The 2-arg form survives — its
+// caller is the teardown, where nothing is spared by design.
 template <typename KeepFn>
 void evict_distant_tiles(TileWorldState& tw, int32_t centerX, int32_t centerZ, KeepFn keep);
 void evict_distant_tiles(TileWorldState& tw, int32_t centerX, int32_t centerZ);
@@ -246,19 +247,27 @@ inline void evict_distant_tiles(TileWorldState& tw, int32_t centerX, int32_t cen
 inline void upload_tile_grid_now(TileWorldState& tw, TileWorldDeps* c, wgpu::Queue& queue, int32_t cx, int32_t cz) {
     static constexpr int32_t TILE_PAD = 1;
     // Q8: TILE_GRID capacity guard. The GPUTileGrid DTO (state.hpp) sizes
-    // entries[] for radius PATCH_PREGEN_RADIUS + 1 (TILE_GRID_SIDE), and
-    // active_radius is runtime-clamped to <= PATCH_PREGEN_RADIUS
-    // (set_render_radius; the finite cap goes lower). The built window radius
-    // is active_radius + TILE_PAD, so it fits the DTO iff TILE_PAD <= 1 (the
-    // DTO's own pad). Both the DTO side and the active_radius clamp track
-    // PATCH_PREGEN_RADIUS, so the ONLY free variable that could overflow is
-    // TILE_PAD — this closes the compile-time half of the surface; the
-    // runtime half is the existing active_radius clamp.
+    // entries[] for radius PATCH_PREGEN_RADIUS + 1 (TILE_GRID_SIDE), and the
+    // window built here is finite_radius + TILE_PAD. FINITE_RADIUS_MAX is 4
+    // and PATCH_PREGEN_RADIUS is 7, so the DTO has three rings to spare and
+    // the only free variable that could overflow is TILE_PAD.
+    //
+    // IT READ active_radius UNTIL ONE_SURFACE-I U2, and the read was correct
+    // only because it was reached from inside the conductor, which capped
+    // active_radius to finite_radius for the duration of its own call and
+    // restored it after. build_world calls this from outside that cap, so a
+    // window sized on the STREAMING radius would have built a 17-wide grid
+    // whose outer six rings carry the default tile — a different origin, a
+    // different side, and every tile landing somewhere else in the sampler's
+    // index. The window is the world's radius, stated as the world's radius.
     static_assert(TILE_PAD <= 1,
-        "tile-grid window (active_radius <= PATCH_PREGEN_RADIUS, plus TILE_PAD) "
+        "tile-grid window (finite_radius <= PATCH_PREGEN_RADIUS, plus TILE_PAD) "
         "must fit the GPUTileGrid DTO sized for PATCH_PREGEN_RADIUS + 1");
-    int32_t rp = (int32_t)c->world_state_.active_radius + TILE_PAD;
-    uint32_t tileGridSide = 2 * (c->world_state_.active_radius + TILE_PAD) + 1;
+    static_assert(FINITE_RADIUS_MAX + TILE_PAD <= Dim::PATCH_PREGEN_RADIUS + 1,
+        "the widest world the pin allows, plus the pad, must fit the "
+        "GPUTileGrid DTO: raise TILE_GRID_SIDE before raising FINITE_RADIUS_MAX");
+    int32_t rp = (int32_t)c->world_state_.finite_radius + TILE_PAD;
+    uint32_t tileGridSide = 2 * (c->world_state_.finite_radius + TILE_PAD) + 1;
     GPUTileGrid grid{};
     grid.origin_x = cx - rp;
     grid.origin_z = cz - rp;

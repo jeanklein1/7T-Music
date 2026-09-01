@@ -95,7 +95,7 @@ FOUNDATIONAL_PHASES = {
     'phase_stage_upload':          'the O-5b/c DRAIN — the sole signal/config uploader',
     'phase_clear_input_deltas':    'driver bookkeeping, dead-last (O-5e)',
     'phase_witness_harvest':       'the witness harvest (P5) — spine-owned readback',
-    'phase_stream_patches':        'S2 streaming conductor (SEAM[patch:spawn-trigger])',
+    'phase_surface_visibility':    'S2 banding + entity distance cull — both functions of the moving POINT (the conductor that answered the moving WINDOW left at ONE_SURFACE-I U2)',
     'phase_census_dumps':          'spine diagnostics (constitution §5; gol residue proof at G3)',
     'phase_entity_mesh_gen':       'the mesh-gen pass — per-family gating is intra-phase',
     'phase_upload_lights':         'flag-guarded uploads (lights_dirty; light count=0 disables)',

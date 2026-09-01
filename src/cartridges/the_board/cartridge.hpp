@@ -846,7 +846,7 @@ namespace t7 {
                 ClearInputDeltas, COUNT
             };
             enum class RPhase : uint32_t {
-                WitnessHarvest, StreamPatches, RespawnAgents,
+                WitnessHarvest, SurfaceVisibility, RespawnAgents,
                 CensusDumps, RibbonTick, EntityMeshGen, UploadLights, LiveCardWrite, DispatchCompute,
                 WitnessCapture, GolDeriveFlush, GolZoneCompute, PawnAura, OrbSky,
                 FrustumCull, ShadowPass, MainPass,
@@ -1611,13 +1611,21 @@ namespace t7 {
                 }
             }
 
-            // R3 — STREAM PATCHES (S2 surface lifecycle, algo). The streaming
-            // conductor; carries the S3-trigger seam (SEAM[patch:spawn-trigger]
-            // — select/place/commit fire from the stream's own cadence).
-            void phase_stream_patches(RenderCtx& c) {
-                auto& encoder = c.encoder;
+            // R3 — SURFACE VISIBILITY (S2, algo). What the conductor did that
+            // was never streaming's: BAND the draw set as the point moves, and
+            // CULL the entity draw set by distance. Both are functions of a
+            // moving POINT; the conductor's other work was a function of a
+            // moving WINDOW, and a finite window does not move
+            // (ONE_SURFACE-I U2).
+            //
+            // IT TOOK NO ENCODER. Every line here is CPU plus a WriteBuffer,
+            // which is why the row is Driver::Algo with no GPU pass and its
+            // meter slot is never armed — phase_respawn_agents' precedent.
+            void phase_surface_visibility(RenderCtx& c) {
                 auto& queue = c.queue;
-                stream_patches(&machine_ctx_, encoder, queue, tile_world_state_, tile_world_deps_, sky_deps_);
+                band_patches(&machine_ctx_, queue);
+                machine_ctx_.world_state_.entities_culled =
+                    update_entity_draw_visibility(&machine_ctx_, queue);
             }
 
             // R4 — RESPAWN AGENTS (S3, algo; RC-1: after stream). Refills slots
@@ -2318,7 +2326,7 @@ namespace t7 {
             };
             static constexpr RRow RENDER_SPINE[] = {
                 { RPhase::WitnessHarvest,      "witness_harvest",       &Cartridge::phase_witness_harvest,       Driver::Algo,      true,                                   F_WITNESS },
-                { RPhase::StreamPatches,       "stream_patches",        &Cartridge::phase_stream_patches,        Driver::Algo,      true,                                   F_STREAM | F_COMPUTE },
+                { RPhase::SurfaceVisibility,   "surface_visibility",    &Cartridge::phase_surface_visibility,    Driver::Algo,      true,                                   F_STREAM },
                 { RPhase::RespawnAgents,       "respawn_agents",        &Cartridge::phase_respawn_agents,        Driver::Algo,      ROSTER.wanderers,                       F_NONE },
                 { RPhase::CensusDumps,         "census_dumps",          &Cartridge::phase_census_dumps,          Driver::WallClock, true,                                   F_NONE },
                 { RPhase::RibbonTick,          "ribbon_tick",           &Cartridge::phase_ribbon_tick,           Driver::Mixed,     ROSTER.ribbon,                          F_SIGNAL },
@@ -2439,7 +2447,7 @@ namespace t7 {
             // The meter_row registry (state.hpp — the GPU half's raw row
             // ids) is pinned to RPhase HERE, at the enum's home. Drift
             // fails glaw1.
-            static_assert(meter_row::StreamPatches       == (uint32_t)RPhase::StreamPatches,       "meter_row drift: StreamPatches");
+            static_assert(meter_row::SurfaceVisibility   == (uint32_t)RPhase::SurfaceVisibility,   "meter_row drift: SurfaceVisibility");
             static_assert(meter_row::EntityMeshGen       == (uint32_t)RPhase::EntityMeshGen,       "meter_row drift: EntityMeshGen");
             static_assert(meter_row::DispatchCompute     == (uint32_t)RPhase::DispatchCompute,     "meter_row drift: DispatchCompute");
             static_assert(meter_row::GolDeriveFlush      == (uint32_t)RPhase::GolDeriveFlush,      "meter_row drift: GolDeriveFlush");
@@ -2495,7 +2503,7 @@ namespace t7 {
             static_assert((uint32_t)RPhase::RibbonTick < (uint32_t)RPhase::DispatchCompute, "O-1: the ribbon's state write precedes the compute that reads it");
             static_assert((uint32_t)RPhase::WitnessHarvest < (uint32_t)RPhase::DispatchCompute, "O-2: witness harvest before compute");
             static_assert((uint32_t)RPhase::DispatchCompute < (uint32_t)RPhase::WitnessCapture, "O-2: witness capture after compute (feeds next frame's harvest)");
-            static_assert((uint32_t)RPhase::StreamPatches < (uint32_t)RPhase::RespawnAgents, "RC-1: respawn after the stream (S3 after S2)");
+            static_assert((uint32_t)RPhase::SurfaceVisibility < (uint32_t)RPhase::RespawnAgents, "RC-1: respawn after the surface (S3 after S2)");
             static_assert((uint32_t)RPhase::FrustumCull < (uint32_t)RPhase::ShadowPass, "O-7: frustum cull precedes the shadow pass (ordering pin)");
             static_assert((uint32_t)RPhase::FrustumCull < (uint32_t)RPhase::MainPass, "O-7: frustum cull before the main pass (indirect draws consume the cull)");
             static_assert((uint32_t)RPhase::LiveCardWrite > (uint32_t)RPhase::UploadLights &&

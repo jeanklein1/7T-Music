@@ -62,7 +62,12 @@ inline constexpr uint32_t FINITE_RADIUS_MAX = 4;
 struct WorldState {
     // ── Seed + dimensions ──
     uint32_t active_seed   = 0;  // world master seed — authored at the composition root from DEMO.seed; mutable for world transitions
-    uint32_t active_radius = Dim::PATCH_PREGEN_RADIUS;
+    // `active_radius` — the STREAMING window's half-width — stood here.
+    // It was PATCH_PREGEN_RADIUS (7) by default, driven by the [ ] keys,
+    // and capped to finite_radius for the duration of every conductor
+    // call. A finite world's window IS the world, so the two facts were
+    // one fact wearing two names; `finite_radius` below is the survivor
+    // (ONE_SURFACE-I U2).
     // THE FINITE FACTS, REHOMED (ONE_WORLD-II U2, §1.7). They were
     // WorldShape's — finite, finite_radius_min, finite_radius_max — and
     // the shape died with the moods. TWO of the three survive it: the
@@ -97,30 +102,13 @@ struct WorldState {
     bool ground_entries_dirty   = true;   // defer upload_ground_entries (true at boot)
     bool patch_instances_dirty  = true;   // defer LOD sort + upload_patch_instances
     bool placement_dirty        = true;   // defer dispatch_placement_correction
-    // OIL_1 U9 (ledger: R3 continuous allocation, C2): the allocation
-    // scan runs only when demand can exist. Raisers, covering every
-    // INPUT to the candidate set:
-    //   · boot (this default) and init_patch_system (reset);
-    //   · gridChanged — the render window moved (this also covers the
-    //     cross-module active_radius writer in direction/input.hpp,
-    //     which recenters through the same door);
-    //   · the scan BOX moved — last_alloc_scan_gx/gz below;
-    //   · a freed layer (the eviction block — free_layer's one caller is
-    //     evict_patch, whose one caller is that block);
-    //   · the budget backlog (candidates exceeded ALLOC_BUDGET_PER_FRAME).
-    bool alloc_scan_pending     = true;   // gate on the continuous-allocation scan
-    // THE BOX IS NOT THE WINDOW, and that is why it needs its own raiser.
-    // The scan intersects box(pawn cell ± radius) with the render window
-    // around last_center. In open worlds the two share an origin, so a
-    // box move IS a gridChanged. In FINITE mode the window is pinned at
-    // (0,0) while the box still follows the pawn — so the box is an
-    // independent input, and these two ints are what make the raiser set
-    // provably complete instead of complete-by-conjunction (today the
-    // finite window is fully allocated by the fullRegen bootstrap and
-    // nothing there evicts, so the divergence is unreachable — a fact in
-    // three other places, which is one too many to lean on).
-    int32_t last_alloc_scan_gx  = INT32_MAX;   // INT32_MAX = never scanned
-    int32_t last_alloc_scan_gz  = INT32_MAX;
+    // THE CONTINUOUS-ALLOCATION SCAN STOOD HERE (ONE_SURFACE-I U2), with
+    // its raiser flag `alloc_scan_pending` and the two cursors that made
+    // its raiser set provably complete — `last_alloc_scan_gx/gz`, the scan
+    // BOX's own move, which in a finite world diverged from the pinned
+    // window. All three were the streaming conductor's: a finite grid is
+    // allocated once, in build_world, and there is no second moment at
+    // which demand can appear.
 
     // ── Free-layer pool ──
     uint32_t free_layer_count = Dim::MAX_ACTIVE_PATCHES;
@@ -202,23 +190,19 @@ struct ActivePatch {
 
 // ONE BAKE A FRAME (RIBBON_6). RIBBON_4 was right that the conductor must
 // pace by CADENCE and wrong about why: the meter shows streaming's worst
-// frame at 2 ms of GPU and frame_total at 2.2 ms of CPU, so it never cost a
-// frame — but a pace must still be EVEN, and it must be FAST ENOUGH. A grid
-// crossing demands 15 cells; at the top of the speed dial one arrives every
-// 19 frames. So the unit is one whole patch per frame — one patch, one
-// dispatch, the same shape every streaming frame, and 15 frames to a
-// crossing. Evenness by construction, adequacy by arithmetic, and no ladder
-// to make a deep backlog work harder exactly when the point is moving fastest.
-inline constexpr uint32_t SPAWN_BUDGET_PER_FRAME = 2;   // spawning is CPU and precedes the bake; two keeps the pipeline fed
-inline constexpr uint32_t ALLOC_BUDGET_PER_FRAME = 4;   // bookkeeping
-inline constexpr uint32_t EVICT_BUDGET_PER_FRAME = 4;   // matched to ALLOC: the pool balances by symmetry as well as by refusal (RIBBON_5's FLAG-38)
-inline constexpr uint32_t BAKE_BUDGET_PER_FRAME  = 1;   // the law
-inline constexpr uint32_t BAKE_BUDGET_YOUNG      = 6;   // a world being born is a transition and keeps a transition's burst
-
-// THE LOOK-AHEAD (RIBBON_4): how far along the flight the spawn and bake
-// scans order their candidates from, under a rider. Zero in every other
-// host — a walker's point IS where the work is.
-inline constexpr float    PATCH_LOOK_AHEAD       = 100.0f;  // wu
+// THE PER-FRAME BUDGETS STOOD HERE (ONE_SURFACE-I U2). SPAWN 2, ALLOC 4,
+// EVICT 4, BAKE 1 with a young world's 6, and the rider's 100 wu
+// PATCH_LOOK_AHEAD. Every one of them paced a spend across frames, and a
+// world that is built once has one frame to pace. RIBBON_6's sentence —
+// "a pace must be EVEN, and it must be FAST ENOUGH" — was true of a
+// window crossing a plane; the arithmetic that made it true (15 cells a
+// crossing, one arriving every 19 frames at the top of the speed dial) is
+// arithmetic about a moving window, and the window does not move.
+//
+// ONE BAKE A FRAME survives as ONE BATCH PER SUBMIT, which is what
+// LATTICE_1 actually proved: the queue orders every WriteBuffer ahead of
+// the whole command buffer, so two batches on one encoder corrupt the
+// first's params. That is a SUBMIT law and it lives in build_world.
 
 // ── Visibility — THE VEIL CHAIN (RING = draw authority) ────────────
 //
@@ -309,9 +293,9 @@ void generate_selected_patches(MachineCtx* c, const PatchCandidate* candidates, 
 void build_world(MachineCtx* c, wgpu::Device& device, wgpu::Queue& queue,
     TileWorldState& tile_world_state, TileWorldDeps& tile_world_deps);
 
-void stream_patches(MachineCtx* c, wgpu::CommandEncoder& encoder, wgpu::Queue& queue,
-    TileWorldState& tile_world_state,
-    TileWorldDeps& tile_world_deps, SkyDeps& sky_deps);
+// `stream_patches` stood here — the per-frame conductor, and the largest
+// single verb in the surface. It left at ONE_SURFACE-I U2 with the
+// question it answered.
 
 } // namespace the_board
 } // namespace t7
