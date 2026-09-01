@@ -273,8 +273,128 @@ ORGAN_PARAM(CONFIG, GPUDesignConfig, mode_checker_scatter,   F32, -1.0f, 1.0f, 0
 ORGAN_PARAM(CONFIG, GPUDesignConfig, mode_palette_target,    F32, 0.0f, 3.0f, 1.0f,   "Terrain · Modes", "palette target (idx)")
 ORGAN_PARAM(CONFIG, GPUDesignConfig, mode_palette_intensity, F32, 0.0f, 1.0f, 0.005f, "Terrain · Modes", "palette intensity")
 ORGAN_PARAM(CONFIG, GPUDesignConfig, mode_discrete_tier,     F32, 0.0f, 4.0f, 1.0f,   "Terrain · Modes", "discrete tier (idx)")
-ORGAN_PARAM(CONFIG, GPUDesignConfig, mode_gol_tick_scale,   F32, 0.1f, 4.0f, 0.02f, "Terrain · GoL", "tick scale")
-ORGAN_PARAM(CONFIG, GPUDesignConfig, mode_gol_height_scale, F32, 0.0f, 4.0f, 0.02f, "Terrain · GoL", "height scale")
+// The two COUPLING multipliers over the automaton's drawn values — GPU
+// config, read per frame, so they stay LIVE while the bank below is GEN.
+// The GROUP is renamed off the dead family's name (THE_PANEL I U3); the
+// FIELD names still read `mode_gol_*` in both rooms, which is a rename
+// with a mirror on the other side of it and belongs to the sweep.
+ORGAN_PARAM(CONFIG, GPUDesignConfig, mode_gol_tick_scale,   F32, 0.1f, 4.0f, 0.02f, "Terrain · Automaton couplings", "tick scale")
+ORGAN_PARAM(CONFIG, GPUDesignConfig, mode_gol_height_scale, F32, 0.0f, 4.0f, 0.02f, "Terrain · Automaton couplings", "height scale")
+
+// ═══ Terrain · Automaton — THE GROUND'S OWN VOCABULARY ═══════════════
+//
+// AUTO_LIVE (contracts/automaton_surface.hpp). The bank rose at
+// ONE_SURFACE-II U1 with NOT ONE FIELD ENROLLED — the whole of what the
+// ground does, invisible to the panel, and the largest single absence
+// THE_PANEL's recon found. (It was invisible to the GAP TOOL too, which
+// is how it stayed the largest: a home absent from organ_gap's file
+// table reads as zero. That was fixed in the recon before it was
+// reported.)
+//
+// EVERY ROW IS GEN, AND THE BLOCK TAKES NO BOUNDARY WIRING (L44). The
+// bank has exactly one reader, `draw_automaton`, and it runs at a
+// WORLD'S BIRTH from the world seed. Re-speaking that author means
+// re-seeding the ground — so this block and block 15 are one instrument
+// in two halves: turn these, then press the seed door.
+//
+// CENTRE AND SPREAD ARE TWO ROWS, NOT ONE DIAL WITH A WIDTH. A spread is
+// the sigma of a Gaussian the world draws its value from, and a spread of
+// 0 makes the row a POINT row — `auto_draw` short-circuits to the centre
+// exactly, the IEEE identity ATMOS_TABLE's witness protects. So a hand
+// can pin the ground or let it vary, per parameter.
+//
+// ─── WHERE THESE RANGES COME FROM, ROW BY ROW ───────────────────────
+// EVERY RANGE HERE IS EVIDENCE, NOT TASTE — this file's own banner — and
+// the automaton is the first block where the evidence has two grades,
+// so the grade is stated rather than smoothed over:
+//
+//   CLAMPED — `draw_automaton` clamps the drawn value itself, and THAT
+//     clamp is the range. density [0,1], transition_fraction
+//     [0.01,0.5], target_* [0,1], tick_period floored at 0.1,
+//     alive_height floored at 0. A dial that could ask for a value the
+//     program will silently refuse is a dial that lies.
+//   AUTHORED — the program states no ceiling, so one is chosen here and
+//     said to be chosen. Every such row is a FACT FOR JEAN'S GATE, not a
+//     law: the ceiling is where the walk should push, and moving it
+//     costs one line in this file and nothing else.
+//
+// The SPREADS are authored throughout, on one rule applied uniformly: a
+// spread's ceiling is a SIXTH of its centre's range, so a 3-sigma draw
+// stays inside the centre's own domain instead of being clamped back to
+// its edge — a spread whose draws pile up on a clamp is not a
+// distribution, it is a bias.
+
+// ─── Terrain · Automaton rule ────────────────────────────────────────
+// SELECTIONS, NOT DRAWS. `draw_automaton` copies these five straight
+// through: "a world whose rule changes with its seed is a world you
+// cannot ask for". Each range is a VOCABULARY's size — the enum's own
+// count, which is evidence of the strictest kind.
+ORGAN_PARAM_GEN(AUTOMATON, AutomatonBank, algorithm,     U32, 0.0f, 1.0f, 1.0f, "Terrain · Automaton rule", "algorithm (0 Conway, 1 Pulse)")
+// THE B/S BITSET. Bit n = birth on n neighbours, bit 9+n = survival on n,
+// so eighteen meaningful bits and 0x3FFFF is the whole space. Conway is
+// 0x1808 (B3/S23) and the bank's static_assert holds the table at it;
+// this dial is how every other rule is reached.
+ORGAN_PARAM_GEN(AUTOMATON, AutomatonBank, rule_mask,     U32, 0.0f, 262143.0f, 1.0f, "Terrain · Automaton rule", "B/S bitset (bit n birth, bit 9+n survival)")
+ORGAN_PARAM_GEN(AUTOMATON, AutomatonBank, field_fn,      U32, 0.0f, 1.0f, 1.0f, "Terrain · Automaton rule", "field fn (0 breath, 1 spiral) — Pulse only")
+ORGAN_PARAM_GEN(AUTOMATON, AutomatonBank, color_mode,    U32, 0.0f, 2.0f, 1.0f, "Terrain · Automaton rule", "colour mode (0 neutral, 1 lens, 2 blackish)")
+// THE SPRING'S OVERSHOOT LAW, NOT THE GRID'S TOPOLOGY. The bank's banner
+// names this trap by name: the grid is a torus by a hardcoded modulus
+// with no dial, and this field is wrap01 vs reflect01 on a scalar in
+// [0,1]. Two different wraps; only the second is here.
+ORGAN_PARAM_GEN(AUTOMATON, AutomatonBank, boundary_mode, U32, 0.0f, 1.0f, 1.0f, "Terrain · Automaton rule", "overshoot law (0 reflect, 1 wrap)")
+
+// ─── Terrain · Automaton draw ────────────────────────────────────────
+// The five the world draws once, at its birth, from the world seed.
+ORGAN_PARAM_GEN(AUTOMATON, AutomatonBank, density,                    F32, 0.0f, 1.0f,   0.005f, "Terrain · Automaton draw", "seed density (clamped)")
+ORGAN_PARAM_GEN(AUTOMATON, AutomatonBank, density_spread,             F32, 0.0f, 0.16f,  0.005f, "Terrain · Automaton draw", "seed density ± (authored)")
+// TICK PERIOD IS IN BEATS, AND IT IS THE ABLETON SEAM'S OWN DIAL — the
+// cue the coupling atlas records. The program floors it at 0.1 and states
+// no ceiling; 64 beats is sixteen bars, which is authored.
+ORGAN_PARAM_GEN(AUTOMATON, AutomatonBank, tick_period,                F32, 0.1f, 64.0f,  0.1f,   "Terrain · Automaton draw", "tick period, beats (floored; ceiling authored)")
+ORGAN_PARAM_GEN(AUTOMATON, AutomatonBank, tick_period_spread,         F32, 0.0f, 10.65f, 0.05f,  "Terrain · Automaton draw", "tick period ± (authored)")
+ORGAN_PARAM_GEN(AUTOMATON, AutomatonBank, transition_fraction,        F32, 0.01f, 0.5f,  0.005f, "Terrain · Automaton draw", "transition fraction of a tick (clamped)")
+ORGAN_PARAM_GEN(AUTOMATON, AutomatonBank, transition_fraction_spread, F32, 0.0f, 0.08f,  0.002f, "Terrain · Automaton draw", "transition fraction ± (authored)")
+// ALIVE HEIGHT IS THE OTHER DIAL THE WALK REACHES FOR FIRST (the census
+// measured 3.1% live over the whole 144-cell ground; the collapse's scale
+// question is this number and `density`). Floored at 0, no ceiling
+// stated; 120 wu is authored.
+ORGAN_PARAM_GEN(AUTOMATON, AutomatonBank, alive_height,               F32, 0.0f, 120.0f, 0.5f,   "Terrain · Automaton draw", "alive height, wu (floored; ceiling authored)")
+ORGAN_PARAM_GEN(AUTOMATON, AutomatonBank, alive_height_spread,        F32, 0.0f, 20.0f,  0.5f,   "Terrain · Automaton draw", "alive height ± (authored)")
+ORGAN_PARAM_GEN(AUTOMATON, AutomatonBank, target,                     VEC3, 0.0f, 1.0f,  0.01f,  "Terrain · Automaton draw", "colour target (clamped)")
+ORGAN_PARAM_GEN(AUTOMATON, AutomatonBank, target_spread,              F32, 0.0f, 0.16f,  0.005f, "Terrain · Automaton draw", "colour target ± (authored)")
+
+// ─── Terrain · Automaton grain ───────────────────────────────────────
+// AMOUNTS, NOT SPREADS, and the bank says why: these are not
+// distributions over the world's one draw, they are how much each CELL
+// differs from its neighbours. They are carried through to the GPU
+// header verbatim rather than drawn, so they stay scalar.
+ORGAN_PARAM_GEN(AUTOMATON, AutomatonBank, spring_variance,    F32, 0.0f, 1.0f, 0.01f, "Terrain · Automaton grain", "per-cell spring speed scatter")
+ORGAN_PARAM_GEN(AUTOMATON, AutomatonBank, phase_randomness,   F32, 0.0f, 1.0f, 0.01f, "Terrain · Automaton grain", "per-cell phase offset (Pulse)")
+ORGAN_PARAM_GEN(AUTOMATON, AutomatonBank, tempo_randomness,   F32, 0.0f, 1.0f, 0.01f, "Terrain · Automaton grain", "per-cell frequency scatter (Pulse)")
+// The per-cell height multiplier: a Gaussian and its clamp. All four are
+// authored — the program applies this draw on the GPU and states no
+// domain for it — and the two clamp rows are what keep a wide sigma from
+// lifting one cell out of the world.
+ORGAN_PARAM_GEN(AUTOMATON, AutomatonBank, height_factor_mean,  F32, 0.0f, 3.0f, 0.01f, "Terrain · Automaton grain", "per-cell height factor, mean (authored)")
+ORGAN_PARAM_GEN(AUTOMATON, AutomatonBank, height_factor_sigma, F32, 0.0f, 0.5f, 0.01f, "Terrain · Automaton grain", "per-cell height factor, sigma (authored)")
+ORGAN_PARAM_GEN(AUTOMATON, AutomatonBank, height_factor_lo,    F32, 0.0f, 3.0f, 0.01f, "Terrain · Automaton grain", "per-cell height factor, clamp low (authored)")
+ORGAN_PARAM_GEN(AUTOMATON, AutomatonBank, height_factor_hi,    F32, 0.0f, 3.0f, 0.01f, "Terrain · Automaton grain", "per-cell height factor, clamp high (authored)")
+
+// ─── AND ONE FIELD OF THE BANK IS DELIBERATELY NOT ENROLLED ──────────
+//
+// `AUTO_TABLE.mode_threshold` — the eligibility cut, "below this
+// interpolated mode value a cell is smooth ground and the automaton does
+// not reach it". It is a HARDWARE MIRROR: world.wgsl declares
+// AUTO_MODE_THRESHOLD as a const and the cell TAG is baked at patch
+// generation, so the GPU never reads a transported copy. `draw_automaton`
+// says so at the one line that would have copied it.
+//
+// A DIAL HERE WOULD WRITE THE C++ HALF OF A FACT WHOSE OTHER HALF IS A
+// WGSL CONST — the exact two-home shape L46 forbids, and it would move
+// nothing until the shader was edited and reloaded. So the field stays
+// the bank's ONE unenrolled row, and `organ_gap` reports it as an
+// absence, correctly: it IS absent from the panel, and the reason is
+// that the panel is not where it lives.
 
 // ─── Terrain · Mosaic ──────────────────────────────────────────
 // GPUDesignConfig. Rests are Dim::MOSAIC_*; state.hpp's own note says

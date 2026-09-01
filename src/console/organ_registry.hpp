@@ -31,6 +31,7 @@
 #include "cartridges/the_board/contracts/atmosphere_surface.hpp" // ATMOS_LIVE (block 12)
 #include "cartridges/the_board/contracts/agent_surface.hpp"      // AGENTS_LIVE (block 14)
 #include "cartridges/the_board/contracts/world_surface.hpp"      // WORLD_LIVE (block 15) + FINITE_RADIUS_MIN/MAX, the radius dial's named ceiling
+#include "cartridges/the_board/contracts/automaton_surface.hpp"  // AUTO_LIVE (block 16)
 
 #include <cstddef>
 #include <cstdint>
@@ -147,7 +148,17 @@ enum : uint8_t {
     // re-point every stored preset key that names it. A new bank takes a
     // new number, and the count moves with it.
     ORGAN_BLOCK_WORLD        = 15,  // WorldSurface       — WORLD_LIVE
-    ORGAN_BLOCK_COUNT        = 16,
+    // THE GROUND'S AUTOMATON (THE_PANEL I U3). AutomatonBank — AUTO_LIVE,
+    // born at ONE_SURFACE-II U1 with not one field enrolled: the whole
+    // vocabulary of what the ground DOES, and the largest single absence
+    // THE_PANEL's recon found. The FOURTH destructive bank, and the
+    // reason is exact: `draw_automaton` is its one reader and it runs at
+    // a world's BIRTH, from the world seed. Every row is GEN and the
+    // block takes no boundary wiring — an edit lands on the next world
+    // the seed door draws, which is why this block and block 15 are one
+    // instrument in two halves.
+    ORGAN_BLOCK_AUTOMATON    = 16,  // AutomatonBank      — AUTO_LIVE
+    ORGAN_BLOCK_COUNT        = 17,
 };
 
 // A definition-only entry has no instance anywhere: block_base answers
@@ -343,6 +354,7 @@ inline void* block_base(uint8_t block) {
     case ORGAN_BLOCK_ORB_BANK:   return &the_board::ORB_LIVE;
     case ORGAN_BLOCK_AGENTS:     return &the_board::AGENTS_LIVE;
     case ORGAN_BLOCK_WORLD:      return &the_board::WORLD_LIVE;
+    case ORGAN_BLOCK_AUTOMATON:  return &the_board::AUTO_LIVE;
     default:                     return nullptr;
     }
 }

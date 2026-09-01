@@ -114,8 +114,30 @@ generator, so the book and the manifest cannot disagree. `driven` is an
 | Terrain · Modes | palette target (idx) | `CONFIG.mode_palette_target` | CONFIG | F32 | 0 … 3 | 1 | live | none |  |
 | Terrain · Modes | palette intensity | `CONFIG.mode_palette_intensity` | CONFIG | F32 | 0 … 1 | 0.005 | live | none |  |
 | Terrain · Modes | discrete tier (idx) | `CONFIG.mode_discrete_tier` | CONFIG | F32 | 0 … 4 | 1 | live | none |  |
-| Terrain · GoL | tick scale | `CONFIG.mode_gol_tick_scale` | CONFIG | F32 | 0.1 … 4 | 0.02 | live | none |  |
-| Terrain · GoL | height scale | `CONFIG.mode_gol_height_scale` | CONFIG | F32 | 0 … 4 | 0.02 | live | none |  |
+| Terrain · Automaton couplings | tick scale | `CONFIG.mode_gol_tick_scale` | CONFIG | F32 | 0.1 … 4 | 0.02 | live | none |  |
+| Terrain · Automaton couplings | height scale | `CONFIG.mode_gol_height_scale` | CONFIG | F32 | 0 … 4 | 0.02 | live | none |  |
+| Terrain · Automaton rule | algorithm (0 Conway, 1 Pulse) | `AUTOMATON.algorithm` | AUTOMATON | U32 | 0 … 1 | 1 | gen | none |  |
+| Terrain · Automaton rule | B/S bitset (bit n birth, bit 9+n survival) | `AUTOMATON.rule_mask` | AUTOMATON | U32 | 0 … 262143 | 1 | gen | none |  |
+| Terrain · Automaton rule | field fn (0 breath, 1 spiral) — Pulse only | `AUTOMATON.field_fn` | AUTOMATON | U32 | 0 … 1 | 1 | gen | none |  |
+| Terrain · Automaton rule | colour mode (0 neutral, 1 lens, 2 blackish) | `AUTOMATON.color_mode` | AUTOMATON | U32 | 0 … 2 | 1 | gen | none |  |
+| Terrain · Automaton rule | overshoot law (0 reflect, 1 wrap) | `AUTOMATON.boundary_mode` | AUTOMATON | U32 | 0 … 1 | 1 | gen | none |  |
+| Terrain · Automaton draw | seed density (clamped) | `AUTOMATON.density` | AUTOMATON | F32 | 0 … 1 | 0.005 | gen | none |  |
+| Terrain · Automaton draw | seed density ± (authored) | `AUTOMATON.density_spread` | AUTOMATON | F32 | 0 … 0.16 | 0.005 | gen | none |  |
+| Terrain · Automaton draw | tick period, beats (floored; ceiling authored) | `AUTOMATON.tick_period` | AUTOMATON | F32 | 0.1 … 64 | 0.1 | gen | none |  |
+| Terrain · Automaton draw | tick period ± (authored) | `AUTOMATON.tick_period_spread` | AUTOMATON | F32 | 0 … 10.65 | 0.05 | gen | none |  |
+| Terrain · Automaton draw | transition fraction of a tick (clamped) | `AUTOMATON.transition_fraction` | AUTOMATON | F32 | 0.01 … 0.5 | 0.005 | gen | none |  |
+| Terrain · Automaton draw | transition fraction ± (authored) | `AUTOMATON.transition_fraction_spread` | AUTOMATON | F32 | 0 … 0.08 | 0.002 | gen | none |  |
+| Terrain · Automaton draw | alive height, wu (floored; ceiling authored) | `AUTOMATON.alive_height` | AUTOMATON | F32 | 0 … 120 | 0.5 | gen | none |  |
+| Terrain · Automaton draw | alive height ± (authored) | `AUTOMATON.alive_height_spread` | AUTOMATON | F32 | 0 … 20 | 0.5 | gen | none |  |
+| Terrain · Automaton draw | colour target (clamped) | `AUTOMATON.target` | AUTOMATON | VEC3 | 0 … 1 | 0.01 | gen | none |  |
+| Terrain · Automaton draw | colour target ± (authored) | `AUTOMATON.target_spread` | AUTOMATON | F32 | 0 … 0.16 | 0.005 | gen | none |  |
+| Terrain · Automaton grain | per-cell spring speed scatter | `AUTOMATON.spring_variance` | AUTOMATON | F32 | 0 … 1 | 0.01 | gen | none |  |
+| Terrain · Automaton grain | per-cell phase offset (Pulse) | `AUTOMATON.phase_randomness` | AUTOMATON | F32 | 0 … 1 | 0.01 | gen | none |  |
+| Terrain · Automaton grain | per-cell frequency scatter (Pulse) | `AUTOMATON.tempo_randomness` | AUTOMATON | F32 | 0 … 1 | 0.01 | gen | none |  |
+| Terrain · Automaton grain | per-cell height factor, mean (authored) | `AUTOMATON.height_factor_mean` | AUTOMATON | F32 | 0 … 3 | 0.01 | gen | none |  |
+| Terrain · Automaton grain | per-cell height factor, sigma (authored) | `AUTOMATON.height_factor_sigma` | AUTOMATON | F32 | 0 … 0.5 | 0.01 | gen | none |  |
+| Terrain · Automaton grain | per-cell height factor, clamp low (authored) | `AUTOMATON.height_factor_lo` | AUTOMATON | F32 | 0 … 3 | 0.01 | gen | none |  |
+| Terrain · Automaton grain | per-cell height factor, clamp high (authored) | `AUTOMATON.height_factor_hi` | AUTOMATON | F32 | 0 … 3 | 0.01 | gen | none |  |
 | Terrain · Mosaic | enable | `CONFIG.mosaic_enable` | CONFIG | F32 | 0 … 1 | 1 | live | none |  |
 | Terrain · Mosaic | shard size | `CONFIG.mosaic_shard_size` | CONFIG | F32 | 0 … 1.2 | 0.005 | live | none |  |
 | Terrain · Mosaic | passage scale | `CONFIG.mosaic_passage_scale` | CONFIG | F32 | 0 … 48 | 0.25 | live | none |  |
@@ -338,14 +360,14 @@ generator, so the book and the manifest cannot disagree. `driven` is an
 
 | | |
 | --- | --- |
-| entries | **310** |
-| by section | Agents 102 · Ribbon 55 · Terrain 37 · Sky & Light 30 · Atmosphere 28 · Interaction 22 · Pawn 18 · Population 5 · Debug 4 · World 3 · Camera 3 · Measure 3 |
-| by cadence | boundary 106 · driven 14 · gen 28 · live 162 |
-| by macro form | PARAM 166 · PARAM_DEF 102 · PARAM_GEN 28 · PARAM_RO 14 |
-| definition kinds | BEHAVIOR 70 · NONE 208 · TIER 32 |
+| entries | **332** |
+| by section | Agents 102 · Terrain 59 · Ribbon 55 · Sky & Light 30 · Atmosphere 28 · Interaction 22 · Pawn 18 · Population 5 · Debug 4 · World 3 · Camera 3 · Measure 3 |
+| by cadence | boundary 106 · driven 14 · gen 50 · live 162 |
+| by macro form | PARAM 166 · PARAM_DEF 102 · PARAM_GEN 50 · PARAM_RO 14 |
+| definition kinds | BEHAVIOR 70 · NONE 230 · TIER 32 |
 | witnesses (`ro`) | 14 |
-| blocks and sentinels used | AGENTS, AGENT_ROOM, ATMOS, CANVAS, CONFIG, DRIVERS, LIGHTING, ORBS, ORB_BANK, PANEL, PAWN, RIBBON, RIBBON_SPAWN, WORLD |
-| namespaces | canvas 15 · the_board 295 |
+| blocks and sentinels used | AGENTS, AGENT_ROOM, ATMOS, AUTOMATON, CANVAS, CONFIG, DRIVERS, LIGHTING, ORBS, ORB_BANK, PANEL, PAWN, RIBBON, RIBBON_SPAWN, WORLD |
+| namespaces | canvas 15 · the_board 317 |
 
 ### Doors
 
@@ -379,8 +401,8 @@ reader — the class of defect this witness exists to catch.
   AGENT_BEHAVIORS      definition=1 seed=10 comment=7             
   AGENTS_TABLE         definition=1 seed=1 comment=1              
   AGENT_TIER_GAINS     definition=1 seed=4 static_assert=2 comment=6 
-  ATMOS_TABLE          definition=1 seed=1 static_assert=8 comment=7 
-  AUTO_TABLE           definition=1 seed=1 static_assert=3 comment=3 
+  ATMOS_TABLE          definition=1 seed=1 static_assert=8 comment=8 
+  AUTO_TABLE           definition=1 seed=1 static_assert=3 comment=4 
   CANVAS_TABLE         definition=1 seed=1 comment=1              
   CUBE_TABLE           definition=1 seed=1 static_assert=3 comment=1 
   DRIVER_TABLE         definition=1 seed=1 comment=1              
@@ -413,7 +435,7 @@ verbatim:
 
 THE ANSWER, ROW BY ROW
 ------------------------------------------------------------------------
-  proved    218   a declared reader names the field
+  proved    240   a declared reader names the field
   SUSPECT     0   no declared reader names it
   witness    14   an _RO meter: the question is inverted (blind spot 5)
   scope      78   GPU-side or whole-struct (blind spots 2, 3)

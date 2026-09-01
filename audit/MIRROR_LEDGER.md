@@ -15,8 +15,8 @@ carry those facts, or leave them in place and patch around them.
 
 | field | value |
 |---|---|
-| source commit | `51649be11efbbcad053bbe77504de6f78d258c34` |
-| | THE_PANEL I U2: THE DELIBERATE RELAYOUT — 704 -> 688, both rooms (PROBE-PENDING) |
+| source commit | `d174157eb89d03f70e1f63507163550021115c30` |
+| | THE_PANEL I U3a: THE RADIUS PAIR GRADUATES — a dial over a capacity |
 | `src/cartridges/the_board/realization/binding_registry.hpp` | `sha256:351eccaedd6902900df3b13a57c7a818ff10cf4280debbfb9034b0ffabcfcc73` |
 | `src/cartridges/the_board/realization/world.wgsl` | `sha256:67006fc775f022db9d11e2825f018a55f3cc489fff0bd35508e63d5202644d20` |
 | `src/cartridges/the_board/realization/state.hpp` | `sha256:8c178e1f4226a0010105cff9a3ead1083853483f2663b56437da17c2246e590b` |

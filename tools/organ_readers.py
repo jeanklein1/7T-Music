@@ -145,6 +145,16 @@ READERS = {
         ("src/cartridges/the_board/contracts/agent_surface.hpp", "agents_behavior_sum"),
         ("src/cartridges/the_board/contracts/agent_surface.hpp", "agents_tier_sum"),
     ]),
+    # THE GROUND'S BANK (THE_PANEL I U3). ONE READER, and it is a HELPER
+    # taking the bank by parameter — blind spot 1's exact shape, cured
+    # the way the blind spot says to cure it: by LISTING the helper.
+    # `draw_automaton(AutomatonState&, const AutomatonBank& bank, ...)`
+    # is where every field is read, at a world's birth; the caller
+    # (cartridge.hpp's birth_the_automaton) is what names AUTO_LIVE and
+    # names no field at all.
+    "AUTOMATON": ("AUTO_LIVE", "AutomatonBank", [
+        ("src/cartridges/the_board/surface/automaton.hpp", "draw_automaton"),
+    ]),
     "ATMOS": ("ATMOS_LIVE", "AtmosphereBank", [
         ("src/cartridges/the_board/direction/sky.hpp", "draw_atmosphere"),
     ]),

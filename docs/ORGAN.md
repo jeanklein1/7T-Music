@@ -59,11 +59,12 @@ triple that is not an entry, counts the refusal, and names it.
 | 12 `ATMOS` | `ATMOS_LIVE` — the world's one sky, as a distribution | the boundary re-draws from it |
 | 13 `ORB_BANK` | `ORB_LIVE` — the sky's one orb row | `configure_orbs`, per-field mask |
 | 14 `AGENTS` | `AGENTS_LIVE` — how many walk this world, and what they are | the next spawn — destructive |
-| 15 `WORLD` | `WORLD_LIVE` — the seed the next world is drawn from | the next rebirth — destructive; the REBIRTH door is that event |
+| 15 `WORLD` | `WORLD_LIVE` — what a world is CHOSEN by: the seed the next one is drawn from, and the range its radius is drawn within | the next rebirth — destructive; the REBIRTH door is that event |
+| 16 `AUTOMATON` | `AUTO_LIVE` — the ground's own vocabulary: rule, draw, per-cell grain | the next world's birth — destructive; `draw_automaton` is its one reader |
 
 Blocks 0–2 are reached through three accessors on `GPUState` and no others. GPU
 truth — positions, camera, simulation state — has no accessor and therefore no
-block id; a panel that cannot name a thing cannot write it. Blocks 3–15 are
+block id; a panel that cannot name a thing cannot write it. Blocks 3–16 are
 contracts-tier CPU banks whose base is the instance itself. There is
 deliberately no Camera section: pose is GPU truth, and the camera's dials under
 `Interaction · Camera` are input grammar.
