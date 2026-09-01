@@ -26,7 +26,7 @@
 //   }
 
 #include "core/input_event.hpp"
-#include "core/boot_params.hpp"   // DOMESDAY_1 B9 — --seed= / --cap= / --msaa=, read once at boot
+#include "core/boot_params.hpp"   // DOMESDAY_1 B9 — --seed= / --msaa= / --probe=, read once at boot
 #include "core/instruments.hpp"  // WIT_2 — t7::g_dropped_submits, the frame-validity witness
 
 #include <webgpu/webgpu_cpp.h>
@@ -572,14 +572,44 @@ namespace t7 {
                                                         : wgpu::BackendType::D3D12;
             size_t adapterPick = 0;
             {
+                // THE PROBE'S LADDER (the device gate). An ordinary boot
+                // wants the fastest adapter. The probe wants the one that
+                // VALIDATES and does nothing else: Dawn's frontend raises
+                // the errors the probe hunts before any backend is
+                // reached, so a Null or CPU adapter returns the same
+                // verdict for none of the wall clock — and a machine with
+                // no GPU could return it at all.
+                //
+                // DEFAULTED OFF, deliberately, and boot_params.hpp's
+                // banner says why: `--probe=N` alone takes the ordinary
+                // pick, which is the one configuration the probe is
+                // already known to boot in. `--probe-backend=null` asks
+                // the question; one boot answers it.
+                //
+                // The ladder is a SCORE, not a filter — an absent Null or
+                // CPU adapter costs nothing and the run falls through to
+                // the best thing enumerated, which is the honest meaning
+                // of "Null -> CPU -> any".
+                const t7::BootParams& bp = t7::boot_params();
+                const bool probeNull = bp.has_probe && bp.probe_backend == t7::ProbeBackend::Null;
+                const bool probeCPU  = bp.has_probe && bp.probe_backend == t7::ProbeBackend::CPU;
                 int best = -1;
                 for (size_t i = 0; i < adapters.size(); i++) {
                     wgpu::Adapter a = wgpu::Adapter(adapters[i].Get());
                     wgpu::AdapterInfo info{};
                     a.GetInfo(&info);
-                    int score =
-                        (info.adapterType == wgpu::AdapterType::DiscreteGPU ? 2 : 0)
-                      + (info.backendType == kPreferredBackend              ? 1 : 0);
+                    const bool isNull = (info.backendType == wgpu::BackendType::Null);
+                    const bool isCPU  = (info.adapterType == wgpu::AdapterType::CPU);
+                    int score;
+                    if (probeNull) {
+                        score = (isNull ? 4 : 0) + (isCPU ? 2 : 0);
+                    } else if (probeCPU) {
+                        score = (isCPU ? 4 : 0) + (isNull ? 2 : 0);
+                    } else {
+                        score =
+                            (info.adapterType == wgpu::AdapterType::DiscreteGPU ? 2 : 0)
+                          + (info.backendType == kPreferredBackend              ? 1 : 0);
+                    }
                     if (score > best) { best = score; adapterPick = i; }
                 }
             }
@@ -647,12 +677,21 @@ namespace t7 {
             // The witness that outlives both is GetTogglesUsed below. It
             // is not the control; it is the readout, and it stays.
 
+            // THE PROBE'S EAR IS THIS CALLBACK (the device gate). It was
+            // already the only place the program hears the device object;
+            // the probe adds a count and a copy of the FIRST message, so a
+            // run can end in a verdict instead of a log a human must read.
+            // The print stays exactly as it was — an ordinary boot is
+            // unchanged, and the probe's verdict is composed from the same
+            // words the operator sees.
             deviceDesc.SetUncapturedErrorCallback(
                 [](const wgpu::Device&, wgpu::ErrorType type, wgpu::StringView message) {
                     const std::string_view text(message.data, message.length);
                     std::cerr << "WebGPU Error (" << static_cast<int>(type) << "): "
                         << text << std::endl;
                     note_if_dropped_submit(type, text);   // WIT_2
+                    t7::note_device_error(static_cast<int>(type),
+                                          message.data, message.length);
                 });
             // PORT_3a — the loss door. Loss is rare but real (TDR, GPU
             // reset, driver update), and the honest-death policy does not
@@ -867,6 +906,7 @@ namespace t7 {
 
     public:
         float begin_frame() {
+            ++probeTurns_;   // the device gate: every turn, presented or not
             glfwPollEvents();
 
             // Handle resize
@@ -1153,11 +1193,30 @@ namespace t7 {
         // (tag web-sunset) and Present() is simply the swap.
         void present() {
             surface_.Present();
+            ++probePresented_;   // the device gate: this frame reached the swap
         }
 
+        // ONE DOOR OUT OF THE LOOP (L10). The probe does not get a frame
+        // loop of its own — it gets a reason for the one loop to stop, so
+        // every frame it runs is a frame the exhibition runs, encoded by
+        // the same code in the same order. Two counters, because a probe
+        // whose acquire never succeeds must still terminate: the budget is
+        // spent when N frames have PRESENTED, and the patience runs out at
+        // probe_turn_budget() turns regardless. Which one ended the run is
+        // the verdict's business (the_board.cpp) — exhausted patience is a
+        // RED, because a program that cannot present did not pass.
         bool running() const {
-            return window_ && !glfwWindowShouldClose(window_);
+            if (!window_ || glfwWindowShouldClose(window_)) return false;
+            if (t7::boot_params().has_probe) {
+                if (probePresented_ >= t7::boot_params().probe_frames) return false;
+                if (probeTurns_     >= t7::probe_turn_budget())        return false;
+            }
+            return true;
         }
+
+        // The probe's two readings, for the verdict.
+        uint32_t probe_presented() const { return probePresented_; }
+        uint32_t probe_turns()     const { return probeTurns_; }
 
 
         // ═══ §4 INPUT ════════════════════════════════════════════
@@ -1416,6 +1475,13 @@ namespace t7 {
         // ── Boot (PORT_1b) ───────────────────────────────────────
         BootState bootState_ = BootState::RequestingAdapter;
         bool deviceLost_ = false;   // PORT_3a — set by the loss callback, read by the frame gate
+
+        // ── The probe's budget (the device gate) ─────────────────
+        // Counted unconditionally: two increments a frame is not a cost
+        // worth a branch, and a counter that only runs under a switch is a
+        // counter nobody has ever seen run.
+        uint32_t probeTurns_ = 0;       // begin_frame — every loop turn
+        uint32_t probePresented_ = 0;   // present — frames that reached the swap
 
         // ── Surface & Presentation ───────────────────────────────
         wgpu::Surface surface_;

@@ -365,25 +365,154 @@ Entity SELECTION is seed-driven and unchanged; what can differ is which
 of two entities wins ground both want, since footprints register at PLACE
 in candidate order.
 
-**Flagged, not taken:**
-- `veil_ring` and `veil_icing` carry the veil's name for the draw
-  authority and the grain's band. A CONFIG field's name IS its organ row
-  id, and a row id is a stored preset's key — this rename breaks the
-  wire, unlike `cull_point`'s, which was checked and does not.
-- `FINITE_RADIUS_MIN/MAX` are still `constexpr`, not dials.
-  ONE_WORLD-II §1.7 said the pin would enroll them; §1.4 here presumes
-  they are dials whose gen-cadence edits reach the world through rebirth.
-  Enrolling them is an ORGAN_3 graduation — a constructive change neither
-  handoff scoped — and the only thing that could exercise one is THE
-  PANEL, which is also the only thing that can call `rebirth_world`.
-- `world_box_clamp_xz`'s `has_bounds` guard reads like a finiteness test
-  the pin makes constant. **It is not.** It is also the uninitialised-
-  config guard: `GPUState::initializeState` zeroes the bounds and uploads
-  them unconditionally, so a boot frame really does carry (0,0), and
-  removing the guard turns `clamp(p.x, 0+m, 0-m)` — low above high, which
-  WGSL leaves undefined — into a body test. Left alone deliberately.
+**Flagged, not taken — AND NOW RULED (ONE_SURFACE's close).** All three
+were raised as findings during the campaign and held for a decision. The
+decisions are below, so nothing on this list is still waiting on an
+opinion; two are parked with a named destination and one is closed.
 
-## THE MOSAIC IS UNREACHABLE (open, found at ONE_SURFACE-I's close)
+- **`veil_ring` / `veil_icing` — PARKED TO THE PANEL.** They carry the
+  veil's name for what are now the draw authority and the grain's band. A
+  CONFIG field's name IS its organ row id (`ORGAN_PARAM_NS`, one row id
+  per `#BLOCK "." #FIELD`), and a row id is a stored preset's key — so
+  this rename breaks the wire, unlike `cull_point`'s, which was checked
+  and does not. **The names are wrong and the rename is right**; what it
+  needs is a migration moment, and the panel's enrollment IS that moment.
+  Renaming before there is anything to migrate spends the breakage and
+  buys nothing.
+- **`FINITE_RADIUS_MIN/MAX` — PARKED TO THE PANEL, and WEATHER's promise
+  is amended to say so.** ONE_WORLD-II §1.7 said the pin would enroll
+  them; it did not, and ONE_SURFACE §1.4 then presumed they were dials
+  whose gen-cadence edits reach the world through rebirth. Neither is
+  true today: they are `constexpr`. Enrolling them is an ORGAN_3
+  graduation — a constructive change neither handoff scoped — and the
+  only thing that could ever exercise one is THE PANEL, which is also the
+  only thing that can call `rebirth_world`. **The promise is not
+  abandoned, it is re-dated**: an unexercisable dial is an enrollment that
+  states a belief nothing proves (L45), so the graduation rides the
+  campaign that gives it a caller. The pin works meanwhile; nothing in
+  the world is waiting on it.
+- **`world_box_clamp_xz`'s `has_bounds` — KEEP, and closed.** It reads
+  like a finiteness test the pin makes constant. **It is not.** It is the
+  uninitialised-config guard wearing a finiteness costume:
+  `GPUState::initializeState` zeroes the bounds and uploads them
+  unconditionally, so a boot frame really does carry (0,0), and removing
+  the guard turns `clamp(p.x, 0+m, 0-m)` — low above high, which WGSL
+  leaves undefined — into a body test. The costume was the whole hazard,
+  so the cure is the comment: `world_box_clamp_xz`'s banner now says what
+  the guard is for and what must die with it. **No further action; this
+  bullet is a record, not a task.**
+
+## THE DEVICE GATE (open — the probe is unproven code)
+
+`--probe=N` landed with L48. It boots, runs N frames through the ordinary
+loop, and exits on the device's verdict: `PROBE GREEN` and 0, or the first
+uncaptured error verbatim and nonzero. It exists because ONE_SURFACE-I U5
+moved one room of an L3 MIRROR pair, nine text-reading gates went green,
+and every frame of the first native boot failed validation.
+
+**IT HAS NEVER RUN.** CC's environment carries `third_party/dawn_native_headers`
+and no built Dawn, no GLFW and no display; the TU gate type-checks
+`console.hpp` and `the_board.cpp` and that is the whole of what CC can
+witness about it. Its first run is Jean's, and it is the pre-walk for
+every constructive GPU commit from here.
+
+Three things the first runs settle, in order:
+
+1. **Does `--probe=120` boot and print a verdict at all?** The likely
+   surprises are the exit path (the loop leaves through `running()`, not
+   through a close request, so the window is still open when `main`
+   returns) and whether 120 frames is long enough to reach the states
+   worth validating.
+2. **Does it catch the bug it was built for?** The honest way to know is
+   to run it against `2905ed68` — the tip whose log opened the commission.
+   It must print RED with the binding-size error as its first line. A gate
+   that has never been proven to bite is a gate nobody should trust
+   (Amendment A), and this one has a ready-made injection sitting in
+   history.
+3. **Does `--probe-backend=null` boot?** If Dawn's null backend can serve
+   this console's real GLFW surface, the probe becomes a validate-only run
+   that needs no GPU — and a CI-shaped gate becomes possible. If it cannot,
+   the switch is a dead letter and should be retired with a tombstone
+   saying so, rather than left as an option nobody can take.
+
+### A SECOND, STATIC HALF OF THE SAME CLASS (commission — not CC's to take)
+
+A sweep after the hotfix asked whether `fc_indirect` was alone. It measured
+this, at this commit:
+
+**Six declarations in `world.wgsl` carry a FIXED array extent** —
+`agent_state` and `render_agents` (`array<AgentState, 32>`), `ring_xforms`
+and `render_ring_xforms` (`array<RibbonRingTransform, 400>`),
+`ribbon_spine` (`array<vec4<f32>, 402>`), and `fc_indirect`
+(`array<atomic<u32>, 10>`). **Every one of them agrees with the C++
+constant behind its seat**: `Dim::MAX_AGENTS` is 32,
+`Dim::RIBBON_MAX_RINGS` is 400, `Dim::RIBBON_SPINE_SLOTS` is 402, and
+`FC_ARGS_SLOTS` is 10. The tree is clean; `fc_indirect` was the only one
+that had drifted.
+
+**But nothing checks that, and here is exactly why it slipped.** Two gates
+each hold one half and neither holds the pair:
+
+- `mirror_census` pins the SCHEMA's store-type spelling against the WGSL
+  declaration. At `2905ed68` both said `array<atomic<u32>, 15>` — in
+  perfect agreement, and both wrong.
+- `binding_gen --check` pins the seat's `size_expr` against the C++ tree.
+  It said `FC_ARGS_BYTES`, which was correct C++ for 40 bytes.
+
+So the schema agreed with the shader, the C++ agreed with itself, and the
+one comparison nobody makes — the WGSL EXTENT against the C++ COUNT — was
+the whole defect. It is a static fact about two files, and a text-reading
+gate can hold it.
+
+**The shape it should take**, if it is ruled in: a witness inside
+`binding_gen --check` (which already owns schema-vs-tree agreement, so this
+is a row in an existing gate rather than a tenth gate). For every
+declaration whose store type is `array<T, N>` with N literal, resolve the
+backing seat's `size_expr` and assert it equals N elements. The reduction
+that makes it exact rather than heuristic: where the C++ spells
+`<count> * sizeof(GPUFoo)` and `GPUFoo` is the declared C++ mirror of the
+WGSL `Foo`, `mirror_census` already proves those two are byte-identical, so
+the byte equation reduces to `count == N` with no WGSL layout arithmetic at
+all. Scalar and vector elements resolve numerically. All six declarations
+above are inside that reduction.
+
+**And it can be proven to bite before it is trusted** (Amendment A), with
+no injection to invent: run it against `2905ed68`, where the schema said 15
+and `FC_ARGS_BYTES` said 40. It must go red there and green here.
+
+**Left as a commission rather than built.** Adding a witness changes the
+battery, and the battery is not CC's to change on its own reading — the
+triangle puts rulings with Claude. The measurement above is the whole of
+what CC owes the decision: the gap is named, its two halves are named, the
+tree is proven clean at this commit, the implementation shape is worked
+out, and the injection that would prove it exists in history.
+
+**The headless half of the commission is NOT built, and deliberately.**
+§3 asked for a headless boot; this console boots GLFW and configures a real
+window surface, and a headless path would be a second boot path through the
+console — a second door, which L10 forbids. Making the probe headless is a
+console change (an offscreen colour target replacing the swapchain, chosen
+at one seam rather than at two boot paths), and it belongs to whoever wants
+the probe in CI. Nothing in the current campaign needs it.
+
+## THE MOSAIC IS UNREACHABLE (Jean's ruling; DEFAULT SET at ONE_SURFACE's close)
+
+> **THE RULING, WITH ITS DEFAULT.** This is Jean's to make by eye, and it
+> waits for a walk of a world that can draw. **If ONE_SURFACE closes
+> without it being spoken: IT RETIRES.** Excision theology — the tree
+> holds living matter only (L30), and unreachable code with a law resting
+> on it is worse than either the code or the law alone. On retirement L12
+> takes the struck-note treatment L10 and L44 already carry: the law stays
+> readable with its subject named as gone, because the REASONING in L12
+> (distance takes the grain, never the material) is a good rule about
+> anything with a far term, and outlives the one mechanism that
+> illustrated it.
+>
+> **Revival stays one line away** and that is the reason a default is safe
+> here: writing `out.mosaic_seed = <something>` in each entity VS is the
+> whole of it, and the branch it feeds is intact in history. A default
+> that costs one line to undo is a default; a default that costs a
+> campaign is a decision in disguise.
 
 **MOSAIC_2's whole apparatus is dead code, and L12 — a LAW — rests on
 it.** Found by the campaign's own recon reading the tree after the units
@@ -450,6 +579,37 @@ GREEN." ONE_SURFACE-I is green on every gate CC can run, but its close is
 `glaw1, build, **the walk**` — and the walk is the whole point of a
 campaign whose acceptance test is "the world must look untouched". Two
 of those three are Jean's.
+
+### THE LIVE CARD'S REST LAW — RULED (for U1)
+
+U1 must not carry this decision as an open question, so it is made here.
+
+`live_card_is_live()` (cartridge.hpp) is a three-term disjunction:
+`pulse_count > 0`, `terrain_time > 0`, and **any GoL zone active**. The
+third term dies with the zones — there are no zones in the automaton
+world, only the ground. **U1 takes that conjunct out with the zone scan
+it reads, and does not replace it**: an automaton over the whole cell
+grid is live by construction, every frame, everywhere.
+
+**Which means the rest-close optimization retires**, and the ruling says
+so rather than leaving a skip that can never fire. OPT_1a's whole
+apparatus — `liveCardRestClean_`, the entering-rest clearing write, the
+`live_card_state_label` two-word vocabulary — goes with it, replaced by a
+TOMBSTONE at the site citing GROUND_CARD_1, saying what the skip was, what
+made it unreachable, and the one condition that brings it back.
+
+**Jean's boot log already shows this is the state.** `[Card] live-card
+field: LIVE — writer runs every frame (boot)` — before U1, on the world
+as it stands. The optimization is not being taken away from a program that
+was using it; it is being retired from a program that had already stopped
+reaching it. That is the difference between a cut and a loss, and it is
+worth stating in the commit that makes it.
+
+**And it comes back if idleness does.** If the panel era ever adds an
+automaton pause dial, "the ground is not advancing" becomes a real state
+again and the rest law is the right answer to it — one condition, at the
+tombstone, which is why the tombstone names it. Decided on purpose, not
+by omission.
 
 That matters more here than it would elsewhere. Every unit of I was a
 REMOVAL whose behaviour could be reasoned to exactly — a fold table, a
@@ -692,3 +852,12 @@ the program has to move first.
   the narration rule — narration dies with its subject, in the subject's own
   commit. ONE_WORLD-II's close payload may restate this line; it is recorded
   here now because the rebirth transcript parks beside it.
+* **Two ONE_SURFACE parkings, ruled at its close** — the
+  `FINITE_RADIUS_MIN/MAX` enrollment and the `veil_ring`/`veil_icing`
+  rename. Both are stated in full under ONE_SURFACE-I's "Flagged, not
+  taken — AND NOW RULED"; they are named here and not restated (L46),
+  because this is where their caller arrives. The common shape is worth
+  seeing: one is a dial nothing can exercise until the panel exists, the
+  other a row-id rename that breaks stored preset keys and therefore wants
+  the panel's enrollment-and-migration moment. Both are cheap once there is
+  a panel and expensive in every campaign before it.

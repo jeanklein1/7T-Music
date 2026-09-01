@@ -635,18 +635,19 @@ namespace t7 {
             // the FAMILY_DISPATCH pyramid mesh hook now routes to the none-fork.
 
 
-            // THE DRAW PLAN: one helper, three invocations — the args slot
-            // rides the offset (0 / 20 / 40 bytes into the 3 x 5-u32 args
-            // buffer). OIL_1 U13 (ledger: R19, C7): the three plan slots
+            // THE DRAW PLAN: one helper, two invocations — the args slot
+            // rides the offset (0 / 20 bytes into the 2 x 5-u32 args
+            // buffer; the third slot at 40 left with segment C at
+            // ONE_SURFACE-I U5). OIL_1 U13 (ledger: R19, C7): the plan slots
             // shared one pipeline and one texture group and re-set both —
             // the pipeline is now set ONCE by begin_patch_terrain_plan and
             // group1 rides the pass head.
             // DOMESDAY_0 B3: the per-slot LIST WINDOW moved from the bind
             // group (the retired g2:62 seat's A/B/C offset windows) to the
             // SetVertexBuffer offset below — same segments, same bytes,
-            // fixed-function fetch. The plan A/B/C groups became identical
-            // when the seat left the layout; they keep their three names
-            // pending a collapse ruling, and group 2 still re-binds per
+            // fixed-function fetch. The plan groups became identical when
+            // the seat left the layout; A and B keep their names pending a
+            // collapse ruling (C is gone), and group 2 still re-binds per
             // slot as before.
             template <class Enc>
             void begin_patch_terrain_plan(Enc& pass) {
@@ -665,7 +666,7 @@ namespace t7 {
             ) {
                 pass.SetBindGroup(2, stateGroup);
                 pass.SetVertexBuffer(0, visibleList, visibleOffset, visibleBytes);
-                // LATTICE_3: the three patch IBs are uint16. The indirect args
+                // LATTICE_3: the patch IBs are uint16. The indirect args
                 // carry indexCount / firstIndex as COUNTS, not bytes, so
                 // reset_frustum_indirect is untouched by the width change.
                 pass.SetIndexBuffer(indexBuffer, wgpu::IndexFormat::Uint16);

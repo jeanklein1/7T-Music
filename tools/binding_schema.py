@@ -60,7 +60,7 @@ DECLS = {
     'fc_vp': {'group': 2, 'binding': 240, 'address_space': 'storage', 'access': 'read', 'store_type': 'VPMatrix', 'alias_of': 'vp_data', 'cpp': ('buffer', 'ReadOnlyStorage')},
     'fc_patches': {'group': 2, 'binding': 61, 'address_space': 'storage', 'access': 'read', 'store_type': 'array<PatchInstance>', 'alias_of': 'patch_instances', 'cpp': None},
     'fc_visible': {'group': 2, 'binding': 63, 'address_space': 'storage', 'access': 'read_write', 'store_type': 'array<u32>', 'alias_of': None, 'cpp': ('buffer', 'Storage')},
-    'fc_indirect': {'group': 2, 'binding': 64, 'address_space': 'storage', 'access': 'read_write', 'store_type': 'array<atomic<u32>, 15>', 'alias_of': None, 'cpp': ('buffer', 'Storage')},
+    'fc_indirect': {'group': 2, 'binding': 64, 'address_space': 'storage', 'access': 'read_write', 'store_type': 'array<atomic<u32>, 10>', 'alias_of': None, 'cpp': ('buffer', 'Storage')},
     'fc_draw_plan': {'group': 2, 'binding': 60, 'address_space': 'uniform', 'access': None, 'store_type': 'DrawPlanParams', 'alias_of': None, 'cpp': ('buffer', 'Uniform')},
     'orb_state': {'group': 2, 'binding': 120, 'address_space': 'storage', 'access': 'read_write', 'store_type': 'array<OrbState>', 'alias_of': None, 'cpp': ('buffer', 'Storage')},
     'orb_config': {'group': 2, 'binding': 121, 'address_space': 'uniform', 'access': None, 'store_type': 'OrbConfig', 'alias_of': None, 'cpp': ('buffer', 'Uniform')},

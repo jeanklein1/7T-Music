@@ -1,5 +1,6 @@
 #pragma once
 #include <cstdint>
+#include <cstddef>  // the probe's witness copies a sized message
 #include <cstdio>   // WIT_2b — the witness prints its own line
 
 // ═══ THE INSTRUMENTS DIAL ════════════════════════════════════════════
@@ -203,6 +204,35 @@ namespace t7 {
     // call it rather than each spelling the line their own way.
     inline void print_dropped_submits(const char* when) {
         std::printf("[WIT] dropped_submits %u (%s)\n", g_dropped_submits, when);
+    }
+
+    // ═══ THE PROBE'S WITNESS — EVERY OBJECTION, NOT ONE ══════════════
+    //
+    // WIT_2 above counts ONE validation error, the refused submit, and its
+    // whole value is that zero means one specific thing. This counter is
+    // the opposite kind of number and therefore wants its own home: the
+    // probe's verdict is "did the device object to ANYTHING", and any
+    // objection at all is a red.
+    //
+    // It also keeps the FIRST message, because a probe that says only "3
+    // errors" sends the reader back to a log they may not have kept. A
+    // fixed buffer rather than std::string: this header is included by the
+    // console, the cartridge and the harness alike, the message is Dawn's
+    // and bounded in practice, and a truncated first error is still the
+    // first error. 512 holds the binding-size errors that opened the
+    // commission with room to spare.
+    //
+    // NOT GOVERNED BY THE DIAL, for g_dropped_submits' reason: it costs an
+    // increment only when something is already wrong, and turning the
+    // meter off must not turn a correctness witness off.
+    inline uint32_t g_device_errors = 0;
+    inline char     g_first_device_error[512] = {};
+    inline void note_device_error(int type, const char* text, size_t len) {
+        if (g_device_errors++ == 0) {
+            std::snprintf(g_first_device_error, sizeof g_first_device_error,
+                          "WebGPU Error (%d): %.*s", type,
+                          static_cast<int>(len), text);
+        }
     }
 
     // THE FIRST EDGE — a meter that measures and never reports is a cost

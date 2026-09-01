@@ -1182,6 +1182,40 @@ what.
 *Paid for by:* ORGAN_6. `rejected 19` printed for two campaigns and carried no
 information; `organ_last_reject` is the cure.
 
+## L48 — EVERY GATE HERE READS TEXT; THE DEVICE IS A GATE OF ITS OWN
+
+No constructive GPU work ships unprobed. A change that touches a buffer size,
+a binding, a pipeline layout, an index or a draw is not landed by a green
+battery — it is landed by `the-board --probe=N` printing `PROBE GREEN`.
+
+The battery parses WGSL, type-checks C++ against two pinned surfaces, diffs
+the mirror idioms and proves the schema against the tree. Every one of those
+readings is of TEXT. A number that is legal C++, legal WGSL and wrong ACROSS
+the two is invisible to all of them, and so is anything else whose only judge
+is a running device: a layout the pipeline rejects, a copy that overruns, an
+index past the end of a map.
+
+**The corollary is the part that costs something.** When a fact has a room in
+each language, moving one room and leaving the other passes every gate. So
+the mirror comment is not decoration and neither is L3: it is the only
+instrument that reads both rooms, and it only works if the author obeys it.
+The probe is what catches the author who did not.
+
+*Paid for by:* ONE_SURFACE-I U5 and U5a. U5 folded a draw-plan segment and
+shrank the frustum arg buffers from 60 bytes to 40; U5a bound the C++ sizes
+and the copy and map sites. Neither touched `world.wgsl`, whose declaration
+still read `fc_indirect: array<atomic<u32>, 15>` under a comment reading
+"TWIN: state.hpp FC segment constants (L3 MIRROR — change both rooms
+together)". That literal is the pipeline's declared minimum binding size.
+Nine gates were green; the merge landed on master; every frame of the first
+native boot failed validation at DispatchWorkgroups and took the whole
+command buffer with it. The world was correct in every room a gate can read
+and could not draw.
+
+*And it was not alone.* The same fold left `a[11]` being read out of a
+40-byte mapped range in the meter's callback — a second live defect in the
+same buffer, one file over, which the battery also could not see.
+
 ## THE PERSISTENCE LADDER (relocated ONE_WORLD-II U0, 2026-09-01)
 
 Every parameter stands on one rung, and the rung says who takes it back and

@@ -5,20 +5,20 @@ Read-only: a census of the program's pass and submit surface.
 
 ## Provenance
 
-Last commit touching any scanned file: `c9b284213ae8945f539644fcc52e466c42dbd62c`
-(ONE_SURFACE-I U6: the sweep, and most of what it swept was older than the campaign)
+Last commit touching any scanned file: `859fe6674935b323163eae6e27d92f954279c835`
+(THE DEVICE GATE: --probe=N, the gate that runs)
 
 | file scanned | sha256 |
 |---|---|
-| `src/cartridges/the_board/realization/render_passes.hpp` | `sha256:5b6285b2d3a4b377829d01821f8a16141173707ef5f65766b39b2b392296b85c` |
-| `src/cartridges/the_board/realization/renderer.hpp` | `sha256:6d20d67bd53745eb70e14d05f324b4d12b45df9a2bb087cd62547777467bac1d` |
-| `src/cartridges/the_board/cartridge.hpp` | `sha256:2007423d45cc697561ffa4148b3f2ee61381c09a60b06cdd0203033649fd0c99` |
+| `src/cartridges/the_board/realization/render_passes.hpp` | `sha256:960666b2391d539b7f60f2863a2b9c27aeb813b3b135409964ae50103a66b358` |
+| `src/cartridges/the_board/realization/renderer.hpp` | `sha256:8631ccbce89ede0e3f19f55d40f1daa3a6b6c88c1111955fe4fd032702b8cb6b` |
+| `src/cartridges/the_board/cartridge.hpp` | `sha256:dd94dfee5780b1350ae0dcb4ef28580b5b555e118321fe0882dcff7e65a6999b` |
 | `src/cartridges/the_board/surface/patch_system.hpp` | `sha256:7f4f335b182cc1c2ebc0ad3ecfd56062502b415b0383ccbfce0cf7d9d2ab8a0a` |
 | `src/cartridges/the_board/bodies/gol_zones.hpp` | `sha256:40df3f6531d37752bede4eba9f6173ea24907f3e3537b9c53c7f59158cc99f7b` |
 | `src/cartridges/the_board/bodies/pawn.hpp` | `sha256:7915ec242a2a3094537882c50a2980c9494e4f1460a3a2f786232b67ec6ead12` |
 | `src/cartridges/the_board/bodies/orbs.hpp` | `sha256:475d3de82ddd4d979d55ad146039937cd3316a0148466ed5c1db5566bde9a8b1` |
-| `src/the_board.cpp` | `sha256:321cf8eef63dd7f991405e893c57914a11a1ec2edfe1e7f28de170663de8acc5` |
-| `src/console/console.hpp` | `sha256:9b65d2d25a3057757e4e828a262bf115945914a2e0f6a38a905d4bb3ed191555` |
+| `src/the_board.cpp` | `sha256:881c85d13a689571ae69cf1fed7ac8e69d35dffd3d20750772277838498579fa` |
+| `src/console/console.hpp` | `sha256:ba58d7ab33c88c08d8b53b11dc72ed6baa28841f39e63be2c46af6d1eda80e8a` |
 
 The handoff named `render_passes.hpp` and `renderer.hpp`; the
 tree places pass encoders more widely, so the census scans the
@@ -36,7 +36,7 @@ in `console.hpp`.
 | 2 | Frustum Cull Patches | compute | `dispatch_frustum_cull` | `src/cartridges/the_board/realization/render_passes.hpp:219` | — | — | — |
 | 3 | Shadow Pass | render | `render_shadow_pass` | `src/cartridges/the_board/realization/render_passes.hpp:261` | (none: depth-only) | Clear/Store, readOnly (absent) → `c->gpuState_.shadow_map_view()` | (no stencil aspect) |
 | 4 | Rasterized Scene | render | `render_main_pass` | `src/cartridges/the_board/realization/render_passes.hpp:530` | Clear/Store or Discard → `backbuffer or msaaColor` resolve → `backbuffer` | Clear/Discard, readOnly (absent) → `depth` | (no stencil aspect) |
-| 5 | Entity Mesh Gen | compute | `phase_entity_mesh_gen` | `src/cartridges/the_board/cartridge.hpp:1985` | — | — | — |
+| 5 | Entity Mesh Gen | compute | `phase_entity_mesh_gen` | `src/cartridges/the_board/cartridge.hpp:1988` | — | — | — |
 | 6 | Patch Bake (fused) | compute | `generate_patch_batch` | `src/cartridges/the_board/surface/patch_system.hpp:154` | — | — | — |
 | 7 | Zone Derive Params | compute | `flush_zone_derive_requests` | `src/cartridges/the_board/bodies/gol_zones.hpp:824` | — | — | — |
 | 8 | GoL Zone Sync | compute | `dispatch_zone_sync` | `src/cartridges/the_board/bodies/gol_zones.hpp:905` | — | — | — |
@@ -91,12 +91,12 @@ every landing.
 
 | # | enclosing function | site |
 |---|---|---|
-| 1 | `initSurface` | `src/console/console.hpp:814` |
-| 2 | `begin_frame` | `src/console/console.hpp:908` |
+| 1 | `initSurface` | `src/console/console.hpp:853` |
+| 2 | `begin_frame` | `src/console/console.hpp:948` |
 
 The boot-time site configures the surface once; the per-frame
 trigger is the resize branch of `Console::begin_frame`, quoted
-verbatim (`src/console/console.hpp:903`) — its branch is what feeds the `[FRAME_1]`
+verbatim (`src/console/console.hpp:943`) — its branch is what feeds the `[FRAME_1]`
 print. This is the debounce ruling's evidence: the condition is
 a bare not-equal on the capped framebuffer size, so any size
 flutter reconfigures the surface and recreates the depth buffer
