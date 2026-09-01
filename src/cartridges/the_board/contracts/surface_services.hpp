@@ -66,6 +66,25 @@ inline constexpr bool WORLD_FINITE = true;
 inline constexpr uint32_t FINITE_RADIUS_MIN = 1;
 inline constexpr uint32_t FINITE_RADIUS_MAX = 4;
 
+// THE WIDEST WORLD THE PIN ALLOWS MUST FIT WHAT DRAWS IT (ONE_SURFACE-I
+// U5a). Every patch is one band since U5, so the frustum cull classifies
+// the whole draw set into segment A or B by ZONE OVERLAP — and in the
+// worst case every patch lands in one of them: a world entirely covered
+// by GoL zones fills A, a world with none fills B. 128 entries each
+// against (2*4+1)^2 = 81. Stated rather than trusted: the idiom is
+// tile_world.hpp's, where upload_tile_grid_now binds the same constant to
+// the GPUTileGrid DTO, and the reason is the same — raising the pin
+// should fail the BUILD, not the kernel.
+static_assert((2 * FINITE_RADIUS_MAX + 1) * (2 * FINITE_RADIUS_MAX + 1)
+              <= FC_SEG_A_BYTES / sizeof(uint32_t),
+    "the widest world the pin allows must fit frustum-cull segment A");
+static_assert((2 * FINITE_RADIUS_MAX + 1) * (2 * FINITE_RADIUS_MAX + 1)
+              <= FC_SEG_B_BYTES / sizeof(uint32_t),
+    "and segment B");
+static_assert((2 * FINITE_RADIUS_MAX + 1) * (2 * FINITE_RADIUS_MAX + 1)
+              <= Dim::MAX_ACTIVE_PATCHES,
+    "and the layer pool build_world draws (2R+1)^2 layers from");
+
 struct WorldState {
     // ── Seed + dimensions ──
     uint32_t active_seed   = 0;  // world master seed — authored at the composition root from DEMO.seed; mutable for world transitions

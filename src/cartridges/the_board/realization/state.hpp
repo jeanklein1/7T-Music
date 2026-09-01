@@ -1640,6 +1640,10 @@ namespace t7 {
         // and their offsets are the vertex-buffer offsets the draws pass, so
         // shrinking it would move nothing and re-prove nothing.
         inline constexpr uint32_t FC_LIST_BYTES  = 2048;
+        // THE GRID MUST FIT A SEGMENT — asserted in
+        // contracts/surface_services.hpp, beside FINITE_RADIUS_MAX, because
+        // that constant lives DOWNSTREAM of this header in the cohort and
+        // an assert must stand where both of its terms are visible.
         inline constexpr uint32_t FC_ARGS_BYTES  = 10 * sizeof(uint32_t);  // 2 x 5-u32 draw-args slots
 
         // ─── ATLAS_1revB D3" — the shadow tile's light-index windows ──
@@ -2931,7 +2935,21 @@ namespace t7 {
             wgpu::Buffer frustum_indirect_lod0() const { return frustumIndirectLOD0_; }
             wgpu::Buffer frustum_compute_buffer() const { return frustumComputeBuffer_; }
             wgpu::Buffer frustum_count_readback() const { return frustumCountReadback_; }
-            static constexpr size_t frustum_indirect_size() { return 15 * sizeof(uint32_t); }
+            // THE READBACK'S SIZE IS THE BUFFER'S, DERIVED (ONE_SURFACE-I
+            // U5a). It read `15 * sizeof(uint32_t)` — three 5-u32 arg slots
+            // — as a bare literal, while the three buffers it addresses are
+            // all made with FC_ARGS_BYTES. U5 took the LOD1 slot and moved
+            // FC_ARGS_BYTES to 10 u32; this literal did not move with it,
+            // so the meter's CopyBufferToBuffer and its MapAsync both asked
+            // for 60 bytes of a 40-byte buffer. A validation error every
+            // meter window, in the one build (-meter) that arms it — and no
+            // gate in this tree could see it, because every gate reads text.
+            static constexpr size_t frustum_indirect_size() { return FC_ARGS_BYTES; }
+            static_assert(FC_ARGS_BYTES == 10 * sizeof(uint32_t),
+                "the frustum plan is TWO 5-u32 arg slots (A full IB, B cap-only). "
+                "Change the slot count and this line, the reset_frustum_indirect "
+                "writer, the draw sites' byte offsets (0, 20) and the meter "
+                "readback all move together — they address one buffer");
             wgpu::Buffer visible_patch_indices_buffer() const { return visiblePatchIndicesBuffer_; }
 
             // ═══ THE DRAW LEDGER (BUNDLE_1) ══════════════════════════════
