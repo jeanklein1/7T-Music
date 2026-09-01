@@ -363,7 +363,6 @@ NOT name, and the reader witness over every graduated pair. The tail
 of its run, verbatim:
 
 ```
-Blind spot 1: homeless constants — an authored constexpr with no
 live home — cannot appear above. This tool measures the gap between
 the HOMES and the panel; the ledger measures the gap between the
 PROGRAM and the panel, which is larger.
@@ -377,6 +376,7 @@ reader — the class of defect this witness exists to catch.
   AGENTS_TABLE         definition=1 seed=1 comment=1              
   AGENT_TIER_GAINS     definition=1 seed=4 static_assert=2 comment=6 
   ATMOS_TABLE          definition=1 seed=1 static_assert=8 comment=7 
+  AUTO_TABLE           definition=1 seed=1 static_assert=3 comment=3 
   CANVAS_TABLE         definition=1 seed=1 comment=1              
   CUBE_TABLE           definition=1 seed=1 static_assert=3 comment=1 
   DRIVER_TABLE         definition=1 seed=1 comment=1              
@@ -387,7 +387,7 @@ reader — the class of defect this witness exists to catch.
   RIBBON_SPAWN_TABLE   definition=1 seed=1 static_assert=2        
   RIBBON_TABLE         definition=1 seed=1 static_assert=3 comment=2 
 
-SURVIVING RUNTIME READERS ACROSS 13 GRADUATED PAIRS: 0
+SURVIVING RUNTIME READERS ACROSS 14 GRADUATED PAIRS: 0
 
 Blind spot 3: a partly-enrolled nested aggregate reads as named —
 `fog.gain` names `fog`. The ledger carries the per-field truth.
