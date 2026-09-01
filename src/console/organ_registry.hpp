@@ -785,7 +785,20 @@ EMSCRIPTEN_KEEPALIVE inline void organ_set(int block, int offset, int type,
 
     char* p = static_cast<char*>(base) + e->offset;
     if (type == ORGAN_U32 || type == ORGAN_BOOL) {
-        uint32_t v = (uint32_t)(x < 0.0f ? 0.0f : x);
+        // THE INTEGER PATH TAKES ITS RANGE, LIKE THE FLOAT PATH BELOW IT.
+        // It floored at zero and had no ceiling at all, so the enrollment
+        // file's own law — "EVERY RANGE HERE IS EVIDENCE, NOT TASTE" — was
+        // true of the float lanes and of no integer in the tree: a
+        // consumer could write palette_id = 99 or shadow_pcf_taps = 0 and
+        // the manifest's stated domain said nothing about it.
+        //
+        // AND ABOVE 2^32 THE CAST ITSELF IS UNDEFINED. `(uint32_t)1e30f`
+        // is not a big number, it is undefined behaviour, and the ABI is
+        // about to be handed a REPL that types numbers (THE_PANEL II).
+        // The clamp is what makes a row's max a promise the PROGRAM keeps
+        // rather than a label the consumer is trusted to have read.
+        float xi = x < e->minv ? e->minv : (x > e->maxv ? e->maxv : x);
+        uint32_t v = (uint32_t)(xi < 0.0f ? 0.0f : xi);
         std::memcpy(p, &v, sizeof(v));
     } else {
         const int n = lanes_of((uint8_t)type);
