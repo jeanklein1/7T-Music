@@ -349,6 +349,81 @@ about a whole tree and must declare the shapes it cannot reach.
 
 ---
 
+## THE DOCTRINE STACK — the refactor week, indexed
+
+The P-laws above are numbered and permanent. This is the **stack** the
+refactor week ran on: shorter rules, each the generalization of one
+failure that week produced and caught, kept here because a method that
+lives only in a chat dies with the chat. Recorded at the wrap of
+THE_PANEL, from THE BATON's continuity ledger.
+
+**§0 — forward motion.** Flag-and-continue is the default; a campaign
+stops for exactly three conditions and nothing else. A flag is cheap, a
+halt is expensive, and the difference between them is whether the next
+unit can be executed honestly without the answer.
+
+**A — nets, bite-proven.** A census net is not delivered until it has
+been shown to CATCH something. A net that finds nothing has two
+readings — clean tree, or broken net — and only a deliberate miss
+planted and caught tells them apart.
+
+**B1 — a prune takes dead prose, never a survivor's law.** When a
+subsystem is cut, its documentation goes with it; the laws it happened
+to be cited in do not.
+
+**B2 — the WGSL orphan scan.** A cut in C++ leaves names standing in
+`world.wgsl` that no gate reads as dangling. The scan is a step of the
+cut, not a follow-up.
+
+**B3 — cuts anchor on symbols, never banners.** A banner moves, gets
+rewritten, or gets copied; a symbol is the thing the compiler agrees
+about. (P2's sibling, at excision scale.)
+
+**C — compile coherence outranks choreography.** When the planned unit
+order would leave the tree uncompilable between commits, the order
+yields. A handoff's sequence is a proposal; a tree that builds at every
+commit is a requirement.
+
+**D — the dial joins its fact.** A new dial lands with its bank, its
+applier and its transport in ONE commit. Split across commits, the
+intermediate state is a dial that reads nothing or a fact nothing can
+reach, and both pass every gate.
+
+**The record ritual — diff-and-claim, every name tombstoned.** A cut
+commit's body carries the diff's own numbers and names what left, so
+the history answers "where did X go" without a bisect.
+
+**Transcribe-and-pin, never derive from the dying.** When a value must
+survive a subsystem's death, copy it verbatim and pin it with an
+assert; do not leave the survivor computing it from something about to
+be deleted.
+
+**Refuse-loudly accessors; no modulo wraps.** An out-of-range access
+names itself and refuses. A modulo wrap turns a bug into plausible
+output, which is the worst possible outcome for a program whose only
+judge is a pair of eyes.
+
+**KEEPALIVE — an export dies with its fact rather than return a lie.**
+When the thing an accessor reported is gone, the accessor goes too. A
+zero is indistinguishable from a truth.
+
+**P8's corollary — latency is not exemption.** A seam that is slow to
+observe still gets its witness; "we would notice eventually" is not a
+witness.
+
+**The probe is an acceptance gate, not a build permit.** `--probe=N`
+does not license a change; it accepts one. Green battery plus red
+probe is a red change (L48).
+
+**Map-as-acceptance for mega-commits.** When a commit is too large to
+review as a diff, it ships with a map of what moved where, and the map
+is what gets reviewed.
+
+**The web twin is not a witness for the native tree.** Proven on one
+twin is proven on one twin. (WEB_SUNSET retired the twin; the rule
+outlived it, because the same reasoning covers any second surface —
+including a gate's own stub headers.)
+
 ## SCHEDULING RECORD
 
 > DRIFT NOTE (RECENSION_3, 2026-08-18; L28): the DAWN RELEASE BUILD entry

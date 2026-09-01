@@ -1724,3 +1724,99 @@ the program has to move first.
   other a row-id rename that breaks stored preset keys and therefore wants
   the panel's enrollment-and-migration moment. Both are cheap once there is
   a panel and expensive in every campaign before it.
+
+## THE CONTINUITY LEDGER (entered at the wrap, from THE BATON)
+
+**Why this section exists.** A context ends; the tree does not. THE BATON's
+Part II asked that OPEN.md carry the week's whole truth so the next session
+can read the tree and know everything, and the baton itself dies at the
+close it describes (L31). This is that entry.
+
+**It is an INDEX, not a copy.** L46 — a rule restated in a second language
+is a rule with two homes, and two homes drift. Everything below that already
+lives somewhere is POINTED AT, never repeated; only what had no home is
+written out here.
+
+### The week, as campaigns
+
+| campaign | subject | state |
+|---|---|---|
+| PRUNE_1 | gallery + snapshot organs out | LANDED |
+| PRUNE_2 | blade / cactus / palm / column / antenna excised | LANDED |
+| ONE_WORLD I — THE DOORS | transitions, portals, arch; the rebirth verb (P8) | LANDED |
+| ONE_WORLD II — THE WEATHER | moods, themes, indoor → ATMOS / ORB / AGENTS / CUBE banks; world pinned FINITE | LANDED |
+| ONE_SURFACE I — THE STILLNESS | streaming conductor out; the world built once; the probe commissioned | LANDED |
+| ONE_SURFACE II — THE AUTOMATON | the ground IS the GoL, WRAP torus; GOL family out; the S-8 witness | LANDED |
+| LIGATURE 0/1 | the recon, then canvas_1 fills the socket | LANDED |
+| THE COUPLING ATLAS + SEAM SCOUT | the map, and three transports with costs | LANDED |
+| THE_PANEL I — THE KNOBS | enrollment, the relayout, the seed door | LANDED |
+| THE_PANEL II — THE HAND | `--scene=`, the watcher, the stdin REPL, the shell gate | LANDED |
+| SUNRISE_0 · KEEL_0 · HELM_0 | the fork, the build constitution, the preset surface | LANDED |
+| EMBER_0 | the D3D12 lanes | **OPEN — on Jean's button** (see EMBER_0 above) |
+
+Roster: PYRAMID, SPHERE, RIBBON, CUBE. The ground: one automaton, ~3.1%
+live at measure. Every mood-authored fact is now a live bank. Ableton:
+tested working, couplings operating — the vocabulary rethink is design work
+on the atlas, not repair.
+
+### The doctrine — one pointer, deliberately
+
+`docs/PROCESS_LAWS.md`, **THE DOCTRINE STACK**. Fifteen rules of method,
+each the generalization of one failure this week produced and caught: §0
+forward motion, A nets bite-proven, B1/B2/B3 on cuts, C compile coherence
+over choreography, D the dial joins its fact, the record ritual,
+transcribe-and-pin, refuse-loudly accessors, KEEPALIVE, P8's latency
+corollary, the probe as acceptance gate, map-as-acceptance, and the web
+twin not being a witness. It lives there because that file is the laws of
+METHOD and this one is the register of OPEN STATE — doctrine is not open
+state, and filing it here would be the second home L46 forbids.
+
+### Standing rulings still armed — where each one lives
+
+| ruling | its home |
+|---|---|
+| MOSAIC_2 retires unless "keep the grain" arrives | *THE MOSAIC IS UNREACHABLE*, above |
+| banks follow ownership | the bank banners in `state.hpp`; ONE_WORLD-II's commits |
+| the SDK glob is dead; E3 tells the truth | **CLOSED at EMBER_0** — `CMakeLists.txt`, the E3 banner |
+| FXC is documented-unsupported; shader shape is law | **EMBER_0** above, L49, and the `kCompilerPlan` banner |
+| UNIT.1 (the `D3D12_Dxc` boot) halted until route (a) lands | **EMBER_0** above |
+| orphan verbs default to DOORS | THE_PANEL I U4's commit and `docs/ORGAN.md` |
+| no constructive GPU work ships unprobed | **L48**, and `CLAUDE.md`'s gate table |
+
+### Jean's open gates
+
+Not work items — decisions only he can make, gathered so none is lost
+between contexts.
+
+1. **The probe ritual** — GREEN at tip, RED at `2905ed68`, the pair that
+   proves the probe bites (*THE DEVICE GATE*, above).
+2. **The knob walk** — the hand exists; walking it is what tells the next
+   campaign where to widen.
+3. **Three campaign names** — provisional until his gate (F1-class).
+4. **EMBER's overnight button** — `python tools\ember_route_a.py --go`,
+   then the manifest-delta stamp (**EMBER_0**, above).
+5. **The assets check** — `dir /b out\build\the-board-full-release\Release`,
+   or simply the next VS build, now that the post-build manifest reports it
+   for free (*THE CLAUSE FIRED*, above).
+6. **The seam transport** — the scout landed three with costs and chose
+   none, deliberately. Prior stated at the wrap: **Link**, because the clock
+   already thinks in beats (*THE ABLETON SEAM*, above).
+7. **"Keep the grain"** — if ever, and it was due before THE_PANEL I U5.
+
+### The horizon, after the wrap
+
+**THE SEAM** — the Ableton connection collected; musical witnesses join the
+battery. **THE VOICES** — Jean composes the coupling score on the atlas, by
+cadence: frame-rate dials are continuous voices, gen-rate dials are
+bar-scale events (the seed on a phrase, the ground on the bar, orbs leaving
+neutral); Claude orchestrates, CC wires. **THE STAGE** — scenes as setlist,
+then performance, skins, other machines.
+
+From the seam onward, every close gate is **played, not walked**.
+
+### The last line
+
+The refactor ends where the instrument begins. The tree is minimal,
+readable, self-contained, gated and honest — and it remembers everything
+this ledger says, which is the point: the next hands to hold this need only
+the tree, the doctrine, and the music.
