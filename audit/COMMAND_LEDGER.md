@@ -5,8 +5,8 @@ Read-only: a census of the program's pass and submit surface.
 
 ## Provenance
 
-Last commit touching any scanned file: `33d41af515a5b8c022d5c7a22b232b141d87bef9`
-(ONE_SURFACE HOTFIX: the WGSL room never moved, and the world could not draw)
+Last commit touching any scanned file: `859fe6674935b323163eae6e27d92f954279c835`
+(THE DEVICE GATE: --probe=N, the gate that runs)
 
 | file scanned | sha256 |
 |---|---|
@@ -17,8 +17,8 @@ Last commit touching any scanned file: `33d41af515a5b8c022d5c7a22b232b141d87bef9
 | `src/cartridges/the_board/bodies/gol_zones.hpp` | `sha256:40df3f6531d37752bede4eba9f6173ea24907f3e3537b9c53c7f59158cc99f7b` |
 | `src/cartridges/the_board/bodies/pawn.hpp` | `sha256:7915ec242a2a3094537882c50a2980c9494e4f1460a3a2f786232b67ec6ead12` |
 | `src/cartridges/the_board/bodies/orbs.hpp` | `sha256:475d3de82ddd4d979d55ad146039937cd3316a0148466ed5c1db5566bde9a8b1` |
-| `src/the_board.cpp` | `sha256:321cf8eef63dd7f991405e893c57914a11a1ec2edfe1e7f28de170663de8acc5` |
-| `src/console/console.hpp` | `sha256:9b65d2d25a3057757e4e828a262bf115945914a2e0f6a38a905d4bb3ed191555` |
+| `src/the_board.cpp` | `sha256:881c85d13a689571ae69cf1fed7ac8e69d35dffd3d20750772277838498579fa` |
+| `src/console/console.hpp` | `sha256:ba58d7ab33c88c08d8b53b11dc72ed6baa28841f39e63be2c46af6d1eda80e8a` |
 
 The handoff named `render_passes.hpp` and `renderer.hpp`; the
 tree places pass encoders more widely, so the census scans the
@@ -91,12 +91,12 @@ every landing.
 
 | # | enclosing function | site |
 |---|---|---|
-| 1 | `initSurface` | `src/console/console.hpp:814` |
-| 2 | `begin_frame` | `src/console/console.hpp:908` |
+| 1 | `initSurface` | `src/console/console.hpp:853` |
+| 2 | `begin_frame` | `src/console/console.hpp:948` |
 
 The boot-time site configures the surface once; the per-frame
 trigger is the resize branch of `Console::begin_frame`, quoted
-verbatim (`src/console/console.hpp:903`) — its branch is what feeds the `[FRAME_1]`
+verbatim (`src/console/console.hpp:943`) — its branch is what feeds the `[FRAME_1]`
 print. This is the debounce ruling's evidence: the condition is
 a bare not-equal on the capped framebuffer size, so any size
 flutter reconfigures the surface and recreates the depth buffer
