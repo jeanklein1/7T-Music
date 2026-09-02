@@ -2684,13 +2684,26 @@ fn row_cube_push(fe: FloatingEntityState) -> InfluenceProfile {
 }
 
 // ── THE OCCUPIER ROWS (BATCH F-B) — the standing bodies' word ──────
-// Arch legs push walkers as PRESENCE bodies. The occupier window rides
+// THE ROWS BELOW STAND UNEXERCISED, and this banner said otherwise for
+// three campaigns (repaired at TENSE_0 U3b). It read: "Arch legs push
+// walkers as PRESENCE bodies. The occupier window rides
 // agent_room.occupier_amg (CHORD_1) — the same mesh-param rows the
-// mesh-gen kernel reads: one authored geometry, one home; the rows and
-// the mesh can never disagree. (There was a SECOND window — the shafts',
-// occupier_cmg — and it left with COLUMN and ANTENNA in PRUNE_2 U4. Its
-// reader loops went with it: nothing wrote the window after the families
-// went, so every iteration would have found is_active 0 and continued.)
+// mesh-gen kernel reads."
+//
+// THE ARCH LEFT AT ONE_WORLD-I U3, and the window went with it — as the
+// shafts' occupier_cmg had gone with COLUMN and ANTENNA at PRUNE_2 U4,
+// on the same argument: every reader loop opens `if (is_active == 0u)
+// continue;`, and nothing writes a window once its family is gone.
+// agent_room carries two members now, behaviors and tier_gains.
+// The field's standing-body term went with them, and so did the mute
+// that scaled it (TENSE_0 U2a).
+//
+// THE CODE BELOW IS UNTOUCHED AND STAYS. `row_occupier` and
+// `occupier_contact` are A DOCUMENTED HOLD — they stand unexercised, as
+// PROXIMITY_AFFINITY does, for the next family that needs them, and
+// occupier_contact's `dv` is a compile-time zero so the call costs
+// nothing any backend keeps. Retiring a held mechanism is a ruling and
+// has not been made; this unit repaired the PROSE only.
 // The field (FIELD_2): the ring-pose and ribbon-state windows in, the
 // force sum out. Both windows in ride field_bus now (CHORD_2); the
 // force sum keeps the storage seat it always had.
@@ -6299,8 +6312,10 @@ fn shadow_ribbon_vs(@builtin(vertex_index) vid: u32) -> ShadowVarying {
 // THE AGENTS' ROOM CONSTANTS (CHORD_1) — one cadence, one block.
 // Everything here is CPU-authored at world cadence. Mirrors
 // GPUAgentRoomConstants in state.hpp BYTE-FOR-BYTE (512 B; the
-// static_asserts are the handshake). Offsets: portals 0,
-// behaviors 0, tier_gains 320. (ATRIUM_4 grew behaviors by one row,
+// static_asserts are the handshake). Offsets: behaviors 0,
+// tier_gains 320. (It listed "portals 0" first until TENSE_0 U3b; the
+// portal room left at ONE_WORLD-I U4 and the history below already said
+// so.) (ATRIUM_4 grew behaviors by one row,
 // +32 B; PRUNE_2 U4 cut occupier_cmg, 6960 -> 2864; ONE_WORLD-I U3 cut
 // occupier_amg with the arch, 2864 -> 1584; U4 cut the portal room and
 // the passer row, 1584 -> 512.)

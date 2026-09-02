@@ -117,8 +117,10 @@
                     entries[0].buffer.type = wgpu::BufferBindingType::Storage;
 
                     // THE AGENTS' ROOM CONSTANTS (CHORD_1) — five uniform seats
-                    // became one block: portals, the behavior registry, the tier
-                    // registry, and the two occupier windows. One cadence
+                    // became one block. It holds TWO members now, the behavior
+                    // registry and the tier registry (512 B); it held portals and
+                    // the two occupier windows besides until ONE_WORLD-I U3/U4 took
+                    // them with the arches and the portal room. One cadence
                     // (the world), one author (CPU), one upload. The seats it
                     // replaced were bindings 1, 3, 4, 7 and 8; the room's uniform
                     // row went 11 of 12 to 7 of 12.
@@ -127,7 +129,7 @@
                     //  layout. Agents ride the baked ground path (145/146/152) + the
                     //  card (g1:34); the zone pair is now bound only by the GoL sim
                     //  layouts and the live-card writer.)
-                    entries[1].binding = bind::g2::agent_room;  // agent_room (uniform, 2864 B — CHORD_1)
+                    entries[1].binding = bind::g2::agent_room;  // agent_room (uniform, 512 B — CHORD_1)
                     entries[1].visibility = wgpu::ShaderStage::Compute;
                     entries[1].buffer.type = wgpu::BufferBindingType::Uniform;
 
@@ -513,13 +515,14 @@
                     entries[3].visibility = wgpu::ShaderStage::Compute;
                     entries[3].buffer.type = wgpu::BufferBindingType::Storage;
 
-                    // THE SKY RULE reads what STANDS: agent_room carries the
-                    // occupier window (occupier_amg, the arches) and the tier
+                    // THE SKY RULE reads what STANDS: agent_room carries the tier
                     // registry the walkers’ contact radii come from. A WINDOW, not a
-                    // home — the same block the agents’ room binds at g2:1. (There
-                    // were TWO windows; the shafts’ occupier_cmg left with COLUMN and
-                    // ANTENNA in PRUNE_2 U4.)
-                    entries[4].binding = bind::g2::agent_room;  // agent_room (uniform, 2864 B — the arches, the tiers)
+                    // home — the same block the agents’ room binds at g2:1. (It
+                    // carried an occupier window too — occupier_amg, the arches —
+                    // and a second before that, the shafts’ occupier_cmg. The shafts
+                    // left with COLUMN and ANTENNA at PRUNE_2 U4 and the arches at
+                    // ONE_WORLD-I U3; what STANDS is the tiers.)
+                    entries[4].binding = bind::g2::agent_room;  // agent_room (uniform, 512 B — the tiers)
                     entries[4].visibility = wgpu::ShaderStage::Compute;
                     entries[4].buffer.type = wgpu::BufferBindingType::Uniform;
 

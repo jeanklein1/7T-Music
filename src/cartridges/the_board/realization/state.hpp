@@ -2207,9 +2207,14 @@ namespace t7 {
             wgpu::Buffer agentStateReadbackStaging_;
             wgpu::Buffer floatingEntityReadbackStaging_;
             wgpu::Buffer cameraReadbackStaging_;   // ATRIUM_11 — created only when the witness is armed
-            // CHORD_1 — THE AGENTS' ROOM, one buffer where five stood
-            // (portals, behaviors, tier gains, and the two occupier
-            // windows). agentRoomStage_ is the sovereign CPU copy: every
+            // CHORD_1 — THE AGENTS' ROOM. It holds TWO members, the
+            // behavior registry and the tier registry, and nothing else
+            // (512 B; the static_asserts at the struct are the handshake).
+            // One buffer where five stood: it carried portals and the two
+            // occupier windows besides, until PRUNE_2 U4 took the shafts'
+            // and ONE_WORLD-I U3/U4 took the arches' and the portal room.
+            // (This banner listed all five in the present tense until
+            // TENSE_0 U3b.) agentRoomStage_ is the sovereign CPU copy: every
             // authoring site updates it in place and then spends ONE
             // WriteBuffer at that member's own offset, so no site has to
             // know what the others wrote.
@@ -3737,8 +3742,12 @@ namespace t7 {
                 agentStateBuffer_ = makeBuffer("Agent State",
                     Dim::MAX_AGENTS * sizeof(GPUAgentState),
                     wgpu::BufferUsage::Storage | wgpu::BufferUsage::CopyDst | wgpu::BufferUsage::CopySrc);
-                // CHORD_1: one 2864 B uniform block where five buffers stood
-                // (6960 B until PRUNE_2 U4 cut the shafts' occupier window).
+                // CHORD_1: one 512 B uniform block where five buffers stood.
+                // The size is the room's whole history: 6960 B until PRUNE_2
+                // U4 cut the shafts' occupier window, 2864 until ONE_WORLD-I
+                // U3 cut the arches', 1584 until U4 cut the portal room and
+                // the passer row. (It read 2864 here until TENSE_0 U3b — a
+                // number two campaigns stale beside a sizeof that was right.)
                 agentRoomBuffer_ = makeBuffer("Agents' Room Constants",
                     sizeof(GPUAgentRoomConstants), UU);
                 // CHORD_4: one 4336 B uniform block where three buffers stood.

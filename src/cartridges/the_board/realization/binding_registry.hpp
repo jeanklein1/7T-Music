@@ -53,7 +53,7 @@ namespace t7 {
             namespace g2 {
                 // AGENTS (0–19)
                 inline constexpr uint32_t agent_state                 = 0;
-                inline constexpr uint32_t agent_room                  = 1;  // AgentRoomConstants — CHORD_1: portals + behaviors + tier_gains + occupier_amg, one uniform block at world cadence (2864 B)
+                inline constexpr uint32_t agent_room                  = 1;  // AgentRoomConstants — CHORD_1: behaviors + tier_gains, one uniform block at world cadence (512 B). It carried portals and the arches’ occupier window until ONE_WORLD-I U3/U4; the size fell 2864 -> 1584 -> 512 with them.
                 inline constexpr uint32_t floating_entities           = 2;
                 inline constexpr uint32_t render_agents               = 5;
                 inline constexpr uint32_t render_floating             = 6;
