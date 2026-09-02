@@ -23,7 +23,7 @@ carry those facts, or leave them in place and patch around them.
 | `src/cartridges/the_board/realization/binding_surface.gen.inc` | `sha256:46fb856e446a17504cf7367f84f12082dd57f0d2814220c80b193a1f406fed56` |
 | `src/cartridges/the_board/realization/renderer.hpp` | `sha256:06607597f8dc50c80f2dd99c042ba8b1d12f3caaec25640cc9e65f6755fbe84a` |
 | `tools/binding_ledger.py` | `sha256:a3c75bab894774eb0302686e5efd52275b280e14abfcf4e8753b28d5b5086692` |
-| `audit/BINDING_LEDGER.md` | `sha256:e6a4909a5f45033f15edcdd84c8e6cc5bc15e796bd7bf178051de1cb7c403342` |
+| `audit/BINDING_LEDGER.md` | `sha256:3d5eec6cd304ee4568f1a58e798cbe441417ae3741f931030da7a2e9c2f24ba6` |
 
 `tools/binding_ledger.py` is an input because its parsers are IMPORTED,
 not copied — one parse, two artifacts, no drift between instruments.
@@ -914,8 +914,8 @@ wrapper, 18 wrapper calls) and are not recounted here.
 | `automaton.hpp:215` | `dispatch_automaton_sync` | 1 | `frameCGroup_` | — |
 | `automaton.hpp:226` | `dispatch_automaton_evolve` | 0 | `worldGroup_` | — |
 | `automaton.hpp:227` | `dispatch_automaton_evolve` | 1 | `frameCGroup_` | — |
-| `patch_system.hpp:156` | `generate_patch_batch` | 0 | `worldGroup_` | — |
-| `patch_system.hpp:157` | `generate_patch_batch` | 1 | `frameCGroup_` | — |
+| `patch_system.hpp:161` | `generate_patch_batch` | 0 | `worldGroup_` | — |
+| `patch_system.hpp:162` | `generate_patch_batch` | 1 | `frameCGroup_` | — |
 
 ## Appendix — the renderer handle convention
 
