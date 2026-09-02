@@ -2850,9 +2850,9 @@ fn dynamics_0d_active() -> bool {
     return config.mute_dynamics_0d == 0u;
 }
 
-fn signal_active() -> bool {
-    return config.mute_signal == 0u;
-}
+// `signal_active` stood here — the query for config.mute_signal. Nothing
+// ever consulted the mute, so the switch it read retires with it to a
+// named pad in both rooms (TENSE_0 U1/U2b).
 
 fn sphere_frozen() -> bool {
     return config.freeze_sphere != 0u;
@@ -5493,12 +5493,8 @@ fn sky_sphere(p: vec3<f32>, c: vec3<f32>, r: f32, clear: f32) -> vec3<f32> {
     return dir * (s * s);
 }
 
-// Closest point on the segment ab to p.
-fn seg_closest(p: vec3<f32>, a: vec3<f32>, b: vec3<f32>) -> vec3<f32> {
-    let ab = b - a;
-    let t = saturate(dot(p - a, ab) / max(dot(ab, ab), 1e-6));
-    return a + ab * t;
-}
+// `seg_closest` stood here — closest point on the segment ab to p. A
+// geometry helper with no caller and no held reason (TENSE_0 U1).
 
 
 // The rule, summed at p. agl = p.y − ribbon_ground(p.xz), computed once by
@@ -6340,16 +6336,12 @@ fn render_pawn_pos() -> vec3<f32> {
     let a = render_agents[config.possessed_slot];
     return vec3(a.pos_x, a.pos_y, a.pos_z);
 }
-// THE POINT, render-stage (the veil's prerequisite — ruled). The render-
-// side twin of the compute-only point_pos(): camera-hosted → the live
-// camera; pawn-hosted → the possessed body. The veil anchors HERE — on
-// the point, never the eye (in pawn-host 3rd person the eye orbits off
-// the body; the eye-fog in shade_lit keeps the eye, the VEIL keeps the
-// point).
-fn render_point_pos() -> vec3<f32> {
-    if (point_camera_hosted()) { return frame_r.camera.pos; }
-    return render_pawn_pos();
-}
+// `render_point_pos` stood here — THE VEIL'S ANCHOR, render-stage. It
+// existed so the veil would measure from the POINT and never the eye.
+// The veil is gone (`_pad_veil_strength_retired` is its headstone, and
+// the GRAIN followed at THE_PANEL I U5), so the anchor has nothing left
+// to anchor (TENSE_0 U1). Its siblings `render_pawn_pos` and
+// `render_pawn_vel_xz` below have live callers and stay.
 fn render_pawn_vel_xz() -> vec2<f32> {
     let a = render_agents[config.possessed_slot];
     return vec2(a.vel_x, a.vel_z);
