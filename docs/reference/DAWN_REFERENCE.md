@@ -125,14 +125,41 @@ Where a path appears in prose, write `<CFG>`, not a configuration name.
 
 ## Shader compiler
 
-`Dawn build and use DXC: OFF` — **FXC** is the shader compiler, via the
-system `d3dcompiler_47.dll`. FXC's speed is independent of Dawn's build
-configuration: a Release Dawn makes Tint (WGSL→HLSL) much faster and does
-not move FXC at all. Boot pays the FXC bill in full. The live FXC
-constraints are recorded in the `world.wgsl` banner block.
+> **REWRITTEN AT EMBER_0**, per this file's own "rewrite pending". The
+> paragraph here described FXC as the live compiler; the lane of record is
+> **Vulkan** (Tint→SPIR-V) and has been since PIVOT_0. What that paragraph
+> got right is the configure line, and it is more load-bearing than it
+> looked.
 
-`D3D11` and `Vulkan` backends are ON while only D3D12 is used; the Vulkan
-backend enumerates Vulkan layers at boot, which is visible in the console.
+`Dawn build and use DXC: OFF` — the line this build still prints, and
+EMBER_0's RECON.4/5/6 established what it costs. Dawn wraps
+`EnsureDXCLibraries` — the only site in the D3D12 backend that opens
+`dxcompiler.dll` and `dxil.dll` — in `#if defined(DAWN_USE_BUILT_DXC)`
+with **no `#else`**, and `dawn_native` receives that define only inside
+`if (DAWN_USE_BUILT_DXC)`. With the option OFF the loader is absent from
+the library, so **the DXC lane cannot be reached by placing DLLs beside
+the exe**: there is no code to reach. `C:/dev/dawn/third_party/dxc` is
+also absent from disk, so turning the option on begins with a fetch, and
+BOTH configurations must then be rebuilt — `dawn_lib_optional` in
+7T-Music's `CMakeLists.txt` treats a library present in one config and
+absent in the other as fatal. The whole route is scripted:
+`tools/ember_route_a.py`.
+
+**The two Windows compilers, as they stand.** FXC reaches the machine
+through the system `d3dcompiler_47.dll`, which is present — so the FXC
+lane's block is not availability but shader shape (L49, and the status
+banner at `kCompilerPlan`). DXC's `dxcompiler.dll` is **not** in
+`System32`, which is better news than it sounds: no ambient copy can
+shadow a pinned one, so whatever loads DXC will be ours by construction.
+FXC's speed is independent of Dawn's build configuration — a Release Dawn
+makes Tint (WGSL→HLSL) much faster and does not move FXC at all — and the
+FXC constraints of the retired floor are archived in
+`docs/FXC_LAWS_RECORD.md`.
+
+`D3D11` and `Vulkan` backends are ON, and **Vulkan is the lane of
+record**; D3D12 stays linked and reachable through the adapter scorer. The
+Vulkan backend enumerates Vulkan layers at boot, which is visible in the
+console.
 Trimming them is a two-sided edit — `CMakeLists.txt` requires the Tint
 SPIRV libraries as *required*, so Dawn's backend set and 7t's link list are
 two rooms of one fact.

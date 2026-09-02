@@ -1401,3 +1401,49 @@ to say the section is gone and where the fact lives instead; the
 eligibility-rule citation was retargeted to `docs/ORGAN.md, "Definition and
 preview"`, which that file does carry. Every `docs/ORGAN.md` citation left in
 `src/` now names a heading that exists.
+
+## L49 — A LANE IS SELECTABLE, SUPPORTED, OR BLOCKED — AND IT SAYS WHICH
+
+The native compiler is one constant, `kCompilerPlan` in
+`src/console/console.hpp`, with three values. Three values are not three
+lanes: a value you can type is not a lane you can run. Each one carries a
+STATUS, the status is written where the constant is, and a lane whose status
+is anything but supported states its block by name and its evidence by kind.
+
+**The three statuses.** SUPPORTED — proven by a boot on this machine, and the
+resident plan is one of these. BLOCKED — selectable, expected to fail, with
+the blocker named at the constant. NOT YET TRUE — nothing wrong with the
+lane; a precondition outside this repo is unmet, and the precondition is
+named with its acquisition.
+
+**And the evidence says which kind it is.** A block established by a
+MEASUREMENT and a block established by SHAPE are both legitimate and are not
+interchangeable. WALLET_0's 20,227 ms stall and its access violation were
+measured on a running compiler. EMBER_0's six cliff-shaped uniform blocks are
+a static census — an array of structs in the uniform address space
+subscripted by a non-constant expression, matched against a mechanism a
+measurement once demonstrated. The census is strong enough to rule on and too
+weak to call a witness, so the banner says which it is. A prediction promoted
+to a measurement by silence is how a record starts lying.
+
+**Why it is a law and not a comment.** The failure this prevents already
+happened twice, in the same shape both times. PIVOT_0a chained `use_dxc` one
+stage too late, the boot log printed `Compiler plan: DXC`, and FXC compiled
+anyway — the program ASSERTED a lane it was not running. EMBER_0 found the
+mirror image: `D3D12_Dxc` was selectable and would have printed the same
+line, while the Dawn it links has `EnsureDXCLibraries` compiled out entirely,
+so no toggle could arrive and no DLL could help. In both cases the constant
+offered a lane the machine could not honour, and in neither case did the
+tree say so. A status at the constant is what turns that from a boot to
+debug into a sentence to read.
+
+**The corollary, which is L21's and stays load-bearing.** A toggle request is
+not a toggle. `dawn::native::GetTogglesUsed` is what promotes a lane from
+selectable to supported, and nothing else does — least of all the plan line,
+which is a request and is labelled one.
+
+*Paid for by:* PIVOT_0a (the silent stage error), TOGGLE_0 and TOGGLE_1revA
+(two campaigns spent on a toggle whose arrival nobody could see), and
+EMBER_0, which found the tree describing `D3D12_Fxc` as ARCHAEOLOGY ONLY and
+`D3D12_Dxc` as ready — one lane understated, the other overstated, and both
+by the same missing sentence.

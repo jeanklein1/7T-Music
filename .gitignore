@@ -392,3 +392,10 @@ CASE/
 enc_temp_folder/
 
 out/
+
+# EMBER_0 — route (a)'s run report. A RUN ARTIFACT, never tracked: it
+# carries a timestamp, so a tracked copy would dirty the tree on every
+# run and hold the binding gate's S-6 witness ("porcelain clean; HEAD ==
+# pushed tip") red until someone deleted it. Same reasoning the build
+# stamp's banner in CMakeLists spells out, and the same answer.
+ember_route_a_report.txt
