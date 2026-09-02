@@ -2130,13 +2130,34 @@ namespace t7 {
                 queue.Submit(1, &cmd);
             }
 
+            // ═══ AN EMPTY ROW, HELD OPEN FOR THE CARD'S RETURN ═══════
+            //
+            // THIS BODY DOES NOTHING, ON PURPOSE, and TENSE_0 U6 says so
+            // plainly rather than leaving a reader to infer it from
+            // `(void)c;`.
+            //
             // R8 DECIDED, AND THERE IS NOTHING LEFT TO DECIDE. The body
             // read the rest law, printed its transitions under P6, and set
             // the bool R10 consumed. The whole apparatus is tombstoned
-            // beside live_card_is_live's grave below; the row stays because
-            // the SPINE's row set is a contract with the score census, and
-            // because the card's write is still a distinct thing the frame
-            // does — it is simply unconditional now.
+            // beside live_card_is_live's grave below; the card became
+            // `phase_dispatch_compute`'s first dispatch, every frame, when
+            // the rest law died with the zones at ONE_SURFACE-II U1.
+            //
+            // THE ROW STAYS, AND REMOVING IT WOULD BE A SPINE EDIT RATHER
+            // THAN A CLEANUP. Three reasons, each binding on its own:
+            //   · the spine tables are DENSE by static_assert and the enum
+            //     is index-checked, so a row is a contract and not a line;
+            //   · the score census (tools/gates/score/run.py) asserts this
+            //     row by name, with its own sentence about why it is
+            //     unconditional;
+            //   · it is the TOMBSTONE-HOLDER for GROUND_CARD_1's two
+            //     revival conditions — the pulse ring's emptiness and
+            //     terrain_time <= 0, both structurally pinned at rest
+            //     today, either of which re-arming wakes the writer with
+            //     no edit here. render_passes.hpp points AT this row for
+            //     exactly that account. THE PULSE RING IS RULED
+            //     REACTIVATED as the coupling campaign's first voice, so
+            //     one of those two conditions has a date.
             void phase_live_card_write(RenderCtx& c) {
                 (void)c;
             }
@@ -2147,12 +2168,16 @@ namespace t7 {
             // order).
             void phase_dispatch_compute(RenderCtx& c) {
                 auto& encoder = c.encoder;
-                // R8's decision rides in as an argument — the card is this
-                // pass's first dispatch when the rest law asks for it
-                // (SPINE_2 B). Consumed here, so a frame that never reaches
-                // R10 cannot leak the flag into the next one.
-                // R8's verdict rode in here as a bool. There is no verdict:
-                // the card is this pass's first dispatch, every frame.
+                // R8's verdict rode in here as a bool (SPINE_2 B), and a
+                // frame that never reached R10 could not leak the flag into
+                // the next one. THERE IS NO VERDICT: the card is this
+                // pass's first dispatch, every frame.
+                //
+                // (Both sentences stood here at once until TENSE_0 U6 —
+                // the first still saying the card arrives "when the rest
+                // law asks for it", the second saying it always does. The
+                // contradiction is two campaigns' prose in one block; the
+                // second one is the true one.)
                 dispatch_compute(&machine_ctx_, encoder);
             }
 
