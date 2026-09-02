@@ -1231,6 +1231,45 @@ and it is Jean's. G-LAW 1 likewise was not run here.
 **And the name is provisional.** TENSE_0 is F1-class; the naming gate is
 Jean's.
 
+## ORGAN_REST — THE ORGAN'S PAPERWORK (landed; four tails open)
+
+Landed on `master`, full account in `docs/ORGAN_REST_REPORT.md`. The ruling
+was right and the diagnosis mostly was not: three of the campaign's four
+named taxes do not exist in this tree, and the tree said so in files the
+handoff could not read when it was written. **The organ was never the drag;
+the belief about it was.** Same reason this row exists as TENSE_0's: a landed
+campaign that leaves open state owes that state a home here (L32), and the
+handoff's U7 asked only for a report.
+
+**1 · U4 — QUARANTINED, and it is Jean's to overrule.** "Regenerate
+`audit/ORGAN.md` at release tags only" did not run, on three independent
+grounds. The book is one of the five files L33's rebuild ritual deletes and
+regenerates to prove the room is byte-reproducible, so a stale one fails a
+standing witness. `git tag` returns three tags and all three are attic
+markers — this repo has never released, so the cadence anchor does not exist
+and "release tags only" means never again. And the cost is zero: the book
+carries no provenance stamp, is a pure function of the enrolled rows, and
+went byte-identical across this campaign's own three comment-only commits.
+
+**2 · The U6 census — Jean's ruling, nothing removed.** 324 rows classified
+A 5 / B 46 / C 14 / D 259, D being the default bucket. Row ids are
+stored-preset keys and block ids are the seam's wire contract, so trimming is
+cheap now and expensive once anything outside this tree has saved a scene.
+The census recommends nothing and this row does not either.
+
+**3 · U1 and U3 are DRAFTS awaiting Jean's pen**, marked so in their commit
+subjects. They move charter prose into the enrollment file's voice, which is
+a naming-class act.
+
+**4 · Two defects found in passing, neither this campaign's subject.** The
+chain constraint at `draw_ring`'s row reads `EXIST(350) > ring > lod0, and
+ring − band > lod0` — a LIVE range constrained against two RETIRED terms,
+whose homes are now `_pad_lod0_radius_retired` and `_pad_grain_band_retired`.
+And `organ_registry.hpp` says "The five forwards below are the price" above
+four forwards.
+
+**The name is provisional.** ORGAN_REST is a proposal; naming is Jean's gate.
+
 ## THE HANDOVER LIST (THE_PANEL's close — the coupling campaign's table)
 
 **THE WRAP ORDER §2.3 asks that the next campaign's handoff be authorable
