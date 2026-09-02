@@ -459,6 +459,18 @@ ledger would have gotten wrong (L28).
 `git status --porcelain` came back **empty** — the room rebuilds
 byte-identically over a tree that now carries three campaigns' work.
 
+**ONE ROW IN `docs/OPEN.md`, AND IT IS A JUDGEMENT CALL — flagged, not
+buried.** The handoff scoped OPEN.md's **existing** rows out of this
+campaign, and they were not touched. It does not address the open state the
+campaign itself *created*, and TENSE_0 created three items: U7's ruling, the
+deferred occupier limb, and the pending probe. L32 says open state has ONE
+home and it is that file; a campaign report is a record, not a docket, and
+every landed campaign before this one carries a row there. So one row was
+added, immediately above THE HANDOVER LIST so the handover keeps the last
+word, and it says in its own second sentence why it exists. **If Jean reads
+"amend nothing else" as covering OPEN.md too, this row is the one edit to
+revert** — `git revert` on its commit takes it and nothing else.
+
 **S-6 is green at the pushed tip:** `HEAD cb463c2 == pushed tip`, working
 tree clean. The battery table above was taken before the merge; **it was
 re-run in full afterwards and every row returned the same verdict**, with
@@ -492,6 +504,10 @@ S-6 additionally going from STOP to PASS.
    one audit commit (3/3) follows the merge because `console.hpp` is a
    command-census input. Flagged because the battery table above was taken
    *before* the merge and re-run after it.
+11. **One `docs/OPEN.md` row was added** for the open state this campaign
+   created (U7, the occupier limb, the probe). The handoff scoped that file's
+   EXISTING rows out; L32 gives new open state no other home. Isolated in its
+   own commit so it is one `git revert` if the reading is wrong.
 
 ## WHAT WAS NOT TOUCHED
 

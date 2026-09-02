@@ -1182,6 +1182,42 @@ The organ GROUP was renamed at U3b (`Terrain · GoL` → `Terrain · Automaton
 couplings`) because a group string is prose and costs nothing. The FIELD
 names were not, and the difference is the mirror.
 
+## TENSE_0 — THE TREE IN THE PRESENT TENSE (landed; three tails open)
+
+The prose campaign landed on `master` at `63b87186`, full account in
+`docs/TENSE_0_REPORT.md`, entered in `docs/LAWS.md` beside PRUNE_1. Nine
+text gates green, the room rebuilds byte-identically (L33), S-6 green at
+the pushed tip. **This row exists because a landed campaign that leaves
+open state owes that state a home here and nowhere else (L32).** The
+handoff scoped OPEN.md's EXISTING rows out of the campaign; it did not
+address the state the campaign itself created, and a campaign report is
+not a docket.
+
+**1 · `CellIdentity` — JEAN'S RULING, evidence gathered, nothing edited.**
+The struct is 22 fields / 34 scalars, built once per cell and passed BY
+VALUE across four function boundaries. Eight fields have been
+authority-internal since P2 and **no consumer reads any of them** —
+member-access census (`\.<field>\b`) returns ZERO for all eight. The
+handoff's proposed test (`rg -n 'parity'`) returns **22** and would have
+misled the ruling; it collides with locals in
+`discrete_cell_color_at_tier`, with orb code and with the ribbon's tick
+parity. The freight is **18 of 34 scalars, 52.9%** — larger than the
+handoff claimed. U7 did not execute and is not in the tree.
+
+**2 · The occupier limb — deferred, named so it is not lost.** Whether
+`row_occupier` / `occupier_contact` and the three `OCCUPIER_*` consts
+keep standing for a future family or retire with the arch. TENSE_0 U3b
+repaired their PROSE only, which is honest either way, so the question
+costs nothing while it waits.
+
+**3 · The probe.** U1 struck three WGSL functions and U2a renamed a
+`DesignConfig` field, so the shader's token stream moved. Nine green text
+rows are not the acceptance (L48): `the-board --probe=N` at the tip is,
+and it is Jean's. G-LAW 1 likewise was not run here.
+
+**And the name is provisional.** TENSE_0 is F1-class; the naming gate is
+Jean's.
+
 ## THE HANDOVER LIST (THE_PANEL's close — the coupling campaign's table)
 
 **THE WRAP ORDER §2.3 asks that the next campaign's handoff be authorable
