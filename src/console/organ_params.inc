@@ -10,6 +10,17 @@
 // EVERY RANGE HERE IS EVIDENCE, NOT TASTE: a wrong range on a dial is
 // worse than a missing dial, because the missing one is silent and the
 // wrong one lies.
+//
+// AND ENROLLMENT IS OPT-IN — the other half of that sentence, said out
+// loud (ORGAN_REST U1). A field earns a row when the hand wants to turn
+// it WHILE LISTENING. Everything else is a constant, and a constant owes
+// no account for not being a dial: an absence here is a CHOICE, not a
+// gap. `organ_gap` has always agreed — "a member absent from the panel
+// is usually absent ON PURPOSE ... failing a build over one would assert
+// a judgement this tool cannot make" — and the absences that were chosen
+// rather than merely unmade are named in docs/ORGAN.md, "What has no
+// dial, and why". That is a REGISTER, not a docket: nothing is queued
+// there, and no field owes it an entry.
 // ═══════════════════════════════════════════════════════════════════════
 
 // ─── ADDING A DIAL IS ONE LINE IN THIS FILE ────────────────────────────
