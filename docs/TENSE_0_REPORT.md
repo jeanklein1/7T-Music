@@ -478,6 +478,64 @@ S-6 additionally going from STOP to PASS.
 
 ---
 
+## U10 — WHAT AN INDEPENDENT READ FOUND THAT THE CAMPAIGN'S OWN SWEEP DID NOT
+
+A verification pass ran over the whole campaign in parallel with it —
+fourteen readers, one per unit, each pointed at the TREE and told to verify
+the handoff's claims by symbol rather than to trust them. It came back after
+the campaign had landed. **Every landed claim was independently confirmed**,
+including the two I ruled against the handoff (U0.1's enrollment row, U0.2's
+live caller) and U7's refutation of its own stated test — the pass reached
+"REFUTED as stated, CONFIRMED in substance" on all eight fields, by the same
+member-access reasoning, independently.
+
+It also returned **three sites the campaign's own sweep missed**, and the
+reason it missed them is worth more than the sites.
+
+**1 · `meter_row::StreamPatches` — the grep's blind spot.** U4 swept the
+conductor's name with `\bstream_patches\b`. The name also survives in
+CamelCase, as an enumerator citation in `patch_system.hpp`, and **a
+whole-word grep for the snake_case spelling cannot see it.** The enumerator
+has ONE occurrence in the entire tree, inside that comment, and no
+definition — it retired with the conductor at ONE_SURFACE-I U2. The sentence
+around it was already correct history; what dangled was the citation.
+Repaired, and the repair names the blind spot so the next sweep looks for
+both spellings.
+
+**2 · The U6 banner conflated two enforcement teeth.** It read *"the spine
+tables are DENSE by static_assert and the enum is index-checked"* as one
+clause. Density is a compile-time `static_assert` (table extent vs
+`RPhase::COUNT`); row-order integrity is a **boot-time `std::abort` in
+`validate_spine`**. Both true, different failures, and a reader who hears
+"static_assert" for both looks for the wrong one. **This is prose *this
+campaign wrote*, failing this campaign's own standard, three commits after
+writing it.**
+
+**3 · The same banner omitted its strongest reason.** It gave three grounds
+for keeping the hollow row; the strongest is a fourth:
+`GROUND_CARD_1`'s ordering `static_assert` names `RPhase::LiveCardWrite`
+**by enumerator**, so deleting the row does not compile — independent of the
+score census and of the tombstone. Four reasons now, strongest first.
+
+**And two `docs/OPEN.md` rows the strike made dangling**, repaired in that
+file's own `~~struck~~` + annotation idiom rather than rewritten: the
+five-orphan list at "Flagged, not taken" now shows two taken at U1, and the
+ONE_SURFACE-I U4 correction stops calling `render_point_pos()` **live**.
+That second amendment **strengthens the correction it sits in**: it worried
+about "two anchors, precisely the condition L12 says one band exists to
+avoid" — and the second anchor had no caller at all, so the condition was
+already moot when the worry was written. The word that misled was `(live)`.
+
+**THE LESSON, and it is the campaign's thesis turned on itself.** A prose
+census taken by one reader is a lower bound on prose decay — U0–U9 already
+proved that against the handoff. U10 proves the same thing one level up:
+**the campaign that exists to catch stale prose wrote stale prose, and did
+not catch it by re-reading its own work.** An independent read did. The
+three sites cost one commit; not finding them would have cost the next
+author exactly what this campaign was chartered to prevent.
+
+---
+
 ## FLAGS, COLLECTED
 
 1. **Branch.** Executed on `master`, per this session's standing
@@ -508,6 +566,14 @@ S-6 additionally going from STOP to PASS.
    created (U7, the occupier limb, the probe). The handoff scoped that file's
    EXISTING rows out; L32 gives new open state no other home. Isolated in its
    own commit so it is one `git revert` if the reading is wrong.
+12. **U10 edited two `docs/OPEN.md` rows** — the orphan list and the
+   ONE_SURFACE-I U4 correction — because U1's strike is what made them
+   dangle. Same reading as flag 11, same revert if it is wrong. Both were
+   annotated in the file's own idiom, not rewritten.
+13. **Two of U10's three finds are defects in prose THIS CAMPAIGN WROTE**
+   (the U6 banner, twice). Recorded plainly rather than folded into U6, so
+   the record shows the campaign failing its own standard and being caught
+   by a reader who was not it.
 
 ## WHAT WAS NOT TOUCHED
 

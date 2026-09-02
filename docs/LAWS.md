@@ -955,6 +955,20 @@ authority-internal fields. The claim is confirmed by the better test and
 the freight is LARGER than stated: 18 of 34 scalars, 52.9%, crossing
 four function boundaries per cell by value.
 
+**AND THE CAMPAIGN CAUGHT ITSELF SECOND.** An independent verification
+pass — fourteen readers pointed at the tree, not at the handoff — ran in
+parallel and confirmed every landed claim. It also returned three sites
+the campaign's own sweep had missed, and **two of them were prose this
+campaign had just written** (one banner conflating a compile-time
+`static_assert` with a boot-time `std::abort`, and the same banner
+omitting the strongest of its own reasons). The third was a citation of
+`meter_row::StreamPatches` that a whole-word grep for `stream_patches`
+structurally cannot see, because the surviving spelling is CamelCase.
+**A prose census taken by its own author is a lower bound on prose
+decay** — which is the campaign's thesis applied to the campaign, and
+the reason U10 exists in its record rather than being folded quietly
+into U6.
+
 The witnesses at every commit: TU gate both tiers at zero diagnostics,
 `glaw2` GREEN (254 fn after the strike, down exactly 3, over the
 UNTOUCHED baseline — witness 5 makes `baseline.json` the retirement
