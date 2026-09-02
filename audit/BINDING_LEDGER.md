@@ -14,8 +14,8 @@ merge rows the API charges separately.
 | field | value |
 |---|---|
 | demo column censused | `full` |
-| source commit | `feb5e94720f99f689ceb233fc43ef4ec5c1aa10b` |
-| | TENSE_0 U4 + U5: the conductor's name, and the table's one grammar |
+| source commit | `3ed68d0107b215373a1ef8d4444ccce3557c83cc` |
+| | TENSE_0 U3: THE AGENT ROOM STOPS SAYING IT IS SOMETHING IT STOPPED BEING |
 | `src/cartridges/the_board/realization/state.hpp` | `sha256:bb7b09adf0de784a3def20b20c44cf138377358161b8a3832705d6dd00045689` |
 | `src/cartridges/the_board/realization/binding_surface.gen.inc` | `sha256:46fb856e446a17504cf7367f84f12082dd57f0d2814220c80b193a1f406fed56` |
 | `src/cartridges/the_board/realization/binding_registry.hpp` | `sha256:79b70d3e7510cce71f5d67f85b994a781745d7c090efefd76ba7af165be17281` |

@@ -15,15 +15,15 @@ carry those facts, or leave them in place and patch around them.
 
 | field | value |
 |---|---|
-| source commit | `feb5e94720f99f689ceb233fc43ef4ec5c1aa10b` |
-| | TENSE_0 U4 + U5: the conductor's name, and the table's one grammar |
+| source commit | `3ed68d0107b215373a1ef8d4444ccce3557c83cc` |
+| | TENSE_0 U3: THE AGENT ROOM STOPS SAYING IT IS SOMETHING IT STOPPED BEING |
 | `src/cartridges/the_board/realization/binding_registry.hpp` | `sha256:79b70d3e7510cce71f5d67f85b994a781745d7c090efefd76ba7af165be17281` |
 | `src/cartridges/the_board/realization/world.wgsl` | `sha256:3d34f022adf0e39d60a55664e1cae4fdb24ec2b34bd1216d10d9f87c55990f68` |
 | `src/cartridges/the_board/realization/state.hpp` | `sha256:bb7b09adf0de784a3def20b20c44cf138377358161b8a3832705d6dd00045689` |
 | `src/cartridges/the_board/realization/binding_surface.gen.inc` | `sha256:46fb856e446a17504cf7367f84f12082dd57f0d2814220c80b193a1f406fed56` |
 | `src/cartridges/the_board/realization/renderer.hpp` | `sha256:06607597f8dc50c80f2dd99c042ba8b1d12f3caaec25640cc9e65f6755fbe84a` |
 | `tools/binding_ledger.py` | `sha256:a3c75bab894774eb0302686e5efd52275b280e14abfcf4e8753b28d5b5086692` |
-| `audit/BINDING_LEDGER.md` | `sha256:05c155db6cf979efdd2858efce2b4284c1ba0e66fa68d198e56c5c8c5a3563a1` |
+| `audit/BINDING_LEDGER.md` | `sha256:e6a4909a5f45033f15edcdd84c8e6cc5bc15e796bd7bf178051de1cb7c403342` |
 
 `tools/binding_ledger.py` is an input because its parsers are IMPORTED,
 not copied — one parse, two artifacts, no drift between instruments.
