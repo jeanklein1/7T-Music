@@ -146,11 +146,16 @@ inline void generate_patch_batch(MachineCtx* c, wgpu::CommandEncoder& encoder, w
     wgpu::ComputePassDescriptor cpd{};
     cpd.label = "Patch Bake (fused)";
     // THE BAKE IS A BIRTH PASS AND THE FRAME METER CANNOT HOLD IT
-    // (ONE_SURFACE-I U2). It armed meter_row::StreamPatches while the
-    // conductor baked one patch a frame. build_world is its only caller now,
-    // and meter_frame_begin() resets the allocator at every frame head — so
-    // a pair allocated at birth is discarded before any resolve can read it.
-    // An arm that can never be read is a lie in the meter's own table.
+    // (ONE_SURFACE-I U2). It armed the conductor's own meter row while that
+    // conductor baked one patch a frame. THE ROW RETIRED WITH IT: the
+    // enumerator this sentence used to cite, meter_row::StreamPatches, no
+    // longer exists in state.hpp, so it is named here as history and not as
+    // a symbol (TENSE_0 U10 — the citation outlived its enumerator, and a
+    // whole-word grep for `stream_patches` cannot see a CamelCase one).
+    // build_world is the bake's only caller now, and meter_frame_begin()
+    // resets the allocator at every frame head — so a pair allocated at
+    // birth is discarded before any resolve can read it. An arm that can
+    // never be read is a lie in the meter's own table.
     wgpu::ComputePassEncoder cp = encoder.BeginComputePass(&cpd);
     // LOOM_2 pass head: WORLD + FRAME are every pipeline's strata 0/1.
     { cp.SetBindGroup(0, c->gpuState_.world_group());

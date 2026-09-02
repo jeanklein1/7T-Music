@@ -438,8 +438,14 @@ target on record — `seed= int= amb= sun el= az= fog=`, no `mood=`, no
   column that fed it died at U2, so the write is now the literal `true`. The
   cut wants a build.
 - Five WGSL orphans that predate this campaign and are not its subjects:
-  `row_occupier`, `seg_closest`, `signal_active`, `translator` (defined,
-  referenced only from prose) and `CARD_NODES_4` (a documented exclusion).
+  `row_occupier`, ~~`seg_closest`~~, ~~`signal_active`~~, `translator`
+  (defined, referenced only from prose) and `CARD_NODES_4` (a documented
+  exclusion). **TWO TAKEN at TENSE_0 U1**, each with a one-line tombstone;
+  `signal_active` took `config.mute_signal`'s last reader with it, so the
+  field retired to a named pad in both rooms at U2b. `row_occupier`,
+  `translator` and `CARD_NODES_4` still stand — the first is on the
+  PROTECT LIST pending the occupier-limb ruling, and TENSE_0 repaired its
+  prose only.
 - `docs/FXC_LAWS_RECORD.md` cites `GPUSpotLightArray`'s `static_assert` in
   `state.hpp` as a live example; the assert left at U4. It is a stamped
   record, so the sweep reports it rather than editing it.
@@ -777,9 +783,16 @@ justification was one layer short of the truth.
 Two smaller corrections from the same source, both already true in the
 tree and neither changing what shipped:
 - the ring gates anchor on `config.cull_point_x/z` (staged, one frame
-  stale by law E-4) while `veil_t` anchors on `render_point_pos()`
-  (live). Two anchors, which is precisely the condition L12's closing
+  stale by law E-4) while `veil_t` anchors on ~~`render_point_pos()`
+  (live)~~. Two anchors, which is precisely the condition L12's closing
   paragraph says one band exists to avoid.
+  **AMENDED at TENSE_0 U1, and the amendment strengthens the correction
+  rather than weakening it.** `render_point_pos()` had NO CALLER — one
+  occurrence in all of `src/`, its own definition — so it was struck. The
+  second anchor was never evaluated by the running program; the "two
+  anchors" condition was already moot when this correction was written,
+  and what the veil actually anchors on is a question this row leaves
+  open. The word that misled was `(live)`.
 - `ribbon_vs` has no ring gate at all — U4 noted this as the ribbon's
   surviving exemption, and it is worth restating that the exemption is
   now the ONLY thing distinguishing `ribbon_fs` from `entity_fs`.

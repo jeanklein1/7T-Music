@@ -2144,9 +2144,18 @@ namespace t7 {
             // the rest law died with the zones at ONE_SURFACE-II U1.
             //
             // THE ROW STAYS, AND REMOVING IT WOULD BE A SPINE EDIT RATHER
-            // THAN A CLEANUP. Three reasons, each binding on its own:
-            //   · the spine tables are DENSE by static_assert and the enum
-            //     is index-checked, so a row is a contract and not a line;
+            // THAN A CLEANUP. Four reasons, each binding on its own, and
+            // they do NOT all have the same teeth:
+            //   · GROUND_CARD_1's ordering static_assert below names
+            //     RPhase::LiveCardWrite by enumerator — delete the row and
+            //     the TU does not compile. This is the strongest of the four
+            //     and it is independent of both the census and the tombstone;
+            //   · the spine tables are DENSE at COMPILE TIME (static_assert
+            //     "render spine must be dense", table extent vs RPhase::COUNT)
+            //     while row-order integrity is a BOOT-TIME std::abort in
+            //     validate_spine — two different teeth, and a reader who
+            //     hears "static_assert" for both will look for the wrong
+            //     failure. Either way a row is a contract and not a line;
             //   · the score census (tools/gates/score/run.py) asserts this
             //     row by name, with its own sentence about why it is
             //     unconditional;
