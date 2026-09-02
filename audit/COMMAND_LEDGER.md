@@ -5,8 +5,8 @@ Read-only: a census of the program's pass and submit surface.
 
 ## Provenance
 
-Last commit touching any scanned file: `a0482defb704d6709475a5e762eb23483fd47302`
-(TENSE_0 U6: THE HOLLOW ROW — kept, and its prose stops contradicting itself)
+Last commit touching any scanned file: `93f948ae327102578b5cab4ba294ca6cb0593410`
+(Merge origin/master — EMBER_0 and THE BATON join TENSE_0)
 
 | file scanned | sha256 |
 |---|---|
@@ -18,7 +18,7 @@ Last commit touching any scanned file: `a0482defb704d6709475a5e762eb23483fd47302
 | `src/cartridges/the_board/bodies/pawn.hpp` | `sha256:7915ec242a2a3094537882c50a2980c9494e4f1460a3a2f786232b67ec6ead12` |
 | `src/cartridges/the_board/bodies/orbs.hpp` | `sha256:475d3de82ddd4d979d55ad146039937cd3316a0148466ed5c1db5566bde9a8b1` |
 | `src/the_board.cpp` | `sha256:8325035057687612d5a968157bdd4eb6f3bf9422b27541a1f1810537bc84767e` |
-| `src/console/console.hpp` | `sha256:ba58d7ab33c88c08d8b53b11dc72ed6baa28841f39e63be2c46af6d1eda80e8a` |
+| `src/console/console.hpp` | `sha256:8b66e5556b34e02e07328bda0122d263fb7b79c7f0616f5fe929480ea6f68d6a` |
 
 The handoff named `render_passes.hpp` and `renderer.hpp`; the
 tree places pass encoders more widely, so the census scans the
@@ -91,12 +91,12 @@ every landing.
 
 | # | enclosing function | site |
 |---|---|---|
-| 1 | `initSurface` | `src/console/console.hpp:853` |
-| 2 | `begin_frame` | `src/console/console.hpp:948` |
+| 1 | `initSurface` | `src/console/console.hpp:914` |
+| 2 | `begin_frame` | `src/console/console.hpp:1009` |
 
 The boot-time site configures the surface once; the per-frame
 trigger is the resize branch of `Console::begin_frame`, quoted
-verbatim (`src/console/console.hpp:943`) — its branch is what feeds the `[FRAME_1]`
+verbatim (`src/console/console.hpp:1004`) — its branch is what feeds the `[FRAME_1]`
 print. This is the debounce ruling's evidence: the condition is
 a bare not-equal on the capped framebuffer size, so any size
 flutter reconfigures the surface and recreates the depth buffer
