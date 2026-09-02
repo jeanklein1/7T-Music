@@ -406,9 +406,8 @@ ORGAN_PARAM_GEN(AUTOMATON, AutomatonBank, height_factor_hi,    F32, 0.0f, 3.0f, 
 // A DIAL HERE WOULD WRITE THE C++ HALF OF A FACT WHOSE OTHER HALF IS A
 // WGSL CONST — the exact two-home shape L46 forbids, and it would move
 // nothing until the shader was edited and reloaded. So the field stays
-// the bank's ONE unenrolled row, and `organ_gap` reports it as an
-// absence, correctly: it IS absent from the panel, and the reason is
-// that the panel is not where it lives.
+// the bank's ONE unenrolled row — not because anything is missing, but
+// because the panel is not where this fact lives.
 
 // ─── Terrain · Mosaic — THE SECTION RETIRES (THE_PANEL I U5) ────────
 // Five dials stood here: enable, shard size, passage scale, boundary
