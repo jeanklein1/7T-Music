@@ -3031,11 +3031,15 @@ fn pawn_gol_suppression(world_xz: vec2<f32>, pawn_xz: vec2<f32>) -> f32 {
 
 // THE CARVE FADE (RETRACT_1) — the camera's height fade, extracted at its
 // third caller. One reach stood on end: full carve inside one OUTER of
-// clearance, gone past two. The datum is the CALLER's, and the datum law
-// is the camera's (KITE_1): ground WITHOUT the automaton's own lift, so a
-// carve can never feed its own fade. Callers: witness_gol_suppression
-// (render), query_ground_walker_witness (compute), automaton_evolve's
-// gather (RETRACT_1).
+// clearance, gone past two. The datum is the CALLER's, and the two eye
+// callers give it the camera's (KITE_1): ground WITHOUT the automaton's
+// own lift, so a carve can never feed its own fade. The third gives it
+// nothing at all — automaton_evolve's gather passes a cube's AUTHORED
+// altitude against a zero datum, because a clearance measured off a body
+// whose y is built from the ground it is measured against is not a
+// clearance; see the gather's own banner. Callers:
+// witness_gol_suppression (render), query_ground_walker_witness
+// (compute), automaton_evolve's gather (RETRACT_1).
 fn gol_carve_fade(consumer_y: f32, ground_y: f32) -> f32 {
     return 1.0 - smoothstep(ZONE_SUPPRESS_OUTER, 2.0 * ZONE_SUPPRESS_OUTER,
                             consumer_y - ground_y);
@@ -9930,13 +9934,31 @@ fn automaton_evolve(@builtin(global_invocation_id) gid: vec3<u32>) {
     // ═══ THE CUBES' CARVE (RETRACT_1) ════════════════════════════════
     // World-anchored, per-cell, rewritten every frame: plane 5 and the
     // life texel's G. The form is the pawn's — one suppression form, one
-    // more centre — and the fade is the camera's, on the camera's datum
-    // law: clearance against the ground WITHOUT the automaton
-    // (sample_terrain_y_at — baked static height; the live overlays'
-    // few wu are inside a 15 wu band and deliberately uncompensated).
-    // POLICY_FLYER never reads this plane: the standing flyer exclusion
-    // wearing its render-side face, and the reason a cube cannot descend
-    // into its own carve (RETRACT_0, HEADLINE). Union across cubes is
+    // more centre — and the reach test is the SHOVE's, verbatim.
+    //
+    // THE ALTITUDE IS AUTHORED, NOT MEASURED, and that is a correction.
+    // RETRACT_1 first fed the fade `fe.pos.y - sample_terrain_y_at(...)`,
+    // a difference between two grounds — and the cube's y is BUILT from
+    // the flyer stack, which carries the automaton's own lift. Stripping
+    // the automaton from one operand does not remove it from a
+    // difference: it left the 24 wu lift in with a PLUS sign, so the
+    // carve died over exactly the cells it exists to cut (retract 0.000
+    // at every tier's authored mean over a settled live cell). The fade
+    // needs no ground at all. `orbit_height + bob_amplitude` IS the
+    // clearance, authored once at spawn, terrain-independent by
+    // construction — and it is `fn row_cube_push`'s Test A verbatim,
+    // against a ceiling (CUBE_REACH_CEILING 30.0) that is already
+    // 2.0 * ZONE_SUPPRESS_OUTER, this fade's own zero point. So a cube
+    // CARVES IFF IT IS SHOVEABLE: one test, written twice, on one number.
+    // Above the line the cube is canopy and touches nothing — the
+    // CUBE_PUSH banner's sentence, now true of two mechanisms.
+    //
+    // No ground query means no datum, so RA-1's hazard is not merely
+    // avoided but unreachable: nothing terrain-borne — not the automaton,
+    // not the card, not the aura, not drift, not the floor clamp — can
+    // enter the fade, and d(retract)/dy is identically ZERO.
+    // POLICY_FLYER still never reads this plane: the standing flyer
+    // exclusion wearing its render-side face. Union across cubes is
     // max — the patch VS's own idiom for two carves, extended to N.
     // THE READ IS FRESH, and the spine says so: RPhase::AutomatonStep
     // runs AFTER RPhase::DispatchCompute (which holds update_cube) and
@@ -9948,14 +9970,13 @@ fn automaton_evolve(@builtin(global_invocation_id) gid: vec3<u32>) {
     let addr = vec2<i32>(auto_config.cell_origin_x + i32(cell.x),
                          auto_config.cell_origin_z + i32(cell.y));
     let cell_center = (vec2<f32>(addr) + vec2(0.5)) * PATCH_CELL_SIZE;
-    let ground_here = sample_terrain_y_at(cell_center);
     var retract = 0.0;
     for (var k = 0u; k < CUBE_SLOT_COUNT; k++) {
         let fe = render_floating.entities[CUBE_SLOT_OFFSET + k];
         if (fe.is_active == 0u) { continue; }
         retract = max(retract,
                       pawn_gol_suppression(cell_center, fe.pos.xz)
-                      * gol_carve_fade(fe.pos.y, ground_here));
+                      * gol_carve_fade(fe.orbit_height + fe.bob_amplitude, 0.0));
     }
     auto_life[AUTO_CELL_RETRACT + idx] = retract;
 

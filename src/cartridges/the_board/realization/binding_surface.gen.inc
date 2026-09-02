@@ -770,7 +770,7 @@
                 // ZONES family band; the automaton is ground, not a family, and keeps
                 // the band because a band is a numbering, not a claim.
                 {
-                    std::array<wgpu::BindGroupLayoutEntry, 4> entries{};
+                    std::array<wgpu::BindGroupLayoutEntry, 3> entries{};
 
                     // The automaton config (uniform — the CPU authors all of it: drawn
                     // once per world at birth, header three words per frame)
@@ -790,16 +790,6 @@
                     entries[2].visibility = wgpu::ShaderStage::Compute;
                     entries[2].buffer.type = wgpu::BufferBindingType::ReadOnlyStorage;
 
-                    // THE AUTOMATON READS THE BAKED GROUND (RETRACT_1, on SPINE_2’s
-                    // precedent). The carve’s fade needs the cell’s ground WITHOUT the
-                    // automaton’s own lift, which is the heightfield estate’s baked
-                    // height; this room BORROWS the estate’s CPU index at the estate’s own
-                    // number. Nothing is copied and no second walk exists:
-                    // sample_terrain_y_at is the one every other ground reader calls.
-                    entries[3].binding = bind::g2::patch_grid;  // patch_grid (borrowed — the O(1) index into the bake)
-                    entries[3].visibility = wgpu::ShaderStage::Compute;
-                    entries[3].buffer.type = wgpu::BufferBindingType::ReadOnlyStorage;
-
                     wgpu::BindGroupLayoutDescriptor desc{};
                     desc.label = "Automaton State Layout";
                     desc.entryCount = entries.size();
@@ -810,7 +800,7 @@
 
                 // Automaton Textures Layout — stratum 3, same band.
                 {
-                    std::array<wgpu::BindGroupLayoutEntry, 4> entries{};
+                    std::array<wgpu::BindGroupLayoutEntry, 2> entries{};
 
                     entries[0].binding = bind::g3::live_card_write;  // live_card_write (storage texture, write)
                     entries[0].visibility = wgpu::ShaderStage::Compute;
@@ -823,17 +813,6 @@
                     entries[1].storageTexture.access = wgpu::StorageTextureAccess::WriteOnly;
                     entries[1].storageTexture.format = wgpu::TextureFormat::RG32Float;
                     entries[1].storageTexture.viewDimension = wgpu::TextureViewDimension::e2D;
-
-                    // RETRACT_1 — the baked ground the carve’s fade measures against
-                    // (sample_terrain_y_at), borrowed with patch_grid above.
-                    entries[2].binding = bind::g3::photo_heightfield;  // photo_heightfield (texture_2d_array, borrowed)
-                    entries[2].visibility = wgpu::ShaderStage::Compute;
-                    entries[2].texture.sampleType = wgpu::TextureSampleType::Float;
-                    entries[2].texture.viewDimension = wgpu::TextureViewDimension::e2DArray;
-
-                    entries[3].binding = bind::g3::photo_sampler;  // photo_sampler (filtering, borrowed)
-                    entries[3].visibility = wgpu::ShaderStage::Compute;
-                    entries[3].sampler.type = wgpu::SamplerBindingType::Filtering;
 
                     wgpu::BindGroupLayoutDescriptor desc{};
                     desc.label = "Automaton Textures Layout";
@@ -1429,7 +1408,7 @@
 
                 // Projected from: zoneGolComputeBindGroup_, liveCardWriterGroup_, zoneMaskGroup_.
                 {
-                    std::array<wgpu::BindGroupEntry, 4> entries{};
+                    std::array<wgpu::BindGroupEntry, 3> entries{};
 
                     entries[0].binding = bind::g2::auto_config;
                     entries[0].buffer = automatonConfigBuffer_;
@@ -1443,10 +1422,6 @@
                     entries[2].buffer = floatingEntityBuffer_;
                     entries[2].size = Dim::TOTAL_FLOATING_SLOTS * sizeof(GPUFloatingEntityState);
 
-                    entries[3].binding = bind::g2::patch_grid;
-                    entries[3].buffer = patchGridBuffer_;
-                    entries[3].size = sizeof(GPUPatchGrid);
-
                     wgpu::BindGroupDescriptor desc{};
                     desc.label = "Automaton State BindGroup";
                     desc.layout = automatonStateLayout_;
@@ -1458,19 +1433,13 @@
 
                 // Projected from: zoneGolComputeBindGroup_, liveCardWriterGroup_.
                 {
-                    std::array<wgpu::BindGroupEntry, 4> entries{};
+                    std::array<wgpu::BindGroupEntry, 2> entries{};
 
                     entries[0].binding = bind::g3::live_card_write;
                     entries[0].textureView = liveCardWriteView_;
 
                     entries[1].binding = bind::g3::auto_life_tex_write;
                     entries[1].textureView = automatonLifeWriteView_;
-
-                    entries[2].binding = bind::g3::photo_heightfield;
-                    entries[2].textureView = patchHeightfieldArrayReadView_;
-
-                    entries[3].binding = bind::g3::photo_sampler;
-                    entries[3].sampler = bilinearSampler_;
 
                     wgpu::BindGroupDescriptor desc{};
                     desc.label = "Automaton Textures BindGroup";
