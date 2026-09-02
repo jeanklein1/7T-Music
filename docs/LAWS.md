@@ -902,6 +902,75 @@ storage lane went 7 of 8 to 4 of 8 (see L19), and the three painting
 arrays — the largest allocation family in the program — are gone from
 the boot budget.
 
+## TENSE_0 (2026-09-02) — the tree in the present tense
+
+A prose campaign. The census that opened it found the CODE nearly clean
+and the decay one layer up: comments asserting a present that three
+campaigns (ONE_WORLD-I/II, ONE_SURFACE-I/II, THE_PANEL I/II) had ended.
+A comment that names a dead function is not a style defect — it is the
+map the next author navigates by, and every one of these sent a reader
+to a room that no longer exists.
+
+What landed: three orphaned WGSL functions struck with one-line
+tombstones (`seg_closest`, `signal_active`, `render_point_pos`); two
+`DesignConfig` fields retired IN PLACE to named pads, both rooms in one
+commit (`field_occupier_gain`, `mute_signal`); the agent room's schema
+prose, its two hand-written banners and the WGSL banner above the
+occupier rows; six comments naming a conductor (`stream_patches`) that
+`band_patches` replaced; the drawable table's pixel-safety list and its
+one un-templated row; and the hollow render row's banner, which had been
+arguing with itself.
+
+**THE FINDING THAT OUTRANKS THE EDITS.** Five of the seven executing
+units found MORE stale prose than the handoff enumerated, never less —
+7 sites where 5 were named, 12 hits where 6 were, a second organ row
+where one was claimed. A prose census taken by reading is a lower bound
+on prose decay. The count that came in "wrong" in the other direction
+was the same shape both times: **a symbol believed inert turned out to
+be enrolled on the panel.** `mute_signal` was an organ row nobody knew
+about, and U1 was about to remove its last reader — a Debug dial that
+mutes nothing, created by the campaign's own hand. L45 says an
+enrollment states a belief and only the reader proves it; this is the
+inverse case, where the reader dies and the belief survives it. **When a
+strike removes a symbol's last reader, the enrollment row is part of the
+strike.**
+
+**AND THE PER-FIELD WITNESS BIT, ONE CAMPAIGN AFTER IT WAS BUILT.** The
+two pad renames turned the TU gate red with exactly two errors — `no
+member named 'mute_signal'`, `no member named 'field_occupier_gain'` —
+both raised from `mirror_offsets.gen.inc`, not from any hand-written
+line. That is the designed behaviour, not a defect: THE_PANEL I U6's
+generated asserts hold the C++ to the offsets `world.wgsl` dictates, so
+a two-room rename cannot land in one room. `python3
+tools/mirror_offsets.py` cleared it, and the regenerated file's diff was
+names only — offsets 4 and 544 unchanged, which is the proof the
+retirement was in place.
+
+**U7 did not execute, by the handoff's own hand.** `CellIdentity` — 22
+fields, 34 scalars, of which 18 are freight no consumer reads — is
+evidence-only and Jean's to rule. The handoff's proposed test (`rg -n
+'parity'`) returns 22 hits and would have misled the ruling; the honest
+test is member access (`\.<field>\b`), which returns ZERO for all eight
+authority-internal fields. The claim is confirmed by the better test and
+the freight is LARGER than stated: 18 of 34 scalars, 52.9%, crossing
+four function boundaries per cell by value.
+
+The witnesses at every commit: TU gate both tiers at zero diagnostics,
+`glaw2` GREEN (254 fn after the strike, down exactly 3, over the
+UNTOUCHED baseline — witness 5 makes `baseline.json` the retirement
+ledger, so `--record` would have deleted the evidence and was
+deliberately not run), `wgsl_gate` PASS under naga, score census GREEN,
+`binding_gen --check` clean, organ gap and organ ledger PASS, mirror
+census and command census green, `mirror_offsets --check` PASS at 128
+members across 7 structs, and the shell gate PASS at 17 claims. The
+organ went 326 rows to 324.
+
+**The battery is not the acceptance.** U1 and U2a change the shader's
+token stream, so this campaign closes on `the-board --probe=N` at the
+tip and not before (L48). The full account, unit by unit with every
+delta between the handoff's counts and the tree's, is
+`docs/TENSE_0_REPORT.md`.
+
 ## L30 — THE TREE HOLDS LIVING MATTER ONLY
 
 The working tree carries what the program needs today. **Git history is the
