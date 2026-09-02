@@ -412,6 +412,60 @@ recorded.
 
 ---
 
+## U9 — THE RECORD, THE LEDGERS, AND A MERGE THAT ARRIVED MID-CLOSE
+
+**The record.** This file, and one section in `docs/LAWS.md` — TENSE_0 as a
+landed campaign, placed beside PRUNE_1 and directly above L30. That
+adjacency is not decoration: L30's own sentence reads *"A document that
+describes a subsystem as it stood three campaigns ago reads exactly like a
+document that describes it now — same confident tone, same file extension,
+same grep hit"*, which is this campaign's thesis, written before the campaign
+existed. **Nothing else in `docs/LAWS.md` was
+amended**, per the handoff.
+
+**The ledgers.** The six tools were run in the rebuild order. Four came back
+byte-identical: the campaign moved prose, and prose is not a ledger input.
+Two moved their provenance stamp, and they settled in **two** commits rather
+than one, because `audit/BINDING_LEDGER.md` is itself an input to the mirror
+census (witness ML-0) — so the binding ledger's own landing is what the
+mirror ledger's next stamp has to name.
+
+**THE MERGE.** The push was rejected: `master` had moved five commits while
+TENSE_0 was executing. Two other campaigns had landed — **EMBER_0** (the FXC
+arm's compiler declaration, E3's honest post-build step, `tools/ember_route_a.py`,
+and **L49**) and **THE BATON** (`docs/PROCESS_LAWS.md`, a new sibling of
+`docs/LAWS.md` holding the LAWS OF METHOD; and the week entered in
+`docs/OPEN.md`).
+
+`git merge origin/master` resolved with **zero conflicts**, and the reason is
+worth recording rather than being relieved about: the two lines of work touch
+disjoint rooms. EMBER_0 works the toolchain and `src/console/console.hpp`'s
+compiler plan; TENSE_0 works the realization's comments, two `DesignConfig`
+fields and three WGSL functions. `docs/LAWS.md` is the single file both wrote,
+and they wrote **different sections** of it — L49 at the tail, TENSE_0 beside
+PRUNE_1 — so even the one collision was a textual near-miss, not a semantic
+one.
+
+**One ledger did follow the merge.** `src/console/console.hpp` is a
+command-census input and EMBER_0 grew it by 61 lines above the surface sites,
+so `audit/COMMAND_LEDGER.md`'s two configure rows and its verbatim resize
+branch all shifted. Content identical — same two sites, same enclosing
+functions, same debounce evidence — line numbers and hash moved. That is a
+third audit-only commit, and it is exactly the class of thing a hand-edited
+ledger would have gotten wrong (L28).
+
+**L33's rebuild ritual, run at the closing commit.** The five files in
+`audit/` and `mirror_offsets.gen.inc` were deleted, the six tools re-run, and
+`git status --porcelain` came back **empty** — the room rebuilds
+byte-identically over a tree that now carries three campaigns' work.
+
+**S-6 is green at the pushed tip:** `HEAD cb463c2 == pushed tip`, working
+tree clean. The battery table above was taken before the merge; **it was
+re-run in full afterwards and every row returned the same verdict**, with
+S-6 additionally going from STOP to PASS.
+
+---
+
 ## FLAGS, COLLECTED
 
 1. **Branch.** Executed on `master`, per this session's standing
@@ -433,6 +487,11 @@ recorded.
 9. **A schema edit broke `binding_schema.py`'s import** on first write
    (an apostrophe inside a single-quoted string). Caught by the generator,
    repaired, and `ast.parse` now witnesses it.
+10. **`master` moved five commits under the campaign** — EMBER_0 and THE
+   BATON landed while TENSE_0 was executing. Merged with zero conflicts;
+   one audit commit (3/3) follows the merge because `console.hpp` is a
+   command-census input. Flagged because the battery table above was taken
+   *before* the merge and re-run after it.
 
 ## WHAT WAS NOT TOUCHED
 
