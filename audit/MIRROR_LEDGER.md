@@ -15,8 +15,8 @@ carry those facts, or leave them in place and patch around them.
 
 | field | value |
 |---|---|
-| source commit | `3ed68d0107b215373a1ef8d4444ccce3557c83cc` |
-| | TENSE_0 U3: THE AGENT ROOM STOPS SAYING IT IS SOMETHING IT STOPPED BEING |
+| source commit | `c3c8919e7003349eeaaa1f771245b55bc038bbbb` |
+| | TENSE_0 audit 1/2: the ledgers regenerate over the campaign's tip |
 | `src/cartridges/the_board/realization/binding_registry.hpp` | `sha256:79b70d3e7510cce71f5d67f85b994a781745d7c090efefd76ba7af165be17281` |
 | `src/cartridges/the_board/realization/world.wgsl` | `sha256:3d34f022adf0e39d60a55664e1cae4fdb24ec2b34bd1216d10d9f87c55990f68` |
 | `src/cartridges/the_board/realization/state.hpp` | `sha256:bb7b09adf0de784a3def20b20c44cf138377358161b8a3832705d6dd00045689` |
