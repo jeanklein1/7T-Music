@@ -10,14 +10,18 @@
 //
 // PIXEL-SAFETY. Every drawable IN THIS TABLE is OPAQUE (depth-tested,
 // depth-write, no blend — or an alpha=1.0 output that makes SrcAlpha a
-// no-op): terrain(fork), pawn, sphere, monolith, ribbon,
-// shell. Draw
+// no-op): terrain(fork), pawn, sphere, monolith, ribbon. Draw
 // order among OPAQUE geometry is immaterial — the depth test resolves
 // visibility identically regardless of order — so the ONE canonical order
 // (the shadow order) reproduces every pass pixel-for-pixel, and the ribbon
 // drift dies for free. Verified opaque: ribbon uses ENTITY_FS + the shared
 // depthStencil/colorTarget (no blend). The ORDER-SENSITIVE draws are FORKS,
 // kept last and in order (orbs additive, fade alpha/no-depth).
+//
+// THE LIST ABOVE NAMED A SIXTH, "shell", UNTIL TENSE_0 U5. The shell's
+// draw-ledger row left at ONE_WORLD-II U4 — render_passes.hpp records it —
+// and the table has had four rows since. A pixel-safety claim over a
+// drawable that is not in the table proves nothing about the table.
 //
 // FORKS (Discipline 2 — flagged, NOT forced into a uniform row):
 //   - terrain: two different per-pass codes (shadow: LOD0 + manual LOD1;
@@ -119,7 +123,7 @@ template <class Enc>
 inline const Drawable<Enc> DRAWABLES[] = {
     { "pawn",     DRAW_SHADOW | DRAW_MAIN, dt_pawn<Enc>     },
     { "sphere",   DRAW_SHADOW | DRAW_MAIN, dt_sphere<Enc>   },
-    { "monolith", DRAW_SHADOW | DRAW_MAIN, dt_monolith      },
+    { "monolith", DRAW_SHADOW | DRAW_MAIN, dt_monolith<Enc> },
     { "ribbon",   DRAW_SHADOW | DRAW_MAIN, dt_ribbon<Enc>   },
 };
 

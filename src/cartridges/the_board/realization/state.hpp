@@ -665,12 +665,14 @@ namespace t7 {
             // ─── LOD-band point position ────────────────────────────────
             // (renamed lod_pawn -> lod_point -> cull_point at ONE_SURFACE-I
             // U5: the value has been THE POINT
-            // — the name was a fossil.) The CPU bands patches
-            // into LOD0/LOD1 in stream_patches from point_.x/z
-            // (the point, 1 frame stale — law E-4). The GPU's frustum-cull
-            // shader applies the same lod0_radius gate; if it read the
-            // LIVE point instead, CPU banding and GPU gate would disagree
-            // at the boundary annulus and patches would flicker/z-fight.
+            // — the name was a fossil.) The CPU bands patches in
+            // `band_patches` from point_.x/z (the point, 1 frame stale —
+            // law E-4). THE BANDING IS ONE BAND NOW: this read "into
+            // LOD0/LOD1 in stream_patches" until TENSE_0 U4, and both
+            // halves had ended — the conductor at ONE_SURFACE-I U2 and the
+            // LOD1 band at U5, with the half-mesh it drew. The GPU's
+            // frustum-cull shader still reads the same point, so CPU walk
+            // and GPU gate cannot disagree at a boundary annulus.
             // So the CPU pushes its banding point here and the cull shader
             // reads it — both sides partition with one yardstick by
             // construction.
@@ -2556,18 +2558,24 @@ namespace t7 {
             }
 
 
-            // Targeted 4-byte upload of placement_patch_count — called from stream_patches
-            // after world_state_.all_patch_count is finalized, so the placement compute pass reads the
-            // current frame's patch set.
+            // Targeted 4-byte upload of placement_patch_count — called from
+            // `band_patches` (surface/patch_system.hpp) after the frame's
+            // draw set is counted, so the placement compute pass reads the
+            // current frame's patch set. (It said "from stream_patches"
+            // until TENSE_0 U4; the conductor left at ONE_SURFACE-I U2 and
+            // this call went to its per-frame survivor.)
             // THE OFFSET IS DERIVED (offsetof — it cannot drift).
             void upload_placement_patch_count(wgpu::Queue& queue) {
                 queue.WriteBuffer(configBuffer_, offsetof(GPUDesignConfig, placement_patch_count),
                     &config_.placement_patch_count, sizeof(uint32_t));
             }
 
-            // Targeted 8-byte upload of cull_point_x/z — called from stream_patches each
-            // frame so the GPU frustum-cull shader uses the same POINT position as the
-            // CPU's LOD banding (eliminates LOD0/LOD1 boundary flicker).
+            // Targeted 8-byte upload of cull_point_x/z — called from
+            // `band_patches` each frame so the GPU frustum-cull shader uses
+            // the same POINT position the CPU banded from. (It said "from
+            // stream_patches" and named an LOD0/LOD1 flicker until TENSE_0
+            // U4: the conductor left at ONE_SURFACE-I U2 and the LOD split
+            // at U5, so there is one band and one yardstick.)
             void upload_cull_point(wgpu::Queue& queue) {
                 // THE NET NOW GUARDS WHAT THE WRITE ACTUALLY DEPENDS ON
                 // (THE_PANEL I U2, Amendment A). It read
@@ -2647,8 +2655,11 @@ namespace t7 {
             // 3.6 KB. The dispatch that reads them is recorded after this call
             // and executes after the write on the queue timeline.
             //
-            // NO CURSOR: stream_patches makes exactly ONE batch a frame now
-            // (LATTICE_1, the R-D fold), so every batch starts at record 0.
+            // NO CURSOR: `generate_patch_batch` makes exactly ONE batch a
+            // frame (LATTICE_1, the R-D fold), so every batch starts at
+            // record 0. The FACT is unchanged; the name was the departed
+            // conductor's until TENSE_0 U4, and this call site is the
+            // builder's, not the conductor's.
             // The clamp stays — a bound stated is a bound that cannot rot.
             uint32_t upload_patch_params(wgpu::Queue& queue, const GPUPatchParams* params,
                                          uint32_t count) {

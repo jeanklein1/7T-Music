@@ -1455,9 +1455,14 @@ namespace t7 {
                         Idle::PAWN_POS_X, Idle::PAWN_POS_Z, queue);
                 dump_agent_census(agent_state_, &agents_deps_, "rebirth");
                 // Fires AFTER reset_surface and every teardown verb above,
-                // and before stream_patches (a RENDER_SPINE row) can
-                // re-stream. Both columns must therefore read 0 for all six
-                // — a teardown-completeness assertion, not an observation.
+                // and before `band_patches` (the RENDER_SPINE row
+                // `RPhase::SurfaceVisibility`) can re-band. Both columns
+                // must therefore read 0 for all six — a
+                // teardown-completeness assertion, not an observation.
+                // (This read "before stream_patches (a RENDER_SPINE row)"
+                // until TENSE_0 U4, and was doubly false: the conductor
+                // left at ONE_SURFACE-I U2, and there was never a spine
+                // row of that name — `stream_patches` was called BY one.)
                 dump_entity_census(&machine_ctx_, "rebirth");
                 // ROSTER-GATE ribbon (c) — finite-mode release, owner
                 // verb. Zero effect when ribbon is off (active_count
@@ -2808,8 +2813,14 @@ namespace t7 {
                                         // that no individual pair could produce,
                                         // and no discard applies to the sum at
                                         // any size. WEB_METER_0 saw exactly this
-                                        // twice — stream_patches gpu max 1323.04
-                                        // and 1198.06, both in boot-adjacent
+                                        // twice — 1323.04 and 1198.06 gpu max
+                                        // on the row that was `stream_patches`
+                                        // when WEB_METER_0 measured it (the
+                                        // conductor left at ONE_SURFACE-I U2;
+                                        // its per-frame survivor is
+                                        // `band_patches`, under
+                                        // RPhase::SurfaceVisibility). Both in
+                                        // boot-adjacent
                                         // frames that upload many patches. The
                                         // asymmetry is deliberate: the per-frame
                                         // sum is the honest per-frame cost of a
