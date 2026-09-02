@@ -315,7 +315,6 @@ generator, so the book and the manifest cannot disagree. `driven` is an
 | Interaction · Field | slack | `CONFIG.field_slack` | CONFIG | F32 | 0 … 12 | 0.05 | live | none |  |
 | Interaction · Field | k (accel) | `CONFIG.field_k` | CONFIG | F32 | 0 … 1200 | 5 | live | none |  |
 | Interaction · Field | f max | `CONFIG.field_fmax` | CONFIG | F32 | 0 … 2400 | 10 | live | none |  |
-| Interaction · Field | occupier gain | `CONFIG.field_occupier_gain` | CONFIG | F32 | 0 … 4 | 0.02 | live | none |  |
 | Interaction · Field | authored gain | `CONFIG.field_authored_gain` | CONFIG | F32 | 0 … 4 | 0.02 | live | none |  |
 | Interaction · Field | cube gain | `CONFIG.field_gain_cube` | CONFIG | F32 | 0 … 16 | 0.08 | live | none |  |
 | Interaction · Field | sphere gain | `CONFIG.field_gain_sphere` | CONFIG | F32 | 0 … 4 | 0.02 | live | none |  |
@@ -338,7 +337,6 @@ generator, so the book and the manifest cannot disagree. `driven` is an
 | Camera · Presence | push gain | `CONFIG.camera_push_gain` | CONFIG | F32 | 0 … 40 | 0.25 | live | none |  |
 | Camera · Presence | push radius | `CONFIG.camera_push_radius` | CONFIG | F32 | 0 … 80 | 0.5 | live | none |  |
 | Debug ·  | mute dynamics (0D) | `CONFIG.mute_dynamics_0d` | CONFIG | BOOL | 0 … 1 | 1 | live | none |  |
-| Debug ·  | mute signal | `CONFIG.mute_signal` | CONFIG | BOOL | 0 … 1 | 1 | live | none |  |
 | Debug ·  | freeze sphere | `CONFIG.freeze_sphere` | CONFIG | BOOL | 0 … 1 | 1 | live | none |  |
 | Debug ·  | FPV mode (key-shared) | `CONFIG.fpv_mode` | CONFIG | BOOL | 0 … 1 | 1 | live | none |  |
 | Measure ·  | main draw mask (bits: A/B/C terrain, table, ribbon, [5 unused], orbs, fade) | `CONFIG.draw_mask` | CONFIG | U32 | 0 … 255 | 1 | live | none |  |
@@ -354,14 +352,14 @@ generator, so the book and the manifest cannot disagree. `driven` is an
 
 | | |
 | --- | --- |
-| entries | **326** |
-| by section | Agents 102 · Ribbon 55 · Terrain 54 · Sky & Light 30 · Atmosphere 27 · Interaction 22 · Pawn 18 · Population 5 · Debug 4 · World 3 · Camera 3 · Measure 3 |
-| by cadence | boundary 106 · driven 14 · gen 50 · live 156 |
-| by macro form | PARAM 160 · PARAM_DEF 102 · PARAM_GEN 50 · PARAM_RO 14 |
-| definition kinds | BEHAVIOR 70 · NONE 224 · TIER 32 |
+| entries | **324** |
+| by section | Agents 102 · Ribbon 55 · Terrain 54 · Sky & Light 30 · Atmosphere 27 · Interaction 21 · Pawn 18 · Population 5 · World 3 · Camera 3 · Debug 3 · Measure 3 |
+| by cadence | boundary 106 · driven 14 · gen 50 · live 154 |
+| by macro form | PARAM 158 · PARAM_DEF 102 · PARAM_GEN 50 · PARAM_RO 14 |
+| definition kinds | BEHAVIOR 70 · NONE 222 · TIER 32 |
 | witnesses (`ro`) | 14 |
 | blocks and sentinels used | AGENTS, AGENT_ROOM, ATMOS, AUTOMATON, CANVAS, CONFIG, DRIVERS, LIGHTING, ORBS, ORB_BANK, PANEL, PAWN, RIBBON, RIBBON_SPAWN, WORLD |
-| namespaces | canvas 15 · the_board 311 |
+| namespaces | canvas 15 · the_board 309 |
 
 ### Doors
 
@@ -435,7 +433,7 @@ THE ANSWER, ROW BY ROW
   proved    240   a declared reader names the field
   SUSPECT     0   no declared reader names it
   witness    14   an _RO meter: the question is inverted (blind spot 5)
-  scope      72   GPU-side or whole-struct (blind spots 2, 3)
+  scope      70   GPU-side or whole-struct (blind spots 2, 3)
 
 NO SUSPECTS. Every enrolled dial's field is named in the body of
 a function this tool can read.

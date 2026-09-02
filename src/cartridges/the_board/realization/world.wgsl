@@ -1670,7 +1670,12 @@ fn discrete_cell_color_at_tier(
 // the WGSL half; neither catches it alone.
 struct DesignConfig {
     mute_dynamics_0d: u32,
-    mute_signal: u32,
+    // `mute_signal` stood here — a mute switch nothing ever consulted.
+    // Its one reader was `signal_active`, and `signal_active` had no
+    // caller: the switch was queryable and unqueried. Both retire at
+    // TENSE_0 (U1 struck the query, U2b pads the switch), in place, same
+    // offset.
+    _pad_mute_signal_retired: u32,
     mute_couplings: u32,
     pawn_speed: f32,
     freeze_sphere: u32,
@@ -1859,7 +1864,14 @@ struct DesignConfig {
     field_slack: f32,
     field_k: f32,
     field_fmax: f32,
-    field_occupier_gain: f32,
+    // `field_occupier_gain` stood here — the emitter mute for standing
+    // geometry. Its shaft emitters left with COLUMN/ANTENNA at PRUNE_2
+    // U4 and the arch legs with their family at ONE_WORLD-I U3, so it
+    // had scaled nothing since. RETIRED IN PLACE to a named pad
+    // (TENSE_0 U2a): a deletion moves every offset below it and churns
+    // the mirror witness for no gain, which is the same reason
+    // `_pad_arch_slack_retired` and the three pads above it stand.
+    _pad_field_occupier_gain_retired: u32,
     field_authored_gain: f32,
     field_gain_cube: f32,
     field_gain_sphere: f32,
@@ -2404,16 +2416,18 @@ const PAWN_CONTACT_MASS_MULT: f32 = 4.0; // the pawn is heavy: agents yield — 
 const FIELD_SUBSCRIBERS: u32 = 296u;   // 32 agents + 8 spheres + 256 cubes
 // The dials themselves live at THE PANEL (contracts/control_panel.hpp)
 // and arrive as config fields (FIELD_2b): config.field_slack /
-// field_k / field_fmax, the two emitter mutes field_occupier_gain /
-// field_authored_gain, and the subscriber-class gains
-// field_gain_cube / _sphere / _agent — Jean's gate instrument, each
-// still zeroing its class independently.
-// config.field_occupier_gain scales the standing-geometry terms
-//  (shafts + arch legs) before the FMAX clamp — zeroing it mutes
-//  standing geometry for EVERY subscriber (FIELD_B4a/b: floaters
-//  and free agents alike). The possessed pawn is the exception and
-//  always was: it never subscribes, and meets these bodies through
-//  occupier_contact in its candidate.
+// field_k / field_fmax, the emitter mute field_authored_gain, and the
+// subscriber-class gains field_gain_cube / _sphere / _agent — Jean's
+// gate instrument, each still zeroing its class independently.
+// THERE WERE TWO EMITTER MUTES. config.field_occupier_gain SCALED the
+//  standing-geometry terms (shafts + arch legs) before the FMAX clamp,
+//  and zeroing it muted standing geometry for EVERY subscriber
+//  (FIELD_B4a/b: floaters and free agents alike). Both emitter families
+//  left — the shafts at PRUNE_2 U4, the arch legs at ONE_WORLD-I U3 —
+//  so the term went with them and the dial retired to a named pad at
+//  TENSE_0 U2a. The possessed pawn was the exception and always was: it
+//  never subscribes, and met those bodies through occupier_contact in
+//  its candidate.
 // Authored emitters (FIELD_4): SHELL attractors — spring toward
 // radius r0, envelope (1-len/R)^2, zero beyond R; S >= 0;
 // config.field_authored_gain is their mute. Tiebreak band: 900+i.
@@ -8130,9 +8144,11 @@ fn field_sum(sub_i: u32) -> vec3<f32> {
     // banner and docs/FXC_LAWS_RECORD.md).
     // The shaft emitters left with COLUMN/ANTENNA in PRUNE_2 U4; the arch
     // legs left with their family at ONE_WORLD-I U3. The field has no
-    // standing-body emitters left, so the occupier term is gone and
-    // config.field_occupier_gain has nothing to scale (ATRIUM_7's doorway
-    // slack, field_arch_slack, went with the legs it was cut for).
+    // standing-body emitters left, so the occupier term went with them —
+    // and so, at TENSE_0 U2a, did the dial that had scaled it: the mute
+    // is `_pad_field_occupier_gain_retired` now. (ATRIUM_7's doorway
+    // slack, field_arch_slack, went with the legs it was cut for and is
+    // `_pad_arch_slack_retired`.)
     if (sub_i >= 32u) {
         // Authored emitters (FIELD_4) — floater subscribers only
         // v1 (agents keep their point-rows; possessed exempt).

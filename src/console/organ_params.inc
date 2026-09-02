@@ -661,7 +661,14 @@ ORGAN_PARAM_DEF(AGENT_ROOM, GPUAgentRoomConstants, behaviors[9].speed_cap,      
 ORGAN_PARAM(CONFIG, GPUDesignConfig, field_slack,         F32, 0.0f, 12.0f,   0.05f, "Interaction · Field", "slack")
 ORGAN_PARAM(CONFIG, GPUDesignConfig, field_k,             F32, 0.0f, 1200.0f, 5.0f,  "Interaction · Field", "k (accel)")
 ORGAN_PARAM(CONFIG, GPUDesignConfig, field_fmax,          F32, 0.0f, 2400.0f, 10.0f, "Interaction · Field", "f max")
-ORGAN_PARAM(CONFIG, GPUDesignConfig, field_occupier_gain, F32, 0.0f, 4.0f,    0.02f, "Interaction · Field", "occupier gain")
+// `field_occupier_gain`'s row stood here with a 0…4 slider — THE ONE
+// DEFECT IN THIS CAMPAIGN THAT REACHED THE ORGAN. Both emitter families
+// it weighed had left (PRUNE_2 U4, ONE_WORLD-I U3) and world.wgsl said
+// so outright at field_sum's banner, yet the row remained addressable:
+// the REPL would turn it, a scene file could set it, and it scaled
+// nothing. That is this file's own law failing in this file — a wrong
+// range on a dial is worse than a missing dial, because the missing one
+// is silent and the wrong one lies. TENSE_0 U2a.
 ORGAN_PARAM(CONFIG, GPUDesignConfig, field_authored_gain, F32, 0.0f, 4.0f,    0.02f, "Interaction · Field", "authored gain")
 ORGAN_PARAM(CONFIG, GPUDesignConfig, field_gain_cube,     F32, 0.0f, 16.0f,   0.08f, "Interaction · Field", "cube gain")
 ORGAN_PARAM(CONFIG, GPUDesignConfig, field_gain_sphere,   F32, 0.0f, 4.0f,    0.02f, "Interaction · Field", "sphere gain")
@@ -728,7 +735,13 @@ ORGAN_PARAM(CONFIG, GPUDesignConfig, camera_push_radius, F32, 0.0f, 80.0f, 0.5f,
 // Config's uint32_t toggle words enroll as BOOL directly; fpv_mode is
 // KEY-SHARED, the keyboard writes it too. mute_couplings: docs/ORGAN.md.
 ORGAN_PARAM(CONFIG, GPUDesignConfig, mute_dynamics_0d, BOOL, 0.0f, 1.0f, 1.0f, "Debug", "mute dynamics (0D)")
-ORGAN_PARAM(CONFIG, GPUDesignConfig, mute_signal,      BOOL, 0.0f, 1.0f, 1.0f, "Debug", "mute signal")
+// `mute_signal`'s row stood here — THE SECOND DIAL THAT LIED, and the
+// handoff that commissioned this campaign did not know it was one: it
+// ruled "it is not an organ row" and asked for the empty grep to be
+// recorded. The grep was not empty. Its only reader was `signal_active`,
+// which had no caller, so the switch was queryable and unqueried; U1
+// struck the query and U2b pads the switch. TENSE_0 U2b, against the
+// TRUE set.
 ORGAN_PARAM(CONFIG, GPUDesignConfig, freeze_sphere,    BOOL, 0.0f, 1.0f, 1.0f, "Debug", "freeze sphere")
 ORGAN_PARAM(CONFIG, GPUDesignConfig, fpv_mode,         BOOL, 0.0f, 1.0f, 1.0f, "Debug", "FPV mode (key-shared)")
 

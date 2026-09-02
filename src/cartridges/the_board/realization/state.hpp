@@ -564,7 +564,14 @@ namespace t7 {
         struct alignas(16) GPUDesignConfig {
             // ─── Debug mutes ────────────────────────────────────────
             uint32_t mute_dynamics_0d;
-            uint32_t mute_signal;
+            // `mute_signal` stood here. Its one reader was WGSL's
+            // `signal_active`, which had no caller of its own — a switch
+            // that was queryable and unqueried. TENSE_0 struck the query
+            // (U1) and pads the switch (U2b), in place and at the same
+            // offset. It was also an enrolled organ row, so a BOOL that
+            // muted nothing sat in the panel's Debug section; that row is
+            // gone with it.
+            uint32_t _pad_mute_signal_retired;
             uint32_t mute_couplings;
 
             // ─── Interaction ────────────────────────────────────────
@@ -818,7 +825,19 @@ namespace t7 {
             float field_slack;             // shell factor over summed radii (rest 3.0)
             float field_k;                 // accel per unit of quadratic shell depth (rest 300.0)
             float field_fmax;              // magnitude clamp on the summed force (rest 600.0)
-            float field_occupier_gain;     // mute: standing geometry (rest 1.0)
+            // `field_occupier_gain` stood here — "mute: standing geometry
+            // (rest 1.0)". Both emitter families it weighed are gone (the
+            // shafts at PRUNE_2 U4, the arch legs at ONE_WORLD-I U3), and
+            // world.wgsl has said so at field_sum's banner ever since:
+            // "config.field_occupier_gain has nothing to scale".
+            //
+            // IT WAS NONETHELESS A LIVE ORGAN ROW WITH A 0…4 SLIDER, and
+            // that is the defect TENSE_0 U2a exists to close — the
+            // enrollment list's own law: a wrong range on a dial is worse
+            // than a missing dial, because the missing one is silent and
+            // the wrong one lies. Retired IN PLACE to a named pad, so no
+            // offset moves and no mirror witness churns.
+            uint32_t _pad_field_occupier_gain_retired;
             float field_authored_gain;     // mute: the authored table (rest 1.0)
             float field_gain_cube;         // subscriber-class gain, applied after the clamp (rest 4.0)
             float field_gain_sphere;       // (rest 1.0)
@@ -4501,7 +4520,7 @@ namespace t7 {
                 wgpu::Queue queue = device_.GetQueue();
 
                 config_.mute_dynamics_0d = 0;
-                config_.mute_signal = 0;
+                config_._pad_mute_signal_retired = 0u;
                 config_.mute_couplings = Coupling::NONE;
                 config_.pawn_speed = Idle::PAWN_SPEED;
                 config_.point_host = 0;             // the pawn hosts (the kite)
@@ -4532,7 +4551,7 @@ namespace t7 {
                 config_.shadow_pcf_taps     = 16u;
                 config_.field_k             = FIELD_K;
                 config_.field_fmax          = FIELD_FMAX;
-                config_.field_occupier_gain = FIELD_OCCUPIER_GAIN;
+                config_._pad_field_occupier_gain_retired = 0u;
                 config_.field_authored_gain = FIELD_AUTHORED_GAIN;
                 config_.field_gain_cube     = FIELD_GAIN_CUBE;
                 config_.field_gain_sphere   = FIELD_GAIN_SPHERE;

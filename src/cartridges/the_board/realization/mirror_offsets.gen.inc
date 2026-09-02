@@ -73,8 +73,8 @@ static_assert(offsetof(GPURibbonState, hue_spread) == 108,
 // ── DesignConfig  ↔  GPUDesignConfig  (91 members asserted) ──
 static_assert(offsetof(GPUDesignConfig, mute_dynamics_0d) == 0,
     "DesignConfig.mute_dynamics_0d is at 0 in world.wgsl (u32); the two rooms must agree field for field");
-static_assert(offsetof(GPUDesignConfig, mute_signal) == 4,
-    "DesignConfig.mute_signal is at 4 in world.wgsl (u32); the two rooms must agree field for field");
+static_assert(offsetof(GPUDesignConfig, _pad_mute_signal_retired) == 4,
+    "DesignConfig._pad_mute_signal_retired is at 4 in world.wgsl (u32); the two rooms must agree field for field");
 static_assert(offsetof(GPUDesignConfig, mute_couplings) == 8,
     "DesignConfig.mute_couplings is at 8 in world.wgsl (u32); the two rooms must agree field for field");
 static_assert(offsetof(GPUDesignConfig, pawn_speed) == 12,
@@ -191,8 +191,8 @@ static_assert(offsetof(GPUDesignConfig, field_k) == 536,
     "DesignConfig.field_k is at 536 in world.wgsl (f32); the two rooms must agree field for field");
 static_assert(offsetof(GPUDesignConfig, field_fmax) == 540,
     "DesignConfig.field_fmax is at 540 in world.wgsl (f32); the two rooms must agree field for field");
-static_assert(offsetof(GPUDesignConfig, field_occupier_gain) == 544,
-    "DesignConfig.field_occupier_gain is at 544 in world.wgsl (f32); the two rooms must agree field for field");
+static_assert(offsetof(GPUDesignConfig, _pad_field_occupier_gain_retired) == 544,
+    "DesignConfig._pad_field_occupier_gain_retired is at 544 in world.wgsl (u32); the two rooms must agree field for field");
 static_assert(offsetof(GPUDesignConfig, field_authored_gain) == 548,
     "DesignConfig.field_authored_gain is at 548 in world.wgsl (f32); the two rooms must agree field for field");
 static_assert(offsetof(GPUDesignConfig, field_gain_cube) == 552,

@@ -53,9 +53,16 @@ inline constexpr float FIELD_SLACK = 3.0f;    // shell factor over summed radii
 inline constexpr float FIELD_K     = 300.0f;  // accel per unit of quadratic shell depth
 inline constexpr float FIELD_FMAX  = 600.0f;  // magnitude clamp on the summed force
 
-// The mute switches — Jean's gate instrument, emitter side. Zeroing
-// one silences its class of source exactly, in both dialects.
-inline constexpr float FIELD_OCCUPIER_GAIN = 1.0f;  // standing geometry (shafts + arch legs)
+// The mute switch — Jean's gate instrument, emitter side. Zeroing it
+// silences its class of source exactly, in both dialects.
+//
+// FIELD_OCCUPIER_GAIN stood beside it at 1.0 — the standing-geometry
+// mute. It weighed two emitter families and BOTH have left: the shafts
+// with COLUMN/ANTENNA at PRUNE_2 U4, the arch legs with their family at
+// ONE_WORLD-I U3. A mute over an empty class is not a quiet dial, it is
+// a lying one, and it was enrolled with a 0…4 slider until TENSE_0 U2a
+// retired the field to `_pad_field_occupier_gain_retired` and took the
+// row with it.
 inline constexpr float FIELD_AUTHORED_GAIN = 1.0f;  // the authored table (the beacon, the lure)
 
 // ── THE DOORWAY (ATRIUM_7) ───────────────────────────────────────
@@ -114,8 +121,13 @@ inline constexpr float FIELD_GAIN_AGENT  = 4.0f;
 // THE RIBBON'S PER-FAMILY OCCUPIER DIALS ARE GONE. The head's CPU sum
 // read the standing families from separate arrays so it could weigh them
 // independently; PRUNE_2 U4 excised columns and antennas, and the dials
-// this banner introduced left with them. The arch legs are the standing
-// family that remains, weighed through config.field_occupier_gain alone.
+// this banner introduced left with them.
+// THIS SENTENCE THEN OUTLIVED ITS OWN SUBJECT (repaired at TENSE_0 U2a).
+// It read "The arch legs are the standing family that remains, weighed
+// through config.field_occupier_gain alone" — and the arch legs left at
+// ONE_WORLD-I U3, three campaigns before the reading that found this.
+// There is no standing family and no dial: the last emitter class went
+// with the arches, and the mute went with the class.
 //
 // ═══ THE BEACON (FIELD_4 — the first authored emitter) ════════════
 // S rides config.floater_coordination: strength is s * coord, and
