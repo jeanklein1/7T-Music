@@ -218,6 +218,16 @@ enum : uint8_t {
 //
 // NO RESERVED COLUMNS: a column arrives with the campaign that fills it,
 // which is also the only campaign that can say what shape it needs.
+//
+// AND THE SAME RULE GOVERNS THE REST OF THE SHAPE (ORGAN_REST U3). It is
+// not only a column: no new ORGAN_DEF_* kind, no new ORGAN_BLOCK_* id, no
+// new macro form and no new ABI export arrives ahead of the campaign that
+// fills it, for the reason the line above already gives — the campaign
+// that fills a thing is the only one that can say what shape it takes.
+// The mechanism is finished until something asks it for more.
+//
+// ADDING A ROW IS NOT A SHAPE CHANGE, and that road stays wide: one line
+// in organ_params.inc, an existing form, nothing anywhere else.
 struct OrganParam {
     const char* id;
     const char* label;
