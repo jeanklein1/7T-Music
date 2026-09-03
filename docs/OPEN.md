@@ -1270,6 +1270,77 @@ four forwards.
 
 **The name is provisional.** ORGAN_REST is a proposal; naming is Jean's gate.
 
+## HEM_1 — THE HEM REACHES THE WALKERS (landed; two deferrals, one ruling)
+
+Landed on `master`. The pawn obeyed two laws the thirty-one free agents did
+not — the wall (`world_box_clamp_xz`, inset by the body's own radius) and the
+slope law (`pawn_ground_resolve` → `slope_passable`). HEM_1 gives both to the
+agents, and fixes the thing that made the first survivable. **Zero mirrors,
+zero bindings, zero organ rows**: every radius and constant it needed was
+already bound where it was needed, and the four "must be a no-op" gates
+(`binding_gen --check`, `mirror_offsets --check`, `organ_gap --gate`,
+`organ_ledger --check`) were the structural proof.
+
+**1 · THE ASYMMETRY THAT WAS.** The pawn clamped to the box at
+`config.pawn_body_radius` and resolved its ground through the slope law; an
+agent integrated, snapped its `y` to whatever the ground answered, and walked
+on. A 3.125 wu cell lifting `alive_height` (~24 wu) is a grade of ~7.7 against
+`PAWN_MAX_SLOPE` 1.75 — the pawn is stopped by it, an agent teleported up its
+face. Agents now stop, slide, or revert on the same law with the same
+constants; blocked zeroes velocity, and heading is deliberately NOT recomputed
+so a blocked agent keeps facing what stopped it.
+
+**2 · THE SPAWN ANNULUS WAS DRAWN ENTIRELY OUTSIDE THE WALL.** The annulus is
+200–340 wu from the point; the box's half-width is 75 at `finite_radius` 1 and
+225 at radius 4. At radius 1 **no sampled position was inside the world at
+all**. Landing the clamp alone would have slammed thirty-one figures onto the
+wall and held them there — which is why the placement fix shipped in the same
+commit as the clamp, not as a follow-up. The rule is SCALE, THEN CLAMP: scale
+the annulus by the box's inradius, then clamp with the same margin the shader
+insets by. Rejection sampling was refused — the salt is frozen and a variable
+number of draws is not a frozen salt.
+
+**3 · PLACEMENT DETERMINISM MOVED, KNOWINGLY.** `ONE_WORLD-II U1c` recorded
+that agent placement is bit-for-bit against the frozen salt. In a FINITE world
+every agent now lands somewhere else; that is the unit, not a regression. The
+infinite arm (`finite_mode == false`) is byte-identical — `walled` is false,
+`fit` is 1.0, and no clamp runs.
+
+**4 · THE EVICTION IS ACCEPTED, NOT FIXED.** `AGENT_EVICTION_RADIUS` is 350
+against a box whose diagonal is **212 wu at radius 1 and 636 at radius 4**. Once
+the wall holds, eviction cannot fire in a small world and fires only near the
+far corners of a large one. The spawn-far / walk-in / evict-out economy is
+replaced by a RESIDENT POPULATION, which is the coherent reading of a walled
+world: nobody leaves, so nobody needs replacing. Scaling the radius by the fit
+factor would need that factor GPU-side — a `GPUDesignConfig` field, a mirror
+growth and an organ row — which is the one property this campaign held. A
+future reader wondering why `respawn_evicted_agents` is quiet finds the answer
+here rather than a bug.
+
+**5 · DEFERRED — THE SUPPRESSION CENTRES. Jean's, unmade.** Agents do not carve
+the cell field. The pawn is mobile through it because it carries a suppression
+bubble and the picture carves the same bubble in the two patch VS, so floor and
+picture agree. The carve supports exactly TWO centres (the pawn and the eye,
+`max()`-ed); thirty-two would mean a per-vertex loop over the agent array in
+both patch VS **and** in `automaton_evolve`'s gather. **Suppression is a
+PRIVILEGE, not a constraint** — Jean asked for the constraints. Agents obey the
+field the picture already draws them standing on, and THE FLOOR IS THE PICTURE
+holds for them unchanged.
+
+**6 · DEFERRED — GoL IN THE WHISPER. Named, not scheduled.**
+`sample_terrain_grad_at` reads the BAKED heightfield — static base and pyramids
+only. Cell walls are invisible to the steering, for pawn and agent alike, so
+agents meet cells with no anticipation by construction. A cell-aware whisper
+would need a gradient of the live card.
+
+**7 · DEFERRED — PER-FIGURE AGENT RADIUS.** The wall margin is the tier's
+`contact_radius`, not `PAWN_FIGURES[skin_id].radius`. The latter is the truer
+twin but `scene_constants` is `@group(2) @binding(200)` VERTEX-only and
+unreachable from compute; reaching it means a new binding or a mirror growth,
+refused on this campaign's zero-surface property. If `scene_constants` ever
+reaches compute for another reason, the margin should move and become the
+pawn's exact twin.
+
 ## THE HANDOVER LIST (THE_PANEL's close — the coupling campaign's table)
 
 **THE WRAP ORDER §2.3 asks that the next campaign's handoff be authorable
