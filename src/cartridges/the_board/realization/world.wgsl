@@ -3024,55 +3024,9 @@ const ZONE_SUPPRESS_OUTER: f32 = 15.0;  // zero suppression beyond this radius
 // point source: compute passes qi.consumer_pos.xz, render passes
 // render_pawn_pos().xz. Returns the suppression FACTOR (1 at the
 // pawn, 0 beyond OUTER).
-// THE SUPPRESSION FORM, GENERALIZED TO A BODY (RETRACT_3). The eye and the
-// pawn are POINTS; a cube is not. `reach` is the consumer's planar
-// half-extent, and it enters as a SHORTENED DISTANCE rather than as widened
-// radii — so the skirt stays exactly ZONE_SUPPRESS_OUTER - ZONE_SUPPRESS_INNER
-// = 11 wu wide for every consumer, and the cell under a body's own rim reads
-// the same 1.0 the cell under the eye reads. (Without this a LargeCube's rim
-// cell, 8.0 wu out, would read 1 - smoothstep(4, 15, 8) = 0.70 and leave 30%
-// of the lift standing DIRECTLY UNDER the body.)
-//
-// THE CAMERA IS THE reach = 0 MEMBER OF THIS FAMILY, and that is the whole
-// transposition stated as algebra rather than as a comment: distance() is
-// never negative and max(d - 0.0, 0.0) == d exactly, so pawn_gol_suppression
-// below is bit-identical to what it was for all of its callers.
-//
-// The reach is ISOTROPIC on purpose. A cube's plan is a rotated box
-// (monolith_vs scales by vec3(r, r*aspect_y, r*aspect_z)) and it SPINS, so an
-// oriented footprint would breathe with the spin — a percept nobody asked for,
-// three quat_rotates deep inside a per-cell x 256-slot loop.
-fn body_gol_suppression(world_xz: vec2<f32>, body_xz: vec2<f32>, reach: f32) -> f32 {
-    return 1.0 - smoothstep(ZONE_SUPPRESS_INNER, ZONE_SUPPRESS_OUTER,
-                            max(distance(world_xz, body_xz) - reach, 0.0));
-}
-
 fn pawn_gol_suppression(world_xz: vec2<f32>, pawn_xz: vec2<f32>) -> f32 {
-    return body_gol_suppression(world_xz, pawn_xz, 0.0);
-}
-
-// THE CARVER'S AUTHORED CLEARANCE (RETRACT_3) — how high a cube's UNDERSIDE
-// rides, drawn once at spawn and terrain-independent by construction.
-//
-// Both halves are already the tree's: `orbit_height + bob_amplitude` is
-// row_cube_push's Test A verbatim, and `body_radius * aspect_y` is copied
-// from update_cube's own floor clamp. The max() is not a guard against
-// nonsense — the clamp guarantees no cube's underside ever sits below
-// CUBE_TERRAIN_CLEARANCE, so for the Monolith tier (whose clamp is engaged
-// every frame, half-height 15 against orbit_height 12) this expression
-// returns the EXACT physical clearance, 3.0.
-//
-// It is AUTHORED and not measured, and that is what keeps the loop open. A
-// clearance read off the cube's live y would be a difference in which the
-// ground appears on both sides: d(clearance)/d(ground) = 1 exactly, giving a
-// loop gain of alive_height x max|fade'| = 24 x 0.1 = 2.4 > 1 — bistable,
-// and an oscillator under the spine's one-frame phase. Volume does not damp
-// that; the half-extent is a constant and only translates the operating
-// point. Authored, d(carve)/dy is identically ZERO.
-fn cube_carve_altitude(fe: FloatingEntityState) -> f32 {
-    return max(fe.orbit_height + fe.bob_amplitude
-                   - fe.body_radius * fe.aspect_y,
-               CUBE_TERRAIN_CLEARANCE);
+    return 1.0 - smoothstep(ZONE_SUPPRESS_INNER, ZONE_SUPPRESS_OUTER,
+                            distance(world_xz, pawn_xz));
 }
 
 // THE CARVE FADE (RETRACT_1) — the camera's height fade, extracted at its
@@ -3245,7 +3199,6 @@ const POLICY_WALKER               : u32 = 2u;
 const POLICY_WALKER_TILT          : u32 = 3u;
 const POLICY_WALKER_AGENT         : u32 = 4u;
 const POLICY_WALKER_WITNESS       : u32 = 6u;
-const POLICY_FLYER_WITNESS        : u32 = 7u;
 
 
 // Combined height + complexity — avoids evaluating terrain lattice waves twice.
@@ -3379,19 +3332,6 @@ fn contrib_pawn_aura_at_self() -> f32 {
 struct QueryInputs {
     consumer_pos: vec3<f32>,
     t_seconds:    f32,
-    // RETRACT_3 — THE CARVER'S OWN TWO NUMBERS. Read by POLICY_FLYER_WITNESS
-    // and by nothing else. A body that carves must subtract ITS OWN factor
-    // from the ground it stands on, and AUTO_CELL_RETRACT cannot supply it:
-    // that plane is a MAX over every active cube, and max is not invertible,
-    // so a cube reading it would ride its neighbours' carves and could never
-    // recover "the field minus MY carve". These carry the body's own answer.
-    //   carve_reach     — planar half-extent (fe.body_radius), 0 for a point.
-    //   carve_clearance — AUTHORED underside altitude, never a world y.
-    // The zero defaults every other site passes are deliberately WRONG for a
-    // carver (reach 0 + clearance 0 = full carve everywhere), so a policy
-    // pointed at the wrong consumer fails loudly instead of quietly.
-    carve_reach:     f32,
-    carve_clearance: f32,
 }
 
 
@@ -3436,9 +3376,6 @@ fn manifold_overlay_stack(xz: vec2<f32>, qi: QueryInputs, gol_term: f32) -> f32 
 // --- Fly-over: all global deformation fields included ---
 
 // POLICY_FLYER — non-walking entities that ride animated terrain.
-// SPHERES ONLY since RETRACT_3: a body that does not carve rides the field
-// whole. Cubes carve, so they took POLICY_FLYER_WITNESS below, and the note
-// about self-suppression stopped being true of them.
 // Contributors: static_base + CONTRIB_PYRAMIDS + CONTRIB_AUTOMATON +
 //   CONTRIB_TERRAIN_WAVES + CONTRIB_RADIAL_PULSES + CONTRIB_PAWN_AURA
 //   (external form — grid sample at xz).
@@ -3450,38 +3387,7 @@ fn manifold_overlay_stack(xz: vec2<f32>, qi: QueryInputs, gol_term: f32) -> f32 
 fn query_ground_flyer(xz: vec2<f32>, qi: QueryInputs) -> f32 {
     // Raw GoL (flyers don't self-suppress) over the shared stack; external
     // aura (sampled away from the pawn) added after as the mover term.
-    // Spheres keep this policy: a body that does not carve rides the field
-    // whole. Cubes moved to POLICY_FLYER_WITNESS at RETRACT_3.
     return manifold_overlay_stack(xz, qi, sample_live_card_gol(xz))
-         + contrib_pawn_aura_at_external(xz);
-}
-
-// POLICY_FLYER_WITNESS — THE BODY'S FLOOR (RETRACT_3).
-//
-// This is to query_ground_flyer exactly what query_ground_walker_witness is
-// to the walker: the SAME contributor set, minus the consumer's own carve.
-// THE FLOOR IS THE PICTURE, and this is the sentence applied to a body that
-// has volume: a cube that flattens the field beneath it must stand on the
-// flattened field, or it hangs in the air over ground the picture no longer
-// draws. The eye has obeyed that law since KITE_1; the pawn since
-// UNIFIED_GROUND_1. The cube is the third consumer to obey it and the first
-// with a footprint.
-//
-// IT RE-EVALUATES RATHER THAN READS. AUTO_CELL_RETRACT holds the union — a
-// max over every active cube — and max is not invertible, so a cube reading
-// that plane would ride its neighbours' carves and could never subtract just
-// its own. Recomputing the factor analytically at the query point costs one
-// smoothstep and buys three things the plane cannot: separability (each body
-// answers for itself), no dispatch-order lag (the same invocation that
-// applies it computes it), and no cross-body step when a neighbour is evicted.
-//
-// The datum is 0.0 because qi.carve_clearance is ALREADY a clearance — the
-// body's authored underside altitude, not a world y. That is what holds the
-// loop open; see cube_carve_altitude.
-fn query_ground_flyer_witness(xz: vec2<f32>, qi: QueryInputs) -> f32 {
-    let supp = body_gol_suppression(xz, qi.consumer_pos.xz, qi.carve_reach)
-             * gol_carve_fade(qi.carve_clearance, 0.0);
-    return manifold_overlay_stack(xz, qi, sample_live_card_gol(xz) * (1.0 - supp))
          + contrib_pawn_aura_at_external(xz);
 }
 
@@ -3726,7 +3632,6 @@ fn manifold_height_hf(xz: vec2<f32>, policy: u32, qi: QueryInputs) -> f32 {
     // than handled.)
     switch policy {
         case POLICY_FLYER:                { return query_ground_flyer(xz, qi); }
-        case POLICY_FLYER_WITNESS:        { return query_ground_flyer_witness(xz, qi); }
         case POLICY_WALKER:               { return query_ground_walker(xz, qi); }
         case POLICY_WALKER_TILT:          { return query_ground_walker_tilt(xz, qi); }
         case POLICY_WALKER_AGENT:         { return query_ground_walker_agent(xz, qi); }
@@ -3789,7 +3694,7 @@ fn coupling_terrain_to_sphere_orbit_height(sphere_xz: vec2<f32>, base_height: f3
     // (flyers don't flatten GoL at their own position).
     // consumer_pos is unused by flyer (no consumer-local fields); pass
     // a placeholder Y — only xz matters.
-    let qi = QueryInputs(vec3(sphere_xz.x, 0.0, sphere_xz.y), signal.t_seconds, 0.0, 0.0);
+    let qi = QueryInputs(vec3(sphere_xz.x, 0.0, sphere_xz.y), signal.t_seconds);
     let ground = manifold_position(vec3(sphere_xz.x, 0.0, sphere_xz.y), POLICY_FLYER, qi).y;
 
     // Ensure minimum clearance above ground
@@ -7267,7 +7172,7 @@ fn agent_settle(agent_in: AgentState) -> AgentState {
     a.pos_z += a.vel_z * dt;
 
     // Ground snap (walker policy — base + pyramids + GoL + waves + pulses + aura).
-    let qi = QueryInputs(vec3(a.pos_x, a.pos_y, a.pos_z), t, 0.0, 0.0);
+    let qi = QueryInputs(vec3(a.pos_x, a.pos_y, a.pos_z), t);
     a.pos_y = manifold_position(vec3(a.pos_x, 0.0, a.pos_z), POLICY_WALKER_AGENT, qi).y;
 
     // Heading from velocity (when moving).
@@ -7432,7 +7337,7 @@ fn behavior_player_controlled(agent_in: AgentState) -> AgentState {
     // POLICY_WALKER includes static base + pyramids + GoL zones + terrain
     // waves + radial pulses + pawn aura − consumer-local GoL suppression
     // (centered on the agent's start-of-frame position via qi.consumer_pos).
-    let qi = QueryInputs(vec3(prev_xz.x, prev_y, prev_xz.y), signal.t_seconds, 0.0, 0.0);
+    let qi = QueryInputs(vec3(prev_xz.x, prev_y, prev_xz.y), signal.t_seconds);
 
     if (coupling_active(COUPLING_TERRAIN_TO_PAWN_Y)) {
         let resolved = pawn_ground_resolve(vec2(agent.pos_x, agent.pos_z), prev_xz, prev_y, qi);
@@ -8767,7 +8672,7 @@ fn update_camera_vp() {
         // which IS its TERRAIN RULE = NONE (contracts/point.hpp).
         {
             let min_clearance = 1.5;  // minimum height above the visual skin
-            let qi = QueryInputs(camera.pos, signal.t_seconds, 0.0, 0.0);  // the eye is the consumer
+            let qi = QueryInputs(camera.pos, signal.t_seconds);  // the eye is the consumer
             let ground_at_cam = manifold_position(camera.pos, POLICY_WALKER_WITNESS, qi).y;
             camera.pos.y = max(camera.pos.y, ground_at_cam + min_clearance);
         }
@@ -8852,7 +8757,7 @@ fn update_sphere() {
             // self-suppression); ease 4.0 is a starting stamp — Jean's
             // dial at the gate.
             let authored_orbit_y = fe.pos.y;
-            let floor_qi = QueryInputs(fe.pos, signal.t_seconds, 0.0, 0.0);
+            let floor_qi = QueryInputs(fe.pos, signal.t_seconds);
             let floor_y = manifold_position(fe.pos, POLICY_FLYER, floor_qi).y;
             let y_target = max(authored_orbit_y, floor_y + SPHERE_CLEARANCE);
             fe.pos.y = prev_y + (y_target - prev_y) * (1.0 - exp(-4.0 * dt));
@@ -9174,9 +9079,8 @@ fn update_cube(@builtin(global_invocation_id) gid: vec3<u32>) {
                 let kite_xz = vec2(point_p.x + fe.pawn_offset.x,
                                    point_p.z + fe.pawn_offset.z);
                 let kite_qi = QueryInputs(vec3(kite_xz.x, 0.0, kite_xz.y),
-                                          signal.t_seconds,
-                                          fe.body_radius, cube_carve_altitude(fe));
-                let ground_k = manifold_position(vec3(kite_xz.x, 0.0, kite_xz.y), POLICY_FLYER_WITNESS, kite_qi).y;
+                                          signal.t_seconds);
+                let ground_k = manifold_position(vec3(kite_xz.x, 0.0, kite_xz.y), POLICY_FLYER, kite_qi).y;
                 home = vec3(kite_xz.x, ground_k + fe.orbit_height + bob_y, kite_xz.y);
             } else {
                 // RULING 1 (anchor): clearance is a PER-FRAME evaluation, so
@@ -9185,9 +9089,8 @@ fn update_cube(@builtin(global_invocation_id) gid: vec3<u32>) {
                 // is a force-law constant, not a reading of the world, so the
                 // cube stays leashed while its clearance follows it.
                 let live_xz = fe.pos.xz;
-                let qi = QueryInputs(vec3(live_xz.x, 0.0, live_xz.y), signal.t_seconds,
-                                     fe.body_radius, cube_carve_altitude(fe));
-                let ground_a = manifold_position(vec3(live_xz.x, 0.0, live_xz.y), POLICY_FLYER_WITNESS, qi).y;
+                let qi = QueryInputs(vec3(live_xz.x, 0.0, live_xz.y), signal.t_seconds);
+                let ground_a = manifold_position(vec3(live_xz.x, 0.0, live_xz.y), POLICY_FLYER, qi).y;
                 home = vec3(fe.anchor.x, ground_a + fe.orbit_height + bob_y, fe.anchor.z);
             }
 
@@ -9275,9 +9178,8 @@ fn update_cube(@builtin(global_invocation_id) gid: vec3<u32>) {
             // against the floor — when behavior force flips upward the
             // cube responds immediately.
             let pos_xz = vec2(home.x + fe.drift.x, home.z + fe.drift.z);
-            let pos_qi = QueryInputs(vec3(pos_xz.x, 0.0, pos_xz.y), signal.t_seconds,
-                                     fe.body_radius, cube_carve_altitude(fe));
-            let ground = manifold_position(vec3(pos_xz.x, 0.0, pos_xz.y), POLICY_FLYER_WITNESS, pos_qi).y;
+            let pos_qi = QueryInputs(vec3(pos_xz.x, 0.0, pos_xz.y), signal.t_seconds);
+            let ground = manifold_position(vec3(pos_xz.x, 0.0, pos_xz.y), POLICY_FLYER, pos_qi).y;
             let cube_floor_y = ground + CUBE_TERRAIN_CLEARANCE + fe.body_radius * fe.aspect_y;
             let min_drift_y = cube_floor_y - home.y;
             if (fe.drift.y < min_drift_y) {
@@ -10029,12 +9931,10 @@ fn automaton_evolve(@builtin(global_invocation_id) gid: vec3<u32>) {
     auto_life[AUTO_CELL_VISUAL + idx] = visual;
     auto_life[AUTO_CELL_VELOCITY + idx] = velocity;
 
-    // ═══ THE CUBES' CARVE (RETRACT_1, re-laid at RETRACT_3) ══════════
+    // ═══ THE CUBES' CARVE (RETRACT_1) ════════════════════════════════
     // World-anchored, per-cell, rewritten every frame: plane 5 and the
-    // life texel's G. The form is the pawn's, GENERALIZED TO A BODY
-    // (body_gol_suppression at the cube's own planar half-extent — the
-    // camera is its reach-zero member), and the altitude is the body's
-    // authored UNDERSIDE.
+    // life texel's G. The form is the pawn's — one suppression form, one
+    // more centre — and the reach test is the SHOVE's, verbatim.
     //
     // THE ALTITUDE IS AUTHORED, NOT MEASURED, and that is a correction.
     // RETRACT_1 first fed the fade `fe.pos.y - sample_terrain_y_at(...)`,
@@ -10044,31 +9944,22 @@ fn automaton_evolve(@builtin(global_invocation_id) gid: vec3<u32>) {
     // difference: it left the 24 wu lift in with a PLUS sign, so the
     // carve died over exactly the cells it exists to cut (retract 0.000
     // at every tier's authored mean over a settled live cell). The fade
-    // needs no ground at all: the AUTHORED clearance is one, drawn once at
-    // spawn and terrain-independent by construction. RETRACT_3 measures the
-    // body's UNDERSIDE (cube_carve_altitude), because a body reaches below
-    // its own centre by body_radius * aspect_y — 15 wu for a Monolith, the
-    // whole width of this fade's ramp. Its ceiling, 2.0 * ZONE_SUPPRESS_OUTER
-    // = 30.0, is the same number CUBE_REACH_CEILING gates the SHOVE by; the
-    // two differ only in that the shove still reads the CENTRE
-    // (row_cube_push's Test A). So the carving and the shoveable populations
-    // agree except for instances whose half-extent straddles the ceiling.
-    // Closing that gap means moving Test A to the same expression, which is
-    // a change to the SHOVE and therefore Jean's, not this campaign's.
+    // needs no ground at all. `orbit_height + bob_amplitude` IS the
+    // clearance, authored once at spawn, terrain-independent by
+    // construction — and it is `fn row_cube_push`'s Test A verbatim,
+    // against a ceiling (CUBE_REACH_CEILING 30.0) that is already
+    // 2.0 * ZONE_SUPPRESS_OUTER, this fade's own zero point. So a cube
+    // CARVES IFF IT IS SHOVEABLE: one test, written twice, on one number.
+    // Above the line the cube is canopy and touches nothing — the
+    // CUBE_PUSH banner's sentence, now true of two mechanisms.
     //
     // No ground query means no datum, so RA-1's hazard is not merely
     // avoided but unreachable: nothing terrain-borne — not the automaton,
     // not the card, not the aura, not drift, not the floor clamp — can
     // enter the fade, and d(retract)/dy is identically ZERO.
-    // THIS PLANE IS THE RENDER'S UNION AND NOTHING ELSE READS IT. Union
-    // across cubes is max — the patch VS's own idiom for two carves,
-    // extended to N. A cube does NOT ride this number: max is not
-    // invertible, so a cube reading it would subtract its neighbours' carves
-    // along with its own. It rides POLICY_FLYER_WITNESS instead, which
-    // recomputes that one body's own factor analytically. Same two terms,
-    // same constants, evaluated in two rooms on purpose — the plane for the
-    // picture, the policy for the floor — and they agree because they are
-    // the same arithmetic.
+    // POLICY_FLYER still never reads this plane: the standing flyer
+    // exclusion wearing its render-side face. Union across cubes is
+    // max — the patch VS's own idiom for two carves, extended to N.
     // THE READ IS FRESH, and the spine says so: RPhase::AutomatonStep
     // runs AFTER RPhase::DispatchCompute (which holds update_cube) and
     // BEFORE both draw passes, so this gather sees THIS frame's cube
@@ -10084,8 +9975,8 @@ fn automaton_evolve(@builtin(global_invocation_id) gid: vec3<u32>) {
         let fe = render_floating.entities[CUBE_SLOT_OFFSET + k];
         if (fe.is_active == 0u) { continue; }
         retract = max(retract,
-                      body_gol_suppression(cell_center, fe.pos.xz, fe.body_radius)
-                      * gol_carve_fade(cube_carve_altitude(fe), 0.0));
+                      pawn_gol_suppression(cell_center, fe.pos.xz)
+                      * gol_carve_fade(fe.orbit_height + fe.bob_amplitude, 0.0));
     }
     auto_life[AUTO_CELL_RETRACT + idx] = retract;
 
