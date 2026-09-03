@@ -604,7 +604,7 @@
                     // stage, so the alias and its binding number retired together
                     // (ONE_SURFACE-II U1).
                     entries[3].binding = bind::g2::auto_config;
-                    entries[3].visibility = wgpu::ShaderStage::Fragment;
+                    entries[3].visibility = wgpu::ShaderStage::Vertex | wgpu::ShaderStage::Fragment;
                     entries[3].buffer.type = wgpu::BufferBindingType::Uniform;
 
                     entries[4].binding = bind::g2::render_ring_xforms;
@@ -654,7 +654,7 @@
                     // The automaton life texture (fragment reads the cell spring visual).
                     // ONE PLANE, not an array of eight: the layer index was the zone index.
                     entries[3].binding = bind::g3::auto_life_read;
-                    entries[3].visibility = wgpu::ShaderStage::Fragment;
+                    entries[3].visibility = wgpu::ShaderStage::Vertex | wgpu::ShaderStage::Fragment;
                     entries[3].texture.sampleType = wgpu::TextureSampleType::UnfilterableFloat;
                     entries[3].texture.viewDimension = wgpu::TextureViewDimension::e2D;
 
@@ -683,7 +683,7 @@
 
                 // Shadow State Layout — stratum 2 (Shadow family) of the LOOM_2 recut.
                 {
-                    std::array<wgpu::BindGroupLayoutEntry, 5> entries{};
+                    std::array<wgpu::BindGroupLayoutEntry, 6> entries{};
 
                     entries[0].binding = bind::g2::render_agents;
                     entries[0].visibility = wgpu::ShaderStage::Vertex;
@@ -719,6 +719,14 @@
                     entries[4].visibility = wgpu::ShaderStage::Vertex;
                     entries[4].buffer.type = wgpu::BufferBindingType::Uniform;
 
+                    // RETRACT_1 — the caster reads the automaton header for the same
+                    // reason the visible VS does: the cubes’ carve rides BOTH rooms, or a
+                    // cell carved out of the picture casts the shadow of geometry nobody
+                    // drew. Grid origin and size only — the divisor of the G fetch below.
+                    entries[5].binding = bind::g2::auto_config;
+                    entries[5].visibility = wgpu::ShaderStage::Vertex;
+                    entries[5].buffer.type = wgpu::BufferBindingType::Uniform;
+
                     wgpu::BindGroupLayoutDescriptor desc{};
                     desc.label = "Shadow State Layout";
                     desc.entryCount = entries.size();
@@ -729,7 +737,7 @@
 
                 // Shadow Textures Layout — stratum 3 (Shadow family) of the LOOM_2 recut.
                 {
-                    std::array<wgpu::BindGroupLayoutEntry, 2> entries{};
+                    std::array<wgpu::BindGroupLayoutEntry, 3> entries{};
 
                     entries[0].binding = bind::g3::patch_heightfield_array_read;
                     entries[0].visibility = wgpu::ShaderStage::Vertex;
@@ -741,6 +749,14 @@
                     entries[1].visibility = wgpu::ShaderStage::Vertex;
                     entries[1].texture.sampleType = wgpu::TextureSampleType::Float;
                     entries[1].texture.viewDimension = wgpu::TextureViewDimension::e2D;
+
+                    // RETRACT_1 — the life texture’s G at the caster’s own vertex. Same
+                    // texel, same uv law as the visible VS and the FS tint; the caster and
+                    // the picture agree or the shadow lies.
+                    entries[2].binding = bind::g3::auto_life_read;
+                    entries[2].visibility = wgpu::ShaderStage::Vertex;
+                    entries[2].texture.sampleType = wgpu::TextureSampleType::UnfilterableFloat;
+                    entries[2].texture.viewDimension = wgpu::TextureViewDimension::e2D;
 
                     wgpu::BindGroupLayoutDescriptor desc{};
                     desc.label = "Shadow Textures Layout";
@@ -754,7 +770,7 @@
                 // ZONES family band; the automaton is ground, not a family, and keeps
                 // the band because a band is a numbering, not a claim.
                 {
-                    std::array<wgpu::BindGroupLayoutEntry, 2> entries{};
+                    std::array<wgpu::BindGroupLayoutEntry, 3> entries{};
 
                     // The automaton config (uniform — the CPU authors all of it: drawn
                     // once per world at birth, header three words per frame)
@@ -765,6 +781,14 @@
                     entries[1].binding = bind::g2::auto_life;  // auto_life (storage, read/write — five planes)
                     entries[1].visibility = wgpu::ShaderStage::Compute;
                     entries[1].buffer.type = wgpu::BufferBindingType::Storage;
+
+                    // RETRACT_1 — THE CARVE’S CENTRES. automaton_evolve walks the cube
+                    // band on the READ-ONLY face, never the read_write one: this room does
+                    // not move a floater, it only asks where they are. The ribbon room
+                    // borrowed the same face at the same number (SPINE_2).
+                    entries[2].binding = bind::g2::render_floating;  // render_floating (storage, read — the carve’s cube centres)
+                    entries[2].visibility = wgpu::ShaderStage::Compute;
+                    entries[2].buffer.type = wgpu::BufferBindingType::ReadOnlyStorage;
 
                     wgpu::BindGroupLayoutDescriptor desc{};
                     desc.label = "Automaton State Layout";
@@ -784,10 +808,10 @@
                     entries[0].storageTexture.format = wgpu::TextureFormat::RGBA16Float;
                     entries[0].storageTexture.viewDimension = wgpu::TextureViewDimension::e2D;
 
-                    entries[1].binding = bind::g3::auto_life_tex_write;  // auto_life_tex (storage texture, write)
+                    entries[1].binding = bind::g3::auto_life_tex_write;  // auto_life_tex_write (storage texture, write — R visual, G carve)
                     entries[1].visibility = wgpu::ShaderStage::Compute;
                     entries[1].storageTexture.access = wgpu::StorageTextureAccess::WriteOnly;
-                    entries[1].storageTexture.format = wgpu::TextureFormat::R32Float;
+                    entries[1].storageTexture.format = wgpu::TextureFormat::RG32Float;
                     entries[1].storageTexture.viewDimension = wgpu::TextureViewDimension::e2D;
 
                     wgpu::BindGroupLayoutDescriptor desc{};
@@ -1325,7 +1349,7 @@
 
                 // Projected from: galleryTextureBindGroup_, renderEntityBindGroup_, renderEntityBindGroupPlanB_, renderEntityBindGroupPlanC_, photographerRenderEntityBindGroup_.
                 {
-                    std::array<wgpu::BindGroupEntry, 5> entries{};
+                    std::array<wgpu::BindGroupEntry, 6> entries{};
 
                     entries[0].binding = bind::g2::render_agents;
                     entries[0].buffer = agentStateBuffer_;
@@ -1347,6 +1371,10 @@
                     entries[4].buffer = sceneConstantsBuffer_;
                     entries[4].size = sizeof(GPUSceneConstants);
 
+                    entries[5].binding = bind::g2::auto_config;
+                    entries[5].buffer = automatonConfigBuffer_;
+                    entries[5].size = sizeof(GPUAutomatonConfig);
+
                     wgpu::BindGroupDescriptor desc{};
                     desc.label = "Shadow State BindGroup";
                     desc.layout = shadowStateLayout_;
@@ -1358,13 +1386,16 @@
 
                 // Projected from: galleryTextureBindGroup_, renderEntityBindGroup_, renderEntityBindGroupPlanB_, renderEntityBindGroupPlanC_, shadowTextureBindGroup_, photographerRenderEntityBindGroup_.
                 {
-                    std::array<wgpu::BindGroupEntry, 2> entries{};
+                    std::array<wgpu::BindGroupEntry, 3> entries{};
 
                     entries[0].binding = bind::g3::patch_heightfield_array_read;
                     entries[0].textureView = patchHeightfieldArrayReadView_;
 
                     entries[1].binding = bind::g3::live_card_read;
                     entries[1].textureView = liveCardView_;
+
+                    entries[2].binding = bind::g3::auto_life_read;
+                    entries[2].textureView = automatonLifeReadView_;
 
                     wgpu::BindGroupDescriptor desc{};
                     desc.label = "Shadow Textures BindGroup";
@@ -1377,7 +1408,7 @@
 
                 // Projected from: zoneGolComputeBindGroup_, liveCardWriterGroup_, zoneMaskGroup_.
                 {
-                    std::array<wgpu::BindGroupEntry, 2> entries{};
+                    std::array<wgpu::BindGroupEntry, 3> entries{};
 
                     entries[0].binding = bind::g2::auto_config;
                     entries[0].buffer = automatonConfigBuffer_;
@@ -1386,6 +1417,10 @@
                     entries[1].binding = bind::g2::auto_life;
                     entries[1].buffer = automatonLifeBuffer_;
                     entries[1].size = Dim::AUTO_LIFE_STRIDE * sizeof(float);
+
+                    entries[2].binding = bind::g2::render_floating;
+                    entries[2].buffer = floatingEntityBuffer_;
+                    entries[2].size = Dim::TOTAL_FLOATING_SLOTS * sizeof(GPUFloatingEntityState);
 
                     wgpu::BindGroupDescriptor desc{};
                     desc.label = "Automaton State BindGroup";

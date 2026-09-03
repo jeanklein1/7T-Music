@@ -30,6 +30,12 @@ enum ContributorId : uint32_t {
     CONTRIB_COUNT             = 9,
 };
 
+// The world-anchored cube carve (RETRACT_1) is NOT this row: it is
+// realized render-side via the life texel's G and AUTO_CELL_RETRACT, and
+// deliberately excluded from every query policy — flyers must not descend
+// into their own carve. CONTRIB_AUTOMATON_SUPPRESSION stays what it says:
+// the CONSUMER-LOCAL subtraction a walker makes at its own feet.
+
 // These ids are mirrored byte-for-byte as the WGSL POLICY_* consts
 // (world.wgsl, above the POLICY_*_MASK block) — manifold_resolve
 // switches on them. Keep the two in lock-step (same order/values), as

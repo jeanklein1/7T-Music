@@ -382,10 +382,10 @@ namespace t7 {
             // the same reason.
             constexpr uint32_t AUTO_GRID_MAX = 144;
             constexpr uint32_t AUTO_CELLS_MAX = AUTO_GRID_MAX * AUTO_GRID_MAX;   // 20736
-            // 5 slots: visual, velocity, target, next, height_factor.
-            // 20736 * 5 * 4 B = 414,720 B — the whole automaton, in one
+            // 6 slots: visual, velocity, target, next, height_factor, retract.
+            // 20736 * 6 * 4 B = 497,664 B — the whole automaton, in one
             // buffer, for less than half a megabyte.
-            constexpr uint32_t AUTO_SLOT_COUNT = 5;
+            constexpr uint32_t AUTO_SLOT_COUNT = 6;
             constexpr uint32_t AUTO_LIFE_STRIDE = AUTO_CELLS_MAX * AUTO_SLOT_COUNT;
 
             // Orb sky layer — luminous points on a dome above the world
@@ -1459,8 +1459,8 @@ namespace t7 {
             "the birth dials follow the colour target");
 
         // THE LIFE BUFFER'S PLANE OFFSETS, derived from the capacity so
-        // the five constants cannot drift apart. WGSL spells them as
-        // literals (20736 / 41472 / 62208 / 82944) because a shader
+        // the six constants cannot drift apart. WGSL spells them as
+        // literals (20736 / 41472 / 62208 / 82944 / 103680) because a shader
         // constant cannot be computed from a C++ one; these are the
         // witnesses that the literals are right.
         namespace AutoPlane {
@@ -1469,16 +1469,18 @@ namespace t7 {
             inline constexpr uint32_t TARGET        = Dim::AUTO_CELLS_MAX * 2u;
             inline constexpr uint32_t NEXT          = Dim::AUTO_CELLS_MAX * 3u;
             inline constexpr uint32_t HEIGHT_FACTOR = Dim::AUTO_CELLS_MAX * 4u;
+            inline constexpr uint32_t RETRACT       = Dim::AUTO_CELLS_MAX * 5u;
         }
         static_assert(AutoPlane::VELOCITY      == 20736u
                    && AutoPlane::TARGET        == 41472u
                    && AutoPlane::NEXT          == 62208u
-                   && AutoPlane::HEIGHT_FACTOR == 82944u,
-            "the life buffer's five planes: world.wgsl spells these literals "
+                   && AutoPlane::HEIGHT_FACTOR == 82944u
+                   && AutoPlane::RETRACT       == 103680u,
+            "the life buffer's six planes: world.wgsl spells these literals "
             "(AUTO_CELL_*) because WGSL cannot compute them from Dim. Change the "
             "capacity and BOTH rooms move — the device is the only other witness");
         static_assert(Dim::AUTO_LIFE_STRIDE == Dim::AUTO_CELLS_MAX * Dim::AUTO_SLOT_COUNT,
-            "and the buffer holds exactly the five planes");
+            "and the buffer holds exactly the six planes");
 
         // ── Pawn Aura: toroidal spring grid for persistent terrain influence ──
         static constexpr uint32_t PAWN_AURA_N = 64;
@@ -2394,10 +2396,10 @@ namespace t7 {
             // request queue died with its kernel, and the config's
             // read-only render alias died when the config became a uniform.
             wgpu::Buffer automatonConfigBuffer_;   // GPUAutomatonConfig uniform
-            wgpu::Buffer automatonLifeBuffer_;     // AUTO_LIFE_STRIDE floats — five planes
-            wgpu::Texture automatonLifeTexture_;   // AUTO_GRID_MAX² R32Float — ONE plane
+            wgpu::Buffer automatonLifeBuffer_;     // AUTO_LIFE_STRIDE floats — six planes
+            wgpu::Texture automatonLifeTexture_;   // AUTO_GRID_MAX² RG32Float — ONE plane (R visual, G carve)
             wgpu::TextureView automatonLifeWriteView_;  // storage texture write (compute)
-            wgpu::TextureView automatonLifeReadView_;   // sampled texture read (fragment)
+            wgpu::TextureView automatonLifeReadView_;   // sampled texture read (vertex + fragment)
 
             // Pawn aura system
             wgpu::Buffer pawnAuraConfigBuffer_;    // GPUPawnAuraConfig uniform
@@ -3508,9 +3510,9 @@ namespace t7 {
             // upload_zone_life stood here: five WriteBuffers per zone, the
             // CPU having generated the alive/dead pattern and the per-cell
             // height factors itself. The automaton's birth is a DISPATCH
-            // (automaton_seed) — the GPU draws all five planes from the
+            // (automaton_seed) — the GPU draws all six planes from the
             // world seed — so nothing is uploaded but the config, and
-            // 414,720 bytes never cross the bus.
+            // 497,664 bytes never cross the bus.
 
             // --- Dispatch dimensions ---
             // Rounds UP: 65 is not a multiple of the 16x16 tile, so the
@@ -3578,6 +3580,7 @@ namespace t7 {
                     case wgpu::TextureFormat::RGBA8Unorm:   return 4;
                     case wgpu::TextureFormat::BGRA8Unorm:   return 4;
                     case wgpu::TextureFormat::R32Float:     return 4;
+                    case wgpu::TextureFormat::RG32Float:    return 8;
                     // FORMAT_1 D1 — the shadow format's byte width answers to
                     // kShadowDepthFormat. Kept as an explicit case per format
                     // rather than a lookup so the switch stays exhaustive and
@@ -4303,8 +4306,9 @@ namespace t7 {
 
                 if (!automatonConfigBuffer_ || !automatonLifeBuffer_) return false;
 
-                // The life texture: AUTO_GRID_MAX² R32Float, ONE PLANE
-                // (R = the cell's spring visual). It is created at
+                // The life texture: AUTO_GRID_MAX² RG32Float, ONE PLANE
+                // (R = the cell's spring visual, G = the cubes' carve
+                // (RETRACT_1)). It is created at
                 // CAPACITY, not at the born world's grid, for the reason
                 // every other capacity here is: a rebirth may draw a wider
                 // radius and a texture cannot be resized without
@@ -4314,7 +4318,7 @@ namespace t7 {
                 {
                     wgpu::TextureDescriptor desc{};
                     desc.size = { Dim::AUTO_GRID_MAX, Dim::AUTO_GRID_MAX, 1 };
-                    desc.format = wgpu::TextureFormat::R32Float;
+                    desc.format = wgpu::TextureFormat::RG32Float;
                     desc.usage = wgpu::TextureUsage::StorageBinding | wgpu::TextureUsage::TextureBinding;
                     desc.dimension = wgpu::TextureDimension::e2D;
                     automatonLifeTexture_ = makeTexture("Automaton Life Texture", desc);

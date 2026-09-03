@@ -384,13 +384,24 @@ fn ug_decode(vi: u32) -> UgVert {
     return d;
 }
 
+// THE VERTEX'S CELL CENTRE, one spelling (RETRACT_1 extracted it from
+// ug_cell_lift when the carve became its second caller). Origins are
+// (g + 0.5) * PATCH_EXTENT and extent ≡ PATCH_EXTENT on every LOD ring,
+// so floor(center / PATCH_CELL_SIZE) is exactly g * PATCH_CELL_N + cell —
+// the FS's addr_used for the same cell, bit-identical. That identity is
+// what lets the VS and the FS read one texel by two routes.
+fn ug_cell_center(pi_origin: vec2<f32>, pi_extent: f32,
+                  cellx: u32, cellz: u32) -> vec2<f32> {
+    let cs = pi_extent / f32(PATCH_CELL_N);
+    return pi_origin - vec2(pi_extent * 0.5)
+         + (vec2(f32(cellx), f32(cellz)) + vec2(0.5)) * cs;
+}
+
 // The cell-lift fetch: the card's raw GoL (.a, nearest) at the CELL
 // CENTER — every vert of a cell reads one value; cells lift as slabs.
 fn ug_cell_lift(pi_origin: vec2<f32>, pi_extent: f32,
                 cellx: u32, cellz: u32) -> f32 {
-    let cs = pi_extent / f32(PATCH_CELL_N);
-    let center = pi_origin - vec2(pi_extent * 0.5)
-               + (vec2(f32(cellx), f32(cellz)) + vec2(0.5)) * cs;
+    let center = ug_cell_center(pi_origin, pi_extent, cellx, cellz);
     return sample_live_card_gol(center);   // nearest, cell-snapped
 }
 
@@ -3000,8 +3011,11 @@ const ZONE_SPHERE_TINT: vec3<f32> = vec3(0.5, 0.35, 0.0);  // gold shift near sp
 const ZONE_PAWN_TINT_STRENGTH: f32 = 0.0;                  // TUNE_2 B1: was 0.6 — silenced
 const ZONE_SPHERE_TINT_STRENGTH: f32 = 0.5;
 
-// --- Pawn GoL suppression radii (shared by the compute policies and the
-// --- two patch VS — the three callers of pawn_gol_suppression below)
+// --- Pawn GoL suppression radii. The callers of pawn_gol_suppression
+// --- below are six: the two compute policies (query_ground_walker_pair,
+// --- query_ground_walker_witness), the two patch VS (visible + shadow),
+// --- the witness form itself, and automaton_evolve's carve gather
+// --- (RETRACT_1) — the first of them that is neither a policy nor a VS.
 const ZONE_SUPPRESS_INNER: f32 = 4.0;   // full suppression inside this radius
 const ZONE_SUPPRESS_OUTER: f32 = 15.0;  // zero suppression beyond this radius
 
@@ -3013,6 +3027,18 @@ const ZONE_SUPPRESS_OUTER: f32 = 15.0;  // zero suppression beyond this radius
 fn pawn_gol_suppression(world_xz: vec2<f32>, pawn_xz: vec2<f32>) -> f32 {
     return 1.0 - smoothstep(ZONE_SUPPRESS_INNER, ZONE_SUPPRESS_OUTER,
                             distance(world_xz, pawn_xz));
+}
+
+// THE CARVE FADE (RETRACT_1) — the camera's height fade, extracted at its
+// third caller. One reach stood on end: full carve inside one OUTER of
+// clearance, gone past two. The datum is the CALLER's, and the datum law
+// is the camera's (KITE_1): ground WITHOUT the automaton's own lift, so a
+// carve can never feed its own fade. Callers: witness_gol_suppression
+// (render), query_ground_walker_witness (compute), automaton_evolve's
+// gather (RETRACT_1).
+fn gol_carve_fade(consumer_y: f32, ground_y: f32) -> f32 {
+    return 1.0 - smoothstep(ZONE_SUPPRESS_OUTER, 2.0 * ZONE_SUPPRESS_OUTER,
+                            consumer_y - ground_y);
 }
 
 // THE WITNESS'S CARVE (KITE_1) — the eye is a SECOND suppression center.
@@ -3047,8 +3073,7 @@ fn pawn_gol_suppression(world_xz: vec2<f32>, pawn_xz: vec2<f32>) -> f32 {
 fn witness_gol_suppression(world_xz: vec2<f32>, local_ground_y: f32) -> f32 {
     if (point_camera_hosted()) { return 0.0; }
     let eye = frame_r.camera.pos;
-    let fade = 1.0 - smoothstep(ZONE_SUPPRESS_OUTER, 2.0 * ZONE_SUPPRESS_OUTER,
-                                eye.y - local_ground_y);
+    let fade = gol_carve_fade(eye.y, local_ground_y);
     return pawn_gol_suppression(world_xz, eye.xz) * fade;
 }
 
@@ -3517,8 +3542,7 @@ fn query_ground_walker_agent(xz: vec2<f32>, qi: QueryInputs) -> f32 {
 fn query_ground_walker_witness(xz: vec2<f32>, qi: QueryInputs) -> f32 {
     let aura   = contrib_pawn_aura_at_external(xz);
     let ground = manifold_overlay_stack(xz, qi, 0.0) + aura;
-    let fade   = 1.0 - smoothstep(ZONE_SUPPRESS_OUTER, 2.0 * ZONE_SUPPRESS_OUTER,
-                                  qi.consumer_pos.y - ground);
+    let fade   = gol_carve_fade(qi.consumer_pos.y, ground);
     let supp   = pawn_gol_suppression(xz, qi.consumer_pos.xz) * fade;
     return manifold_overlay_stack(xz, qi, sample_live_card_gol(xz) * (1.0 - supp))
          + aura;
@@ -4517,7 +4541,16 @@ fn patch_terrain_vs(
     // within the reach the carve acts over.
     let supp = max(pawn_gol_suppression(world_pos.xz, render_pawn_pos().xz),
                    witness_gol_suppression(world_pos.xz, world_pos.y));
-    let lift = ug_cell_lift(pi.origin, pi.extent, d.cellx, d.cellz) * (1.0 - supp);
+
+    // RETRACT_1 — the cubes' carve, world-anchored (life texel G; written
+    // by automaton_evolve's gather). Composed multiplicatively with the
+    // consumer-local carves: three independent flattenings, one product.
+    // Fetched at this vertex's OWN cell centre, which is the FS tint's
+    // addr_used for the same cell — one texel, two routes.
+    let cell_center = ug_cell_center(pi.origin, pi.extent, d.cellx, d.cellz);
+    let retract = sample_cell_retract(cell_center);
+    let lift = ug_cell_lift(pi.origin, pi.extent, d.cellx, d.cellz)
+             * (1.0 - supp) * (1.0 - retract);
     world_pos.y += lift * d.lift_scale - d.drop;
 
     var out: PatchTerrainVarying;
@@ -4559,12 +4592,15 @@ fn patch_terrain_fs(in: PatchTerrainVarying) -> @location(0) vec4<f32> {
     }
 
     // DEBUG_VIEW 5 — THE LIVE CARD EYE. After the rim discard, so the
-    // eye respects the veil ring.
+    // eye respects the veil ring. RED = |Δh|, GREEN = the card's raw GoL,
+    // BLUE = the cubes' carve (RETRACT_1), read from the life texel's G by
+    // the tint's own law — the same number the two patch VS multiply by.
     if (DEBUG_VIEW == 5u) {
         let c = sample_live_card(in.world_pos.xz);
         return vec4(clamp(abs(c.x) * 0.25, 0.0, 1.0),
                     clamp(c.w * 0.25, 0.0, 1.0),
-                    0.0, 1.0);
+                    clamp(sample_cell_retract(in.world_pos.xz), 0.0, 1.0),
+                    1.0);
     }
 
     var normal = normalize(vec3(-in.gradients.x, 1.0, -in.gradients.y));
@@ -4695,10 +4731,16 @@ fn patch_terrain_fs(in: PatchTerrainVarying) -> @location(0) vec4<f32> {
                 if (local_cell.x >= 0 && local_cell.x < gs &&
                     local_cell.y >= 0 && local_cell.y < gs) {
 
-                    let uv = (vec2<f32>(local_cell) + 0.5) / f32(auto_config.grid_size);
-                    let life_sample = textureSampleLevel(
-                        auto_life_read, nearest_sampler, uv, 0.0
-                    );
+                    // ONE-ADDRESS, THE TEXTURE'S HALF (RETRACT_4). This was a
+                    // uv NORMALIZED BY grid_size against a texture allocated at
+                    // AUTO_GRID_MAX, so every world narrower than capacity read
+                    // a STRETCHED tail: at finite_radius 2 (grid_size 80) cell
+                    // 79 sampled texel 143, and the tint has been painting the
+                    // wrong cells since it was written. automaton_evolve stores
+                    // at the INTEGER cell; this loads the integer cell. Same
+                    // idiom as the cell-colour load a few lines above, and it
+                    // retires the divisor rather than correcting it.
+                    let life_sample = textureLoad(auto_life_read, local_cell, 0);
                     let color_val = life_sample.x;  // R channel = the cell's spring visual
 
                     if (color_val > 0.01) {
@@ -4817,9 +4859,13 @@ fn shadow_patch_terrain_vs(
     // standing in the shadow map casts the shadow of geometry nobody drew.
     // This VS has no aura term, so its local_ground is the aura's height
     // lower inside the dome — under the 15→30 fade that is nothing.
+    // The cubes' carve rides both rooms for the same reason.
     let supp = max(pawn_gol_suppression(world_pos.xz, render_pawn_pos().xz),
                    witness_gol_suppression(world_pos.xz, world_pos.y));
-    let lift = ug_cell_lift(pi.origin, pi.extent, d.cellx, d.cellz) * (1.0 - supp);
+    let cell_center = ug_cell_center(pi.origin, pi.extent, d.cellx, d.cellz);
+    let retract = sample_cell_retract(cell_center);
+    let lift = ug_cell_lift(pi.origin, pi.extent, d.cellx, d.cellz)
+             * (1.0 - supp) * (1.0 - retract);
     world_pos.y += lift * d.lift_scale - d.drop;
 
     var out: ShadowVarying;
@@ -6816,7 +6862,7 @@ struct PawnAuraCell {
 // requests.
 @group(2) @binding(101) var<uniform> auto_config: AutomatonConfig;
 @group(2) @binding(102) var<storage, read_write> auto_life: array<f32>;
-@group(3) @binding(101) var auto_life_tex_write: texture_storage_2d<r32float, write>;
+@group(3) @binding(101) var auto_life_tex_write: texture_storage_2d<rg32float, write>;
 
 // The life texture is ONE PLANE, not an array of eight. The zone index
 // was its array layer and there is no zone index.
@@ -6912,6 +6958,7 @@ fn automaton_seed(@builtin(global_invocation_id) gid: vec3<u32>) {
     auto_life[AUTO_CELL_TARGET        + idx] = alive;
     auto_life[AUTO_CELL_NEXT          + idx] = alive;
     auto_life[AUTO_CELL_HEIGHT_FACTOR + idx] = hf * vis;
+    auto_life[AUTO_CELL_RETRACT       + idx] = 0.0;
 }
 
 // §7.1 COMPUTE ENTRY POINTS
@@ -9748,9 +9795,11 @@ fn generate_patch_cells(@builtin(global_invocation_id) id: vec3<u32>,
 // per-zone stride — the same idea one level deeper, and the level that
 // went is the zone.
 //
-// L3 MIRROR: Dim::AUTO_GRID_MAX / AUTO_CELLS_MAX / AUTO_SLOT_COUNT
-// (state.hpp). Change both rooms — the extent literal below IS the
-// pipeline's arithmetic, and only the device can see it disagree.
+// L3 MIRROR: Dim::AUTO_GRID_MAX / AUTO_CELLS_MAX (state.hpp), and the
+// plane offsets below, which are AUTO_SLOT_COUNT's arithmetic spelled out
+// — the count itself has no WGSL twin, only its consequences do.
+// Change both rooms — the extent literal below IS the pipeline's
+// arithmetic, and only the device can see it disagree.
 const AUTO_GRID_MAX: u32 = 144u;          // (2*FINITE_RADIUS_MAX+1) * PATCH_CELL_N
 const AUTO_CELLS_MAX: u32 = 20736u;       // AUTO_GRID_MAX * AUTO_GRID_MAX
 const AUTO_CELL_VISUAL: u32 = 0u;                 // plane 0: height spring visual [0,1]
@@ -9758,14 +9807,17 @@ const AUTO_CELL_VELOCITY: u32 = 20736u;           // plane 1: height spring velo
 const AUTO_CELL_TARGET: u32 = 41472u;             // plane 2: current target (Conway reads)
 const AUTO_CELL_NEXT: u32 = 62208u;               // plane 3: next target (Conway writes)
 const AUTO_CELL_HEIGHT_FACTOR: u32 = 82944u;      // plane 4: per-cell height multiplier
-// The plane offsets are 1..4 times AUTO_CELLS_MAX, in order:
-// 20736 / 41472 / 62208 / 82944. The C++ twin derives them from
-// Dim::AUTO_CELLS_MAX rather than spelling them, and asserts the four.
+const AUTO_CELL_RETRACT: u32 = 103680u;           // plane 5: the cubes' carve [0,1], rewritten per frame (RETRACT_1)
+// The plane offsets are 1..5 times AUTO_CELLS_MAX, in order:
+// 20736 / 41472 / 62208 / 82944 / 103680. The C++ twin derives them from
+// Dim::AUTO_CELLS_MAX rather than spelling them, and asserts the five.
 // Slots 5-6 were a COLOUR spring. It was provably the height spring: same
 // target, same omega/e, same settle thresholds, same apply_boundary and
 // select guard, and seeded from the same life_data with the same zero
 // velocity — so color_visual == visual for every cell at every frame, and
 // always had been. Collapsed; see the commit for the induction.
+// RETRACT_1 reclaims slot 5 for the cubes' carve — a different fact at the
+// old index; the colour spring stays collapsed.
 
 // THE AUTOMATON'S INDEX, one home. Row-major over THIS world's grid —
 // the same dense convention the zones used inside their own grid, with
@@ -9881,10 +9933,81 @@ fn automaton_evolve(@builtin(global_invocation_id) gid: vec3<u32>) {
     auto_life[AUTO_CELL_VISUAL + idx] = visual;
     auto_life[AUTO_CELL_VELOCITY + idx] = velocity;
 
-    // Write to texture: R = the cell's spring visual. The FS tint reads it;
-    // the LIFT reads auto_life[VISUAL] from the buffer. One number, two
-    // consumers, one channel. ONE PLANE, not a layer of eight.
-    textureStore(auto_life_tex_write, cell, vec4(visual, 0.0, 0.0, 0.0));
+    // ═══ THE CUBES' CARVE (RETRACT_1) ════════════════════════════════
+    // World-anchored, per-cell, rewritten every frame: plane 5 and the
+    // life texel's G. The form is the pawn's — one suppression form, one
+    // more centre — and the altitude is AUTHORED, not measured.
+    //
+    // THE FADE TOOK A GROUND ONCE AND IT CANCELLED THE FEATURE. It read
+    // `fe.pos.y - sample_terrain_y_at(cell_center)`, a difference between
+    // two grounds — and a cube's y is BUILT from the flyer stack, which
+    // carries the automaton's own 24 wu lift. Stripping the automaton from
+    // ONE operand does not remove it from a difference: it stayed in with a
+    // PLUS sign, so the carve read 0.000 at every tier's authored mean over
+    // a settled live cell — dead on exactly the cells it exists to cut, and
+    // full strength on dead cells with nothing to cut.
+    //
+    // The fade needs no ground. `orbit_height + bob_amplitude` IS the
+    // clearance, drawn once at spawn and terrain-independent — and it is
+    // `fn row_cube_push`'s Test A verbatim, against a ceiling
+    // (CUBE_REACH_CEILING 30.0) that is already 2.0 * ZONE_SUPPRESS_OUTER,
+    // this fade's own zero point. A cube CARVES IFF IT IS SHOVEABLE: one
+    // test, written twice, on one number. Above the line it is canopy and
+    // touches nothing. No ground query means no datum, so d(retract)/dy is
+    // identically ZERO — nothing terrain-borne can reach the fade.
+    //
+    // POLICY_FLYER never reads this plane: the standing flyer exclusion
+    // wearing its render-side face, and the reason a cube cannot descend
+    // into its own carve (RETRACT_0, HEADLINE). Union across cubes is
+    // max — the patch VS's own idiom for two carves, extended to N.
+    // THE READ IS FRESH, and the spine says so: RPhase::AutomatonStep
+    // runs AFTER RPhase::DispatchCompute (which holds update_cube) and
+    // BEFORE both draw passes, so this gather sees THIS frame's cube
+    // positions and the two VS read THIS frame's plane. R-F budgeted one
+    // frame of lag and the order spends none; a reorder that puts this
+    // phase back before DispatchCompute costs exactly that one frame and
+    // is still correct. Cost ceiling: grid_size² × 256 slot tests.
+    let addr = vec2<i32>(auto_config.cell_origin_x + i32(cell.x),
+                         auto_config.cell_origin_z + i32(cell.y));
+    let cell_center = (vec2<f32>(addr) + vec2(0.5)) * PATCH_CELL_SIZE;
+    var retract = 0.0;
+    for (var k = 0u; k < CUBE_SLOT_COUNT; k++) {
+        let fe = render_floating.entities[CUBE_SLOT_OFFSET + k];
+        if (fe.is_active == 0u) { continue; }
+        retract = max(retract,
+                      pawn_gol_suppression(cell_center, fe.pos.xz)
+                      * gol_carve_fade(fe.orbit_height + fe.bob_amplitude, 0.0));
+    }
+    auto_life[AUTO_CELL_RETRACT + idx] = retract;
+
+    // Write to texture: R = the cell's spring visual, G = the cubes' carve
+    // (RETRACT_1). The FS tint reads R; the LIFT reads auto_life[VISUAL]
+    // from the buffer. One number, two consumers, one channel — and G is
+    // the second such pair: the two patch VS read it, the debug eye shows
+    // it. ONE PLANE, not a layer of eight.
+    textureStore(auto_life_tex_write, cell, vec4(visual, retract, 0.0, 0.0));
+}
+
+// THE CARVE'S RENDER-SIDE FETCH (RETRACT_1, addressed at RETRACT_4) — the
+// reader that stands beside the writer above. It is the FS TINT'S OWN LAW:
+// the global cell address, minus this world's corner, loaded at the INTEGER
+// texel automaton_evolve stored to. Both rooms were corrected together —
+// they must land on the same texel, and now they land on the WRITER's.
+// Returns 0 outside the born grid, which is the no-carve rest and the same
+// answer the plane holds there.
+//
+// probe_xz is ANY point inside the wanted cell. The FS passes the
+// fragment's own world position (the one-address law: for an in-domain
+// fragment addr_used IS that floor). The two VS pass the cell CENTRE,
+// because a vertex sits on a lattice corner where the floor belongs to
+// whichever cell the corner is shared with.
+fn sample_cell_retract(probe_xz: vec2<f32>) -> f32 {
+    let local_cell = cell_address(probe_xz)
+                   - vec2<i32>(auto_config.cell_origin_x, auto_config.cell_origin_z);
+    let gs = i32(auto_config.grid_size);
+    if (local_cell.x < 0 || local_cell.x >= gs ||
+        local_cell.y < 0 || local_cell.y >= gs) { return 0.0; }
+    return textureLoad(auto_life_read, local_cell, 0).y;
 }
 
 

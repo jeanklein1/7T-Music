@@ -607,8 +607,8 @@ namespace t7 {
             }
 
             // THE BIRTH. One dispatch, once per world, on the birth
-            // encoder. It draws all five life planes from the world seed —
-            // the CPU generate-and-upload it replaced moved 414,720 bytes
+            // encoder. It draws all six life planes from the world seed —
+            // the CPU generate-and-upload it replaced moved 497,664 bytes
             // across the bus at world scale and now moves none.
             void dispatch_automaton_seed(
                 wgpu::ComputePassEncoder& pass,
