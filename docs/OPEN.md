@@ -1341,6 +1341,74 @@ refused on this campaign's zero-surface property. If `scene_constants` ever
 reaches compute for another reason, the margin should move and become the
 pawn's exact twin.
 
+## SKIRT_WELD_1 — THE PERIMETER SKIRT HANGS FROM THE BASE BAND (landed; one seam held)
+
+Landed on `master`. The patch perimeter skirt hung its top edge on **cap**
+verts, and cap verts are CELL-OWNED (UNIFIED_GROUND_1): ring slot `k` and
+`k+1` straddle a cell seam at every multiple of `UG_QUADS_PER_CELL`, so one
+live cell turned that quad into a ramp from `ground + alive_height` down to
+`ground` — an extra triangle dragged up by a cell it does not belong to, over
+a curtain that had already sealed the same edge. The ring now hangs from the
+**base** band, whose twins carry `wall = 1 → lift_scale = 0` (WALL_1) and
+never lift. **Zero mirrors, zero bindings, zero organ rows, and the four index
+counts are byte-identical** — the emission pushes six indices per quad either
+way, so only the index VALUES moved.
+
+**1 · THE INVERSE IS ASSERTED, NOT ASSUMED.** `cell_perimeter_slot` (the new
+`(lx,lz) → k` inverse of `cell_perimeter`) is `constexpr` and carries a
+sixteen-term `static_assert` that is simultaneously a round-trip check and a
+bijection proof: the sixteen results are `0..15`, each exactly once. The
+right-hand column is `cell_perimeter`'s own emission, stated as literals
+because `cell_perimeter` is a runtime lambda and cannot be called from a
+constant expression without editing it, which the campaign froze.
+
+**2 · BOTH LODs GOT THE SAME RE-AIM.** `build_lod0_ib` (zoned and cap-only)
+and the LOD1 stride-2 ring are one lambda between them; the curtain-less
+variants are the lift-conservative switch, not dead alternates, and a fix
+landed on only the zoned buffers would have passed every gate.
+
+**3 · THE TINT'S VARIATION IS A GAIN NOW, NOT AN OFFSET.**
+`apply_automaton_color`'s BLACKISH branch added `vec3(r_shift, g_shift,
+-r_shift)` **after** the darkening multiply. On near-black ground the base
+term is ~0, so the offset became the whole colour and the `clamp` beneath it
+deleted G and B asymmetrically — a cell holding max `r_shift` painted
+saturated red out of black ground. As a gain the scatter is proportional to
+what is there. The clamp is EXCISED rather than kept: the ceiling is
+`0.55 * 1.05 = 0.578` against a base ≤ 1, and the floor is ≥ 0 because every
+factor is, so the clamp had become a lie about what the line can produce.
+Neither `_SHIFT_RANGE` value moved — zeroing them would have hidden the class
+and left the census reading clean on a lie.
+
+**4 · TWO RESIDUALS, NAMED AND LEFT.**
+- `in.skirt` was `0 → 1` across a skirt quad (cap top, ring-copy bottom) and
+  is now the constant `1` (both ends carry `wall = 1`). `DEBUG_VIEW = 3u`
+  therefore paints the whole skirt quad magenta including its top edge —
+  truer as an instrument, and a changed picture in that debug view.
+- The per-triangle `cell_local` step at a cell seam SURVIVES. `cell_local` is
+  `@interpolate(flat)`, whose provoking vertex is the primitive's first, and
+  the emission is `a, b, sa` / `b, sb, sa` — so triangle 1 provokes from `a`
+  and triangle 2 from `b`. At a seam slot those two belong to adjacent cells,
+  and the two halves of one quad shade from two different cells. It was true
+  before the re-aim and is true after; what the re-aim removed is the ramp
+  the step was riding on.
+
+**5 · HELD — THE SHADING NORMAL EXCLUDES THE AUTOMATON'S LIFT.**
+`patch_terrain_vs` sums `out.gradients = height_data.yz + live.yz`; the GoL
+lift rides the card's `.w`, nearest-sampled at the cell centre, and
+contributes nothing to the gradient. Every cap and curtain is therefore lit
+with the flat ground's normal. Real, second-order, and superseded by
+SKIRT_WELD_1 — the picture must be re-shot with the ramps gone before this is
+scoped, because the ramps were producing tone splits of their own.
+
+**6 · THE RECORD RITUAL WAS NOT RUN, DELIBERATELY.** The handoff asks for
+`glaw2 --record`. One name retires here — `skirt_cap_index` — and it is
+**C++**, which glaw2 does not see; the campaign adds no WGSL entry point and
+no WGSL const, and glaw2 is GREEN without a re-record. `--record` rewrites the
+whole baseline including the `declared` retirement ledger (RETRACT_0 R10 flags
+it Jean-gated and destructive), so running it here would have rewritten a
+ledger over a campaign that moved nothing glaw2 tracks. The tombstone for
+`skirt_cap_index` is the diff's.
+
 ## THE HANDOVER LIST (THE_PANEL's close — the coupling campaign's table)
 
 **THE WRAP ORDER §2.3 asks that the next campaign's handoff be authorable
