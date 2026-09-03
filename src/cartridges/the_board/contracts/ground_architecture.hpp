@@ -30,11 +30,17 @@ enum ContributorId : uint32_t {
     CONTRIB_COUNT             = 9,
 };
 
-// The world-anchored cube carve (RETRACT_1) is NOT this row: it is
-// realized render-side via the life texel's G and AUTO_CELL_RETRACT, and
-// deliberately excluded from every query policy — flyers must not descend
-// into their own carve. CONTRIB_AUTOMATON_SUPPRESSION stays what it says:
-// the CONSUMER-LOCAL subtraction a walker makes at its own feet.
+// The world-anchored floater carve (RETRACT_1; spheres joined at
+// RETRACT_2) is NOT this row: it is realized render-side via the life
+// texel's G and AUTO_CELL_RETRACT, read only by the two patch VS, and it
+// appears in no query policy. It needs none. Under the exemption
+// (RETRACT_2) a floater's ground carries no CONTRIB_AUTOMATON at all, so
+// there is nothing for a floater to subtract at its own feet and no way
+// for its own carve to reach its altitude — the old worry, "flyers must
+// not descend into their own carve", describes a wire that no longer
+// exists. CONTRIB_AUTOMATON_SUPPRESSION stays what it says: the
+// CONSUMER-LOCAL subtraction a WALKER makes at its own feet, and its
+// consumers are the pawn, the tilt and the eye.
 
 // These ids are mirrored byte-for-byte as the WGSL POLICY_* consts
 // (world.wgsl, above the POLICY_*_MASK block) — manifold_resolve
@@ -99,18 +105,31 @@ inline constexpr PolicyDef POLICIES[] = {
       GROUND_STATIC_BASE_MASK
         | (1u << CONTRIB_PYRAMIDS) },
 
-    // Fly-over policy — spheres, cubes, cameras. Includes all global
-    // deformation fields so flyers ride pulses and auras.
-    // STATUS: REALIZED — camera clamp, sphere orbit clearance, cube
-    // hover + clearance (query_ground_flyer). Gradients, where a consumer
-    // wants them, come from manifold_resolve's finite difference over this
-    // same policy; there is no per-policy gradient function and there is
-    // no need for one. (query_ground_flyer_gradient existed with zero
-    // callers and was deleted — PRUNING_1 P1 5b.)
+    // Fly-over policy — spheres and cubes. Every global deformation field
+    // EXCEPT the automaton, so floaters ride pulses, waves and auras but
+    // NOT the cells.
+    //
+    // THE EXEMPTION (RETRACT_2, Jean's ruling): the automaton never lifts a
+    // floater. CONTRIB_AUTOMATON left this row deliberately — the field does
+    // not move them, they press the field, and the pressing is render-side
+    // only (AUTO_CELL_RETRACT and the life texel's G, read by the two patch
+    // VS). The relation is one-directional by construction, so no reading of
+    // a cell can disagree with a floater's altitude: there is only one.
+    // The mask is now WALKER_AGENT's minus the automaton.
+    //
+    // NOT the camera: the eye clamps on POLICY_WALKER_WITNESS and always
+    // did. This row's STATUS claimed a camera clamp until RETRACT_2 counted
+    // the five real call sites.
+    // STATUS: REALIZED — cube hover base, cube kite home, cube clearance
+    // floor, sphere orbit clearance, sphere settle floor
+    // (query_ground_flyer). Gradients, where a consumer wants them, come
+    // from manifold_resolve's finite difference over this same policy;
+    // there is no per-policy gradient function and there is no need for one.
+    // (query_ground_flyer_gradient existed with zero callers and was
+    // deleted — PRUNING_1 P1 5b.)
     { POLICY_FLYER, "flyer",
       GROUND_STATIC_BASE_MASK
         | (1u << CONTRIB_PYRAMIDS)
-        | (1u << CONTRIB_AUTOMATON)
         | (1u << CONTRIB_TERRAIN_WAVES)
         | (1u << CONTRIB_RADIAL_PULSES)
         | (1u << CONTRIB_PAWN_AURA) },

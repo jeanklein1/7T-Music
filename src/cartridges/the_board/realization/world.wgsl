@@ -2492,6 +2492,12 @@ const FLEE_SHELL_FRAC: f32 = 0.25;   // CONTACT_3 K2a
 //     cube shoveable. Jean-tunable.
 //   CUBE_PUSH_GAIN     -- presence force per wu overlap (dt-scaled).
 const CUBE_PUSH_RADIUS:  f32 = 7.0;   // planar reach (~2x pawn contact shell; a tool, not a field)
+// COINCIDENCE OF VALUE, NOT A SHARED HOME: 30.0 is also exactly
+// 2.0 * ZONE_SUPPRESS_OUTER, the zero point of gol_carve_fade, so today
+// "a floater carves iff it is shoveable" happens to be one test written
+// twice. The two numbers have DIFFERENT owners and no gate ties them —
+// retune either alone and the equivalence breaks silently. See the note
+// at ZONE_SUPPRESS_OUTER.
 const CUBE_REACH_CEILING: f32 = 30.0; // authored-altitude eligibility; a |dy| window would couple terrain relief instead
 const CUBE_PUSH_GAIN:    f32 = 25.0;  // presence force per wu overlap
 // units: max Δv per frame on the cube's drift. A FRAME-HITCH GUARD, not a
@@ -3018,6 +3024,11 @@ const ZONE_SPHERE_TINT_STRENGTH: f32 = 0.5;
 // --- (RETRACT_1) — the first of them that is neither a policy nor a VS.
 const ZONE_SUPPRESS_INNER: f32 = 4.0;   // full suppression inside this radius
 const ZONE_SUPPRESS_OUTER: f32 = 15.0;  // zero suppression beyond this radius
+// AND ITS DOUBLE IS A COINCIDENCE: gol_carve_fade dies at
+// 2.0 * ZONE_SUPPRESS_OUTER = 30.0, which is also CUBE_REACH_CEILING's
+// value — so the carving and the shoveable populations agree today by
+// arithmetic accident, not by a shared constant. Nothing enforces it.
+// Retune this radius and the shove's ceiling stays where it was.
 
 // THE ONE SUPPRESSION FORM (UNIFIED_GROUND_1) — the walker's exact
 // inline shape, extracted. pawn_xz is the caller's stage-appropriate
@@ -3371,19 +3382,37 @@ fn manifold_overlay_stack(xz: vec2<f32>, qi: QueryInputs, gol_term: f32) -> f32 
 
 // --- Fly-over: all global deformation fields included ---
 
-// POLICY_FLYER — non-walking entities that ride animated terrain.
-// Contributors: static_base + CONTRIB_PYRAMIDS + CONTRIB_AUTOMATON +
-//   CONTRIB_TERRAIN_WAVES + CONTRIB_RADIAL_PULSES + CONTRIB_PAWN_AURA
-//   (external form — grid sample at xz).
-// Typical consumers: sphere orbit clearance, cube hover base, primary
-//   camera clamp.
-// Notes: no CONTRIB_AUTOMATON_SUPPRESSION — flyers don't flatten GoL at their
-//   own position. Aura uses contrib_pawn_aura_at_external because flyers
-//   sample away from the pawn's position. Gradient variant:
+// POLICY_FLYER — non-walking entities that ride the TERRAIN, and only the
+// terrain.
+// Contributors: static_base + CONTRIB_PYRAMIDS + CONTRIB_TERRAIN_WAVES +
+//   CONTRIB_RADIAL_PULSES + CONTRIB_PAWN_AURA (external form — grid sample
+//   at xz). NO CONTRIB_AUTOMATON.
+// Consumers: cube hover base, cube kite home, cube clearance floor, sphere
+//   orbit clearance, sphere settle floor. FIVE SITES, ALL FLOATERS — the
+//   eye is NOT among them and never was; it clamps on POLICY_WALKER_WITNESS
+//   (this banner claimed a camera clamp until RETRACT_2 counted them).
+//
+// THE FLYER'S GROUND HAS NO AUTOMATON IN IT (RETRACT_2, Jean's ruling):
+// the field does not lift a floater — the floater presses the field.
+// Every prior failure of the carve — the datum double-count, the
+// levitation over cells the picture had already flattened, the
+// oscillation between a cube's chosen altitude and the lift under it —
+// shared one root: the floater's altitude and the cell's picture were two
+// readings of one cell, free to disagree. This exemption deletes one of
+// the readings rather than reconciling them, so d(floater_y)/d(automaton)
+// is ZERO identically, by construction, with no loop left to close.
+// "THE FLOOR IS THE PICTURE" holds for a floater trivially: the automaton
+// is not part of its floor, and its mark on the automaton lives only in
+// the picture, pointing one way.
+//
+// Everything else still carries them: base, pyramids, waves, pulses and
+// the card's .x. A floater rides the terrain and breathes with the waves;
+// it simply does not ride the cells. Aura uses contrib_pawn_aura_at_external
+// because flyers sample away from the pawn's position.
 fn query_ground_flyer(xz: vec2<f32>, qi: QueryInputs) -> f32 {
-    // Raw GoL (flyers don't self-suppress) over the shared stack; external
-    // aura (sampled away from the pawn) added after as the mover term.
-    return manifold_overlay_stack(xz, qi, sample_live_card_gol(xz))
+    // gol_term 0.0 IS the exemption — the one door the automaton reached a
+    // floater's height through, closed.
+    return manifold_overlay_stack(xz, qi, 0.0)
          + contrib_pawn_aura_at_external(xz);
 }
 
@@ -3528,6 +3557,14 @@ fn query_ground_walker_agent(xz: vec2<f32>, qi: QueryInputs) -> f32 {
 //   picture had left standing. The fade's datum is this xz's surface BEFORE
 //   the lift — the analytic twin of the VS's world_pos.y at the same point,
 //   aura included.
+//
+//   FLOATERS SATISFY THIS LAW BY EXEMPTION, not by twinning (RETRACT_2).
+//   The eye and the pawn must keep two readings of one cell in agreement,
+//   which is what the twin above buys. A cube or a sphere has only ONE
+//   reading: the automaton is not in its floor at all, so there is nothing
+//   to agree with. Its mark on the field lives purely in the picture and
+//   points one way. That is the cheaper way to obey the same law, and it
+//   is available only to a body the field does not carry.
 //
 //   Only the pawn's center is absent, and it costs nothing where this
 //   function is read: the clamp samples at the EYE's own xz, where the
@@ -9775,13 +9812,26 @@ fn generate_patch_cells(@builtin(global_invocation_id) id: vec3<u32>,
 // Two compute passes per frame, unconditionally: the automaton is the
 // ground and the ground is always there.
 //
-// THE TEXTURE'S NORMALIZER CHANGED HANDS, and this is the one place
-// where the capacity/extent distinction bites a READER. The zones' fetch
+// THE TEXTURE HAS NO NORMALIZER AT ALL NOW, and this is the one place
+// where the capacity/extent distinction bit a READER. The zones' fetch
 // divided by a FIXED 32 (Dim::GOL_ZONE_GRID) because the sim wrote
 // texels [0, grid_size)² of a 32² layer and grid_size was tier-derived.
-// The automaton's texture is created at THIS WORLD's grid_size — one
-// plane, exactly the size of the grid it holds — so the fetch normalizes
-// by auto_config.grid_size and there is no unwritten margin to avoid.
+//
+// THE PROSE THAT STOOD HERE WAS FALSE AND IT COST TWO CAMPAIGNS. It said
+// the automaton's texture is created at THIS WORLD's grid_size. It is
+// not: state.hpp allocates AUTO_GRID_MAX², CAPACITY, for the same reason
+// the plane offsets are capacity-strided — a rebirth may draw a wider
+// radius and a texture cannot be resized without re-sectioning its group.
+// So a fetch normalized by grid_size read a STRETCHED tail: at radius 2
+// (grid 80) local cell 79 sampled texel 143, and the automaton tint
+// painted displaced cells from the day it was written.
+//
+// Both readers now LOAD THE INTEGER TEXEL the writers store to
+// (textureLoad at local_cell — patch_terrain_fs's tint and
+// sample_cell_retract), which retires the divisor instead of correcting
+// it and cannot drift again. Texels beyond the born grid are never
+// written and never addressed: the bounds test is still grid_size, which
+// is the one place extent belongs.
 // ═══ THE LIFE BUFFER'S LAYOUT (ONE_SURFACE-II U1) ════════════════════
 //
 // FIVE PLANES, ONE AFTER ANOTHER, EACH AUTO_CELLS_MAX LONG. The slot
@@ -9933,10 +9983,16 @@ fn automaton_evolve(@builtin(global_invocation_id) gid: vec3<u32>) {
     auto_life[AUTO_CELL_VISUAL + idx] = visual;
     auto_life[AUTO_CELL_VELOCITY + idx] = velocity;
 
-    // ═══ THE CUBES' CARVE (RETRACT_1) ════════════════════════════════
+    // ═══ THE FLOATERS' CARVE (RETRACT_1; the team, RETRACT_2) ════════
     // World-anchored, per-cell, rewritten every frame: plane 5 and the
     // life texel's G. The form is the pawn's — one suppression form, one
     // more centre — and the altitude is AUTHORED, not measured.
+    //
+    // EVERY ACTIVE FLOATER PRESSES, spheres included (J-2): the loop walks
+    // the whole array, slot 0 up, not the cube band alone. Spheres author
+    // orbit_height 4-6 wu with bob_amplitude 0, so the shared law already
+    // gives them full carve — they need no special case, and a sphere
+    // crossing a living field mows a moving dent by the cubes' own rule.
     //
     // THE FADE TOOK A GROUND ONCE AND IT CANCELLED THE FEATURE. It read
     // `fe.pos.y - sample_terrain_y_at(cell_center)`, a difference between
@@ -9947,8 +10003,12 @@ fn automaton_evolve(@builtin(global_invocation_id) gid: vec3<u32>) {
     // a settled live cell — dead on exactly the cells it exists to cut, and
     // full strength on dead cells with nothing to cut.
     //
-    // The fade needs no ground. `orbit_height + bob_amplitude` IS the
-    // clearance, drawn once at spawn and terrain-independent — and it is
+    // The fade needs no ground, and under the exemption it wants none:
+    // orbit_height is authored AGL over the flyer's ground, and that
+    // ground is now gol-free, so this reads clearance over the very
+    // surface the cells grow from — the camera's datum law, reached with
+    // two spawn draws and zero queries. `orbit_height + bob_amplitude` IS
+    // the clearance, drawn once at spawn and terrain-independent — and it is
     // `fn row_cube_push`'s Test A verbatim, against a ceiling
     // (CUBE_REACH_CEILING 30.0) that is already 2.0 * ZONE_SUPPRESS_OUTER,
     // this fade's own zero point. A cube CARVES IFF IT IS SHOVEABLE: one
@@ -9956,10 +10016,15 @@ fn automaton_evolve(@builtin(global_invocation_id) gid: vec3<u32>) {
     // touches nothing. No ground query means no datum, so d(retract)/dy is
     // identically ZERO — nothing terrain-borne can reach the fade.
     //
-    // POLICY_FLYER never reads this plane: the standing flyer exclusion
-    // wearing its render-side face, and the reason a cube cannot descend
-    // into its own carve (RETRACT_0, HEADLINE). Union across cubes is
-    // max — the patch VS's own idiom for two carves, extended to N.
+    // THE EXEMPTION IS WHY THIS IS SAFE (RETRACT_2). A floater's ground
+    // carries no automaton at all now, so this plane cannot reach a
+    // floater's altitude by any route — not through the card, not through
+    // the query, not one frame later. "A cube cannot descend into its own
+    // carve" was the old protective sentence; under the exemption it is
+    // vacuous rather than protective, and it is gone. The relation runs
+    // one way: floater presses cell, cell never lifts floater. Union
+    // across floaters is max — the patch VS's own idiom for two carves,
+    // extended to N.
     // THE READ IS FRESH, and the spine says so: RPhase::AutomatonStep
     // runs AFTER RPhase::DispatchCompute (which holds update_cube) and
     // BEFORE both draw passes, so this gather sees THIS frame's cube
@@ -9971,8 +10036,8 @@ fn automaton_evolve(@builtin(global_invocation_id) gid: vec3<u32>) {
                          auto_config.cell_origin_z + i32(cell.y));
     let cell_center = (vec2<f32>(addr) + vec2(0.5)) * PATCH_CELL_SIZE;
     var retract = 0.0;
-    for (var k = 0u; k < CUBE_SLOT_COUNT; k++) {
-        let fe = render_floating.entities[CUBE_SLOT_OFFSET + k];
+    for (var k = 0u; k < CUBE_SLOT_OFFSET + CUBE_SLOT_COUNT; k++) {
+        let fe = render_floating.entities[k];
         if (fe.is_active == 0u) { continue; }
         retract = max(retract,
                       pawn_gol_suppression(cell_center, fe.pos.xz)
