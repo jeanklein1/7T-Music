@@ -30,11 +30,14 @@ enum ContributorId : uint32_t {
     CONTRIB_COUNT             = 9,
 };
 
-// The world-anchored cube carve (RETRACT_1) is NOT this row: it is
-// realized render-side via the life texel's G and AUTO_CELL_RETRACT, and
-// deliberately excluded from every query policy — flyers must not descend
-// into their own carve. CONTRIB_AUTOMATON_SUPPRESSION stays what it says:
-// the CONSUMER-LOCAL subtraction a walker makes at its own feet.
+// CONTRIB_AUTOMATON_SUPPRESSION is the CONSUMER-LOCAL subtraction a body
+// makes at its own feet, and since RETRACT_3 it has three consumers, not
+// two: the pawn, the eye, and the cube (POLICY_FLYER_WITNESS). The cube's
+// carve is ALSO drawn world-anchored, as the union plane AUTO_CELL_RETRACT
+// and the life texel's G — but that plane is the RENDER's, read only by the
+// two patch VS. The row below is the QUERY side: what a body subtracts from
+// the ground IT stands on. Same arithmetic, two rooms; that is why the
+// picture and the floor agree.
 
 // These ids are mirrored byte-for-byte as the WGSL POLICY_* consts
 // (world.wgsl, above the POLICY_*_MASK block) — manifold_resolve
@@ -48,7 +51,8 @@ enum PolicyId : uint32_t {
     POLICY_WALKER_AGENT         = 4,
     POLICY_TERRAIN_RENDER       = 5,   // the fused render set: baked + aura + waves + pulses + GoL-via-the-card (UNIFIED_GROUND_1)
     POLICY_WALKER_WITNESS       = 6,   // the camera's floor: walker's set, realized for a consumer that is not the pawn (KITE_1)
-    POLICY_COUNT                = 7,
+    POLICY_FLYER_WITNESS        = 7,   // the cube's floor: flyer's set, with the body's OWN carve subtracted (RETRACT_3)
+    POLICY_COUNT                = 8,
 };
 
 // ═══ DEPENDENCY DAG ══════════════════════════════════════════════
@@ -206,6 +210,34 @@ inline constexpr PolicyDef POLICIES[] = {
     // exactly, so its closure proof is WALKER's proof.
     // STATUS: REALIZED — update_camera_vp's clearance clamp, via
     // query_ground_walker_witness.
+    // The BODY'S floor (RETRACT_3) — the flyer set, realized for a consumer
+    // that carves. It is to POLICY_FLYER exactly what POLICY_WALKER_WITNESS
+    // is to POLICY_WALKER: the same contributor set, plus the consumer's own
+    // suppression of the automaton beneath it.
+    //
+    // WHY A CUBE MAY NOT SIMPLY READ THE CARVE PLANE. AUTO_CELL_RETRACT is a
+    // MAX over every active cube, and max is not invertible: a cube reading
+    // it would ride its neighbours' carves as well as its own, and could
+    // never recover "the field minus MY carve" — the very separability that
+    // makes a witness a witness. So this policy RE-EVALUATES the consumer's
+    // own factor analytically at the query point, in the same invocation
+    // that applies it, exactly as query_ground_walker_witness does for the
+    // eye. The plane stays what it is: the RENDER's union, drawn once.
+    //
+    // The DAG is untouched: no contributor is new, and the mask is FLYER's
+    // plus the suppression row the walkers already carry, so its closure
+    // proof is WALKER_WITNESS's proof.
+    // STATUS: REALIZED — update_cube's hover home, kite home and floor
+    // clamp, via query_ground_flyer_witness.
+    { POLICY_FLYER_WITNESS, "flyer_witness",
+      GROUND_STATIC_BASE_MASK
+        | (1u << CONTRIB_PYRAMIDS)
+        | (1u << CONTRIB_AUTOMATON)
+        | (1u << CONTRIB_TERRAIN_WAVES)
+        | (1u << CONTRIB_RADIAL_PULSES)
+        | (1u << CONTRIB_PAWN_AURA)          // external form — a cube is not the pawn
+        | (1u << CONTRIB_AUTOMATON_SUPPRESSION) },
+
     { POLICY_WALKER_WITNESS, "walker_witness",
       GROUND_STATIC_BASE_MASK
         | (1u << CONTRIB_PYRAMIDS)
@@ -250,6 +282,7 @@ ASSERT_POLICY_DAG_CLOSED(POLICY_WALKER_TILT,          "POLICY_WALKER_TILT");
 ASSERT_POLICY_DAG_CLOSED(POLICY_WALKER_AGENT,         "POLICY_WALKER_AGENT");
 ASSERT_POLICY_DAG_CLOSED(POLICY_TERRAIN_RENDER,       "POLICY_TERRAIN_RENDER");
 ASSERT_POLICY_DAG_CLOSED(POLICY_WALKER_WITNESS,       "POLICY_WALKER_WITNESS");
+ASSERT_POLICY_DAG_CLOSED(POLICY_FLYER_WITNESS,        "POLICY_FLYER_WITNESS");
 
 #undef ASSERT_POLICY_DAG_CLOSED
 
