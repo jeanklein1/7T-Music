@@ -4731,10 +4731,16 @@ fn patch_terrain_fs(in: PatchTerrainVarying) -> @location(0) vec4<f32> {
                 if (local_cell.x >= 0 && local_cell.x < gs &&
                     local_cell.y >= 0 && local_cell.y < gs) {
 
-                    let uv = (vec2<f32>(local_cell) + 0.5) / f32(auto_config.grid_size);
-                    let life_sample = textureSampleLevel(
-                        auto_life_read, nearest_sampler, uv, 0.0
-                    );
+                    // ONE-ADDRESS, THE TEXTURE'S HALF (RETRACT_4). This was a
+                    // uv NORMALIZED BY grid_size against a texture allocated at
+                    // AUTO_GRID_MAX, so every world narrower than capacity read
+                    // a STRETCHED tail: at finite_radius 2 (grid_size 80) cell
+                    // 79 sampled texel 143, and the tint has been painting the
+                    // wrong cells since it was written. automaton_evolve stores
+                    // at the INTEGER cell; this loads the integer cell. Same
+                    // idiom as the cell-colour load a few lines above, and it
+                    // retires the divisor rather than correcting it.
+                    let life_sample = textureLoad(auto_life_read, local_cell, 0);
                     let color_val = life_sample.x;  // R channel = the cell's spring visual
 
                     if (color_val > 0.01) {
@@ -9930,10 +9936,26 @@ fn automaton_evolve(@builtin(global_invocation_id) gid: vec3<u32>) {
     // ═══ THE CUBES' CARVE (RETRACT_1) ════════════════════════════════
     // World-anchored, per-cell, rewritten every frame: plane 5 and the
     // life texel's G. The form is the pawn's — one suppression form, one
-    // more centre — and the fade is the camera's, on the camera's datum
-    // law: clearance against the ground WITHOUT the automaton
-    // (sample_terrain_y_at — baked static height; the live overlays'
-    // few wu are inside a 15 wu band and deliberately uncompensated).
+    // more centre — and the altitude is AUTHORED, not measured.
+    //
+    // THE FADE TOOK A GROUND ONCE AND IT CANCELLED THE FEATURE. It read
+    // `fe.pos.y - sample_terrain_y_at(cell_center)`, a difference between
+    // two grounds — and a cube's y is BUILT from the flyer stack, which
+    // carries the automaton's own 24 wu lift. Stripping the automaton from
+    // ONE operand does not remove it from a difference: it stayed in with a
+    // PLUS sign, so the carve read 0.000 at every tier's authored mean over
+    // a settled live cell — dead on exactly the cells it exists to cut, and
+    // full strength on dead cells with nothing to cut.
+    //
+    // The fade needs no ground. `orbit_height + bob_amplitude` IS the
+    // clearance, drawn once at spawn and terrain-independent — and it is
+    // `fn row_cube_push`'s Test A verbatim, against a ceiling
+    // (CUBE_REACH_CEILING 30.0) that is already 2.0 * ZONE_SUPPRESS_OUTER,
+    // this fade's own zero point. A cube CARVES IFF IT IS SHOVEABLE: one
+    // test, written twice, on one number. Above the line it is canopy and
+    // touches nothing. No ground query means no datum, so d(retract)/dy is
+    // identically ZERO — nothing terrain-borne can reach the fade.
+    //
     // POLICY_FLYER never reads this plane: the standing flyer exclusion
     // wearing its render-side face, and the reason a cube cannot descend
     // into its own carve (RETRACT_0, HEADLINE). Union across cubes is
@@ -9948,14 +9970,13 @@ fn automaton_evolve(@builtin(global_invocation_id) gid: vec3<u32>) {
     let addr = vec2<i32>(auto_config.cell_origin_x + i32(cell.x),
                          auto_config.cell_origin_z + i32(cell.y));
     let cell_center = (vec2<f32>(addr) + vec2(0.5)) * PATCH_CELL_SIZE;
-    let ground_here = sample_terrain_y_at(cell_center);
     var retract = 0.0;
     for (var k = 0u; k < CUBE_SLOT_COUNT; k++) {
         let fe = render_floating.entities[CUBE_SLOT_OFFSET + k];
         if (fe.is_active == 0u) { continue; }
         retract = max(retract,
                       pawn_gol_suppression(cell_center, fe.pos.xz)
-                      * gol_carve_fade(fe.pos.y, ground_here));
+                      * gol_carve_fade(fe.orbit_height + fe.bob_amplitude, 0.0));
     }
     auto_life[AUTO_CELL_RETRACT + idx] = retract;
 
@@ -9967,14 +9988,13 @@ fn automaton_evolve(@builtin(global_invocation_id) gid: vec3<u32>) {
     textureStore(auto_life_tex_write, cell, vec4(visual, retract, 0.0, 0.0));
 }
 
-// THE CARVE'S RENDER-SIDE FETCH (RETRACT_1) — the reader that stands
-// beside the writer above. It is the FS TINT'S OWN LAW, copied: the
-// global cell address, minus this world's corner, over grid_size, read
-// nearest. The divisor is grid_size and NOT the texture's capacity side,
-// exactly as patch_terrain_fs spells it — the two rooms must land on the
-// SAME texel, so this fetch inherits that law whole rather than correcting
-// it in one room only. Returns 0 outside the born grid, which is the
-// no-carve rest and the same answer the plane holds there.
+// THE CARVE'S RENDER-SIDE FETCH (RETRACT_1, addressed at RETRACT_4) — the
+// reader that stands beside the writer above. It is the FS TINT'S OWN LAW:
+// the global cell address, minus this world's corner, loaded at the INTEGER
+// texel automaton_evolve stored to. Both rooms were corrected together —
+// they must land on the same texel, and now they land on the WRITER's.
+// Returns 0 outside the born grid, which is the no-carve rest and the same
+// answer the plane holds there.
 //
 // probe_xz is ANY point inside the wanted cell. The FS passes the
 // fragment's own world position (the one-address law: for an in-domain
@@ -9987,8 +10007,7 @@ fn sample_cell_retract(probe_xz: vec2<f32>) -> f32 {
     let gs = i32(auto_config.grid_size);
     if (local_cell.x < 0 || local_cell.x >= gs ||
         local_cell.y < 0 || local_cell.y >= gs) { return 0.0; }
-    let uv = (vec2<f32>(local_cell) + 0.5) / f32(auto_config.grid_size);
-    return textureSampleLevel(auto_life_read, nearest_sampler, uv, 0.0).y;
+    return textureLoad(auto_life_read, local_cell, 0).y;
 }
 
 
