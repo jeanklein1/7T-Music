@@ -263,7 +263,8 @@ inline void populate_agent_slot_(const AgentState& as,
                           const AgentPopulationBank& pop,
                           uint32_t agent_seed,
                           float beh_sum, float tier_sum,
-                          float center_x, float center_z) {
+                          float center_x, float center_z,
+                          float box_min, float box_max) {
     // ── Roll behavior ─────────────────────────────────────────────
     float w_beh[AGENT_BEHAVIOR_COUNT];
     for (uint32_t b = 0; b < AGENT_BEHAVIOR_COUNT; b++)
@@ -289,11 +290,42 @@ inline void populate_agent_slot_(const AgentState& as,
     const float gaze = heading_to_bearing(Idle::PAWN_HEADING);
     const float cx = center_x + std::cos(gaze) * pop.spawn_center_forward;
     const float cz = center_z + std::sin(gaze) * pop.spawn_center_forward;
+    // ── THE BOX (HEM_1) ───────────────────────────────────────────
+    // The annulus is 200-340 wu from the point and the world is WALLED:
+    // its half-width is 75 at radius 1. Drawn unchanged, every figure in
+    // this population is born outside the wall, and HEM_1's clamp spends
+    // its first frame stacking thirty-one of them against it.
+    //
+    // SCALE, THEN CLAMP. Scaling alone leaves a point near a corner
+    // drawing outside; clamping alone maps the whole annulus onto the
+    // wall. Rejection sampling was refused: the salt is frozen and a
+    // variable number of draws is not a frozen salt.
+    //
+    // The margin is THIS TIER's contact_radius — the same number
+    // agent_settle's clamp insets the box by, read from the same bank.
+    // The two rooms agree by construction, not by coincidence.
+    //
+    // PLACEMENT MOVES IN A FINITE WORLD, and that is this unit. The
+    // bit-for-bit claim ONE_WORLD-II U1c recorded holds only on the
+    // infinite arm, where `walled` is false, `fit` is 1.0, and not one
+    // line below runs.
+    const bool  walled = (box_min != 0.0f || box_max != 0.0f);
+    const float margin = TIER_LIVE.t[tier_idx].contact_radius;
+
+    float r_in  = pop.spawn_inner_radius;
+    float r_out = pop.spawn_radius;
+    if (walled) {
+        const float usable = std::max(0.0f,
+            0.5f * (box_max - box_min) - margin);   // the box's inradius
+        const float fit = (r_out > 0.0f)
+            ? std::min(1.0f, usable / r_out) : 1.0f;
+        r_in  *= fit;
+        r_out *= fit;
+    }
+
     float theta = cpu_hash_f(agent_seed, 3u) * two_pi;
-    const float inner_sq = pop.spawn_inner_radius * pop.spawn_inner_radius;
-    const float outer_sq = pop.spawn_radius       * pop.spawn_radius;
     float u = cpu_hash_f(agent_seed, 4u);
-    float r = std::sqrt(inner_sq + u * (outer_sq - inner_sq));
+    float r = std::sqrt(r_in * r_in + u * (r_out * r_out - r_in * r_in));
     float sx = cx + std::cos(theta) * r;
     float sz = cz + std::sin(theta) * r;
 
@@ -302,6 +334,17 @@ inline void populate_agent_slot_(const AgentState& as,
     float h_r     = std::sqrt(cpu_hash_f(agent_seed, 6u)) * pop.home_seeding_radius;
     float hx = sx + std::cos(h_theta) * h_r;
     float hz = sz + std::sin(h_theta) * h_r;
+
+    // THE HOME IS CLAMPED TOO, and it is not decoration: home_x/home_z
+    // are HOME_SEEKER's spring anchor and WANDERER's tether. A home
+    // outside the wall is a constant force holding an agent against it
+    // for the life of the world.
+    if (walled) {
+        const float lo = box_min + margin;
+        const float hi = box_max - margin;
+        sx = std::clamp(sx, lo, hi);  sz = std::clamp(sz, lo, hi);
+        hx = std::clamp(hx, lo, hi);  hz = std::clamp(hz, lo, hi);
+    }
 
     // ── Write the slot ────────────────────────────────────────────
     out.pos_x   = sx;   out.pos_y   = 0.0f; out.pos_z   = sz;
@@ -350,6 +393,7 @@ inline void populate_agent_slot_(const AgentState& as,
 inline void spawn_population(AgentState& as, AgentsDeps* c,
                                uint32_t seed,
                                float center_x, float center_z,
+                               float box_min, float box_max,
                                wgpu::Queue& queue) {
     const auto& pop = AGENTS_LIVE;
 
@@ -381,7 +425,7 @@ inline void spawn_population(AgentState& as, AgentsDeps* c,
 
             populate_agent_slot_(as, as.slots[slot], pop, agent_seed,
                                  beh_sum, tier_sum,
-                                 center_x, center_z);
+                                 center_x, center_z, box_min, box_max);
             spawned++;
         }
     }
@@ -399,6 +443,7 @@ inline void spawn_population(AgentState& as, AgentsDeps* c,
 
 inline void respawn_evicted_agents(AgentState& as, AgentsDeps* c,
                             uint32_t world_seed,
+                            float box_min, float box_max,
                             wgpu::Queue& queue) {
     const auto& pop = AGENTS_LIVE;
     if (pop.count == 0) return;
@@ -440,7 +485,7 @@ inline void respawn_evicted_agents(AgentState& as, AgentsDeps* c,
 
         populate_agent_slot_(as, as.slots[slot], pop, agent_seed,
                              beh_sum, tier_sum,
-                             px, pz);
+                             px, pz, box_min, box_max);
 
         c->gpuState_.upload_agent_slot(queue, slot, &as.slots[slot]);
         respawned++;

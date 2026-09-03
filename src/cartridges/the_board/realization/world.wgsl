@@ -3520,10 +3520,19 @@ fn query_ground_walker_pair(xz: vec2<f32>, qi: QueryInputs) -> vec2<f32> {
 // Contributors: static_base + CONTRIB_PYRAMIDS + CONTRIB_AUTOMATON +
 //   CONTRIB_TERRAIN_WAVES + CONTRIB_RADIAL_PULSES + CONTRIB_PAWN_AURA
 //   (external form — grid sample at xz, since the agent is not the pawn).
-// Typical consumers: agent ground resolve (none today; reserved for
-//   the agent system).
-// Notes: agents feel the full GoL lift — no self-suppression. Design
-//   doc §3.3: revisit if agents stuck on top of the automaton's lift look wrong.
+// Consumers: agent_ground_resolve (HEM_1) — four calls per blocked
+//   agent per frame, one on the happy path plus its prev. The sentence
+//   that stood here said "none today; reserved for the agent system";
+//   the agent system arrived and the reservation was spent.
+// Notes: agents feel the full GoL lift — no self-suppression, and since
+//   HEM_1 that is the POINT rather than an oversight: an agent is
+//   STOPPED by a cell it cannot climb (slope_passable, the pawn's own
+//   law and constants) instead of teleporting up its face. A 3.125 wu
+//   cell lifting alive_height ~24 wu is a grade of ~7.7 against
+//   PAWN_MAX_SLOPE 1.75. What agents do NOT get is the pawn's
+//   suppression BUBBLE — that is a privilege, not a constraint, and it
+//   is capped at two centres by the render carve. See docs/OPEN.md,
+//   HEM_1's deferral.
 //   When agents grow their own self-centered auras, add analogous
 //   contrib_<agent>_aura_at_self() forms (defer until a second consumer
 //   asks for one).
@@ -7044,7 +7053,13 @@ fn terrain_normal_at(xz: vec2<f32>, qi: QueryInputs) -> vec3<f32> {
 // prev_y_tilt is computed fresh from the paired query at prev_xz (one
 // extra evaluation per frame; no pawn_state field added — see follow-up
 // brief Part C.3d for the rationale).
-// THE SLOPE LAW, one home for all three candidate tests below.
+// THE SLOPE LAW, one home for all three candidate tests below — and
+// since HEM_1 for TWO FAMILIES of caller: pawn_ground_resolve (the
+// possessed figure, on walker_tilt heights) and agent_ground_resolve
+// (the thirty-one free agents, on POLICY_WALKER_AGENT's standing
+// height). The constants are DELIBERATELY shared: "the same constraints
+// as the pawn" is met by calling the same law with the same numbers,
+// not by authoring an AGENT_MAX_SLOPE beside it.
 // dh = the tilt-height rise of the candidate move; dxz = its horizontal
 // length. Blocked iff the rise clears the noise floor AND its grade
 // exceeds PAWN_MAX_SLOPE — so downhill (dh ≤ 0) always passes.
@@ -7100,6 +7115,62 @@ fn pawn_ground_resolve(
     if (z_ok) { return vec4(slide_z.x, z_pair.x, slide_z.y, 1.0); }
 
     // Fully blocked — revert, reuse prev_y (was snapped last frame)
+    return vec4(prev_xz.x, prev_y, prev_xz.y, 0.0);
+}
+
+// --- Agent ground resolve (HEM_1) — the pawn's slope law, on the
+// agent's own policy.
+//
+// ONE HEIGHT, NOT A PAIR. pawn_ground_resolve compares walker_TILT
+// heights because it must exclude the pawn's own self-centred
+// contributors — a body may not trip on its own aura, nor on the
+// gradient of its own GoL suppression. An agent has NO self-centred
+// contributor: POLICY_WALKER_AGENT's aura is the EXTERNAL grid form and
+// its GoL is unsuppressed. The exclusion set is empty, so the standing
+// height IS the comparison height and one query answers both.
+//
+// THE AGENT DOES NOT CARRY A SUPPRESSION BUBBLE, and that is a ruling
+// rather than an omission: the render carve supports two centres (the
+// pawn and the eye, max()-ed in the two patch VS), so a suppressing
+// agent would stand on ground the picture draws standing. Suppression is
+// the pawn's PRIVILEGE; the slope law is the shared CONSTRAINT. See
+// docs/OPEN.md, HEM_1's deferral.
+//
+// slope_passable is the pawn's own — same PAWN_MAX_SLOPE, same noise
+// floor. "The same constraints as the pawn" is met by using the same
+// constants, not by copying them.
+fn agent_ground_resolve(
+    new_xz: vec2<f32>, prev_xz: vec2<f32>, prev_y: f32, qi: QueryInputs
+) -> vec4<f32> {
+    let y      = query_ground_walker_agent(new_xz,  qi);
+    let prev_h = query_ground_walker_agent(prev_xz, qi);
+
+    // No XZ movement (idle/bootstrap) or passable slope -> just snap.
+    let moved = any(new_xz != prev_xz);
+    if (!moved || slope_passable(y - prev_h, distance(new_xz, prev_xz))) {
+        return vec4(new_xz.x, y, new_xz.y, 1.0);
+    }
+
+    // Full move blocked — try axis-aligned slides. Each slide's dxz is
+    // its own axis delta; the other axis is held.
+    let slide_x = vec2(new_xz.x, prev_xz.y);
+    let x_h     = query_ground_walker_agent(slide_x, qi);
+    let x_ok    = slope_passable(x_h - prev_h, abs(new_xz.x - prev_xz.x));
+
+    let slide_z = vec2(prev_xz.x, new_xz.y);
+    let z_h     = query_ground_walker_agent(slide_z, qi);
+    let z_ok    = slope_passable(z_h - prev_h, abs(new_xz.y - prev_xz.y));
+
+    if (x_ok && z_ok) {
+        if (abs(new_xz.x - prev_xz.x) >= abs(new_xz.y - prev_xz.y)) {
+            return vec4(slide_x.x, x_h, slide_x.y, 1.0);
+        }
+        return vec4(slide_z.x, z_h, slide_z.y, 1.0);
+    }
+    if (x_ok) { return vec4(slide_x.x, x_h, slide_x.y, 1.0); }
+    if (z_ok) { return vec4(slide_z.x, z_h, slide_z.y, 1.0); }
+
+    // Fully blocked — revert, reuse prev_y (snapped last frame).
     return vec4(prev_xz.x, prev_y, prev_xz.y, 0.0);
 }
 
@@ -7206,15 +7277,51 @@ fn agent_settle(agent_in: AgentState) -> AgentState {
     let t  = signal.t_seconds;
     let sp2 = a.vel_x * a.vel_x + a.vel_z * a.vel_z;
 
+    // The start-of-frame pose IS the resolve's prev — the same pair
+    // behavior_player_controlled captures before it moves the candidate.
+    // prev_y is last frame's snapped standing height.
+    let prev_xz = vec2(a.pos_x, a.pos_z);
+    let prev_y  = a.pos_y;
+
     // Position integration.
     a.pos_x += a.vel_x * dt;
     a.pos_z += a.vel_z * dt;
 
-    // Ground snap (walker policy — base + pyramids + GoL + waves + pulses + aura).
-    let qi = QueryInputs(vec3(a.pos_x, a.pos_y, a.pos_z), t);
-    a.pos_y = manifold_position(vec3(a.pos_x, 0.0, a.pos_z), POLICY_WALKER_AGENT, qi).y;
+    // --- THE WALL (HEM_1). The pawn's law, at the agent's own margin.
+    // The legal box is inset by THE BODY's radius, not the point's — the
+    // same discipline as behavior_player_controlled's clamp, reading the
+    // tier's contact_radius because scene_constants.figure_profiles is a
+    // VERTEX-only uniform this stage cannot see. See world_box_clamp_xz
+    // for why bmax is not a coordinate a body may hold.
+    {
+        let cxz = world_box_clamp_xz(vec2(a.pos_x, a.pos_z),
+            agent_room.tier_gains[min(a.tier_idx, 3u)].contact_radius);
+        a.pos_x = cxz.x;
+        a.pos_z = cxz.y;
+    }
 
-    // Heading from velocity (when moving).
+    // --- Ground resolve (HEM_1): was a bare manifold_position snap.
+    // POLICY_WALKER_AGENT — static base + pyramids + full GoL lift +
+    // waves + pulses + the external pawn aura. qi.consumer_pos is the
+    // start-of-frame pose; the policy carries no suppression term, so
+    // this argument is inert here and is passed for signature symmetry
+    // with the pawn's resolve. (It was previously built from the POST-
+    // integration position; manifold_overlay_stack ignores qi, so the
+    // change is inert today and made for that symmetry.)
+    let qi = QueryInputs(vec3(prev_xz.x, prev_y, prev_xz.y), t);
+    let resolved = agent_ground_resolve(vec2(a.pos_x, a.pos_z),
+                                        prev_xz, prev_y, qi);
+    a.pos_x = resolved.x;
+    a.pos_y = resolved.y;
+    a.pos_z = resolved.z;
+    if (resolved.w < 0.5) {
+        a.vel_x = 0.0;
+        a.vel_z = 0.0;
+    }
+
+    // Heading from velocity (when moving). sp2 is the PRE-block speed:
+    // a blocked agent keeps facing what stopped it, exactly as the pawn
+    // does (its heading is authored before its own resolve).
     if (sp2 > 0.01) {
         a.heading = atan2(a.vel_x, a.vel_z);
         let hq = quat_from_axis_angle(vec3(0.0, 1.0, 0.0), a.heading);
@@ -8435,6 +8542,18 @@ fn update_other_agents(@builtin(global_invocation_id) gid: vec3<u32>) {
     // frame and respawns fresh agents in a disk around the point.
     // Pawn-host identical (the point IS the possessed slot's pos
     // there); in free-fly the population lives under the camera.
+    //
+    // IT BARELY FIRES IN A WALLED WORLD, and HEM_1 accepts that rather
+    // than fixing it. AGENT_EVICTION_RADIUS is 350 against a box whose
+    // DIAGONAL is 212 wu at finite_radius 1 and 636 at radius 4, so once
+    // the wall holds every agent inside it, eviction cannot fire in a
+    // small world and fires only near the far corners of a large one.
+    // The spawn-far / walk-in / evict-out economy becomes a RESIDENT
+    // POPULATION — the coherent reading of a walled world: nobody
+    // leaves, so nobody needs replacing. Scaling this radius by the
+    // world's fit factor would need that factor GPU-side, which is a
+    // GPUDesignConfig field, a mirror growth and an organ row — the one
+    // property HEM_1 is holding. Recorded under HEM_1 in docs/OPEN.md.
     let pp = point_pos();
     let dx = agent.pos_x - pp.x;
     let dz = agent.pos_z - pp.z;

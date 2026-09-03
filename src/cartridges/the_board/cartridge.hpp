@@ -97,6 +97,7 @@
 #include <unordered_set>
 #include <random>
 #include <algorithm>
+#include <utility>    // std::pair — world_box_()'s return (HEM_1)
 #include <string>
 #include <vector>
 
@@ -676,7 +677,8 @@ namespace t7 {
                     // 1+). Slot 0 (the pawn, seeded just above) is untouched.
                     if constexpr (ROSTER.wanderers)
                         spawn_population(agent_state_, &agents_deps_, world_state_.active_seed,
-                            Idle::PAWN_POS_X, Idle::PAWN_POS_Z, q);
+                            Idle::PAWN_POS_X, Idle::PAWN_POS_Z,
+                            world_box_().first, world_box_().second, q);
                     dump_agent_census(agent_state_, &agents_deps_, "boot");
                     dump_entity_census(&machine_ctx_, "boot");
                 }
@@ -1185,15 +1187,28 @@ namespace t7 {
             // (RC policy): the TEARDOWN case re-stages the seed itself, and
             // moving the bounds after the machine would ship the NEW world's
             // bounds one frame early on the teardown frame.
+            // THE BOX, ONCE (HEM_1). phase_stage_world derived these two
+            // floats inline and handed them to the GPU; the agents'
+            // placement needs the same pair on the CPU side, and a second
+            // derivation is how two rooms start disagreeing about where the
+            // wall is. Returns (0,0) in an infinite world — the SAME
+            // all-zero sentinel world_box_clamp_xz reads as "no bounds", so
+            // the two rooms share one convention as well as one number.
+            // (A third copy lives at surface/patch_system.hpp's patch walk;
+            // it is out of this helper's reach — patch_system.hpp is
+            // included AFTER bodies/agents.hpp in the cohort — and is left
+            // alone.)
+            std::pair<float, float> world_box_() const {
+                if (!world_state_.finite_mode) return {0.0f, 0.0f};
+                return { -(float)world_state_.finite_radius * Dim::PATCH_EXTENT,
+                         ((float)world_state_.finite_radius + 1.0f) * Dim::PATCH_EXTENT };
+            }
+
             void phase_stage_world(UpdateCtx&) {
                 gpuState_.set_world_seed(world_state_.active_seed);
-                if (world_state_.finite_mode) {
-                    float bmin = -(float)world_state_.finite_radius * Dim::PATCH_EXTENT;
-                    float bmax = ((float)world_state_.finite_radius + 1.0f) * Dim::PATCH_EXTENT;
+                {
+                    const auto [bmin, bmax] = world_box_();
                     gpuState_.set_world_bounds(bmin, bmin, bmax, bmax);
-                }
-                else {
-                    gpuState_.set_world_bounds(0.0f, 0.0f, 0.0f, 0.0f);
                 }
                 // THE VEIL'S STRENGTH was staged here, 0 in a finite world.
                 // It left at ONE_SURFACE-I U4 with the icing it scaled — the
@@ -1452,7 +1467,8 @@ namespace t7 {
                 // ROSTER-GATE wanderers (c) — rebirth population (slots 1+); slot 0 preserved above.
                 if constexpr (ROSTER.wanderers)
                     spawn_population(agent_state_, &agents_deps_, world_state_.active_seed,
-                        Idle::PAWN_POS_X, Idle::PAWN_POS_Z, queue);
+                        Idle::PAWN_POS_X, Idle::PAWN_POS_Z,
+                        world_box_().first, world_box_().second, queue);
                 dump_agent_census(agent_state_, &agents_deps_, "rebirth");
                 // Fires AFTER reset_surface and every teardown verb above,
                 // and before `band_patches` (the RENDER_SPINE row
@@ -1721,7 +1737,8 @@ namespace t7 {
             // HARVEST — no data edge. ROSTER-GATE wanderers — call site.
             void phase_respawn_agents(RenderCtx& c) {
                 auto& queue = c.queue;
-                respawn_evicted_agents(agent_state_, &agents_deps_, world_state_.active_seed, queue);
+                respawn_evicted_agents(agent_state_, &agents_deps_, world_state_.active_seed,
+                                       world_box_().first, world_box_().second, queue);
             }
 
             // R6 — CENSUS DUMPS (wall-clock interval, diagnostic). GoL residue
