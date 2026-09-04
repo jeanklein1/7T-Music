@@ -658,7 +658,9 @@ namespace t7 {
             //
             // ATTACK  — the glide law's own integrator aimed at 1, the
             //   house's standing exponential-approach idiom
-            //   (CUBE_GLIDE_TAU, ZOETROPE_LIFT_TAU are the same k-form).
+            //   (CUBE_GLIDE_TAU is the same k-form; ZOETROPE_LIFT_TAU
+            //   was the third and retired at WHEEL_0 U3 with the CPU
+            //   walk it timed).
             //   τ = plateau/6 puts I(plateau) = 1 − e⁻⁶ ≈ 0.9975.
             //   CHOIR_1 MADE IT SNAPPIER by moving the DIVISOR and
             //   nothing else — 4 → 6, so the switch-on slope 1/τ goes

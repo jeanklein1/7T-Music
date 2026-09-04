@@ -6,6 +6,7 @@
 #include "cartridges/the_board/contracts/driver_surface.hpp"  // THE DRIVERS' ROOM: DRIVER_LIVE.cube — the choir's incandescence + gain
 #include "cartridges/the_board/contracts/wgpu_fwd.hpp"   // wgpu handle fwds (lockstep insurance)
 #include "cartridges/the_board/contracts/entity_types.hpp"   // queue types (the funnel signatures)
+#include "cartridges/the_board/contracts/control_panel.hpp"  // WHEEL_0: PANEL_LIVE.wheel — the interval wheel's five axes
 
 // ─── cube_behaviors.hpp (HEADER: registries + console + state + decls) ─
 //
@@ -18,7 +19,10 @@
 
 #include <cmath>      // std::cos, std::sin, std::exp, std::fabs   // (impl, merged)
 #include <iostream>   // diagnostics feedback   // (impl, merged)
-#include <numeric>    // std::gcd — the helix coprimality witness
+// <numeric> stood here for std::gcd — the helix coprimality witness.
+// The helix retired with the screen it seated (WHEEL_0 U3); the wheel
+// addresses a key by its PITCH CLASS and its RANK, which is division,
+// not a stride, and needs nothing proved coprime.
 #include <algorithm>  // std::max — the scatter's altitude floor and the settle norm
                       // (std::min left with the lattice: it clamped the
                       // cell intensity, and there is no cell to clamp)
@@ -84,22 +88,22 @@ inline constexpr float CUBE_DEFAULT_DRAG             = 1.5f;   // 1/s,  gentle d
 // two-room handshake to keep. The only arithmetic that binds is stated
 // in its own band: the helix's coprimality and the screen's spacing.
 //
-// ─ THE LATTICE band ─────────────────────────────────────────────
-// THE FORMATION GEOMETRY OWNS THESE NOW. They were the automaton's
-// address space and the screen's shape at once; the automaton is gone,
-// so what is left is the SEATING — seven ranked rows of thirty-six
-// bearings, and the helix that walks a slot onto one of them
-// (zoetrope_station / station_scatter are the only readers). The
-// numbers do not move: the screen is the screen it was.
-inline constexpr uint32_t LATTICE_ROWS  = 7;   // the mode's degrees
-inline constexpr uint32_t LATTICE_COLS  = Dim::MAX_CUBE_INSTANCES / LATTICE_ROWS;          // 36
-inline constexpr uint32_t LATTICE_CELLS = LATTICE_ROWS * LATTICE_COLS;  // 252 seats; the LIVING ceiling is CUBE_CHOIR_N now, capacity stays 256
-inline constexpr uint32_t ZOETROPE_CELL_STRIDE   = LATTICE_COLS + 1;  // 37 — the helix
-inline constexpr uint32_t ZOETROPE_CELL_UNSTRIDE = 109;               // 37⁻¹ mod 252
-static_assert((ZOETROPE_CELL_STRIDE * ZOETROPE_CELL_UNSTRIDE) % LATTICE_CELLS == 1u,
-              "helix inverse broken — recompute UNSTRIDE for these dims");
-static_assert(std::gcd(ZOETROPE_CELL_STRIDE, LATTICE_CELLS) == 1u,
-              "helix stride must be coprime to the lattice");
+// ─ THE LATTICE band STOOD HERE (WHEEL_0 U3) ─────────────────────
+// LATTICE_ROWS / LATTICE_COLS / LATTICE_CELLS and the helix pair
+// (ZOETROPE_CELL_STRIDE / ZOETROPE_CELL_UNSTRIDE) with both of their
+// witnesses — the inverse and the coprimality. Seven ranked rows of
+// thirty-six bearings, and the stride that walked a slot onto one of
+// them so consecutive spawns landed one column over and one row up.
+//
+// THE WHEEL ADDRESSES A KEY DIRECTLY. Key k IS pitch class k % 12 and
+// rank k / 12, and those two numbers are the whole seating law — there
+// is no cell to map onto, so there is no map, no stride, and nothing
+// to prove a bijection. The lattice's last reader was the pair of
+// station functions it seated, and they retire with the screen.
+//
+// The capacity that actually bounds the choir was never the lattice's
+// 252 either: it is Dim::MAX_CUBE_INSTANCES, the slot count, and the
+// static_assert below now says so.
 
 // ─ THE CHOIR band ─ the boot choice: how many keys the instrument has.
 // Not random, chosen before boot (Jean). Two ranks or three of twelve.
@@ -110,10 +114,11 @@ static_assert(std::gcd(ZOETROPE_CELL_STRIDE, LATTICE_CELLS) == 1u,
 // evicted key's refill takes the lowest free slot — THE SAME DARK KEY
 // RELIGHTS. No mapping table, no registry: the identity IS the law.
 //
-// The lattice geometry above is untouched by this: LATTICE_COLS is 36 by
-// arithmetic (256/7) and CUBE_CHOIR_N is a CHOICE. The two shared a
-// number at CHOIR_0 and no longer do — which is exactly why they were
-// never the same constant.
+// The lattice geometry that stood above was untouched by this: its 36
+// columns were arithmetic (256/7) and CUBE_CHOIR_N is a CHOICE. The two
+// shared a number at CHOIR_0 and no longer did — which is exactly why
+// they were never the same constant, and why the lattice could retire
+// at WHEEL_0 U3 without the choir noticing.
 //
 // CHOIR_1: TWO RANKS. Rank 0 lights on one sounding note per pitch
 // class, rank 1 on a doubling; a third voice of the same class now has
@@ -125,8 +130,8 @@ inline constexpr uint32_t CUBE_CHOIR_N = 24;
 static_assert(CUBE_CHOIR_N == 24u || CUBE_CHOIR_N == 36u,
     "the choir is stacked pianos: two ranks or three, nothing else");
 static_assert(CUBE_CHOIR_N % 12u == 0u, "ranks are whole pianos");
-static_assert(CUBE_CHOIR_N <= LATTICE_CELLS,
-    "the choir seats through the helix bijection — it may not outrun the lattice");
+static_assert(CUBE_CHOIR_N <= Dim::MAX_CUBE_INSTANCES,
+    "a key is a SLOT (key k = slot k, by construction) — the choir may not outrun the slots");
 inline constexpr uint32_t CUBE_CHOIR_RANKS = CUBE_CHOIR_N / 12u;
 // THE POKE GATE. The projector runs every frame now — the lattice's
 // tick is gone and there is nothing left to hide a flush behind — so
@@ -185,11 +190,11 @@ inline constexpr uint8_t CHOIR_TIERS[CUBE_CHOIR_N] = {
 static_assert(sizeof(CHOIR_TIERS) / sizeof(CHOIR_TIERS[0]) == CUBE_CHOIR_N,
     "one tier per key, hand-authored — a keyboard has no weights to roll");
 
-// THE BIRTH CIRCLE — PLACEHOLDER BY DECLARATION. Key k sits at angle
-// 2πk/N on a circle about the world's centre. WHEEL_0 re-aims THIS ONE
-// FUNCTION to the interval wheel's stations, which is why the birth calls
-// it rather than computing a position inline.
-inline constexpr float CHOIR_BIRTH_RADIUS = 60.0f;
+// CHOIR_BIRTH_RADIUS stood here (WHEEL_0 U2) — 60 wu, the placeholder
+// circle's reach, declared a placeholder on the day it was written. Its
+// successor is PANEL_TABLE.wheel.radius, which is the same 60 wu and is
+// a DIAL rather than a constant: the birth stands on the REST wheel and
+// the wheel's inner radius is the number it stands at.
 
 // THE SYNTHETIC PATCH ROW, and it is load-bearing — see birth_the_choir.
 // A boot-born cube belongs to no patch, and the projector recomputes its
@@ -209,40 +214,51 @@ inline constexpr int32_t CHOIR_PATCH_ROW = -30000;
 // (canvas::CANVAS_LIVE.light_plateau / .light_release). The write head
 // went with them: a note lights the key it names, wherever that key
 // stands, so there is nothing left for a revolution to sweep.
-// ─ THE SCREEN band ──────────────────────────────────────────────
-// THE SPACING: 9 wu rows against 6.4 wu pixels is the first spacing
-// where the rows read as rows; the column arc at R=60 is 2πR/36 ≈
-// 10.5 wu, so neighbours in a row clear each other too.
-inline constexpr float ZOETROPE_RING_RADIUS = 60.0f;  // arc = 2π·R/36 ≈ 10.5 wu; FOV° ≈ 2·atan(3.5·H_STEP/RADIUS) ≈ 55°
-inline constexpr float ZOETROPE_H_BASE      = 8.0f;   // row-0 height above ground (wu)
-inline constexpr float ZOETROPE_H_STEP      = 9.0f;   // wu per mode degree — screen ≈ rows 8..62 wu
-inline constexpr float ZOETROPE_PIXEL_RADIUS = 3.2f;  // pixel half-size; full ≈ 6.4 wu
-// The screen's own loosening — all zero ⇒ the machined ring; raise for
-// a hand-placed screen. Bounded by the spacing above: the jitters are
-// fractions of the arc, the step and the radius, so no setting of them
-// can put two pixels in one place.
-inline constexpr float ZOETROPE_JITTER_R     = 0.14f;  // × radius
-inline constexpr float ZOETROPE_JITTER_THETA = 0.35f;  // × column arc
-inline constexpr float ZOETROPE_JITTER_H     = 0.30f;  // × H_STEP
-inline constexpr uint32_t ZOETROPE_STATION_SEED = 0x57A7104Eu;
-// ─ the scatter seat (the gathering, not the instrument) ─────────
-inline constexpr float ZOETROPE_SCATTER_RADIUS  = 90.0f;  // wu — the gathering's mean reach
-inline constexpr float ZOETROPE_SCATTER_JITTER_R = 0.45f; // × radius — deep, this is a flock
-inline constexpr float ZOETROPE_SCATTER_JITTER_H = 28.0f; // wu — free vertical spread
-inline constexpr float ZOETROPE_SCATTER_JITTER_THETA = 0.90f;  // × column arc — the flock is not spoked
-inline constexpr float ZOETROPE_SCATTER_SIZE_BIAS   = 4.0f;   // wu of extra radius per wu of body radius
-inline constexpr uint32_t ZOETROPE_SCATTER_SEED = 0x5CA77E12u;
-// ─ the walk between seats (every transition is a walk) ──────────
-inline constexpr float ZOETROPE_LIFT_TAU    = 1.1f;   // s — the climb's own walk law; birth-equal to CUBE_GLIDE_TAU, independently tunable
-inline constexpr float ZOETROPE_SETTLE_EPS  = 0.05f;  // wu — snap-and-stop threshold
-inline constexpr float ZOETROPE_RESEAT_JUMP = 40.0f;  // wu/frame — no motion moves the point this far; only possess() does
+// ─ THE SCREEN, THE SCATTER AND THE WALK STOOD HERE (WHEEL_0 U3) ──
+// RING_RADIUS / H_BASE / H_STEP / PIXEL_RADIUS with the spacing note
+// that derived them; the screen's three loosening jitters and their
+// seed; the whole scatter band — reach, three jitters, the size bias
+// and its own seed; and the walk's three numbers, LIFT_TAU, SETTLE_EPS
+// and RESEAT_JUMP.
+//
+// WHAT THEY SERVED IS GONE, ALL OF IT AT ONCE: two resting formations
+// and the three walks between them, seated by hand on the CPU with a
+// per-slot shadow set and a settle test. THE GLIDE DOOR IS THE
+// TRANSITION NOW — goals may leap, values may only walk — so a
+// formation is a STATION FUNCTION and nothing else, and there is no
+// walk left to own a tau, no arrival left to test an epsilon, and no
+// staged frame for a sentinel that no longer flies.
+//
+// THE HEIGHTS WENT WITH THEM, and that is the campaign's own ruling:
+// the wheel is XZ ONLY. A key stands at the altitude its TIER drew
+// (CHOIR_1's calm band), so the screen's ranked rows have no successor
+// — the wheel ranks in RADIUS, outward, where the screen ranked in
+// height.
+
+// ─ THE SERVE'S GATE (WHEEL_0 U2) ────────────────────────
+// The station is recomputed every frame for every key, but a key only
+// POKES when its station moved past this. A steady wheel is silent; a
+// turning phase pokes all twenty-four.
+//
+// LIKE THE LIGHT'S GATE, IT COMPARES AGAINST THE LAST SERVE, not the
+// last frame — which is the difference between thinning and stopping.
+// A wheel turning slower than epsilon per frame still accumulates
+// against the stored shadow and pokes when the sum crosses, so no
+// speed of turn can leave a key behind.
+inline constexpr float WHEEL_SERVE_EPS = 0.05f;  // wu — below this the station has not moved
 
 // ─ THE EXPRESSION band ──────────────────────────────────────────
 // One light, three expressions: the colour mix, the swell, and the
 // CONVERGENCE of the face. All read the same I through choir_light's
 // one door, so a lit key is one gesture.
-inline constexpr float ZOETROPE_REST_DIM = 0.30f;  // SCREEN rest brightness — the instrument is dark until played
-inline constexpr float ZOETROPE_SWELL_GAIN = 0.60f;  // × pixel radius at full I
+// ZOETROPE_REST_DIM stood here (WHEEL_0 U3) — 0.30, the SCREEN's rest
+// brightness, on the reading that an instrument is dark until played.
+// It had exactly two edges (the two dim transitions) and both were
+// TO_ states; with the screen gone there is no dark screen to rest, and
+// a wheel of cubes standing in the world is the world's swarm, which
+// C6R already ruled must not be dimmed. The base is the mirror's own
+// draw again, at full.
+inline constexpr float ZOETROPE_SWELL_GAIN = 0.60f;  // × THE MIRROR'S OWN body radius at full I (was × the screen's uniform pixel)
 // PIGMENT_R/G/B/WEIGHT stood here (CHOIR_0 U5) — the ethereal ice the
 // mix aimed at, and the stain under the flash. Their successor is
 // DRIVER_LIVE.cube.light_color, which belongs in the DRIVERS' ROOM
@@ -343,8 +359,9 @@ inline CubeBank CUBE_LIVE = CUBE_TABLE;
 // `ZoetropeCell` stood here (CHOIR_0 U5) — one lattice cell, a fast
 // excitation and a slow pigment. The choir keeps no field: a key's light
 // is its own state, indexed by the key, and the cube reads it where it
-// stands. THE HELIX survives as FORMATION geometry (cell_of_slot, below)
-// and nothing else; it is a seating law now, not an addressing one.
+// stands. The helix survived CHOIR_0 as formation geometry and retired
+// at WHEEL_0 U3 with the screen it seated — the wheel addresses a key by
+// its pitch class and its rank, so there is no cell and no map.
 
 struct CubeBehaviorsState {
     uint32_t   behavior_override  = CUBE_BEHAVIOR_STATIONARY;
@@ -353,41 +370,55 @@ struct CubeBehaviorsState {
     // the world now, so there is no frame to choose between.
     ActiveCube activeCubes_[Dim::MAX_CUBE_INSTANCES]{};
 
-    // ── The reveal machine (C6R; H1: F6 IS A CYCLE) ── staged capture,
-    // CPU flush-walk climb. Three resting states — roam, scattered,
-    // screen — and a walk between each: roam → scatter → screen → roam.
-    // Every transition is a walk; nothing teleports.
-    enum class Formation : uint8_t {
-        ROAM, TO_SCATTER, SCATTERED, TO_SCREEN, SCREEN, TO_ROAM };
-    Formation formation = Formation::ROAM;
-    bool  stations_sent = false;
-    // THE FORCE FLAG. A cube's look changes with the FORMATION as well as
-    // with the music, and the projector is gated on the music — so every
-    // formation change that moves the look has to say so here, or the new
-    // look waits for a note that may never come (V1 E3). Neither raiser
-    // can reach the world seed the projector needs, so both raise this
+    // ── THE MODE (WHEEL_0 U3) ── two states and no walk between them.
+    // WHEEL: every key is served its station on the interval wheel,
+    // every frame, through the glide-target door. ROAM: the targets go
+    // back to the birth anchors and DRIFT OWNS THE PICTURE — the
+    // behaviour kernels have the cubes again.
+    //
+    // THERE ARE NO TO_ STATES AND THERE IS NOTHING TO WALK, which is the
+    // whole point of goals-leap-values-walk: the door moves the GOAL and
+    // the kernel walks the VALUE at the standing tau. What used to be
+    // three transitions with a staged frame, a shadow set, a settle test
+    // and an arrival edge is now one assignment.
+    //
+    // REST IS WHEEL. The instrument stands assembled at boot — the birth
+    // lays every key on the rest wheel already in position (U2), so the
+    // first frame serves nothing and the wheel is simply THERE.
+    enum class Formation : uint8_t { ROAM, WHEEL };
+    Formation formation = Formation::WHEEL;
+    // THE FORCE FLAG. A cube's look changes with the MODE as well as
+    // with the music, and the projector is gated on the music — so a
+    // mode change that moves the look has to say so here, or the new
+    // look waits for a note that may never come (V1 E3). The raiser
+    // cannot reach the world seed the projector needs, so it raises this
     // instead and choir_project spends it as a FORCE on its next pass.
-    // TWO RAISERS, THREE EDGES: reveal_zoetrope on the dim's two
-    // transitions (TO_SCREEN on, TO_ROAM off), and zoetrope_service at
-    // every settle (CHOIR_0 U6b — the arrival, where the walk has just
-    // snapped the radius and the swell must be re-asserted).
+    // ONE RAISER, ONE EDGE now: reveal_zoetrope, on the ROAM↔WHEEL flip
+    // — the swell's jurisdiction changes there and nothing else does.
+    // (The dim's two edges retired with the dim; the arrival edge
+    // retired with the walk that used to snap a radius under it.)
     bool  repaint_all   = false;
-    // The stage frame: a kite sentinel is in flight and will EAT any
-    // target written before it is consumed (V1), so the seat pass waits
-    // one frame. THREE writers, two of them load-bearing: F7's toggle
-    // and the reseat both send a sentinel and must stage; the reveal no
-    // longer sends one (K1) and stages only to keep one press shape.
-    bool  stage_wait    = false;
-    // The walker's own shadows (G5) — height, radius, aspects; it never
-    // reads the GPU values; the walker owns the scalars while the walk
-    // lives. The PRIOR needs no stage: THE MIRROR IS THE PRIOR
-    // (activeCubes_ keeps every tier draw; release targets read it).
-    struct ZoeWalk { float h, r, ay, az; } walk_[LATTICE_CELLS]{};
-    bool  settled[LATTICE_CELLS]{};
-    // ── The reseat watch (G4) ── the point's last seen position; a
-    // per-frame step no motion can make marks a possession seam.
-    float last_px = 0.0f, last_pz = 0.0f;
-    bool  point_seen = false;
+    // ── THE SERVE'S SHADOW (WHEEL_0 U2) ── the station each key was
+    // last actually served at, in world XZ. Same shape and same reading
+    // as choir_flushed one field down: the gate compares against THIS,
+    // not against the previous frame, so a wheel turning slower than
+    // WHEEL_SERVE_EPS per frame still accumulates and pokes. Seeded at
+    // birth (the birth writes the target itself) and reset by
+    // clear_cubes, for the same reason the light's gate is.
+    float wheel_sx[CUBE_CHOIR_N]{};
+    float wheel_sz[CUBE_CHOIR_N]{};
+    // ── THE BIRTH ANCHOR (WHEEL_0 U3) ── where the key was actually
+    // BORN, in world XZ, recorded once and never rewritten. This is
+    // ROAM's target: let go of the wheel and a key walks home to the
+    // shape it was laid in.
+    //
+    // IT IS A RECORD, NOT A RECOMPUTATION, and that distinction is the
+    // whole reason it is a field rather than a call to birth_station.
+    // birth_station reads the LIVE wheel, so recomputing it would make
+    // ROAM follow the dials — the one thing ROAM exists not to do. The
+    // anchor is the wheel as it stood ON THE DAY, frozen.
+    float birth_ax[CUBE_CHOIR_N]{};
+    float birth_az[CUBE_CHOIR_N]{};
 
     // ── THE CHOIR'S LIGHT (the mirror, and the poke gate) ──────────
     // choir_I is written by ONE AUTHOR, once per frame: the cartridge's
@@ -430,18 +461,22 @@ bool dispatch_place_cube_generic(MachineCtx* self, EntityQueueEntry& e, Placemen
 void dispatch_commit_cube_generic(MachineCtx* self, PlacementEntry& pe, wgpu::Queue& queue);
 // Player commands
 void cycle_cube_behavior_override(CubeBehaviorsState& cbs, CubeDeps* c, wgpu::Queue& queue);
+// The mode door (WHEEL_0 U3): ROAM ↔ WHEEL. Its two trailing
+// parameters are the door table's shape, not its needs — the flip
+// writes no GPU state at all.
 void reveal_zoetrope(CubeBehaviorsState& cbs, CubeDeps* c, wgpu::Queue& queue);
 // `set_cube_kite` (the ONE kite home, G3) and `toggle_cube_kite_mode`
 // stood here (STAGE_0 U4), with door 6 that pressed the second.
 // Per-frame
 void reconcile_cube_mirror(CubeBehaviorsState& cs, CubeDeps* c, const GPUFloatingEntityState* data);
-// The zoetrope — the FORMATION machine's per-frame service. `zoetrope_
-// strike` stood beside it (CHOIR_0 U5) and went with the lattice it fed;
-// the service survives lighter, carrying the reseat watch and the climb
-// and nothing else, so it no longer needs a musical clock or a world
-// seed to do either.
-void zoetrope_service(CubeBehaviorsState& cbs, GPUState& gpu, wgpu::Queue& queue,
-    float dt, float point_x, float point_z);
+// THE SERVE — the wheel's per-frame pass, and all that is left of the
+// formation machine. `zoetrope_strike` stood beside it (CHOIR_0 U5) and
+// went with the lattice it fed; the reseat watch and the climb went at
+// WHEEL_0 U3 with the walk and the host-following screen, which took
+// `dt` and the point mirror with them. What remains reads the panel,
+// computes a station per key and pokes the ones that moved — no clock,
+// no world seed, no host, no time.
+void zoetrope_service(CubeBehaviorsState& cbs, GPUState& gpu, wgpu::Queue& queue);
 // THE PROJECTOR — one home: the light reaches pixels here and nowhere
 // else. `zoetrope_cell_intensity`, `project_cell_color` and `zoetrope_
 // project_slot` stood here and are superseded by these; the seed
@@ -524,13 +559,19 @@ inline void clear_cubes(CubeBehaviorsState& cbs, GPUState& gpu, wgpu::Queue& que
     // live signal every frame regardless. Only the POKE GATE resets —
     // the slots it shadowed have just been wiped on the GPU, so every
     // shadow it holds is now a lie about an empty slot.
-    cbs.formation     = CubeBehaviorsState::Formation::ROAM;
-    cbs.stations_sent = false;
-    cbs.stage_wait    = false;
-    for (uint32_t i = 0; i < CUBE_CHOIR_N; i++) cbs.choir_flushed[i] = 0.0f;
-    for (uint32_t i = 0; i < LATTICE_CELLS; i++) {
-        cbs.settled[i] = false;
-        cbs.walk_[i]   = {};
+    //
+    // THE MODE RESETS TO ITS REST (WHEEL_0 U3), not to ROAM: the wheel is
+    // the instrument's standing shape, and a world torn down mid-roam
+    // that came back roaming would be a world whose choir has to be
+    // re-assembled by hand. The birth that follows lays every key on the
+    // rest wheel, so the reset and the birth agree.
+    cbs.formation     = CubeBehaviorsState::Formation::WHEEL;
+    for (uint32_t i = 0; i < CUBE_CHOIR_N; i++) {
+        cbs.choir_flushed[i] = 0.0f;
+        cbs.wheel_sx[i] = 0.0f;
+        cbs.wheel_sz[i] = 0.0f;
+        cbs.birth_ax[i] = 0.0f;
+        cbs.birth_az[i] = 0.0f;
     }
 }
 
@@ -548,156 +589,144 @@ inline void cycle_cube_behavior_override(CubeBehaviorsState& cbs, CubeDeps* c, w
               << CUBE_BEHAVIOR_NAMES[cbs.behavior_override] << "\n";
 }
 
-// ── The zoetrope's stations (C6R) — the ONE home for geometry ───
-// THE HELIX (G2): cell = slot·37 mod 252 — consecutive spawns land one
-// column over, one row up; the screen densifies with the population.
-// The stride is coprime to the lattice, so slot↔cell is a bijection
-// (UNSTRIDE is its inverse); every row is reachable at any count.
-inline uint32_t cell_of_slot(uint32_t s) { return (s * ZOETROPE_CELL_STRIDE)   % LATTICE_CELLS; }
-// `slot_of_cell` — the inverse crossing — stood here (CHOIR_0 U5). The
-// strike was its only caller: a lattice cell had to name the slot it
-// pokes, so it needed the map read backwards. Nothing reads a cell now,
-// so the crossing is one-way and only the SEATING direction survives.
-// BOTH CONSTANTS STAY, and so does the inverse static_assert above — the
-// helix is still a bijection and that assert is still what proves it;
-// it is simply not walked backwards at runtime any more.
-
-// ── THE TWO STATIONS, side by side (H1b) ────────────────────────
-// SCATTER is the flock drawn in: own bodies, own altitudes, deep
-// jitter. SCREEN is the instrument: uniform pixels, ranked rows,
-// tight jitter. One function each; the cycle chooses.
+// ── THE INTERVAL WHEEL — the ONE home for geometry (WHEEL_0) ────
 //
-// Both seat from the same construction — cell = cell_of_slot(slot),
-// theta from that cell's column — so a cube keeps its angular
-// identity across the whole cycle, and only its reach, its rank and
-// its body change between the two.
+// THE LAW, whole:
 //
-// THE SEATING LAW (K2): two cubes may share a column; nothing may
-// share a bearing. The screen ranks its seven rows on one bearing per
-// column and separates them vertically, so a shared bearing is the
-// point there. The gathering has no ranks to separate it, so it
-// scatters the bearing itself (JITTER_THETA, most of a column arc) and
-// separates by BODY as well — SIZE_BIAS seats big cubes outward and
-// small ones close, which reads as depth rather than as a ring.
-struct ZoetropeStation { float off_x; float off_z; float h; };
+//     pc  = k % 12          the key's PITCH CLASS
+//     r   = k / 12          the key's RANK  (N = 24 → two ranks)
+//     θ(k)      = phase + twist·r + (2π/12)·wrap12(step · pc)
+//     radius(k) = radius + rank_sep·r
+//     station(k)= centre + radius(k)·(cos θ, sin θ)
+//
+// Concentric rings about the world's centre, one ring per rank, a key
+// seated on its ring by the pitch class it IS. Key k was already a
+// pitch class and a rank by construction (key k = slot k, and the
+// choir is stacked pianos); the wheel is what makes the FORMATION say
+// so out loud.
+//
+// STEP IS THE TRANSFORMATION AXIS. At step 1 the ring is the CHROMATIC
+// CIRCLE — the twelve classes in order round the clock. Walked
+// continuously toward 7 it passes through every star polygon {12/step}
+// and arrives at the CIRCLE OF FIFTHS, where a fifth is a neighbour
+// pair and a semitone is a near-diameter. What the eye reads is the
+// interval content of whatever is sounding, DRAWN: a fifth is a
+// near-diameter at step 1 and a neighbour pair at step 7, and the
+// chord's shape on the floor changes meaning as the wheel is turned.
+//
+// AND IT IS A CONTINUOUS AXIS, not a switch. `step` is a float and
+// wrap12 is applied to the CONTINUOUS PRODUCT — no rounding, no
+// shortest-arc logic, nothing that could make a key jump the seam.
+// A key crossing the wrap seam WALKS the long way round, because the
+// station is a goal and the glide door is what turns a goal into a
+// path. THE BRAID IS THE PERCEPT: a moving step sends twenty-four
+// cubes weaving past each other across the floor of the world, and
+// that motion — not the endpoints — is the thing worth watching.
+//
+// NO NEW MOTION MECHANISM EXISTS ANYWHERE IN THIS CAMPAIGN. Every
+// station reaches a cube through upload_cube_glide_target and is
+// walked in-kernel at the standing CUBE_GLIDE_TAU, exactly as a corral
+// target was. Goals may leap; values may only walk.
+//
+// XZ ONLY (the campaign's ruling). Heights stay the tiers' own calm
+// band — CHOIR_1 tuned them and the wheel has no business in them. The
+// screen ranked in HEIGHT; the wheel ranks in RADIUS, outward.
+struct WheelStation { float off_x; float off_z; };
+// `ZoetropeStation` stood here with a third member, `h` — the seat's
+// height, which every walk read and no wheel does.
 
-inline ZoetropeStation zoetrope_station(uint32_t slot) {
-    const uint32_t cell = cell_of_slot(slot);
-    const uint32_t row = cell / LATTICE_COLS;
-    const uint32_t col = cell % LATTICE_COLS;
-    const float two_pi = 6.28318530718f;
-    const float column_arc = two_pi / float(LATTICE_COLS);
-    // THE LOOSENING (V4): three fixed-seed offsets, the same grammar the
-    // scatter uses, on their own seed so the two seatings never share a
-    // hash — a cube's screen seat and its gathering seat are independent
-    // draws. All three jitters at zero give back the machined ring
-    // exactly; raised, the screen reads as hand-placed rather than
-    // milled, without any seat leaving its own cell's neighbourhood.
-    const float jt = (cpu_hash_f(ZOETROPE_STATION_SEED, cell * 3u + 2u) - 0.5f) * 2.0f;
-    const float jr = (cpu_hash_f(ZOETROPE_STATION_SEED, cell * 3u)      - 0.5f) * 2.0f;
-    const float jh = (cpu_hash_f(ZOETROPE_STATION_SEED, cell * 3u + 1u) - 0.5f) * 2.0f;
-    const float theta  = column_arc * float(col) + jt * column_arc * ZOETROPE_JITTER_THETA;
-    const float radius = ZOETROPE_RING_RADIUS * (1.0f + jr * ZOETROPE_JITTER_R);
-    const float h      = ZOETROPE_H_BASE + float(row) * ZOETROPE_H_STEP
-                       + jh * ZOETROPE_H_STEP * ZOETROPE_JITTER_H;
-    return { std::cos(theta) * radius, std::sin(theta) * radius, h };
+// The wrap, and it is the law's one subtlety. std::fmod keeps the sign
+// of its left operand, so a negative step (a legal setting: the wheel
+// may be turned backwards) would come back negative and put the key on
+// the wrong side of the circle. One conditional lift puts it in [0,12).
+inline float wrap12(float x) {
+    const float w = std::fmod(x, 12.0f);
+    return (w < 0.0f) ? w + 12.0f : w;
 }
 
-// The gathering's seat. Fixed-seed jitters (ZOETROPE_SCATTER_SEED), so
-// re-pressing lands every cube on the same seat it left — the flock has
-// a shape, not a shuffle.
-inline ZoetropeStation station_scatter(const CubeBehaviorsState& cbs, uint32_t slot) {
-    const uint32_t cell = cell_of_slot(slot);
-    const uint32_t col  = cell % LATTICE_COLS;
+// The station of key k on a GIVEN wheel. Taking the axes by parameter
+// rather than reading PANEL_LIVE is what lets the birth stand on the
+// REST wheel while the serve stands on the LIVE one, through one law.
+inline WheelStation wheel_station(const PanelSurface::Wheel& w, uint32_t k) {
     const float two_pi = 6.28318530718f;
-    const float column_arc = two_pi / float(LATTICE_COLS);   // radians per column
-    // Angular jitter (K2): the bearing itself scatters, so the seven
-    // cells of a column stop reading as a radial string.
-    const float jt = (cpu_hash_f(ZOETROPE_SCATTER_SEED, cell * 3u + 2u) - 0.5f) * 2.0f;
-    const float theta = column_arc * float(col) + jt * column_arc * ZOETROPE_SCATTER_JITTER_THETA;
-    // Deep radial jitter — this is a flock, not a ring — plus the SIZE
-    // BIAS: a big body seats outward, a small one close, so bodies never
-    // contend for the same neighbourhood and the depth reads.
-    const float jr = (cpu_hash_f(ZOETROPE_SCATTER_SEED, cell * 3u) - 0.5f) * 2.0f;
-    const float radius = ZOETROPE_SCATTER_RADIUS * (1.0f + jr * ZOETROPE_SCATTER_JITTER_R)
-                       + ZOETROPE_SCATTER_SIZE_BIAS * cbs.activeCubes_[slot].body_radius;
-    // Free vertical spread around the cube's OWN spawn altitude: the
-    // flock keeps its altitude character — it is gathered, not ranked.
-    // Floored at the screen's own base so no gathered cube sinks in.
-    const float jh = (cpu_hash_f(ZOETROPE_SCATTER_SEED, cell * 3u + 1u) - 0.5f) * 2.0f;
-    const float h = std::max(ZOETROPE_H_BASE,
-        cbs.activeCubes_[slot].orbit_height + jh * ZOETROPE_SCATTER_JITTER_H);
-    return { std::cos(theta) * radius, std::sin(theta) * radius, h };
+    const float pc = float(k % 12u);
+    const float rank = float(k / 12u);
+    const float theta  = w.phase + w.twist * rank
+                       + (two_pi / 12.0f) * wrap12(w.step * pc);
+    const float radius = w.radius + w.rank_sep * rank;
+    return { std::cos(theta) * radius, std::sin(theta) * radius };
 }
 
+// KEY k'S BIRTH POSITION — no longer a placeholder: it is the wheel's
+// own station, on the wheel AS THE HAND HAS IT.
+//
+// IT READS PANEL_LIVE, AND IT MUST. PanelSurface is a GRADUATED PAIR and
+// the law of one is that the design table is a SEED and an assert
+// subject and nothing else — a runtime read of PANEL_TABLE is precisely
+// the defect organ_gap's reader witness exists to catch, and it caught
+// this function reading it. (It was written against the table on a
+// determinism argument; the argument was answering the wrong question.
+// What the protect list guards is the BODY draw — CHOIR_SEED and the
+// tier table — and that is untouched here. Where a key STANDS is the
+// wheel's business, and the wheel is a dial.)
+//
+// BORN IN POSITION, which is the thing the birth actually owes. At boot
+// PANEL_LIVE is PANEL_TABLE — step 1, the chromatic circle — so the
+// choir stands assembled from its first frame, nothing walks in from
+// anywhere, and the serve's first pass finds every station already met
+// and pokes nothing at all. Boot from a scene that has already turned
+// the wheel and the choir is laid on THAT wheel, in position, which is
+// the same sentence.
+inline WheelStation birth_station(uint32_t k) {
+    return wheel_station(PANEL_LIVE.wheel, k);
+}
 
-inline void reveal_zoetrope(CubeBehaviorsState& cbs, CubeDeps* c, wgpu::Queue& queue) {
+// `cell_of_slot`, `zoetrope_station` and `station_scatter` stood here
+// (WHEEL_0 U3) — the helix that walked a slot onto a lattice cell, and
+// the two seatings that read the cell back: the SCREEN (uniform pixels,
+// seven ranked rows, tight fixed-seed jitter) and the SCATTER (the
+// flock — own bodies, own altitudes, deep jitter, and the size bias
+// that seated big cubes outward so the depth read).
+//
+// THE SEATING LAW (K2) THEY SERVED — two cubes may share a column,
+// nothing may share a bearing — IS KEPT BY CONSTRUCTION HERE and needs
+// no jitter to keep it. Two keys share a bearing only when their pitch
+// classes coincide, and same-pc keys are on DIFFERENT RANKS, which is
+// to say different radii: rank_sep is asserted positive on the panel.
+// At step 1 the twelve bearings are exactly the twelve hours.
+
+inline void reveal_zoetrope(CubeBehaviorsState& cbs, CubeDeps*, wgpu::Queue&) {
     using Formation = CubeBehaviorsState::Formation;
 
-    // F6 IS THE CYCLE (H1): roam → scatter → screen → roam. One door,
-    // three destinations; F7 never touches it. A press MID-WALK counts as
-    // its destination's press — the cycle advances and the walk simply
-    // re-aims, because the targets are read from the state every frame.
-    Formation next;
-    const char* line;
-    switch (cbs.formation) {
-        case Formation::ROAM:
-        case Formation::TO_ROAM:
-            next = Formation::TO_SCATTER;
-            line = "[Zoetrope] gather: the flock draws in";    break;
-        case Formation::SCATTERED:
-        case Formation::TO_SCATTER:
-            next = Formation::TO_SCREEN;
-            line = "[Zoetrope] reveal: the screen assembles";  break;
-        default:   // SCREEN | TO_SCREEN
-            next = Formation::TO_ROAM;
-            line = "[Zoetrope] release: the swarm walks home"; break;
-    }
-
-    // F6 CHOOSES SHAPE; F7 CHOOSES WHETHER IT FOLLOWS (K1). The reveal
-    // touches the kite NOWHERE — the seat pass has two arms, so a
-    // formation seats correctly whether the flock follows the point or
-    // stands planted in the world.
+    // ONE DOOR, TWO STATES (WHEEL_0 U3). It was a three-destination
+    // cycle — roam → gather → reveal → release — and the two middle
+    // destinations were the screen and the flock that fed it. What is
+    // left is the only distinction the wheel admits: the wheel HAS the
+    // choir, or the choir is LET GO.
     //
-    // STAGED (V1): the sentinel eats target_x/z in the frame it is
-    // consumed, so the press writes NO targets and NO bodies — it stages,
-    // and the service walks from the next frame. Nothing new is recorded
-    // either: THE MIRROR IS THE PRIOR (G5). The walk re-arms from its own
-    // live shadows; only on the first press out of ROAM are those shadows
-    // seeded from the mirror, because in ROAM the GPU scalars ARE the
-    // mirror's draws — nothing has walked them yet.
-    const bool from_roam = (cbs.formation == Formation::ROAM);
-    // Leaving a STANDING screen, the swell (V2) owns the live radius
-    // while the walk's shadow still reads the bare pixel — so a lit cube
-    // would snap down the instant the walk resumed. Seed the shadow from
-    // what the eye is actually seeing: nothing teleports, including out
-    // of a gesture.
-    const bool from_screen = (cbs.formation == Formation::SCREEN);
-    uint32_t staged = 0;
-    for (uint32_t i = 0; i < LATTICE_CELLS; i++) {
-        if (!cbs.activeCubes_[i].active) continue;
-        const ActiveCube& ac = cbs.activeCubes_[i];
-        if (from_roam)
-            cbs.walk_[i] = { ac.orbit_height, ac.body_radius, ac.aspect_y, ac.aspect_z };
-        else if (from_screen)
-            cbs.walk_[i].r = ZOETROPE_PIXEL_RADIUS
-                * (1.0f + ZOETROPE_SWELL_GAIN * choir_light(cbs, i));
-        cbs.settled[i] = false;
-        staged++;
-    }
+    // IT WRITES NOTHING. The old press staged a frame, re-armed a
+    // shadow set and cleared a settle flag for every seat, because the
+    // walk it started was the CPU's to run. The serve reads `formation`
+    // every frame and aims accordingly, so flipping the field IS the
+    // transition — the goal leaps here, the values walk in-kernel, and
+    // no cube can be caught mid-anything.
+    const bool to_wheel = (cbs.formation == Formation::ROAM);
+    cbs.formation = to_wheel ? Formation::WHEEL : Formation::ROAM;
 
-    cbs.formation = next;
-    cbs.stations_sent = false;
-    cbs.stage_wait = true;      // this frame stages; the service acts next frame
-    // THE TWO DIM EDGES (V1 E3) — the only two transitions that change
-    // the rest brightness: entering TO_SCREEN turns the dim ON, entering
-    // TO_ROAM turns it OFF. (TO_SCATTER is reachable only from ROAM and
-    // TO_ROAM, both already undimmed, and the settles stay inside their
-    // own band — so no other edge moves it.)
-    if (next == Formation::TO_SCREEN || next == Formation::TO_ROAM)
-        cbs.repaint_all = true;
+    // THE ONE REPAINT EDGE (WHEEL_0 U3). The swell is gated on WHEEL, so
+    // the flip changes what a lit key LOOKS LIKE without moving its
+    // LIGHT — exactly the class of change the poke gate cannot see. One
+    // forced pass on the projector's next run restores the mirror's own
+    // radius going out, and re-asserts the swell coming in.
+    cbs.repaint_all = true;
 
-    std::cout << line << " (" << staged << " cube(s))\n";
+    uint32_t keys = 0;
+    for (uint32_t k = 0; k < CUBE_CHOIR_N; k++)
+        if (cbs.activeCubes_[k].active) keys++;
+
+    std::cout << (to_wheel ? "[Wheel] the wheel takes the choir"
+                           : "[Wheel] release: the choir is let go to drift")
+              << " (" << keys << " key(s))\n";
 }
 
 // ─── Kite mode toggle (F7) ──────────────────────────────────────
@@ -992,32 +1021,22 @@ inline void cube_write_gpu(MachineCtx* c, const EntityInstance& inst, wgpu::Queu
     // stands at its patch wearing the cohort's look and joins the
     // lattice on the next cycle — the service owns the travel, birth
     // does not teleport.
+    // WHAT THE SEAT DRESSES IS THE SWELL, AND ONLY THE SWELL (WHEEL_0
+    // U3). Under the screen it also overwrote the height with the seat's
+    // rank and the body with the uniform pixel and both aspects with 1 —
+    // a newborn wore the instrument's shape. THE WHEEL TAKES NONE OF
+    // THAT: it is XZ only, so a key keeps its tier's height, its tier's
+    // body and its tier's aspects, and the only thing the mode changes
+    // about a newborn's LOOK is whether the light swells it.
+    //
+    // IT STILL HAS TO, though, for the reason CHOIR_0 U6 found the hard
+    // way: a cube born into a HELD chord must be born swollen, or it
+    // stands at its bare draw until that key next moves — and a key
+    // being held is precisely a key that is not moving.
     using Formation = CubeBehaviorsState::Formation;
-    const auto formation = c->cube_behaviors_state_.formation;
-    const bool born_to_screen  = (formation == Formation::TO_SCREEN
-                               || formation == Formation::SCREEN);
-    const bool born_to_scatter = (formation == Formation::TO_SCATTER
-                               || formation == Formation::SCATTERED);
-    const bool born_seated = (born_to_screen || born_to_scatter);
-    ZoetropeStation st{};
-    if (born_seated) {
-        st = born_to_screen ? zoetrope_station(inst.slot)
-                            : station_scatter(c->cube_behaviors_state_, inst.slot);
-        fe.orbit_height = st.h;
-        if (born_to_screen) {
-            // THE SWELL DRESSES THE NEWBORN TOO, and only where it has
-            // jurisdiction: under a STANDING screen the swell owns the
-            // radius, so a cube born into a held chord is born swollen
-            // exactly as it is born lit. Under TO_SCREEN the WALK owns it
-            // and the newborn takes the bare pixel, which is the target
-            // the walk is already carrying every other cube toward.
-            fe.body_radius = (formation == Formation::SCREEN)
-                ? ZOETROPE_PIXEL_RADIUS * (1.0f + ZOETROPE_SWELL_GAIN
-                    * choir_light(c->cube_behaviors_state_, inst.slot))
-                : ZOETROPE_PIXEL_RADIUS;
-            fe.aspect_y    = 1.0f;
-            fe.aspect_z    = 1.0f;
-        }
+    if (c->cube_behaviors_state_.formation == Formation::WHEEL) {
+        fe.body_radius *= (1.0f + ZOETROPE_SWELL_GAIN
+            * choir_light(c->cube_behaviors_state_, inst.slot));
     }
 
     // ONE ARM (STAGE_0 U4). The kite arm wrote pawn_offset and the 1u
@@ -1036,8 +1055,22 @@ inline void cube_write_gpu(MachineCtx* c, const EntityInstance& inst, wgpu::Queu
     // walk owed, in any formation state. The PRIOR needs no record
     // here: the mirror is the prior (write_active seated the draws).
     auto& zcbs = c->cube_behaviors_state_;
-    zcbs.walk_[inst.slot] = { fe.orbit_height, fe.body_radius, fe.aspect_y, fe.aspect_z };
-    zcbs.settled[inst.slot] = true;
+    // THE SERVE'S SHADOW IS SEEDED HERE (WHEEL_0 U2), from the target
+    // that was just written rather than from the wheel — they are the
+    // same point for a boot-born key (birth_the_choir sets inst.cx/cz
+    // from birth_station) and for a spawned one the target is the patch,
+    // which is where the serve must believe it is. Either way the shadow
+    // records what the GPU was actually handed, which is the only thing
+    // an epsilon gate may ever compare against.
+    // THE BIRTH ANCHOR IS TAKEN FROM THE SAME WRITE, and it is the last
+    // time either is authored from anything but the serve: the shadow
+    // moves with every poke, the anchor never moves again.
+    if (inst.slot < CUBE_CHOIR_N) {
+        zcbs.wheel_sx[inst.slot] = fe.target_x;
+        zcbs.wheel_sz[inst.slot] = fe.target_z;
+        zcbs.birth_ax[inst.slot] = fe.target_x;
+        zcbs.birth_az[inst.slot] = fe.target_z;
+    }
     // THE POKE GATE IS BOOKKEEPING TOO: the whole-slot write above has
     // just flushed this slot at the live light, so the gate records it.
     // Without this a slot inheriting a stale shadow from its previous
@@ -1097,7 +1130,8 @@ inline void dispatch_commit_cube_generic(MachineCtx* self, PlacementEntry& pe, w
 //   2. cube_write_active — the MIRROR, the PRIOR every release walks back
 //      to.
 //   3. cube_write_gpu — the whole GPU slot, plus the choir bookkeeping
-//      (the walk shadow, the settled flag, the poke gate's seed).
+//      (the serve's shadow and the poke gate's seed; the walk shadow
+//      and the settled flag retired at WHEEL_0 U3).
 // Cubes touch no footprint registry (they are not grounded) and no patch
 // registry (record_entity retired at ONE_SURFACE-I U3), so that is all of
 // it.
@@ -1128,15 +1162,12 @@ inline void dispatch_commit_cube_generic(MachineCtx* self, PlacementEntry& pe, w
 //   place of the world seed, at choir_slot_seed's call site), but the
 //   call site is protected and the choice is Jean's.
 
-// Key k's birth position. PLACEHOLDER BY DECLARATION — WHEEL_0 re-aims
-// this one function to the interval wheel, which is why the birth asks it
-// rather than computing a circle inline.
-inline ZoetropeStation birth_station(uint32_t k) {
-    const float two_pi = 6.28318530718f;
-    const float theta = two_pi * float(k) / float(CUBE_CHOIR_N);
-    return { std::cos(theta) * CHOIR_BIRTH_RADIUS,
-             std::sin(theta) * CHOIR_BIRTH_RADIUS, 0.0f };
-}
+// `birth_station`'s PLACEHOLDER BODY stood here (WHEEL_0 U2) — angle
+// 2πk/N on a 60 wu circle, declared a placeholder the day it was
+// written. It moved up beside the geometry it now belongs to, where it
+// is one line: the REST wheel's station for key k. The seam it was cut
+// at held exactly: the birth still asks a function rather than computing
+// a position inline, and nothing else in this file changed to re-aim it.
 
 inline void birth_the_choir(MachineCtx* c, wgpu::Queue& queue) {
     const uint32_t active_seed = c->world_state_.active_seed;
@@ -1173,7 +1204,7 @@ inline void birth_the_choir(MachineCtx* c, wgpu::Queue& queue) {
         }
         cube_compute_solid_half(inst, profile);
 
-        const ZoetropeStation st = birth_station(k);
+        const WheelStation st = birth_station(k);
         inst.cx = st.off_x;
         inst.cz = st.off_z;
 
@@ -1237,13 +1268,12 @@ inline void birth_the_choir(MachineCtx* c, wgpu::Queue& queue) {
 // the base is RECOMPUTED through the seed fn from the slot's TRUE spawn
 // seed (never cached — the gate drew tile_seed(active world seed,
 // trigger patch) and the mirror keeps the trigger patch, so the seed
-// reconstructs bit-exactly), the SCREEN dim survives, and the silent
-// path is still bit-exact WHERE IT WAS BEFORE: at I = 0 the mix returns
-// its base unchanged and the variance returns the spawn draw, both to the
-// last bit. The base is the seed colour itself in ROAM and the gathering,
-// and seed x ZOETROPE_REST_DIM in the two SCREEN states — the dim is not
-// the light and does not answer to I, which is exactly why the screen is
-// DARK when the instrument is not being played rather than merely unlit.
+// reconstructs bit-exactly), and the silent path is still bit-exact
+// WHERE IT WAS BEFORE: at I = 0 the mix returns its base unchanged and
+// the variance returns the spawn draw, both to the last bit. The base is
+// the seed colour itself, in both modes, since WHEEL_0 U3 — the SCREEN
+// dim it also carried retired with the screen, and with it the one place
+// the silent path was NOT the mirror's own draw.
 //
 // WHAT CHANGED IS THE VARIANCE'S DIRECTION. The strike SPLAYED — it
 // added face variance, because a struck cell was a cell disturbed. The
@@ -1283,20 +1313,17 @@ inline void choir_project_color(const CubeBehaviorsState& cbs, uint32_t active_s
     // color_var column is 0.0 in every row), so profile(0) is bit-exact
     // for every tier.
     cube_compute_colors(tmp, CUBE_TRAITS, cube_get_tier_profile(0));
-    // THE DARK REST (V1): the instrument is dark until played. The base
-    // dims in the SCREEN states ONLY — a lit rock face spends the whole
-    // of I on a tint nobody can see, so the screen makes room for the
-    // music first. ROAM and the gathering keep the world's own swarm at
-    // full brightness; dimming those would darken the world, not an
-    // instrument. At I = 1 the destination is the light either way, so
-    // the dim costs the gesture nothing — it only lowers the floor.
-    using Formation = CubeBehaviorsState::Formation;
-    const bool screen = (cbs.formation == Formation::SCREEN
-                      || cbs.formation == Formation::TO_SCREEN);
-    const float dim = screen ? ZOETROPE_REST_DIM : 1.0f;
-    const float br = tmp.colors[0] * dim;
-    const float bg = tmp.colors[1] * dim;
-    const float bb = tmp.colors[2] * dim;
+    // THE DARK REST (V1) STOOD HERE and retired with the screen (WHEEL_0
+    // U3). It dimmed the base to 0.30 in the two SCREEN states on the
+    // reading that an instrument is dark until played — and C6R had
+    // already ruled the other way for every state that is the WORLD's:
+    // dimming a roaming swarm darkens the world, not an instrument. The
+    // wheel is a formation IN the world, standing on its floor among the
+    // ground and the ribbon, so it takes the world's ruling. The base is
+    // the mirror's own draw, at full, in both modes.
+    const float br = tmp.colors[0];
+    const float bg = tmp.colors[1];
+    const float bb = tmp.colors[2];
     const float* lc = DRIVER_LIVE.cube.light_color;
     out_r = br + (lc[0] - br) * I;
     out_g = bg + (lc[1] - bg) * I;
@@ -1306,14 +1333,26 @@ inline void choir_project_color(const CubeBehaviorsState& cbs, uint32_t active_s
 // THE ONE POKE HOME: every projector write for a slot goes through here,
 // so no two paths can disagree about what a lit cube looks like.
 //
-// COLOUR AND VARIANCE POKE IN EVERY FORMATION STATE, ROAM INCLUDED —
-// the light is the music's, not the screen's, and a roaming cube is as
-// entitled to it as a seated one. (The lattice's projector returned
-// early in ROAM because its variance term was a REST MULTIPLIER that
-// only made sense in formation; this one's is self-restoring, so there
-// is nothing to hold back.) The SWELL is the exception and keeps its old
-// jurisdiction exactly: the walk owns body_radius during every TO_*
-// state, so the swell speaks only when the screen STANDS.
+// ALL THREE EXPRESSIONS POKE IN BOTH MODES NOW (WHEEL_0 U3). The light
+// is the music's, not the formation's, and a roaming cube is as entitled
+// to it as a seated one; colour and variance always were. THE SWELL
+// JOINS THEM, because the thing that used to hold it back is gone: it
+// spoke only when the screen STOOD, since the CPU walk owned body_radius
+// through every TO_ state and two writers on one scalar in one frame is
+// a fight. There is no walk and there are no TO_ states, so the
+// projector is the ONE writer of body_radius outside the birth.
+//
+// WHAT THE MODE STILL DECIDES IS THE GAIN, not the write. On WHEEL the
+// swell is live; on ROAM it is zero — and because the write happens
+// either way it is SELF-RESTORING, exactly as the variance is: a cube
+// swollen when the mode flips is walked back to the mirror's own draw by
+// the forced pass the flip raises, instead of standing swollen forever
+// waiting for a writer that no longer exists.
+//
+// AND THE SWELL IS RELATIVE NOW. It multiplied the screen's UNIFORM
+// PIXEL, because on the screen every cube was one; the wheel does not
+// touch bodies, so it multiplies THE MIRROR'S OWN DRAW and a Monolith
+// swells like a Monolith.
 inline void choir_project_slot(const CubeBehaviorsState& cbs, GPUState& gpu,
     wgpu::Queue& queue, uint32_t active_seed, uint32_t slot) {
     float cr, cg, cb;
@@ -1328,9 +1367,9 @@ inline void choir_project_slot(const CubeBehaviorsState& cbs, GPUState& gpu,
         cbs.activeCubes_[slot].face_variance * (1.0f - I));
 
     using Formation = CubeBehaviorsState::Formation;
-    if (cbs.formation == Formation::SCREEN)
-        gpu.upload_cube_body_radius(queue, slot,
-            ZOETROPE_PIXEL_RADIUS * (1.0f + ZOETROPE_SWELL_GAIN * I));
+    const float swell = (cbs.formation == Formation::WHEEL) ? ZOETROPE_SWELL_GAIN : 0.0f;
+    gpu.upload_cube_body_radius(queue, slot,
+        cbs.activeCubes_[slot].body_radius * (1.0f + swell * I));
 }
 
 // THE PER-FRAME FLUSH, POKE-ON-CHANGE. The lattice's flush hid behind a
@@ -1338,16 +1377,20 @@ inline void choir_project_slot(const CubeBehaviorsState& cbs, GPUState& gpu,
 // the light itself: a slot pokes only when its light MOVED past epsilon.
 // A silent room pokes nothing at all, a sustained chord pokes only while
 // it climbs, and the release pokes for exactly light_release beats. The
-// repaint edge rides through as a FORCE. THREE THINGS RAISE IT, and they
-// share one property: each changes what a cube LOOKS LIKE without moving
-// its LIGHT, so none of them can be gated on the light.
-//   · entering TO_SCREEN — the dim goes on   (V1 E3)
-//   · entering TO_ROAM   — the dim goes off  (V1 E3)
-//   · the ARRIVAL, at every settle (CHOIR_0 U6b) — the walk has just
-//     snapped body_radius to the bare pixel and the formation changed
-//     underneath the projector, so the swell has to be re-asserted or a
-//     cube arriving under a HELD key stands unswollen until that key
-//     next moves.
+// repaint edge rides through as a FORCE. ONE THING RAISES IT NOW
+// (WHEEL_0 U3), and it has the property all three of its predecessors
+// shared: it changes what a cube LOOKS LIKE without moving its LIGHT, so
+// it cannot be gated on the light.
+//   · THE MODE FLIP, ROAM↔WHEEL, in reveal_zoetrope — the swell's gain
+//     changes under the projector, and the whole reason the swell is now
+//     written unconditionally is so this one edge can restore it.
+// The three it replaces: the dim's two edges (V1 E3), which went with
+// the dim, and THE ARRIVAL at every settle (CHOIR_0 U6b) — the walk had
+// just snapped body_radius to the bare pixel and the formation changed
+// underneath the projector, so the swell had to be re-asserted or a
+// cube arriving under a HELD key stood unswollen until that key next
+// moved. The first two had nothing left to dim; the third had nothing
+// left to arrive.
 inline void choir_project(CubeBehaviorsState& cbs, GPUState& gpu, wgpu::Queue& queue,
     uint32_t active_seed) {
     const bool force = cbs.repaint_all;
@@ -1369,192 +1412,81 @@ inline void choir_project(CubeBehaviorsState& cbs, GPUState& gpu, wgpu::Queue& q
 // still behind INSTRUMENTS.zoetrope_witness (the dial's rename is PARKED
 // to keep this campaign's churn down).
 
-inline void zoetrope_service(CubeBehaviorsState& cbs, GPUState& gpu, wgpu::Queue& queue,
-    float dt, float point_x, float point_z) {
-    // ── The reseat watch (G4) ── possession moves the point in one
-    // frame farther than any motion can; a standing formation answers by
-    // re-using the capture two-step at the seam — recapture from the
-    // true present, restage, resend seats around the new host. A resting
-    // state re-enters its own walk so the seat pass runs; the bodies are
-    // already settled, so it re-forms in one breath. TO_ROAM/ROAM: watch
-    // only — a dissolving formation has no host to follow.
-    {
-        using Formation = CubeBehaviorsState::Formation;
-        if (!cbs.point_seen) {
-            cbs.last_px = point_x; cbs.last_pz = point_z; cbs.point_seen = true;
-        }
-        const float ddx = point_x - cbs.last_px;
-        const float ddz = point_z - cbs.last_pz;
-        const float delta = std::sqrt(ddx * ddx + ddz * ddz);
-        if ((cbs.formation == Formation::TO_SCATTER || cbs.formation == Formation::SCATTERED
-             || cbs.formation == Formation::TO_SCREEN || cbs.formation == Formation::SCREEN)
-            && delta > ZOETROPE_RESEAT_JUMP) {
-            // Only a FOLLOWING formation reseats (K1 E4): an anchored one
-            // is planted in the world and a possession is none of its
-            // business. The capture re-derives every offset from the new
-            // host, so the seat pass below lands in the new frame.
-            if (cbs.formation == Formation::SCATTERED)   cbs.formation = Formation::TO_SCATTER;
-            else if (cbs.formation == Formation::SCREEN) cbs.formation = Formation::TO_SCREEN;
-            cbs.stations_sent = false;
-            cbs.stage_wait = true;
-            std::cout << "[Zoetrope] reseat: the screen follows its new host\n";
-        }
-        cbs.last_px = point_x; cbs.last_pz = point_z;
-    }
-
-    // THE PRIME PASS, THE CLOCK GUARDS, THE TICK AND THE PROJECTOR'S
-    // FLUSH stood here (CHOIR_0 U5). The prime built `wdir` from the
-    // fixed weight seed and anchored `last_tick_beat`; the two guards
-    // re-anchored that clock across a loop seam and a transport leap;
-    // the while-loop ran the diffusion + decay pass; and the flush spent
-    // one ≤252-slot sweep per tick, plus the repaint edge.
+inline void zoetrope_service(CubeBehaviorsState& cbs, GPUState& gpu, wgpu::Queue& queue) {
+    // ── THE SERVE (WHEEL_0 U2) ── one pass, every frame, every key.
     //
-    // The choir needs no clock of its own — the canvas advances the
-    // envelope on the beat it is already handed — and its flush is
-    // poke-on-change rather than per-tick, so it lives at the seam
-    // (choir_project) beside the mirror that feeds it. WHAT SURVIVES
-    // HERE IS THE FORMATION MACHINE ALONE: the reseat watch above and
-    // the climb below.
-
-    // ── THE CLIMB (C6R): the formation walk — a CPU flush-walk on the
-    // height scalar, the glide law's grammar; steady state pokes NOTHING.
+    // Compute the key's station for the mode that is live, compare it
+    // against the station the key was LAST SERVED AT, and poke the glide
+    // door only if it moved past WHEEL_SERVE_EPS. That is the entire
+    // per-frame cost of the formation: twenty-four cosines and a squared
+    // distance, and zero bus traffic while the wheel is still.
+    //
+    // THE TWO MODES DIFFER ONLY IN WHICH WHEEL IS ASKED.
+    //   WHEEL : PANEL_LIVE — the wheel as the hand has it. Turn `step`
+    //           and the stations move continuously, so the keys BRAID.
+    //   ROAM  : the recorded BIRTH ANCHORS — no wheel is read at all.
+    //           The target stops chasing the dials and the cube walks
+    //           back to where it was laid, after which the glide term
+    //           decays to zero and DRIFT OWNS THE PICTURE.
+    //
+    // WHICH MEANS THE BOOT WHEEL IS THE FIXED POINT OF BOTH: until a
+    // dial is turned the two arms name the SAME point, the epsilon gate
+    // sees no motion, and the door press costs nothing but the
+    // projector's forced pass. A mode flip only actually moves cubes
+    // once the wheel has been turned away from where the choir was born
+    // — which is the correct reading of what ROAM is FOR.
+    //
+    // XZ ONLY, and that is the whole of the wheel's jurisdiction over a
+    // body. Height, radius and aspects belong to the tier draw and to
+    // the swell; the wheel never writes one of them.
+    //
+    // NOTHING IS STAGED AND NOTHING WAITS A FRAME. The staged press
+    // existed because a kite sentinel was in flight and would EAT a
+    // target written before it was consumed; the sentinels retired at
+    // STAGE_0 U4 and the last thing that needed them retires here.
     using Formation = CubeBehaviorsState::Formation;
-
-    if (cbs.formation == Formation::TO_SCATTER || cbs.formation == Formation::TO_SCREEN
-        || cbs.formation == Formation::TO_ROAM) {
-        const bool to_screen  = (cbs.formation == Formation::TO_SCREEN);
-        const bool to_scatter = (cbs.formation == Formation::TO_SCATTER);
-        if (cbs.stage_wait) {
-            // The press frame (V1): the sentinel is in flight — no
-            // target or body writes until it has eaten.
-            cbs.stage_wait = false;
-        } else {
-            if ((to_screen || to_scatter) && !cbs.stations_sent) {
-                // First service after the press: the XZ seats, uniform,
-                // one pass. TO_ROAM sends no seats: a release is not a
-                // destination. The bodies walk home; the positions are
-                // handed back to drift at the settle.
-                //
-                // TWO ARMS, ONE DOOR (K1) — the corral's absolute arm,
-                // restored. C6R deleted it as "absorbed" and that
-                // deletion is what forced the kite borrow. A kited cube
-                // walks its OFFSET from the point; an anchored one walks
-                // its ANCHOR through world coordinates, so the seat is
-                // the same ring either way — planted instead of carried.
-                for (uint32_t slot = 0; slot < LATTICE_CELLS; slot++) {
-                    if (!cbs.activeCubes_[slot].active) continue;
-                    const ZoetropeStation st = to_screen ? zoetrope_station(slot)
-                                                         : station_scatter(cbs, slot);
-                    // ONE ARM (STAGE_0 U4): an anchored formation walks its
-                    // ANCHOR through world coordinates, so the seat is the
-                    // ring about the point, planted rather than carried.
-                    gpu.upload_cube_glide_target(queue, slot,
-                        point_x + st.off_x, point_z + st.off_z);
-                }
-                cbs.stations_sent = true;
-            }
-            // THE WALK'S TARGETS — one table, one home (H1 E3):
-            //   TO_SCATTER : the scatter seat's h; body = the MIRROR's own
-            //                spawn draw — the flock keeps its variety
-            //   TO_SCREEN  : the screen seat's h; body = the uniform pixel
-            //   TO_ROAM    : the mirror's four — THE MIRROR IS THE PRIOR
-            // The walker owns its four shadows (G5) and never reads the
-            // GPU values while the walk lives. One k for all four;
-            // aspects weigh 10× in the settle test (they are ratios).
-            // Eviction mid-walk: inactive slots drop from the set; the
-            // ghost keeps its cell.
-            const float k = 1.0f - std::exp(-dt / ZOETROPE_LIFT_TAU);
-            bool all_settled = true;
-            for (uint32_t slot = 0; slot < LATTICE_CELLS; slot++) {
-                if (!cbs.activeCubes_[slot].active) continue;
-                if (cbs.settled[slot]) continue;
-                const ActiveCube& ac = cbs.activeCubes_[slot];
-                float th, tr, tay, taz;
-                if (to_screen) {
-                    th = zoetrope_station(slot).h; tr = ZOETROPE_PIXEL_RADIUS;
-                    tay = 1.0f; taz = 1.0f;
-                } else if (to_scatter) {
-                    th = station_scatter(cbs, slot).h;
-                    tr = ac.body_radius; tay = ac.aspect_y; taz = ac.aspect_z;
-                } else {
-                    th = ac.orbit_height; tr = ac.body_radius;
-                    tay = ac.aspect_y; taz = ac.aspect_z;
-                }
-                CubeBehaviorsState::ZoeWalk& w = cbs.walk_[slot];
-                w.h  += (th  - w.h)  * k;
-                w.r  += (tr  - w.r)  * k;
-                w.ay += (tay - w.ay) * k;
-                w.az += (taz - w.az) * k;
-                const float miss = std::max(
-                    std::max(std::fabs(th - w.h), std::fabs(tr - w.r)),
-                    10.0f * std::max(std::fabs(tay - w.ay), std::fabs(taz - w.az)));
-                if (miss <= ZOETROPE_SETTLE_EPS) {
-                    w = { th, tr, tay, taz };
-                    cbs.settled[slot] = true;
-                } else {
-                    all_settled = false;
-                }
-                gpu.upload_cube_orbit_height(queue, slot, w.h);
-                gpu.upload_cube_body_radius(queue, slot, w.r);
-                gpu.upload_cube_aspects(queue, slot, w.ay, w.az);
-            }
-            if (all_settled) {
-                if (!to_screen && !to_scatter) {
-                    // THE HAND-BACK, RE-BUILT ON THE DOOR THAT SURVIVED
-                    // (STAGE_0 U4). It re-sent the kite sentinel the cube
-                    // already wore, and the KERNEL recaptured target :=
-                    // present, so the glide term went to zero and the cube
-                    // was returned to drift and its behavior force — free
-                    // where it stands. That sentinel is gone, and the
-                    // mechanism was load-bearing: without a release the
-                    // anchor keeps walking to the last station and the
-                    // "roam" that follows does not roam.
-                    //
-                    // THE CPU CAN SAY THE SAME THING THROUGH THE GLIDE
-                    // DOOR. Aim the target at where the body actually is —
-                    // the mirror's live_pos, harvested by the readback
-                    // funnel — and the anchor walks the last few wu to meet
-                    // it, the delta decays to zero, and drift owns the
-                    // picture again. ONE FRAME STALE BY LAW (E-4, the same
-                    // staleness the reseat watch reads), which for a
-                    // release is immaterial: it is a let-go, not a capture.
-                    //
-                    // WHAT IS LOST, NAMED: the sentinel also ZEROED
-                    // drift.xz, and no CPU can — drift lives only on the
-                    // GPU. So a cube handed back mid-shove keeps its drift
-                    // and settles on the spring instead of stopping dead.
-                    // With the presence push retired at U5 the only drift
-                    // left is the behaviour kernels', which is the drift
-                    // this hand-back is giving the cube BACK to.
-                    for (uint32_t slot = 0; slot < LATTICE_CELLS; slot++) {
-                        if (!cbs.activeCubes_[slot].active) continue;
-                        const ActiveCube& ac = cbs.activeCubes_[slot];
-                        gpu.upload_cube_glide_target(queue, slot,
-                            ac.live_pos[0], ac.live_pos[2]);
-                    }
-                }
-                // THE ARRIVAL IS A REPAINT EDGE TOO (CHOIR_0 U6). The
-                // walk snapped body_radius to the BARE pixel and the
-                // formation changes underneath the projector — but the
-                // LIGHT did not move, so the poke gate would skip every
-                // slot and a cube arriving under a HELD chord would stand
-                // at the bare radius, unswelled, until its key next
-                // changed. The lattice's flush hid this: it ran
-                // unconditionally every tick, so the swell landed within
-                // a quarter beat whatever the gate thought. Poke-on-change
-                // has no such backstop, so the arrival has to declare
-                // itself. One forced pass, on the frame after the settle.
-                cbs.repaint_all = true;
-                cbs.formation = to_screen  ? Formation::SCREEN
-                              : to_scatter ? Formation::SCATTERED
-                                           : Formation::ROAM;
-                std::cout << (to_screen  ? "[Zoetrope] screen: the instrument stands\n"
-                            : to_scatter ? "[Zoetrope] gathered: the flock stands drawn in\n"
-                                         : "[Zoetrope] roam: the swarm is whole\n");
-            }
-        }
+    const bool on_wheel = (cbs.formation == Formation::WHEEL);
+    for (uint32_t k = 0; k < CUBE_CHOIR_N; ++k) {
+        if (!cbs.activeCubes_[k].active) continue;
+        const WheelStation st = on_wheel ? wheel_station(PANEL_LIVE.wheel, k)
+                                         : WheelStation{ cbs.birth_ax[k], cbs.birth_az[k] };
+        const float tx = st.off_x, tz = st.off_z;
+        const float dx = tx - cbs.wheel_sx[k];
+        const float dz = tz - cbs.wheel_sz[k];
+        if (dx * dx + dz * dz <= WHEEL_SERVE_EPS * WHEEL_SERVE_EPS) continue;
+        // THE GLIDE DOOR IS THE WHOLE MECHANISM. The target is a GOAL in
+        // world coordinates; update_cube walks the anchor toward it at
+        // CUBE_GLIDE_TAU. No sentinel, no capture, no snap — a station
+        // that leaps is a path that is walked.
+        gpu.upload_cube_glide_target(queue, k, tx, tz);
+        cbs.wheel_sx[k] = tx;
+        cbs.wheel_sz[k] = tz;
     }
-    // SCATTERED, SCREEN and ROAM poke nothing: steady-state traffic is zero.
+
+    // THE RESEAT WATCH, THE STAGE FRAME, THE SEAT PASS, THE CLIMB AND
+    // THE HAND-BACK STOOD HERE (WHEEL_0 U3).
+    //
+    // The watch marked a possession seam — a per-frame step of the point
+    // no motion could make — and answered it by re-entering the walk so
+    // the screen re-formed around its new host. THE WHEEL HAS NO HOST.
+    // It is anchored in the WORLD, about the world's centre, and a
+    // possession moves the player, not the instrument; there is nothing
+    // for it to follow and therefore nothing to watch.
+    //
+    // The climb was a CPU flush-walk on four scalars per seat with its
+    // own tau, its own settle epsilon, its own shadow set and its own
+    // arrival edge — the mechanism that made every transition a walk
+    // back when the transition was the CPU's to run. The serve above
+    // does the same job in six lines because it moves a GOAL and lets
+    // the kernel do the walking, which is the law the climb was written
+    // to obey by hand.
+    //
+    // The hand-back aimed each target at the mirror's live_pos so a
+    // released cube stopped where it stood. ROAM aims at the recorded
+    // BIRTH ANCHOR instead, which is a stronger let-go: a cube walks
+    // home to the shape it was laid in rather than freezing wherever the
+    // last turn of the wheel happened to leave it, and drift takes it
+    // from there.
 }
 
 // ─── Readback mirror reconciliation (owner verb) ─

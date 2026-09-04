@@ -58,8 +58,9 @@ struct CanvasSurface {
     // ── The cube choir's light ────────────────────────────────────
     // ACTIVATION AND DEACTIVATION ONLY — no held-length book is kept;
     // the envelope itself is the memory. The attack is the house's
-    // standing exponential-approach idiom aimed at 1 (CUBE_GLIDE_TAU /
-    // ZOETROPE_LIFT_TAU are the same k-form): steepest at switch-on and
+    // standing exponential-approach idiom aimed at 1 (CUBE_GLIDE_TAU is
+    // the same k-form; ZOETROPE_LIFT_TAU was too, until the CPU walk it
+    // timed retired at WHEEL_0 U3): steepest at switch-on and
     // decelerating into the plateau, at τ = plateau/6 since CHOIR_1
     // (it was plateau/4 — the divisor is the SNAP, this row is the
     // LENGTH, and only the divisor moved). The commission calls that shape

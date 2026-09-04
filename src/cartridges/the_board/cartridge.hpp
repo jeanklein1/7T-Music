@@ -1245,27 +1245,26 @@ namespace t7 {
                 // The projector's own home, poke-on-change: only a key
                 // whose light MOVED reaches the GPU.
                 //
-                // THE ORDER MOVED, and it is worth being exact about how.
-                // The lattice's flush lived INSIDE zoetrope_service,
-                // between the reseat watch and the climb; this one runs
-                // before the whole service, so the reseat watch is now
-                // AFTER the projector rather than before it. What is
-                // PRESERVED is the half that carries a hazard — the
-                // projector still runs before THE CLIMB, so the swell and
-                // the walk never write body_radius in the same frame.
-                // What moved is harmless: the reseat watch authors
-                // targets and sentinels, never a colour or a variance,
-                // and a reseat that lands after the projector is seen on
-                // the next frame's pass — which the settle's own force
-                // edge repaints anyway.
+                // THE ORDER'S HAZARD IS GONE (WHEEL_0 U3). It used to
+                // matter that the projector ran before THE CLIMB, because
+                // the climb walked body_radius on the CPU and the swell
+                // wrote it too — two writers on one scalar in one frame.
+                // The climb retired with the walk, so the projector is
+                // the only writer of body_radius outside the birth and
+                // these two calls no longer contend for anything: one
+                // authors LOOK (colour, variance, swell) and the other
+                // authors GOALS (glide targets). The order is now free,
+                // and is kept as written only because there is no reason
+                // to move it.
                 choir_project(cube_behaviors_state_, gpuState_, c.queue,
                     world_state_.active_seed);
-                // The formation machine's own service — the reseat watch
-                // and the climb. It kept a musical clock and a world seed
-                // for the lattice and the flush; both left at U5, so it
-                // takes dt and the point mirror and nothing else.
-                zoetrope_service(cube_behaviors_state_, gpuState_, c.queue,
-                    signal.dt, point_.x, point_.z);   // the point mirror — the reseat watch (G4)
+                // THE WHEEL'S SERVE — the formation machine, entire. It
+                // kept a musical clock and a world seed for the lattice
+                // and the flush (both left at CHOIR_0 U5), then dt and
+                // the point mirror for the climb and the reseat watch
+                // (both left at WHEEL_0 U3). It reads the panel and the
+                // choir's own state now, and takes neither.
+                zoetrope_service(cube_behaviors_state_, gpuState_, c.queue);
 
                 // ── THE BEACON (FIELD_4): row 0, rewritten hot each
                 // frame — the point moved. point y is DERIVED (the

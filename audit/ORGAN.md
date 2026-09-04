@@ -374,7 +374,7 @@ from `kOrganDoors`, never restated.
 | 2 `ORGAN_DOOR_ORB_GESTURE` | Cycle orb gesture |
 | 3 `ORGAN_DOOR_REBIRTH` | Rebirth the world |
 | 4 `ORGAN_DOOR_CUBE_BEHAVIOR` | Cycle cube behaviour |
-| 5 `ORGAN_DOOR_ZOETROPE` | Zoetrope: gather / reveal / release |
+| 5 `ORGAN_DOOR_ZOETROPE` | Wheel: take the choir / let it roam |
 
 ## THE GAP
 
@@ -402,7 +402,7 @@ reader — the class of defect this witness exists to catch.
   DRIVER_TABLE         definition=1 seed=1 comment=1              
   ORB_TABLE            definition=1 seed=1 comment=4              
   ORB_CONSOLE          definition=1 seed=1 comment=2              
-  PANEL_TABLE          definition=1 seed=1 static_assert=6 comment=2 
+  PANEL_TABLE          definition=1 seed=1 static_assert=11 comment=5 
   PAWN_AURA_DEFAULT    definition=1 seed=1 static_assert=1 comment=3 
   RIBBON_SPAWN_TABLE   definition=1 seed=1 static_assert=2        
   RIBBON_TABLE         definition=1 seed=1 static_assert=3 comment=2 

@@ -648,9 +648,12 @@ enum : uint32_t {
     // They are ROSTER-gated at the boundary, like every other cube call
     // site in the spine.
     ORGAN_DOOR_CUBE_BEHAVIOR = 4, // cycle_cube_behavior_override
-    ORGAN_DOOR_ZOETROPE      = 5, // reveal_zoetrope — roam → scatter →
-                                  // screen → roam, one door three
-                                  // destinations
+    ORGAN_DOOR_ZOETROPE      = 5, // reveal_zoetrope — ROAM ↔ WHEEL, the
+                                  // interval wheel's mode door. Two
+                                  // destinations since WHEEL_0 U3; the
+                                  // id keeps its name and its bit, so
+                                  // nothing renumbers (the rename to the
+                                  // wheel is Jean's gate)
     // ORGAN_DOOR_CUBE_KITE = 6 stood here (STAGE_0 U4) with the verb it
     // pressed. It was the LAST id, so doors 0-5 keep their numbers and
     // their bitmask bits, and nothing renumbers.
@@ -665,7 +668,7 @@ inline constexpr OrganDoor kOrganDoors[] = {
     { ORGAN_DOOR_ORB_GESTURE, "Cycle orb gesture" },
     { ORGAN_DOOR_REBIRTH,     "Rebirth the world" },
     { ORGAN_DOOR_CUBE_BEHAVIOR, "Cycle cube behaviour" },
-    { ORGAN_DOOR_ZOETROPE,      "Zoetrope: gather / reveal / release" },
+    { ORGAN_DOOR_ZOETROPE,      "Wheel: take the choir / let it roam" },
 };
 static_assert(sizeof(kOrganDoors) / sizeof(kOrganDoors[0]) == ORGAN_DOOR_COUNT,
     "one row per door id — the manifest emits this table and a consumer "
