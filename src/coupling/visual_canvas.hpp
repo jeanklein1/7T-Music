@@ -55,9 +55,11 @@
 // cube voice, and its PRESENT COUNT (twelve lanes, sounding notes per
 // pitch class) plays a keyboard of CHOIR_LANES keys read as stacked
 // pianos: key k is rank k/12 of raw pitch class k%12, and key k IS cube
-// slot k by the spawn law (the lowest-free-slot reservation keeps the
-// population dense, so an evicted key's refill relights the same dark
-// key). ACTIVATION AND DEACTIVATION ONLY — no held-length book is kept;
+// slot k BY ASSIGNMENT — the cartridge's boot-born choir writes the
+// identity (it was a consequence of the lowest-free-slot reservation
+// until the spawn law was repealed at STAGE_0 R5; the reservation and
+// the eviction it answered are both gone). ACTIVATION AND DEACTIVATION
+// ONLY — no held-length book is kept;
 // the envelope is the memory. While a key sounds its light climbs the
 // house's saturating-approach curve, 1 − e^(−t/τ) with τ =
 // light_plateau/6, so ≈ 99.75% at the plateau — steepest at switch-on,
@@ -644,7 +646,8 @@ namespace t7 {
 
             // ── THE CUBE CHOIR (the light inside the cubes) ─────────────
             // The keyboard: key k is rank k/12 of raw pitch class k%12,
-            // and KEY k IS SLOT k by the spawn law. ACTIVATION AND
+            // and KEY k IS SLOT k by assignment (the cartridge's birth
+            // writes it; STAGE_0 R5). ACTIVATION AND
             // DEACTIVATION ONLY — no held-length book; the envelope is
             // the memory.
             //

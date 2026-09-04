@@ -108,11 +108,15 @@ inline constexpr float CUBE_DEFAULT_DRAG             = 1.5f;   // 1/s,  gentle d
 // ─ THE CHOIR band ─ the boot choice: how many keys the instrument has.
 // Not random, chosen before boot (Jean). Two ranks or three of twelve.
 //
-// KEY k = SLOT k, BY CONSTRUCTION. run_spawn_preamble reserves the LOWEST
-// FREE SLOT (machine/spawn_engine.hpp, step 8-9), so capping the family's
-// max_instances here keeps the population dense in slots 0..N-1 and an
-// evicted key's refill takes the lowest free slot — THE SAME DARK KEY
-// RELIGHTS. No mapping table, no registry: the identity IS the law.
+// KEY k = SLOT k, BY ASSIGNMENT (STAGE_0 R5). It used to be a
+// CONSEQUENCE: run_spawn_preamble reserved the lowest free slot, so
+// capping the family's max_instances kept the population dense in
+// 0..N-1 and an evicted key's refill relit the same dark key. Neither
+// mechanism exists — the gate refuses, so nothing reserves, and
+// eviction went at STAGE_0 U2, so nothing is refilled. birth_the_choir
+// writes `inst.slot = k` for k in 0..N-1 and that is the whole law.
+// An assignment is STRONGER than a consequence: there is no mechanism
+// left to drift out from under it. No mapping table, no registry.
 //
 // The lattice geometry that stood above was untouched by this: its 36
 // columns were arithmetic (256/7) and CUBE_CHOIR_N is a CHOICE. The two
@@ -1020,35 +1024,48 @@ inline void cube_write_gpu(MachineCtx* c, const EntityInstance& inst, wgpu::Queu
     fe.drift_vel[0] = 0.0f; fe.drift_vel[1] = 0.0f; fe.drift_vel[2] = 0.0f;
     fe.behavior_id    = pick_cube_behavior_for_spawn(inst.seed);
     fe.behavior_phase = cpu_hash(inst.seed, 0xF10A7E70u);
-    // BIRTH INTO THE LIVE MODE (RIDER[cube:spawn-mode-desync]).
-    // Per-cube mode truth lives on the GPU; kite_mode is one CPU flag
-    // for the flock. A newborn left in anchor mode while the flock is
-    // kited would be handed RING OFFSETS by the next corral — and a
-    // mode-0 cube walks its ANCHOR toward its target, reading those
-    // offsets as absolute world coordinates: a smooth glide to a ring
-    // around the WORLD ORIGIN. So a newborn joins the mode that is
-    // live at its spawn.
+    // ═══ THE SPAWN LAW IS REPEALED, AND IT IS SAID HERE BECAUSE HERE
+    //     IS WHERE IT WAS STATED (STAGE_0 R5) ══════════════════════
     //
-    // Drift is exactly zero at birth (set below), so the offset is
-    // exact — no sentinel round-trip, no capture frame. This is the
-    // ONE init home for target in both arms: at rest target == param,
-    // so update_cube's glide term is exactly zero either way.
-    // ZOETROPE (C6R E7 + G5 + K1): a newborn under a standing formation
-    // wears its cell's LOOK — row height, and PIXEL SCALE for the
-    // screen; the gathering's leaves the body its own spawn draw. The
-    // mirror keeps its true tier draws (write_active), so the walk home
-    // scatters it as if it had always roamed.
+    // IT READ: "THE SPAWN LAW (Jean, non-negotiable): a cube spawns at
+    // its DESIGNATED PATCH, outside the render radius — no matter what."
+    // It was the strongest sentence in this file and it was RIGHT for
+    // the program that had a cube spawn path: a seat that relocated a
+    // newborn to point + station put newborns in the lattice beside the
+    // player the moment a formation stood, and the law is what forbade
+    // it.
     //
-    // THE SPAWN LAW (Jean, non-negotiable): a cube spawns at its
-    // DESIGNATED PATCH, outside the render radius — no matter what.
-    // The seat therefore authors APPEARANCE ONLY. Both arms previously
-    // relocated a newborn to point + station (kite via pawn_offset,
-    // anchor via an absolute seat), which put newborns in the lattice
-    // beside the player the moment a formation stood; that is the
-    // violation, and it is gone. A newborn born under a formation
-    // stands at its patch wearing the cohort's look and joins the
-    // lattice on the next cycle — the service owns the travel, birth
-    // does not teleport.
+    // BOTH OF ITS TERMS ARE GONE, and they went one campaign apart.
+    // "OUTSIDE THE RENDER RADIUS" lost its referent at STAGE_0 U2, when
+    // the veil chain, both eviction radii and EXIST_RADIUS were excised
+    // under THE STAGE LAW — everything computed is visible, so there is
+    // no radius to be outside of. "ITS DESIGNATED PATCH" lost its at
+    // STAGE_0 U3: cube_run_gate refuses, so no cube is designated
+    // anything by the spawn engine, and the only caller left of this
+    // function is birth_the_choir.
+    //
+    // BIRTH STATIONS ARE THE LAW NOW. Where a key stands is authored —
+    // birth_station(k), the wheel's own station for the key — and the
+    // wheel serves it thereafter. That is not a loophole in the spawn
+    // law; it is what replaces it, and the thing the law protected
+    // against (a newborn teleported next to the player) is impossible
+    // for a different reason: there is no host to be next to. The wheel
+    // is anchored at the world's centre.
+    //
+    // WHAT THE SPAWN LAW STILL GOVERNS: nothing in this tree. It is
+    // repealed rather than dormant, and the repeal is recorded in
+    // docs/OPEN.md beside THE STAGE LAW, which is the commission that
+    // superseded it.
+    //
+    // THE RIDER THAT RODE IT, retired with the same sentence:
+    // RIDER[cube:spawn-mode-desync] held that a newborn must join the
+    // mode live at its spawn, because a cube left in anchor mode while
+    // the flock was kited would be handed ring offsets and glide to a
+    // ring around the world origin. There are no modes and no kite
+    // (STAGE_0 U4). Drift is still exactly zero at birth, and target is
+    // still initialised to the param, so update_cube's glide term is
+    // exactly zero on the first frame — that half was never about the
+    // kite and it stands.
     // WHAT THE SEAT DRESSES IS THE SWELL, AND ONLY THE SWELL (WHEEL_0
     // U3). Under the screen it also overwrote the height with the seat's
     // rank and the body with the uniform pixel and both aspects with 1 —
@@ -1070,9 +1087,11 @@ inline void cube_write_gpu(MachineCtx* c, const EntityInstance& inst, wgpu::Queu
     // ONE ARM (STAGE_0 U4). The kite arm wrote pawn_offset and the 1u
     // sentinel so a newborn joined whatever frame was live at its spawn;
     // there is one frame now. The param is anchor.xz, written above from
-    // the spawn position, and it STAYS that whatever formation stands —
-    // THE SPAWN LAW, which is the half of this block that survives both
-    // arms.
+    // the BIRTH position, and target is initialised to match so the glide
+    // term is exactly zero on the first frame. This block used to credit
+    // the spawn law for that; the law is repealed (the banner above) and
+    // the practice stands on its own — a body should not be walking
+    // anywhere before anything has asked it to.
     fe.target_x = inst.cx;
     fe.target_z = inst.cz;
 
