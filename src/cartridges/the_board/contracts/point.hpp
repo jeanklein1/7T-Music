@@ -99,10 +99,15 @@ inline constexpr float CAMERA_CHASE_FF = 1.0f;
 // complicated dynamics the ruling excludes. OFF in free-fly, like every
 // other emanation.
 //
-// GAIN rests at half the pawn's own presence gain (world.wgsl
-// CUBE_PUSH_GAIN, 25). The cube spring is 4/s², so a sustained push
-// displaces by gain/4 ≈ 3 wu — the same visible shed CurlField's
-// amplitude 12 already produces, which is the band this force belongs in.
+// GAIN rests at 12.5, and its DERIVATION OUTLIVED ITS SOURCE: it was
+// authored as half the pawn's own presence gain (world.wgsl
+// CUBE_PUSH_GAIN, 25), and STAGE_0 U5 retired that constant with the
+// presence push. The number stands on its own terms now, which the second
+// half of the original sentence already gave it: the cube spring is 4/s²,
+// so a sustained push displaces by gain/4 ≈ 3 wu — the same visible shed
+// CurlField's amplitude 12 already produces, which is the band this force
+// belongs in. THE CAMERA PUSH STAYS by Jean's own cut list: it is the
+// room, not a behaviour.
 // RADIUS rests at the pawn forcefield's moving-radius (world.wgsl
 // PAWN_FORCEFIELD_RADIUS_MOVING, 2), so at rest the shell is a brush-past
 // and not a bow wave. Both are Jean's to tune at the desk.

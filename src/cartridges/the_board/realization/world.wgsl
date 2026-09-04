@@ -2480,36 +2480,20 @@ const FLEE_SHELL_FRAC: f32 = 0.25;   // CONTACT_3 K2a
 // outdoor-caveat trap; the cylinder escapes it. The reach test replaces the old
 // CUBE_PUSH_VWINDOW, whose |dy| gate folded ground relief into eligibility
 // (audit #7 -- OVERTURNED: authored altitude is terrain-independent).
-//   CUBE_PUSH_RADIUS   -- planar reach, shoulder-scale. A TOOL, not a field:
-//     small on purpose (~2x the pawn contact shell); a large presence shell
-//     plus persistence (lambda=1) would permanently clear a wide disc around
-//     the point -- "cubes avoid you", not "shove them freely".
-//   CUBE_REACH_CEILING -- altitude eligibility. A cube is shoveable iff its
-//     authored mean altitude (orbit_height + bob_amplitude, terrain-independent)
-//     is within the ceiling; above it the cube is canopy, left alone. At 30:
-//     monoliths (~12) and small cubes (~25) are in reach, medium (~45) and
-//     large (~75) are canopy. Raise toward INFLUENCE_PLANAR_ONLY to make every
-//     cube shoveable. Jean-tunable.
-//   CUBE_PUSH_GAIN     -- presence force per wu overlap (dt-scaled).
-const CUBE_PUSH_RADIUS:  f32 = 7.0;   // planar reach (~2x pawn contact shell; a tool, not a field)
-// COINCIDENCE OF VALUE, NOT A SHARED HOME: 30.0 is also exactly
-// 2.0 * ZONE_SUPPRESS_OUTER, the zero point of gol_carve_fade, so today
-// "a floater carves iff it is shoveable" happens to be one test written
-// twice. The two numbers have DIFFERENT owners and no gate ties them —
-// retune either alone and the equivalence breaks silently. See the note
-// at ZONE_SUPPRESS_OUTER.
-const CUBE_REACH_CEILING: f32 = 30.0; // authored-altitude eligibility; a |dy| window would couple terrain relief instead
-const CUBE_PUSH_GAIN:    f32 = 25.0;  // presence force per wu overlap
-// units: max Δv per frame on the cube's drift. A FRAME-HITCH GUARD, not a
-// tuning knob: unreachable at 60 Hz (max 7*25/60 = 2.92); first engages at
-// dt = 0.0686 s (14.6 fps). Raising it changes nothing you can see.
-const CUBE_PUSH_CAP: f32 = 12.0;
-// [TIDY_1 T1e] The hitch-guard claim above, machine-checked: at 60 Hz the max
-// cube presence impulse (radius*gain*dt) stays below the cap, so the cap binds
-// only on a frame hitch. All three terms are consts, so Tint const-evaluates
-// it (a false assertion errors -- verified T1e). The ONE cap that proves
-// itself; the other three rows are split across rooms (see the ledger below).
-const_assert CUBE_PUSH_RADIUS * CUBE_PUSH_GAIN < CUBE_PUSH_CAP * 60.0;
+// CUBE_PUSH_RADIUS (7.0), CUBE_REACH_CEILING (30.0), CUBE_PUSH_GAIN
+// (25.0), CUBE_PUSH_CAP (12.0) and the const_assert that proved the cap
+// was a frame-hitch guard rather than a tuning knob all stood here
+// (STAGE_0 U5), with the paragraphs that made them legible.
+//
+// ONE THING THEY LEAVE BEHIND, AND IT IS A TRAP THE BANNER ALREADY NAMED.
+// CUBE_REACH_CEILING was 30.0, which is also exactly 2.0 *
+// ZONE_SUPPRESS_OUTER — the zero point of gol_carve_fade — so "a floater
+// carves iff it is shoveable" was one test written twice, in two rooms,
+// with no gate tying them. The banner said so and warned that retuning
+// either alone would break the equivalence silently. RETIRING one breaks
+// it just as silently: the carve keeps its own 30.0 written longhand and
+// no longer has a twin to agree with. Named here because the identity
+// outlives the constant that half of it was named for.
 
 // Spheres push the POINT (CONTACT_5 P2a). Presence gain 40.0 — the shape the
 // retired CONTACT_SPRING carried, so the restored feel matches what Jean liked
@@ -2686,19 +2670,10 @@ fn row_point_flee(g_self: AgentTierParams, approach_floor: f32) -> InfluenceProf
     return InfluenceProfile(config.point_bubble_radius, 0.0,
                             0.0, g_self.flee_gain_player, 1.0, INFLUENCE_NO_CAP, 1.0, 0.6, approach_floor);
 }
-fn row_cube_push(fe: FloatingEntityState) -> InfluenceProfile {
-    // Test A -- REACH: shove only cubes whose AUTHORED mean altitude
-    // (orbit_height + bob_amplitude; terrain-independent, NOT the instantaneous
-    // bob) is within the ceiling. Folded into radius via select (branchless):
-    // out of reach -> radius 0 -> the gate never opens.
-    let reach_ok = (fe.orbit_height + fe.bob_amplitude) <= CUBE_REACH_CEILING;
-    // Test B -- PLANAR: INFLUENCE_PLANAR_ONLY as vwindow keeps the CYLINDRICAL
-    // gate (positive vwindow) with an unbounded vertical half-window, so once
-    // Test A admits the cube the gate is purely planar (vwindow <= 0 would flip
-    // to the spherical gate and reinstate the CONTACT_4 trap).
-    return InfluenceProfile(select(0.0, CUBE_PUSH_RADIUS, reach_ok), INFLUENCE_PLANAR_ONLY,
-                            CUBE_PUSH_GAIN, 0.0, 1.0, CUBE_PUSH_CAP, 1.0, 0.0, 0.0);
-}
+// `row_cube_push` stood here (STAGE_0 U5) — the two-test profile the
+// presence column was built from: Test A the altitude REACH, folded into
+// the radius by a select so an out-of-reach cube got radius 0, and Test B
+// the PLANAR gate that kept the cylinder cylindrical.
 
 // ── THE OCCUPIER ROWS (BATCH F-B) — the standing bodies' word ──────
 // THE ROWS BELOW STAND UNEXERCISED, and this banner said otherwise for
@@ -4855,9 +4830,12 @@ fn patch_terrain_fs(in: PatchTerrainVarying) -> @location(0) vec4<f32> {
         // the bubble — the point's social shell (the flee trigger)
         ring += vec3(0.2, 0.9, 1.0)
               * step(abs(d - config.point_bubble_radius), SHELL_RING_WIDTH);
-        // the cube PUSH reach (planar column footprint -- CONTACT_5 P2b)
-        ring += vec3(1.0, 0.7, 0.2)
-              * step(abs(d - CUBE_PUSH_RADIUS), SHELL_RING_WIDTH);
+        // THE CUBE PUSH REACH stood here (STAGE_0 U5) — an orange ring at
+        // CUBE_PUSH_RADIUS, the planar column footprint. It was the one
+        // render-side reader of that constant, well outside the compute
+        // kernel a sweep would have searched, and drawing it after the
+        // mechanism retired would have been an instrument reporting a
+        // reach nothing has.
         // one patch, for scale
         ring += vec3(0.5, 0.5, 0.5)
               * step(abs(d - PATCH_EXTENT), SHELL_RING_WIDTH);
@@ -9249,45 +9227,27 @@ fn update_cube(@builtin(global_invocation_id) gid: vec3<u32>) {
             let behavior_force = cube_behavior_force(
                 fe, signal.t_seconds, point_xz, config.floater_coordination);
 
-            // ── THE POINT SOURCE push (CONTACT_5 P2b): cubes are SHOVED ──
-            // The point's PRESENCE, not its approach: stand under a floating
-            // cube and it moves ahead of you until you step out of the column
-            // (OCCUPANCY, not motion -- the beach-ball Jean asked for). The
-            // gate is an INFINITE CYLINDER (planar CUBE_PUSH_RADIUS, no vertical
-            // window), admitted by a REACH test on the cube's authored altitude
-            // (row_cube_push): a hovering body's shell is the column beneath
-            // it, and only in-reach cubes have a column at all.
-            // Radial (tangential 0), falloff_mix 1 (soft at the rim). There is
-            // no cube-vs-pawn body-contact row and there cannot be one: a
-            // contact shell never reaches a hovering cube (4.6 < H). The
-            // presence column is what reaches it.
-            // Persistence: config.cube_plasticity is 1.0
-            // (Idle::CUBE_PLASTICITY_DEFAULT) so a shove RELOCATES rather than
-            // partially returns -- lambda=1 semantics (the leak below).
+            // THE POINT-SOURCE PRESENCE PUSH STOOD HERE (STAGE_0 U5).
+            // Stand under a floating cube and it moved ahead of you until
+            // you stepped out of the column — OCCUPANCY, not motion, the
+            // beach-ball Jean asked for. An infinite planar cylinder
+            // (CUBE_PUSH_RADIUS) admitted by a REACH test on the cube's
+            // authored altitude (CUBE_REACH_CEILING), added straight to
+            // drift_vel as an impulse.
             //
-            // The push is an IMPULSE (PRESENCE is dt-scaled inside -- the K1
-            // law), added STRAIGHT to drift_vel exactly as the agent contact
-            // adds to velocity; spring_a + behavior_force stay accelerations
-            // (x dt). (P1b passed dt=1.0 to bit-preserve the OLD force-parting;
-            // P2b's presence push is the impulse K1 names, so it takes signal.dt
-            // and a DIRECT add -- now the soft falloff actually bites, and
-            // CUBE_PUSH_CAP is a velocity-delta safety, ~never reached at the
-            // ~0.95 wu/s typical.) Worked: a small cube (orbit_height ~25 <=
-            // ceiling 30 -> in reach), pawn 3 wu planar beneath -> planar
-            // overlap 4, fall = 1-3/7 = 0.57 -> impulse = 4*25*(1/60)*0.57
-            // ~= 0.95 wu/s of drift velocity per frame, accumulating while you
-            // stay under the column, STOPPING the instant you step out (or the
-            // cube rises past the ceiling); standing still inside still pushes.
-            var push_impulse = vec3(0.0);
-            {
-                let q_prof = row_cube_push(fe);
-                let q_r = influence_response(
-                    fe.pos, vec2(0.0), point_pos(), vec2(0.0), q_prof, dt);
-                push_impulse = vec3(q_r.x, 0.0, q_r.y);
-            }
+            // IT IS ONE OF THE TWO PAWN-CENTRIC CUBE MECHANISMS THE STAGE
+            // RETIRES. The cubes are an instrument now: what moves them is
+            // the music and the wheel, not where a body happens to stand.
+            // THE CAMERA PUSH STAYS — it is the room, not a behaviour.
             let spring_a = -fe.drift * fe.spring_stiffness;
             let ff = field_forces[32u + slot].xyz;  // lane 40 + (slot − CUBE_SLOT_OFFSET): the cube band of the index map
-            fe.drift_vel = fe.drift_vel + (spring_a + behavior_force + ff) * dt + push_impulse;
+            // `+ push_impulse` stood at the end of this line (STAGE_0 U5).
+            // The push was the one term added DIRECTLY rather than scaled by
+            // dt — it was an impulse, where spring_a, behavior_force and the
+            // field's ff are accelerations. What is left is three
+            // accelerations and one dt, which is the shape this line had
+            // before the presence column existed.
+            fe.drift_vel = fe.drift_vel + (spring_a + behavior_force + ff) * dt;
             fe.drift_vel = fe.drift_vel * exp(-fe.drag * dt);
             fe.drift = fe.drift + fe.drift_vel * dt;
 
@@ -9340,38 +9300,35 @@ fn update_cube(@builtin(global_invocation_id) gid: vec3<u32>) {
             // each frame. Identity outdoors.
             fe.pos = finite_bounds_resolve(fe.pos);
 
-            // ── PLASTICITY (CONTACT_2 C1b) ─────────────────────────
-            // Displacement leaks from drift (temporary) into anchor
-            // (permanent). fe.pos is already composed above, so the
-            // transfer moves no pixels this instant — the present
-            // becomes the next configuration's initial condition (the
-            // continuity law). λ = 0 reproduces the elastic cube
-            // bit-exactly. Three refinements make the stated law TRUE on
-            // this code (all bit-neutral at λ=0): (1) placed AFTER the
-            // compose, since `home` is a local from the PRE-leak anchor
-            // — leaking before it would jump pos this frame; (2) XZ-only
-            // — home.y is terrain-relative (not anchor.y), so a .y leak
-            // would move pixels (contact is planar anyway, C1a); (3)
-            // anchor mode only — in kite mode home tracks the point, not
-            // anchor, so the anchor is dormant. (GPU anchor mutation
-            // precedent: the kite-release freeze.)
-            if (fe.follow_pawn == 0u) {
-                let lam = fe.plasticity * config.cube_plasticity;   // K2c: per-tier character x live master
-                let leak = clamp(lam * dt, 0.0, 1.0);
-                fe.anchor.x = fe.anchor.x + fe.drift.x * leak;
-                fe.anchor.z = fe.anchor.z + fe.drift.z * leak;
-                // The leak is an anchor AUTHOR, so it moves target and
-                // anchor as a PAIR (ONE_ANCHOR_1): target − anchor is
-                // invariant under it, so a resting cube stays resting
-                // (the walk above sees delta 0) and a shove RELOCATES
-                // instead of being walked back to a stale goal. A
-                // mid-glide shove translates the remaining glide.
-                // λ = 0 remains bit-exact.
-                fe.target_x = fe.target_x + fe.drift.x * leak;
-                fe.target_z = fe.target_z + fe.drift.z * leak;
-                fe.drift.x = fe.drift.x - fe.drift.x * leak;
-                fe.drift.z = fe.drift.z - fe.drift.z * leak;
-            }
+            // THE PLASTICITY LEAK STOOD HERE (STAGE_0 U5). Displacement
+            // leaked from drift (temporary) into anchor and target as a
+            // PAIR, so a SHOVE RELOCATED a cube permanently instead of
+            // being walked back to a stale goal. It existed for the
+            // presence push, and the presence push is gone.
+            //
+            // IT WAS GATED `if (fe.follow_pawn == 0u)` — anchor mode only,
+            // because in kite mode the anchor was dormant. That gate is
+            // where U4 and U5 met: cutting the kite first would have made
+            // this block unconditional for the first time, live over
+            // push-produced drift, in a mode it was written never to run
+            // in. U5 RAN FIRST for that reason, so the leak was retired
+            // while its gate still meant what it said.
+            //
+            // AND ITS RETIREMENT IS WHAT MAKES THE WHEEL POSSIBLE. This
+            // block WROTE fe.target_x/target_z every frame. A wheel that
+            // serves stations through the glide-target door "gated on the
+            // station having moved past epsilon" compares a CPU memory of
+            // what it last sent against the target the GPU holds — and
+            // this was the kernel quietly moving that target underneath
+            // it. With the leak gone the target is the CPU's alone.
+            //
+            // `config.cube_plasticity` is an ENROLLED dial and this was
+            // its ONLY runtime reader, so the row now stands DARK per
+            // §0(d) — no gate notices, because organ_readers.py declares
+            // the whole CONFIG family out of scope. `fe.plasticity`, the
+            // per-instance baked λ, loses its only consumer with it and is
+            // flagged for the sweep rather than cut here: it is a field on
+            // a mirrored struct that U4 is already re-laying.
 
             // Spin around tilted Y axis (unchanged)
             let spin_angle = fe.t * fe.spin_speed;
