@@ -210,6 +210,36 @@ struct PanelSurface {
     struct Possession {
         float radius;            // how far the POINT reaches to take a body
     } possession;
+    // ═══ THE INTERVAL WHEEL (WHEEL_0 U1) ═════════════════════════
+    // The choir's formation, and its five axes. Key k is already a
+    // pitch class (k % 12) and a rank (k / 12); the wheel makes the
+    // formation SAY so.
+    //
+    //   θ(k)      = phase + twist·r + (2π/12)·wrap12(step · pc)
+    //   radius(k) = radius + rank_sep·r
+    //
+    // STEP IS THE TRANSFORMATION AXIS and the reason this is a wheel
+    // rather than a ring. At step 1 the circle is CHROMATIC; walked
+    // continuously toward 7 it passes through every star polygon
+    // {12/step} and arrives at the CIRCLE OF FIFTHS. Because the
+    // stations are served through the glide-target door — re-aimed
+    // every frame, walked in-kernel at the standing τ — a MOVING step
+    // sends the keys braiding past each other across the floor.
+    // Nothing snaps: goals may leap, values may only walk. Chords
+    // draw their interval shapes in light, and a fifth is a
+    // near-diameter at step 1 and a neighbour pair at step 7.
+    //
+    // ALL FIVE ARE LIVE and all five are future musical sockets. The
+    // pc-DFT's phase rotating `phase` — interval ENERGY turning
+    // interval GEOMETRY — is the named gen-2 coupling, and is NOT
+    // wired here.
+    struct Wheel {
+        float step;       // the transformation axis: 1 chromatic … 7 fifths
+        float radius;     // inner rank's radius (wu)
+        float rank_sep;   // wu added per rank outward
+        float twist;      // radians of rotation added per rank
+        float phase;      // radians — the whole wheel's rotation
+    } wheel;
 };
 
 // ═══ POSSESSION (ORGAN_4 P3b) ═════════════════════════════════════
@@ -228,9 +258,20 @@ inline constexpr PanelSurface PANEL_TABLE = {
                                      // and left the readers behind, so these
                                      // four wrote a home nothing read
     { POSSESSION_RADIUS },           // ORGAN_4 P3b
+    // wheel: step 1 (the chromatic circle), inner rank at 60 wu, the
+    // outer rank 14 wu beyond it, no twist, no rotation. Desk numbers.
+    { 1.0f, 60.0f, 14.0f, 0.0f, 0.0f },
 };
 
 inline PanelSurface PANEL_LIVE = PANEL_TABLE;
+// THE WHEEL AT REST IS THE CHROMATIC CIRCLE, which is the shape a reader
+// should see first: step 1, one ring per rank 14 wu apart, no twist and no
+// rotation. Desk numbers — Jean may move any.
+static_assert(PANEL_TABLE.wheel.step == 1.0f && PANEL_TABLE.wheel.twist == 0.0f
+           && PANEL_TABLE.wheel.phase == 0.0f,
+    "the wheel's REST is the chromatic circle, unrotated and untwisted");
+static_assert(PANEL_TABLE.wheel.radius > 0.0f && PANEL_TABLE.wheel.rank_sep > 0.0f,
+    "an inner radius and a rank separation are both positive, or the ranks collide");
 static_assert(PANEL_TABLE.beacon.r0 == FIELD_BEACON_R0
            && PANEL_TABLE.beacon.r  == FIELD_BEACON_R
            && PANEL_TABLE.beacon.s  == FIELD_BEACON_S
