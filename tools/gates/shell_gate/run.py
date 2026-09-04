@@ -74,6 +74,14 @@ int main(int argc, char** argv) {
     // THE SCRIPTED SESSION. Every line after argv[1]=="repl" is one REPL
     // command, run through the same repl_exec the stdin lane calls.
     for (int i = 2; i < argc; ++i) t7::organ::repl_exec(argv[i]);
+    // THE PENDING MASK, DRAINED AND PRINTED (WHEEL_0 R7). A door press
+    // deviceless does exactly one thing that outlives the print: it ORs a
+    // bit into g_doors_pending. take_doors_pending() is the same function
+    // organ_flush calls at the frame boundary, so draining it here proves
+    // the half of the door path that exists in this binary — the id
+    // resolved, the bit landed, and an out-of-range id landed nothing.
+    std::cout << "DOORS_PENDING 0x" << std::hex
+              << t7::organ::take_doors_pending() << std::dec << "\\n";
     return 0;
 }
 """
@@ -160,6 +168,8 @@ def main():
             "get NO.SUCH.ROW",            # not in the manifest, named
             "doors",
             "door 3",
+            "door 5",                     # the wheel's mode door (WHEEL_0)
+            "door 5",                     # ...pressed again: the mask COALESCES
             "door 99",                    # out of range, named
             "export " + exported,
             "wat",                        # an unknown verb, named
@@ -183,6 +193,45 @@ def main():
              "Rebirth the world" in blob and "pressed 3" in blob),
             ("a door id past the roster is refused with the count",
              "no door 99" in blob),
+            # ── DOOR 5, THE WHEEL'S (WHEEL_0 R7) ────────────────────
+            # WHAT THIS CAN AND CANNOT PROVE, stated because the ruling
+            # asks for the limit rather than a claim: `reveal_zoetrope`
+            # IS NOT IN THIS BINARY. The door's consumer is
+            # organ_flush, which lives inside class Cartridge, which is
+            # the only includer of bodies/cube_behaviors.hpp; this TU is
+            # two console headers. So the bit is set and never taken,
+            # `cbs.formation` never flips, and the `[Wheel] …` line is
+            # never printed. That half is the probe's.
+            #
+            # Note this is NOT the `bind_home` limit the banner above
+            # describes — that one stops the WRITE path. The door path
+            # never gets far enough to be stopped by it; it stops one
+            # tier earlier, because its consumer is not linked.
+            #
+            # WHAT IS LEFT IS WORTH PINNING ANYWAY, and it is the part
+            # that rots: door 5's ROSTER POSITION and its LABEL, which
+            # WHEEL_0 U3 changed and promised would not renumber.
+            ("door 5 is the wheel's, by id and by label",
+             "5  Wheel: take the choir / let it roam" in blob
+             and "pressed 5 — Wheel: take the choir / let it roam" in blob),
+            # THE MASK IS THE VERB PATH, deviceless. take_doors_pending()
+            # is the same drain organ_flush calls, so this asserts that
+            # both real presses landed their bits and that door 99
+            # landed none: 3 and 5 set, nothing above ORGAN_DOOR_COUNT.
+            ("a press lands its bit in the mask the frame boundary drains, "
+             "and an out-of-range id lands none",
+             re.search(r"DOORS_PENDING 0x([0-9a-f]+)", blob) is not None
+             and int(re.search(r"DOORS_PENDING 0x([0-9a-f]+)", blob).group(1), 16)
+                 == (1 << 3) | (1 << 5)),
+            # THE COALESCE, which is why a "full cycle" is not
+            # expressible here: two presses between two frame boundaries
+            # are ONE raise by construction (organ_registry.hpp ORs a
+            # bit). The session presses door 5 twice and the mask still
+            # reads one bit — the acknowledgement prints twice, the
+            # program is told once. A scripted cycle would need a frame,
+            # which needs the cartridge, which needs Dawn.
+            ("two presses between two boundaries are one raise",
+             blob.count("pressed 5 — ") == 2),
             ("an unknown verb is named, not swallowed", "`wat`?" in blob),
             ("`export` skips every witness — a meter is not a scene's",
              re.search(r"witness\(es\) skipped", blob) is not None),
@@ -217,12 +266,20 @@ def main():
             failed += 1
 
         if failed:
-            print("\nshell-gate: FAIL — %d of %d scene(s) did not answer as "
-                  "the road promises" % (failed, len(CASES)))
+            # It said "%d of %d scene(s)" against len(CASES), but `failed`
+            # accumulates over the scenes AND the REPL checks AND the round
+            # trip — so a REPL-only failure reported "3 of 5 scene(s)" with
+            # no scene failing. Counted honestly now (WHEEL_0 R7).
+            print("\nshell-gate: FAIL — %d row(s) did not answer as the road "
+                  "promises (%d scene(s) + %d repl check(s) + 1 round trip)"
+                  % (failed, len(CASES), len(checks)))
             return 1
         print("\nshell-gate: PASS — the shell builds and links "
               "deviceless; %d scene(s) down the road and a scripted "
-              "session through the hand answer as promised. THE APPLY "
+              "session through the hand answer as promised (the hand "
+              "includes door 5, the wheel's — its ROSTER and LABEL and "
+              "its bit in the pending mask; the VERB is the probe's, "
+              "because reveal_zoetrope is not in this binary). THE APPLY "
               "PATH IS NOT PROVEN HERE and cannot be: block_base returns "
               "null until bind_home, and binding one needs a GPUState, "
               "which pulls Dawn at link time. That half is the probe's "

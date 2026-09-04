@@ -423,8 +423,17 @@ struct CubeBehaviorsState {
     // needs" — the projector needs no world seed since STAGE_0 R4; the
     // flag survives its own justification because the door still cannot
     // write a colour.)
-    // ONE RAISER, ONE EDGE now: reveal_zoetrope, on the ROAM↔WHEEL flip
-    // — the swell's jurisdiction changes there and nothing else does.
+    // TWO RAISERS, TWO EDGES (WHEEL_0 R7):
+    //   · reveal_zoetrope, on the ROAM↔WHEEL flip, BOTH DIRECTIONS — the
+    //     swell's jurisdiction changes there, and the raise is
+    //     unconditional so leaving the wheel restores the mirror's own
+    //     radius as surely as entering it asserts the swell.
+    //   · REBIRTH, at the tail of rebirth_world (cartridge.hpp), after
+    //     build_world has borne the new choir. clear_cubes flips the mode
+    //     to its rest SILENTLY, which is the same class of change; the
+    //     raise is not made there because choir_project spends the flag
+    //     even on an empty roster, so a teardown-time raise survives only
+    //     by this frame's atomicity. The site carries the argument.
     // (The dim's two edges retired with the dim; the arrival edge
     // retired with the walk that used to snap a radius under it.)
     bool  repaint_all   = false;
@@ -432,9 +441,24 @@ struct CubeBehaviorsState {
     // last actually served at, in world XZ. Same shape and same reading
     // as choir_flushed one field down: the gate compares against THIS,
     // not against the previous frame, so a wheel turning slower than
-    // WHEEL_SERVE_EPS per frame still accumulates and pokes. Seeded at
-    // birth (the birth writes the target itself) and reset by
-    // clear_cubes, for the same reason the light's gate is.
+    // WHEEL_SERVE_EPS per frame still accumulates and pokes.
+    //
+    // IT DIFFS AUTHORED INTENT AGAINST LAST-SENT, NEVER AGAINST
+    // GPU-WALKED STATE (WHEEL_0 R7, confirmed against the shipped code).
+    // The whole census of writers is three and there is no fourth path:
+    // the SERVE writes it immediately after each poke, the BIRTH seeds it
+    // from fe.target_x/z — the same struct member that went to the GPU,
+    // not a recomputed station — and clear_cubes RESETS it, because the
+    // slots it shadowed have just been wiped. The serve reads no
+    // live_pos, no live_body_radius, no readback and no mapped buffer;
+    // `gpu` is used for exactly one thing, the write.
+    //
+    // AND THAT IS NOT MERELY UNREAD BUT UNREADABLE-BY-ANYONE now:
+    // ActiveCube::live_pos and live_body_radius have no reader left in
+    // the tree at all — their last was the hand-back that retired at
+    // WHEEL_0 U3 — so the harvest exists and nothing consumes it.
+    // A gate that diffed against walked state would chase the walk it
+    // caused and never settle; this one is a goal against a goal.
     float wheel_sx[CUBE_CHOIR_N]{};
     float wheel_sz[CUBE_CHOIR_N]{};
     // ── THE BIRTH ANCHOR (WHEEL_0 U3) ── where the key was actually

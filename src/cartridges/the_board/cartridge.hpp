@@ -1642,6 +1642,45 @@ namespace t7 {
                 // reproducible rather than merely new.
                 birth_the_automaton(queue);
 
+                // ── THE REBIRTH REPAINT EDGE (WHEEL_0 R7) ────────────────
+                // The second of the choir projector's two full-pass edges.
+                // The first is the ROAM<->WHEEL flip (reveal_zoetrope); this
+                // is the other, and it belongs HERE rather than in
+                // clear_cubes for a reason worth writing down.
+                //
+                // choir_project clears repaint_all at the tail of its pass,
+                // OUTSIDE the slot loop — so it spends the flag even when
+                // every slot is inactive. A raise made during the teardown
+                // is therefore a raise made at the one instant in the
+                // program's life when there is no choir to force, and it
+                // would survive to the rebuilt one only by the ATOMICITY of
+                // this function: nothing calls choir_project between
+                // clear_cubes above and build_world below. That is true
+                // today and it is an accident of ordering, not a
+                // construction — a teardown-only frame or a deferred
+                // rebuild would lose the edge silently with every gate
+                // green. Here, every key is already born and active.
+                //
+                // AND HERE IS REBIRTH-ONLY, which is the distinction the
+                // edge is named for: build_world is boot's path too, so
+                // raising it at the tail of birth_the_choir would make this
+                // a BIRTH raiser and the ledger of edges would be wrong.
+                //
+                // IT IS BELT-AND-BRACES TODAY, and says so rather than
+                // pretending to fix a live bug: cube_write_gpu already
+                // dresses each newborn through the projector's own laws —
+                // choir_project_color into fe.color, the (1 - I) close on
+                // face_variance, the WHEEL-gated swell on body_radius — and
+                // then re-seeds the poke gate from the live light. So the
+                // GPU slot already holds what a forced pass would write.
+                // The edge exists because clear_cubes SILENTLY FLIPS THE
+                // MODE to its rest (WHEEL), and a mode change is exactly
+                // the class of change the poke gate cannot see; if the
+                // birth ever stops routing through the projector, this is
+                // what keeps the edge honest.
+                if constexpr (ROSTER.cube)   // ROSTER-GATE cube — the choir is the cube family's
+                    cube_behaviors_state_.repaint_all = true;
+
                 uint32_t side = world_state_.finite_mode ? 2 * world_state_.finite_radius + 1 : 0;
                 std::cout << "[World] Rebirth complete, seed=" << world_state_.active_seed
                     << " mode=" << (world_state_.finite_mode ? "finite" : "open")
