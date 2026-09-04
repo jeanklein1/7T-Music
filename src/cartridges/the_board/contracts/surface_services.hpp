@@ -62,6 +62,41 @@ namespace the_board {
 // subject, not this one's. A pin is a value, not an excision.
 inline constexpr bool WORLD_FINITE = true;
 
+// ═══ THE STAGE'S SIZE, PINNED (STAGE_0 U1) ═══════════════════════════
+//
+// THE STAGE LAW: everything computed is visible. A world whose radius is
+// DRAWN is a world whose size — and therefore what fits inside the eye —
+// changes run to run, and a stage that changes size cannot be composed
+// on. So the radius is authored. ONE TOKEN moves the stage.
+//
+// THE GROUND'S SEED IS UNTOUCHED, and that is Jean's explicit exemption:
+// heights, patch generation, GoL seeding and the automaton's birth all
+// still draw from the world seed. Only the SHAPE fact stops listening.
+// It costs nothing downstream to stop it, either — every seeded draw in
+// this tree is an INDEPENDENT address-keyed hash (`cpu_hash(seed, prop)`,
+// `tile_seed(master, gx, gz)`), never a sequential stream, and the radius
+// drew at property 77u which nothing else uses. Retiring a draw here
+// cannot shift a single draw anywhere else.
+//
+// HOW IT IS PINNED IS NOT HOW THE COMMISSION SKETCHED IT, and the reason
+// is a gate. `derive_finite_radius` is not merely the draw: it is the
+// LAST FENCE before the number becomes a buffer index (its own comment
+// says so, and three static_asserts below depend on it), AND it is the
+// DECLARED READER of WORLD_LIVE's two enrolled radius dials in
+// tools/organ_readers.py. Retiring the function would leave two enrolled
+// rows with no reader and turn `organ_ledger --check` RED — under a
+// registry freeze that forbids retiring the rows. So the pin is seated
+// where the tree already built a door for it: WORLD_LIVE's range is
+// pinned to this constant at boot, and the draw's own
+// `if (lo >= hi) return lo;` returns it without ever reaching the hash.
+// That path exists and says why in its own words — "a pinned range is
+// still a legal range, and it is how a hand asks for one size without a
+// second mechanism". This campaign is that hand.
+inline constexpr uint32_t WORLD_RADIUS_PIN = 2u;
+static_assert(WORLD_RADIUS_PIN >= FINITE_RADIUS_MIN
+           && WORLD_RADIUS_PIN <= FINITE_RADIUS_MAX,
+    "the pinned stage must fit the capacity the three asserts below bind");
+
 // THE PIN'S DIALS MOVED TO THE WORLD'S OWN HEADER (THE_PANEL I U3).
 // FINITE_RADIUS_MIN / FINITE_RADIUS_MAX are declared in
 // contracts/world_surface.hpp now, beside the live bank they seat and the

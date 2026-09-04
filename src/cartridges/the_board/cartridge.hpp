@@ -522,13 +522,22 @@ namespace t7 {
                 // turning the dial and the same world is torn down and
                 // built again, which is the honest first half of the walk.
                 WORLD_LIVE.next_seed = world_state_.active_seed;
-                // AND THE RADIUS RANGE, from the pin that is still the
-                // design and still the asserted capacity (THE_PANEL I U3).
-                // become_world below draws this world's radius from these
-                // two, so the seat must precede it — which is the same
-                // reason the seed's seat does.
-                WORLD_LIVE.radius_min = FINITE_RADIUS_MIN;
-                WORLD_LIVE.radius_max = FINITE_RADIUS_MAX;
+                // AND THE RADIUS RANGE — PINNED SHUT (STAGE_0 U1). It was
+                // seated to FINITE_RADIUS_MIN/MAX, the full design range,
+                // and become_world drew this world's radius inside it. The
+                // STAGE LAW authors that fact instead: min == max ==
+                // WORLD_RADIUS_PIN, so derive_finite_radius returns the pin
+                // through its own `lo >= hi` arm and never reaches the
+                // hash. The seat must still precede become_world, which is
+                // the same reason the seed's seat does.
+                //
+                // THE TWO DIALS STAY LIVE, and that is deliberate: a hand
+                // that widens the range at the panel gets a drawn radius
+                // again, which is how the pin is INSPECTED rather than
+                // merely trusted. The default is authored; the door is not
+                // welded.
+                WORLD_LIVE.radius_min = WORLD_RADIUS_PIN;
+                WORLD_LIVE.radius_max = WORLD_RADIUS_PIN;
 
                 // BOOT IS A BIRTH FROM NOTHING — IN FACT (ATRIUM_0).
                 // The SEED is settled above and is now the whole of what a
@@ -1365,8 +1374,14 @@ namespace t7 {
                 // patch count across the box — 2r+1 — which is the number
                 // a walk can actually count.
                 const uint32_t side = 2u * world_state_.finite_radius + 1u;
+                // THE WITNESS SAYS WHICH IT WAS. The radius is authored
+                // while the range is pinned shut and drawn while it is not,
+                // and a boot line that could not tell them apart would make
+                // the stage law unfalsifiable from the log.
+                const bool pinned = (WORLD_LIVE.radius_min >= WORLD_LIVE.radius_max);
                 std::cout << "[World] Born FINITE radius=" << world_state_.finite_radius
-                          << " (" << side << "x" << side << " patches)\n";
+                          << " (" << side << "x" << side << " patches)"
+                          << (pinned ? " [PINNED]" : " [drawn]") << "\n";
             }
 
             // THE REBIRTH (ONE_WORLD-I — graduated whole from the transition

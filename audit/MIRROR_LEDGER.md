@@ -15,8 +15,8 @@ carry those facts, or leave them in place and patch around them.
 
 | field | value |
 |---|---|
-| source commit | `ffbbf77650d5661e5130a4c21e1624bf35f083c3` |
-| | CHOIR_0 U6f — the review's second wave: nine record defects, and a reader table that asked to be updated |
+| source commit | `ce98eca189095be33492c8af6121120b1e44697c` |
+| | GROUND_VOICE_0 U3 — gates, the record, and the GoL colour ruling |
 | `src/cartridges/the_board/realization/binding_registry.hpp` | `sha256:79b70d3e7510cce71f5d67f85b994a781745d7c090efefd76ba7af165be17281` |
 | `src/cartridges/the_board/realization/world.wgsl` | `sha256:9bf6a83b750924fc9bb616a9837ea2ec6811b7d6918dd4a5f1083e7cb746220d` |
 | `src/cartridges/the_board/realization/state.hpp` | `sha256:e07ca7d94bbc9dd377ed19b25d42e73859653471b14bfa0cdeb89e11f10e4660` |
@@ -848,8 +848,8 @@ wrapper, 18 wrapper calls) and are not recounted here.
 
 | site (line hint) | enclosing function | idx | group member(s) | dynamic offsets |
 |---|---|---|---|---|
-| `cartridge.hpp:2201` | `phase_entity_mesh_gen` | 0 | `worldGroup_` | — |
-| `cartridge.hpp:2202` | `phase_entity_mesh_gen` | 1 | `frameCGroup_` | — |
+| `cartridge.hpp:2216` | `phase_entity_mesh_gen` | 0 | `worldGroup_` | — |
+| `cartridge.hpp:2217` | `phase_entity_mesh_gen` | 1 | `frameCGroup_` | — |
 | `orbs.hpp:743` | `dispatch_orb_init` | 0 | `worldGroup_` | — |
 | `orbs.hpp:744` | `dispatch_orb_init` | 1 | `frameCGroup_` | — |
 | `orbs.hpp:764` | `dispatch_orb_recolor` | 0 | `worldGroup_` | — |
