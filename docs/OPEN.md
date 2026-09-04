@@ -2193,6 +2193,94 @@ block, and the contract's account at `contracts/driver_surface.hpp`
 (*NO REST TRIPLE HERE*). Both stay; this section is the LAW, they are the
 site.
 
+## THE RULINGS ROUND — R1–R8 (landed; four defects found, four flags)
+
+Landed on `master`. Jean's rulings on STAGE_0 round 2 and the WHEEL_0
+amendments, executed in the order they name. Full account:
+`docs/RULINGS_ROUND_REPORT.md`.
+
+**The round was framed as re-rulings and paperwork. Executing it found four
+live defects, every one invisible to the whole eleven-row battery** — which is
+the strongest argument the round makes for its own two instrument rulings.
+
+| ruling | outcome |
+|---|---|
+| **R1** ring: EXCISE, cite the refusals | already cut at U2; the RECORD was the work — see *THE RING: A THIRD RULING ON ONE SUBJECT*, above |
+| **R2** the layout witness first | built; **caught a three-campaign-old defect the day it was written** |
+| **R3** U4+U5 as one commit | substance satisfied, form not; recorded at the STAGE_0 entry, not rewritten |
+| **R4** `choir_slot_seed(k) = hash(CHOIR_SEED, k)` | landed, plus a compile-time distinctness proof |
+| **R5** state the spawn-law repeal | stated where the law was written; 3 stale statements of its other sense swept |
+| **R6** `height_gain` 0.5; promote hands-off-rest | both — see *THE HANDS-OFF-REST SEAM*, above |
+| **R7** rebirth raiser, ε-gate, door 5 | all three; 3 new gate rows, each proven to bite |
+| **R8** three numbers + the phantom | all three recorded — **and the phantom had a living twin** |
+
+### The four defects
+
+**1 · The WGSL room's offsets were wrong for three campaigns.**
+`FloatingEntityState` carried the pre-U4 numbers (188/196/200/204, `208
+total`) while the C++ asserts proved 192/184/188/176. Layout right in both
+rooms; only the record lied, and **no gate here reads a comment**. Writing
+R2's `BYTE-FOR-BYTE (192 B)` marker is what surfaced it. The witness now
+covers 161 members across 8 structs (was 128/7).
+
+**2 · `spawn_population` is a phantom declaration, and it is still live.**
+Declared with six parameters, defined with eight — the identical defect to
+the `respawn_evicted_agents` phantom R8 names, from the identical commit
+(`66752a61` added `box_min, box_max` to three definitions and touched no
+declaration: **two phantoms in one commit**). U2 killed one because it was
+retiring that function anyway and never looked up at the declaration three
+lines above it. Corrected. **A declaration with no definition is caught only
+at LINK, and nothing in this battery links the cartridge.**
+
+**3 · A stale `organ_readers.py` entry was costing real coverage.**
+`respawn_evicted_agents` was still declared an `AGENTS_LIVE` reader three
+campaigns after retiring, and **`organ_ledger.py` silently ignores an entry
+naming a function that does not exist** — 240 proved / 0 suspect either way.
+
+**4 · A second three-number banner was still standing.** The `Dim` veil
+roster was retired at U2; the SAME roster over `initializeState`'s boot pins,
+written in the SAME commit, was missed. Four false claims in three lines.
+
+### R8's third number, named for the first time
+
+| the banner said | the constant read | recorded before? |
+|---|---|---|
+| RING 325 | 342 | yes, twice |
+| floaters evict at 400 | 800 since `309ab754` | yes |
+| **ICING δ 40** | **42** | **nowhere** |
+
+All three were TRUE the day the banner was written; one commit moved two of
+them together and neither prose line followed. **The numbers were not wrong,
+they were LEFT** — which is the defect class, stated.
+
+### Four flags
+
+**1 · A CONFIRMED STALE-COMMENT SET, NOT SWEPT** (~15 present-tense comments
+asserting mechanisms U4/U5 deleted — the CAP LEDGER's `const_assert` claim,
+`gol_carve_fade`'s retired twin, `POLICY_FLYER`'s consumer census in both
+rooms, and more; enumerated with quotes in the report). Deliberately left:
+folding an open sweep into R8 is the scope growth this tree forbids. **It
+wants its own unit and it is comments only.**
+
+**2 · `fe.plasticity` IS A DEAD WRITE, three campaigns old.** Written every
+birth into a field with zero GPU readers since U5, which deferred it to a
+sweep; U4 re-laid the struct and kept it. Its organ row still reads "live".
+
+**3 · `ActiveCube::live_pos` / `live_body_radius` HAVE NO READER AT ALL** —
+written every frame by `reconcile_cube_mirror`; last reader retired at
+WHEEL_0 U3.
+
+**4 · THE STANDING HOLE.** Defect 2's class is caught only at link, and
+nothing in this battery links the cartridge. The instrument would be a link
+step in the TU gate's CARTRIDGE tier — which needs Dawn, which is why it does
+not exist.
+
+### And one thing R4 invites
+
+Each key's colour is now a permanent identity across all worlds, which
+invites an **authored per-pitch-class palette** — twelve colours, one per pc,
+rank as a shade. **Invited, not built; Jean's.**
+
 ## THE HANDOVER LIST (THE_PANEL's close — the coupling campaign's table)
 
 **THE WRAP ORDER §2.3 asks that the next campaign's handoff be authorable
