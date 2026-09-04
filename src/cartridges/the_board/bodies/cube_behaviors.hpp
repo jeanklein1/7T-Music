@@ -111,10 +111,17 @@ static_assert(std::gcd(ZOETROPE_CELL_STRIDE, LATTICE_CELLS) == 1u,
 // RELIGHTS. No mapping table, no registry: the identity IS the law.
 //
 // The lattice geometry above is untouched by this: LATTICE_COLS is 36 by
-// arithmetic (256/7) and CUBE_CHOIR_N is 36 by CHOICE. Two facts that
-// happen to share a number today; flipping the choir to 24 moves one and
-// not the other, which is why they are not the same constant.
-inline constexpr uint32_t CUBE_CHOIR_N = 36;
+// arithmetic (256/7) and CUBE_CHOIR_N is a CHOICE. The two shared a
+// number at CHOIR_0 and no longer do — which is exactly why they were
+// never the same constant.
+//
+// CHOIR_1: TWO RANKS. Rank 0 lights on one sounding note per pitch
+// class, rank 1 on a doubling; a third voice of the same class now has
+// no key to light, where three ranks gave it one. The PIPE does not
+// narrow with the keyboard — CHOIR_LANES stays 36 and lanes 24..35 sit
+// at their rest, dark, which is what makes this the one token CHOIR_0
+// banked it as (the seam's static_assert reads ≤, not ==).
+inline constexpr uint32_t CUBE_CHOIR_N = 24;
 static_assert(CUBE_CHOIR_N == 24u || CUBE_CHOIR_N == 36u,
     "the choir is stacked pianos: two ranks or three, nothing else");
 static_assert(CUBE_CHOIR_N % 12u == 0u, "ranks are whole pianos");
@@ -135,17 +142,24 @@ inline constexpr uint32_t CUBE_CHOIR_RANKS = CUBE_CHOIR_N / 12u;
 //
 // THE ARITHMETIC, at 120 BPM / 60 fps (30 frames a beat, Δ = 1/30 beat),
 // with the default 8-beat plateau and 8-beat release — COUNTED, not
-// estimated. ATTACK: ΔI = (1 − I)·(1 − e^(−Δ/τ)) = 0.01653·(1 − I) at
-// τ = 2 — **199 pokes across the plateau's 240 frames**, then it thins
-// with the residual: about 17 more over the following ten plateaus as
-// I closes on 1. RELEASE: the slope is 1/8 per beat = 0.00417 a frame,
-// four times this gate, so a fall pokes **every one of its 240 frames**.
-// WORST CASE is one poke per SOUNDING key per frame with the whole
-// choir falling at once: 36 twelve-byte colour writes and 36 four-byte
-// variance writes — and, WHEN THE SCREEN STANDS, 36 four-byte radius
-// writes as well, because the swell rides the same poke. 720 B a frame
-// against the lattice's ≤252-slot sweep every quarter beat. Silence
-// pokes NOTHING.
+// estimated, and RE-COUNTED at CHOIR_1's sharper τ rather than scaled.
+// ATTACK: ΔI = (1 − I)·(1 − e^(−Δ/τ)) = 0.02469·(1 − I) at τ = 8/6 —
+// **158 pokes across the plateau's 240 frames** (it was 199 at τ = 2),
+// the per-frame step crossing under this gate at frame 129 / I = 0.960
+// (was frame 169 / I = 0.940), then thinning with the residual: about
+// 2 more over the following ten plateaus, where the old τ spent 17.
+// THE SNAP IS CHEAPER, WHICH IS NOT OBVIOUS: a steeper climb reaches
+// the flat part sooner, and the flat part is where the gate stops
+// paying. RELEASE: unmoved — the slope is 1/8 per beat = 0.00417 a
+// frame, four times this gate, so a fall still pokes **every one of
+// its 240 frames**, and the release is now the expensive half by a
+// wide margin. WORST CASE is one poke per SOUNDING key per frame with
+// the whole choir falling at once: at CUBE_CHOIR_N = 24 that is 24
+// twelve-byte colour writes and 24 four-byte variance writes — and,
+// WHEN THE SCREEN STANDS, 24 four-byte radius writes as well, because
+// the swell rides the same poke. 480 B a frame (it was 720 at three
+// ranks) against the lattice's ≤252-slot sweep every quarter beat.
+// Silence pokes NOTHING.
 inline constexpr float CHOIR_FLUSH_EPS = 1e-3f;
 
 // ─ THE AUTOMATON band stood here (CHOIR_0 U5) ───────────────────
@@ -756,30 +770,50 @@ struct CubeTierRow {
 // INDEPENDENT draws that MULTIPLY into the silhouette (monolith_vs scales by
 // vec3(r, r·aspect_y, r·aspect_z)), so their variances compound rather than
 // average. Widen one and the height range grows with the product, not the sum.
+// SIZE μ (CHOIR_1): the three big tiers came DOWN — Med 4.0 → 3.0, Large
+// 8.0 → 5.0, Monolith 3.0 → 2.2 with its ASPECT_Y 5.0 → 3.5, so its slab
+// is ≈ 7.7 wu where it was ≈ 15. SmallCube did not move: it was already
+// the scale the others were being brought toward. SCALE_0's law is kept
+// at the new means rather than inherited — σ moved WITH μ, so the two
+// tiers that carried CV 0.20 still carry it exactly (Med 0.60/3.0,
+// Large 1.00/5.0, tightened from 0.209) and the Monolith sits at 0.182.
+// A retune that moved μ alone would have widened every silhouette in
+// relative terms, which is the compounding trap the paragraph above
+// names.
+// HEIGHT μ,σ (CHOIR_1 — A NEW AUTHORED CHOICE, beside SCALE_0's and
+// TEMPO_0's): the flock flies LOWER and, deliberately, in a NARROWER
+// BAND — 25/45/75/12 → 12/16/22/10, with CV taken from 0.60–0.80 down
+// to ≈ 0.50 on every row. Narrower is the half that is not implied by
+// "lower": scaling σ proportionally would have kept the old spread's
+// character at a lower centre, and the ruling is a CALMER band, not
+// just a lower one. A side effect worth having: every tier now clears
+// the CUBE_PARAM_DEFS floor (3.0 wu) by more than it did, so the low
+// tail clips LESS than before — Small 13.6% → 6.7%, Monolith 13.0% →
+// 8.1% — and the drawn distribution is closer to the authored one.
 // Biography determinant — frozen biography (§12).
 inline constexpr CubeTierRow CUBE_TIERS[CUBE_TIER_COUNT] = {
     /* 0: SmallCube */ {
-        { 0.40f, 0.0f, { {1.8f, 0.33f}, {25.0f, 20.0f}, {6.0f, 1.5f},  {0.04f, 0.015f},
+        { 0.40f, 0.0f, { {1.8f, 0.33f}, {12.0f, 6.0f}, {6.0f, 1.5f},  {0.04f, 0.015f},
                    {1.0f, 0.3f}, {5.0f, 0.6f},
                    {1.0f, 0.10f}, {1.0f, 0.10f}, {0.18f, 0.06f} }},
         0.12f
     },
     /* 1: MedCube   */ {
-        { 0.32f, 0.0f, { {4.0f, 0.8f}, {45.0f, 30.0f}, {10.0f, 2.0f}, {0.03f, 0.01f},
+        { 0.32f, 0.0f, { {3.0f, 0.60f}, {16.0f, 8.0f}, {10.0f, 2.0f}, {0.03f, 0.01f},
                    {1.5f, 0.4f}, {6.0f, 0.9f},
                    {1.0f, 0.13f}, {1.0f, 0.13f}, {0.20f, 0.07f} }},
         0.10f
     },
     /* 2: LargeCube */ {
-        { 0.20f, 0.0f, { {8.0f, 1.67f}, {75.0f, 45.0f}, {14.0f, 3.0f}, {0.02f, 0.008f},
+        { 0.20f, 0.0f, { {5.0f, 1.00f}, {22.0f, 10.0f}, {14.0f, 3.0f}, {0.02f, 0.008f},
                    {2.0f, 0.5f}, {8.0f, 1.4f},
                    {1.0f, 0.17f}, {1.0f, 0.17f}, {0.16f, 0.05f} }},
         0.08f
     },
     /* 3: Monolith  */ {
-        { 0.08f, 0.0f, { {3.0f, 0.53f}, {12.0f, 8.0f}, {12.0f, 3.0f}, {0.015f, 0.005f},
+        { 0.08f, 0.0f, { {2.2f, 0.40f}, {10.0f, 5.0f}, {12.0f, 3.0f}, {0.015f, 0.005f},
                    {1.2f, 0.3f}, {6.0f, 0.9f},
-                   {5.0f, 0.80f}, {0.15f, 0.02f}, {0.20f, 0.06f} }},
+                   {3.5f, 0.55f}, {0.15f, 0.02f}, {0.20f, 0.06f} }},
         0.10f
     },
 };

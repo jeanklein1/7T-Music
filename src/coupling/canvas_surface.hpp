@@ -60,13 +60,15 @@ struct CanvasSurface {
     // the envelope itself is the memory. The attack is the house's
     // standing exponential-approach idiom aimed at 1 (CUBE_GLIDE_TAU /
     // ZOETROPE_LIFT_TAU are the same k-form): steepest at switch-on and
-    // decelerating into the plateau. The commission calls that shape
+    // decelerating into the plateau, at τ = plateau/6 since CHOIR_1
+    // (it was plateau/4 — the divisor is the SNAP, this row is the
+    // LENGTH, and only the divisor moved). The commission calls that shape
     // LOGARITHMIC and it reads as one — but the curve is 1 − e^(−t/τ),
     // a saturating exponential whose INVERSE is the log, and the
     // difference is not pedantry: this one has an asymptote at 1 and a
     // true logarithm does not. The release is a FIXED SLOPE, not a
     // span: a dimmer key falls proportionally sooner than a bright one.
-    float light_plateau;        // beats — attack plateau; τ = plateau/4 ⇒ I(plateau) ≈ 0.982
+    float light_plateau;        // beats — attack plateau; τ = plateau/6 ⇒ I(plateau) ≈ 0.9975 (CHOIR_1: was /4, 0.982)
     float light_release;        // beats — FULL-SCALE linear fall to dark (the slope is 1/this)
 };
 

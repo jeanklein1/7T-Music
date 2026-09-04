@@ -60,7 +60,7 @@
 // key). ACTIVATION AND DEACTIVATION ONLY — no held-length book is kept;
 // the envelope is the memory. While a key sounds its light climbs the
 // house's saturating-approach curve, 1 − e^(−t/τ) with τ =
-// light_plateau/4, so ≈ 98% at the plateau — steepest at switch-on,
+// light_plateau/6, so ≈ 99.75% at the plateau — steepest at switch-on,
 // which IS the fast attack the commission asked for; when
 // it falls silent the light falls on a FIXED SLOPE, full brightness to
 // dark in light_release beats. Fast attack, slow decay, simple. The run
@@ -388,14 +388,23 @@ namespace t7 {
             choir_target_ = param_layout_.resolve("cube.light");
             // Boot witness — doctrine, not measurement (P6): one line,
             // always, so a deaf choir names its fault at the seam.
-            // TWO WIDTHS, AND THE LINE MUST NOT CONFLATE THEM: the EAR is
-            // twelve lanes (a pitch-class vector), the KEYBOARD is
-            // CHOIR_LANES keys stacked over it. Printing 36 beside the
-            // source name would read as a claim about the source.
+            // THREE WIDTHS NOW, AND THIS LINE MAY ONLY CLAIM THE TWO IT
+            // OWNS. The EAR is twelve lanes (a pitch-class vector); the
+            // PIPE is CHOIR_LANES lanes stacked over it, and this canvas
+            // envelopes every one of them. THE KEYBOARD IS NEITHER — it
+            // is CUBE_CHOIR_N, the cartridge's own fact, which this tier
+            // may not name and which the seam's own witness prints
+            // ("[the_board] cube.light … | choir N key(s), R rank(s)").
+            // CHOIR_1 pulled those apart: at 24 keys against 36 lanes,
+            // a line here saying "36 keys" would be false about the
+            // instrument, so it says LANES and leaves keys to the room
+            // that knows. The twelve unread lanes are envelope work
+            // nobody reads — real and cheap, flagged not fixed, because
+            // narrowing the pipe is what CHOIR_0 banked against.
             std::fprintf(stderr, "[CHOIR] ear %s: %s.present_count (12 pc lanes)"
-                                 " -> %d keys, %d rank(s)\n",
+                                 " -> %d envelope lane(s); keys are the seam's\n",
                 choir_ear_.valid ? "bound" : "UNBOUND", CHOIR_VOICE,
-                CHOIR_LANES, CHOIR_LANES / 12);
+                CHOIR_LANES);
 
             // PORT_4c — THE SOCKET, in one line. Every signal-side
             // resolve above happens here. Against canvas_1's published
@@ -623,7 +632,15 @@ namespace t7 {
             // ATTACK  — the glide law's own integrator aimed at 1, the
             //   house's standing exponential-approach idiom
             //   (CUBE_GLIDE_TAU, ZOETROPE_LIFT_TAU are the same k-form).
-            //   τ = plateau/4 puts I(plateau) = 1 − e⁻⁴ ≈ 0.982.
+            //   τ = plateau/6 puts I(plateau) = 1 − e⁻⁶ ≈ 0.9975.
+            //   CHOIR_1 MADE IT SNAPPIER by moving the DIVISOR and
+            //   nothing else — 4 → 6, so the switch-on slope 1/τ goes
+            //   0.50 → 0.75 per beat, +50%. Note the direction: a
+            //   sharper attack makes the row MORE literally "plateaus
+            //   at 8", not less, because the same 8 beats now buys
+            //   99.75% instead of 98.2%. The divisor is the only knob
+            //   here — light_plateau itself is the dial, and the shape
+            //   of the curve is the protected law.
             //   The commission's word for the shape is LOGARITHMIC and it
             //   reads as one — concave, decelerating; the curve is in fact
             //   1 − e^(−t/τ), whose inverse is the log, and unlike a true
@@ -641,7 +658,7 @@ namespace t7 {
             if (choir_ear_.valid && choir_target_.valid) {
                 const float dch  = beat - last_beat_;
                 const float dbe  = (dch > 0.0f) ? dch : 0.0f;   // a backward jump costs no time
-                const float tau  = canvas::CANVAS_LIVE.light_plateau * 0.25f;
+                const float tau  = canvas::CANVAS_LIVE.light_plateau / 6.0f;
                 // THE TWO DEGENERATES, taken at their own limits rather
                 // than left to the arithmetic: a zero plateau is τ → 0,
                 // which the law itself answers with an instant climb to
@@ -670,6 +687,12 @@ namespace t7 {
                     // The witness rides the ACTIVATION EDGE — the strike
                     // frame of an instrument that has no strike. On the
                     // zoetrope's dial (rename PARKED; churn minimized).
+                    // IT REPORTS A LANE, NOT A KEY: this tier cannot see
+                    // CUBE_CHOIR_N, so with the choir narrower than the
+                    // pipe (CHOIR_1: 24 of 36) a lane at or above the
+                    // choir's width prints here and lights no cube. Read
+                    // it against the seam's boot line, which names how
+                    // many of these lanes are keys.
                     const unsigned long long bit = 1ull << k;
                     if constexpr (INSTRUMENTS.zoetrope_witness) {
                         if (on && !(choir_sounding_ & bit))
