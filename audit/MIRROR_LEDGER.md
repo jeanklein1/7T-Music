@@ -15,8 +15,8 @@ carry those facts, or leave them in place and patch around them.
 
 | field | value |
 |---|---|
-| source commit | `ce98eca189095be33492c8af6121120b1e44697c` |
-| | GROUND_VOICE_0 U3 — gates, the record, and the GoL colour ruling |
+| source commit | `33501fc4daa366d21ddaf63c5b60f89bf0a00a28` |
+| | STAGE_0 U1b — ledger settle after the pin |
 | `src/cartridges/the_board/realization/binding_registry.hpp` | `sha256:79b70d3e7510cce71f5d67f85b994a781745d7c090efefd76ba7af165be17281` |
 | `src/cartridges/the_board/realization/world.wgsl` | `sha256:9bf6a83b750924fc9bb616a9837ea2ec6811b7d6918dd4a5f1083e7cb746220d` |
 | `src/cartridges/the_board/realization/state.hpp` | `sha256:e07ca7d94bbc9dd377ed19b25d42e73859653471b14bfa0cdeb89e11f10e4660` |
