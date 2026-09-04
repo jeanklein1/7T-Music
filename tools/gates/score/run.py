@@ -76,7 +76,15 @@ def gate_families(gate):
 # family -> [(phase fn, {required gate families})]
 FRAME_ROWS = {
     'pawn_aura':   [('phase_motion_bodies', {'pawn_aura'}), ('phase_pawn_aura', {'pawn_aura'})],
-    'wanderers':   [('phase_respawn_agents', {'wanderers'})],
+    # 'wanderers' registered ('phase_respawn_agents', {'wanderers'}) until
+    # STAGE_0 U2. The row refilled the slots the GPU had evicted; the stage
+    # law retired eviction ("what spawns, stays"), so the refill had nothing
+    # to do and left the spine with it. THE FAMILY IS STILL LIVE — its
+    # agents are updated every frame inside the compute dispatch — it simply
+    # has no CPU spine row of its own any more, which is the same shape
+    # SHARED_ROWS records below for promotion_drain. A family with no
+    # per-frame CPU work registers nothing here; the mechanism stands for
+    # the day one comes back.
     'ribbon':      [('phase_ribbon_tick', {'ribbon'})],
     'orbs':        [('phase_orb_sky', {'orbs'})],
 }

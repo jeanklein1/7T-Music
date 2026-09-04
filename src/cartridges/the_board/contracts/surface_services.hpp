@@ -192,7 +192,19 @@ struct WorldState {
 
     // ── Patch counts (this frame) ──
     uint32_t active_patch_count = 0;
-    uint32_t render_patch_count = 0;    // drawn patches (within the live RING — the draw authority)
+    // DRAWN patches. The comment here read "within the live RING — the
+    // draw authority" and was ALREADY FALSE before STAGE_0: no ring ever
+    // entered band_patches' loop. What actually separates this from
+    // active_patch_count is GENERATION PHASE — the walk skips any patch
+    // whose phase is not GENERATED — so the two differ while a world is
+    // still building and agree once it has built.
+    //
+    // STAGE_0 U2 WAS ASKED TO FOLD THEM AND DID NOT. "One set now — every
+    // resident patch draws" is true of the RING and not of the phase: a
+    // fold would either overwrite the allocation count with a partial
+    // generation count, or hand the draw a count that includes patches
+    // with no layer yet. Two counts, two facts, both live.
+    uint32_t render_patch_count = 0;
     // `lod0_patch_count` (the full-mesh subset) and `all_patch_count` (the
     // drawn set plus the pregen ring) stood here. The pregen band left at
     // ONE_SURFACE-I U4 and the LOD split at U5, so both counts named a
@@ -290,19 +302,19 @@ struct ActivePatch {
 // the whole command buffer, so two batches on one encoder corrupt the
 // first's params. That is a SUBMIT law and it lives in build_world.
 
-// ── Visibility — THE VEIL CHAIN (RING = draw authority) ────────────
+// ── Visibility — THE VEIL CHAIN STOOD HERE (STAGE_0 U2) ───────────
 //
-// The chain is declared ONCE in Dim (state.hpp: DRAW_RING_DEFAULT
-// 325 / GRAIN_BAND_DEFAULT 40 / LOD0_RADIUS_DEFAULT 175 / EXIST_RADIUS
-// 350, chain static_asserts). The LIVE values ride config (draw_ring/
-// grain_band/lod0_radius, tunable): the CPU band reads gpuState_.
-// draw_ring()/lod0_radius(), the entity cull reads draw_ring(), the GPU
-// LOD0 gate reads fc_config.lod0_radius, every VS draw gate + the
-// fragment icing read config — one yardstick, by construction,
-// everywhere. Grid-based allocation/eviction unchanged.
-
-// ── Distance-sorted patch scan helper ──
-
+// The chain was declared once in Dim and its live values rode config, so
+// one yardstick answered every question about what a world showed you.
+// This banner described it, and by the time it was read it was describing
+// three dead links and one live one with the wrong number beside it
+// (325 against a constant of 342).
+//
+// THE STAGE LAW replaces the whole apparatus with a sentence: everything
+// computed is visible, so the WORLD is the draw set and its edge is the
+// only boundary. `config.draw_ring` survives as a DARK enrolled dial
+// (§0(d) — the registry is frozen, so the row stands and the code path
+// goes); nothing reads it in either room.
 struct PatchCandidate {
     uint32_t idx;
     float dist2;

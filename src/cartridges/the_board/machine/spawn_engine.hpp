@@ -44,7 +44,10 @@ namespace the_board {
 //   hide when (dist − extent) > ring + HYST (fragments fully iced for
 //                                            the whole band → invisible exit)
 // Both toggle edges are behind the icing — materialize inside the fade.
-inline constexpr float ENTITY_CULL_HYSTERESIS     = 40.0f;   // toggle band, wholly beyond the ring
+// `ENTITY_CULL_HYSTERESIS` (40 wu) stood here (STAGE_0 U2) — the toggle
+// band that kept an entity from flickering as it crossed the ring. It had
+// NO READER ANYWHERE: its declaration was its only occurrence in the tree.
+// A hysteresis on a boundary that no longer exists needed cutting twice.
 
 // ── Footprint registry vocabulary ──────────────────────────────────
 
@@ -308,20 +311,12 @@ inline PositionResult negotiate_position(MachineCtx* c,
 // of the entity inside the live ring (center − extent ≤ ring). Anchor: the
 // point (readback — the same yardstick as the terrain band). Both toggle
 // edges sit at/beyond the ring where the icing is already 1 — invisible.
-inline uint32_t update_entity_draw_visibility(MachineCtx* c, wgpu::Queue& queue) {
-    uint32_t culled = 0;
-
-    const float ring = c->gpuState_.draw_ring();   // live chain value — the draw authority
-
-    // THE ARCH LOOP stood here — the only family whose mesh could be
-    // zeroed at range, because it was the only family with a GPU mesh to
-    // zero. It left at ONE_WORLD-I U3, and with it the whole reason this
-    // sweep touched the GPU. No surviving family carries generated
-    // geometry, so nothing is culled here today.
-    (void)queue; (void)ring;
-
-    return culled;
-}
+// `update_entity_draw_visibility` stood here (STAGE_0 U2) and had been an
+// EMPTY SHELL since ONE_WORLD-I U3 took the arch loop — a callerless
+// function whose body was `(void)queue; (void)ring; return 0;`. It was
+// nonetheless the LAST reader of GPUState::draw_ring(), so two ledgers
+// went on describing a live CPU half of the veil chain that had not
+// existed for two campaigns. Both go with it.
 
 // ═══ FOOTPRINT REGISTRY ══════════════════════════════════════════
 

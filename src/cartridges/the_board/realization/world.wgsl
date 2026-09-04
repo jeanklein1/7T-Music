@@ -2377,9 +2377,9 @@ const PAWN_FORCEFIELD_SPEED_SCALE: f32 = 1.0;        // How quickly radius shrin
 //   cube altitude ...... orbit_height (Gaussian)    25-75 wu
 //   the bubble ......... config.point_bubble_radius 80 wu
 //   possess reach ...... POSSESSION_RADIUS          20 wu (agents.hpp)
-//   agent eviction ..... AGENT_EVICTION_RADIUS      350 wu
-//   floater eviction ... FLOATER_EVICTION_RADIUS    800 wu
-//   veil ring / LOD0 ... config.draw_ring / lod0    325 / 175 wu
+//   (both eviction radii left at STAGE_0 U2 — what spawns, stays.)
+//   (the draw ring left at STAGE_0 U2 — the stage IS the draw set now.
+//    Its row read 325 against a constant of 342, and had for two campaigns.)
 //   sphere body ........ fe.body_radius (per-inst)  ~1.2-1.5 wu
 //
 // THE INFLUENCE RADII  (name . value . reference . derivation):
@@ -4388,8 +4388,12 @@ fn calc_directional_light(world_pos: vec3<f32>, normal: vec3<f32>, geo_normal: v
 // the veil law required. The icing left at ONE_SURFACE-I U4 and the
 // GRAIN was its last caller, so this smoothstep went with the mosaic at
 // THE_PANEL I U5, and `config.grain_band` — its only reader — with it.
-// THE RING SURVIVES AND IS UNTOUCHED: `config.draw_ring` is the draw
-// authority, read by four VS gates that never asked about any of this.
+// THE RING DID NOT SURVIVE (STAGE_0 U2). It was the draw authority, read
+// by four gates that never asked about any of this, and the STAGE LAW
+// retired all four: everything computed is visible, so the world IS the
+// draw set. `config.draw_ring` the FIELD still stands — dark, boot-pinned
+// and enrolled — because the registry freeze holds its organ row; nothing
+// in either room reads it now.
 
 // `veil_scale` stood in this signature (ONE_SURFACE-I U4): 1.0 = the
 // family joined the veil, 0.0 = a ruled exemption for the ribbon, a flown
@@ -4633,9 +4637,10 @@ fn patch_terrain_fs(in: PatchTerrainVarying) -> @location(0) vec4<f32> {
     // point (cull_point) — concentric with the zone/instance kills, so
     // every hard draw-set edge is ONE circle (no scallops, no silhouettes).
     // Optional dither-dissolve inside the icing band handled in shade_lit.
-    if (distance(in.world_pos.xz, vec2(config.cull_point_x, config.cull_point_z)) > config.draw_ring) {
-        discard;
-    }
+    // THE RIM DISCARD STOOD HERE (STAGE_0 U2). It cut every terrain
+    // fragment beyond config.draw_ring, so the visible ground ended in a
+    // circle centred on the point. THE STAGE LAW retires it: everything
+    // computed is visible, and the board's own edge is the accepted look.
 
     // DEBUG_VIEW 5 — THE LIVE CARD EYE. After the rim discard, so the
     // eye respects the veil ring. RED = |Δh|, GREEN = the card's raw GoL,
@@ -5143,10 +5148,11 @@ fn pawn_vs(@builtin(vertex_index) vid: u32,
     // THE RING (draw authority): agents exist to 350 but DRAW only inside the
     // ring; the pawn is NOT exempt (ruled). Inactive/out-of-ring slots collapse
     // to a degenerate point at the agent's pos (local geometry * active_f = 0).
-    let agent_in_ring = distance(vec2(agent.pos_x, agent.pos_z),
-                                 vec2(config.cull_point_x, config.cull_point_z))
-                        - 5.0 <= config.draw_ring;   // 5 wu: agent body half-extent
-    let active_f = f32(agent.is_active) * f32(agent_in_ring);
+    // `agent_in_ring` stood here (STAGE_0 U2) — centre-distance minus a
+    // hardcoded 5 wu body half-extent, folded into active_f so an
+    // out-of-ring agent collapsed to a degenerate point. An agent is
+    // visible iff it is ACTIVE now.
+    let active_f = f32(agent.is_active);
 
     // -- Figure selection (0 = regular pawn: hardcoded profile + legacy color) --
     // Uniform arrays are fixed-size: use the count const, NOT arrayLength().
@@ -5265,11 +5271,11 @@ fn pawn_vs(@builtin(vertex_index) vid: u32,
 fn sphere_vs(@builtin(instance_index) inst: u32, in: MeshVertexInput) -> EntityVarying {
     let fe = render_floating.entities[inst];
     // Skip non-sphere geometry (degenerate triangle for rasterizer discard).
-    // THE RING (draw authority): floaters exist to 400 (the flagged spawn-
-    // headroom fork) but DRAW only inside the ring — center − extent ≤ ring.
-    let in_ring = distance(fe.pos.xz, vec2(config.cull_point_x, config.cull_point_z))
-                  - fe.body_radius <= config.draw_ring;
-    let r = select(0.0, fe.body_radius, fe.geometry_type == 0u && fe.is_active != 0u && in_ring);
+    // THE RING stood here (STAGE_0 U2): centre − extent ≤ draw_ring, with
+    // a banner claiming floaters existed to 400 — the constant had been
+    // 800 since 309ab754 and the comment never followed. Both are gone
+    // with the chain; a floater draws iff it is ACTIVE.
+    let r = select(0.0, fe.body_radius, fe.geometry_type == 0u && fe.is_active != 0u);
     let world_pos = in.pos * r + fe.pos;
 
     var out: EntityVarying;
@@ -5301,10 +5307,11 @@ fn entity_fs(in: EntityVarying) -> @location(0) vec4<f32> {
 // ONE_SURFACE-I U4 and every family is whole, so the fork is two entry
 // points that differ only in whether they consult a mosaic.
 //
-// IT IS STILL EXEMPT FROM SOMETHING, and that survives on its own: the
-// ribbon has no VS ring gate. pawn_vs, sphere_vs and cube_vs each collapse
-// their geometry outside config.draw_ring; the ribbon does not, which is
-// the same ruling reaching it through a different mechanism.
+// AND IT IS EXEMPT FROM NOTHING NOW, because there is nothing left to be
+// exempt from. The ribbon's distinction was that pawn_vs, sphere_vs and
+// cube_vs collapsed their geometry outside `config.draw_ring` and the
+// ribbon did not; STAGE_0 U2 retired all three gates, so every family now
+// draws on the ribbon's old terms. The exemption became the rule.
 @fragment
 fn ribbon_fs(in: EntityVarying) -> @location(0) vec4<f32> {
     return vec4(shade_lit(in.world_pos, normalize(in.normal), normalize(in.normal), in.entity_color), 1.0);
@@ -5317,9 +5324,9 @@ fn monolith_vs(@builtin(instance_index) inst: u32, in: MeshVertexInput) -> Entit
     // Skip non-monolith geometry. THE RING (draw authority): draw only
     // inside the ring — center − extent ≤ ring (extent 2r covers the
     // aspect-stretched axes conservatively; overshoot is fully iced).
-    let in_ring = distance(fe.pos.xz, vec2(config.cull_point_x, config.cull_point_z))
-                  - fe.body_radius * 2.0 <= config.draw_ring;
-    let r = select(0.0, fe.body_radius, fe.geometry_type == 1u && fe.is_active != 0u && in_ring);
+    // THE RING stood here (STAGE_0 U2), extent 2r to cover the
+    // aspect-stretched axes conservatively. A cube draws iff it is ACTIVE.
+    let r = select(0.0, fe.body_radius, fe.geometry_type == 1u && fe.is_active != 0u);
 
     // Apply orientation quaternion (monoliths spin)
     let scaled = in.pos * vec3(r, r * fe.aspect_y, r * fe.aspect_z);
@@ -8048,29 +8055,21 @@ fn behavior_levy_flight(agent_in: AgentState) -> AgentState {
 //
 // MAX_AGENTS = 32 — must stay in sync with Dim::MAX_AGENTS.
 //
-// Eviction radius = THE VEIL CHAIN's EXIST ring (350 = the pregen edge;
-// V1 fixed — was 360, overshooting patch residency by 10). Agents share
-// the floaters' lifecycle: they exist anywhere in the loaded world out
-// to the patch pre-gen edge, and evict AT it — always past the fog wall
-// (chain law EXIST > FAR), so eviction is never visible.
-// MUST match Dim::EXIST_RADIUS + AGENT_EVICTION_RADIUS in
-// bodies/agents.hpp. No runtime upload — the WGSL needs it as a const.
-const AGENT_EVICTION_RADIUS:    f32 = 350.0;
-const AGENT_EVICTION_RADIUS_SQ: f32 = AGENT_EVICTION_RADIUS * AGENT_EVICTION_RADIUS;
+// AGENT_EVICTION_RADIUS / _SQ stood here (STAGE_0 U2), 350 wu, matched to
+// Dim::EXIST_RADIUS by a hand comment in two rooms because the relation
+// could not be asserted across them. Both are gone with the eviction they
+// gated, and so is the last reason for that unassertable pairing.
 
-// The eviction radius MUST exceed the patch allocation radius, or every
-// floater committed at the streaming frontier is evicted the frame it
-// spawns — silently, since per-patch spawn is idempotent and never retries.
-// Allocation reaches active_radius (<= PATCH_PREGEN_RADIUS 7, OPT_1b) x
-// PATCH_EXTENT 50 = 350 wu at the near edge, ~495 at the diagonal corner.
-// 800 clears it with margin at the current radius. NOT DERIVED: this is a
-// CPU quantity (active_radius x PATCH_EXTENT) and a GPU const in different
-// rooms, so the relation cannot be asserted in either. Raising the render
-// radius silently breaks this again. Queued: derive it CPU-side and upload
-// through config, which puts both values in one room and makes the
-// relation assertable — the feasibility corollary.
-const FLOATER_EVICTION_RADIUS:    f32 = 800.0;
-const FLOATER_EVICTION_RADIUS_SQ: f32 = FLOATER_EVICTION_RADIUS * FLOATER_EVICTION_RADIUS;
+// FLOATER_EVICTION_RADIUS / _SQ stood here (STAGE_0 U2) at 800 wu, with a
+// long banner naming the trap it had already sprung once: "the eviction
+// radius MUST exceed the patch allocation radius, or every floater
+// committed at the streaming frontier is evicted the frame it spawns —
+// silently". It was 400 until commit 309ab754 fixed exactly that, and
+// three comments in two rooms still said 400 afterwards. The banner also
+// queued the real fix — derive it CPU-side and upload it, so both values
+// live in one room and the relation becomes assertable. THE STAGE LAW
+// closes the ticket a different way: with no eviction there is no radius
+// to keep in step with anything.
 
 // POINT_BUBBLE_RADIUS — the point's bounded awareness (v3 §11; the
 // bubble's first field). Sensor: (CONTACT_2 C3b) the point-source flee
@@ -8550,30 +8549,12 @@ fn update_other_agents(@builtin(global_invocation_id) gid: vec3<u32>) {
     // stale y is immaterial to a soft field — named, accepted.)
     agent = agent_settle(agent);
 
-    // Point-centered eviction (was the possessed slot).
-    // Non-player agents that wander too far from THE POINT are
-    // deactivated; the CPU readback path detects them on the next
-    // frame and respawns fresh agents in a disk around the point.
-    // Pawn-host identical (the point IS the possessed slot's pos
-    // there); in free-fly the population lives under the camera.
-    //
-    // IT BARELY FIRES IN A WALLED WORLD, and HEM_1 accepts that rather
-    // than fixing it. AGENT_EVICTION_RADIUS is 350 against a box whose
-    // DIAGONAL is 212 wu at finite_radius 1 and 636 at radius 4, so once
-    // the wall holds every agent inside it, eviction cannot fire in a
-    // small world and fires only near the far corners of a large one.
-    // The spawn-far / walk-in / evict-out economy becomes a RESIDENT
-    // POPULATION — the coherent reading of a walled world: nobody
-    // leaves, so nobody needs replacing. Scaling this radius by the
-    // world's fit factor would need that factor GPU-side, which is a
-    // GPUDesignConfig field, a mirror growth and an organ row — the one
-    // property HEM_1 is holding. Recorded under HEM_1 in docs/OPEN.md.
-    let pp = point_pos();
-    let dx = agent.pos_x - pp.x;
-    let dz = agent.pos_z - pp.z;
-    if (dx * dx + dz * dz > AGENT_EVICTION_RADIUS_SQ) {
-        agent.is_active = 0u;
-    }
+    // POINT-CENTRED EVICTION STOOD HERE (STAGE_0 U2), and HEM_1's own
+    // banner above had already written its epitaph: "the spawn-far /
+    // walk-in / evict-out economy becomes a RESIDENT POPULATION — the
+    // coherent reading of a walled world: nobody leaves, so nobody needs
+    // replacing." The stage law finishes that sentence. WHAT SPAWNS,
+    // STAYS: an agent is deactivated by nothing but a verb that means to.
 
     agent_state[slot] = agent;
 }
@@ -8888,16 +8869,12 @@ fn update_sphere() {
         var fe = floating_entities.entities[slot];
         if (fe.is_active == 0u) { continue; }
 
-        // Lifecycle: point-distance eviction (was the pawn —
-        // floaters follow the point, Jean's ruling). A sphere stays
-        // alive within FLOATER_EVICTION_RADIUS of THE POINT.
-        // Patch eviction no longer touches floaters (commit path skips
-        // entity_refs for sphere/cube), so this is the sole death path.
-        let to_point = fe.pos.xz - point_xz;
-        if (dot(to_point, to_point) > FLOATER_EVICTION_RADIUS_SQ) {
-            floating_entities.entities[slot].is_active = 0u;
-            continue;
-        }
+        // THE SPHERE'S SOLE DEATH PATH STOOD HERE (STAGE_0 U2) —
+        // point-distance eviction at FLOATER_EVICTION_RADIUS, and its own
+        // comment called it "the sole death path" because patch eviction
+        // had already stopped touching floaters. Retiring it means a
+        // sphere now has NO death path at all, which is the stage law
+        // said plainly: what spawns, stays.
 
         if (!sphere_frozen()) {
             fe.t = fe.t + dt;
@@ -9128,16 +9105,10 @@ fn update_cube(@builtin(global_invocation_id) gid: vec3<u32>) {
         var fe = floating_entities.entities[slot];
         if (fe.is_active == 0u) { return; }
 
-        // Lifecycle: point-distance eviction (was the pawn —
-        // floaters follow the point). Cube stays alive as long as its
-        // current position (home + drift) is within range of THE
-        // POINT. Patch eviction no longer touches cubes — see the
-        // matching test in update_sphere for the lifecycle rationale.
-        let to_point = fe.pos.xz - point_xz;
-        if (dot(to_point, to_point) > FLOATER_EVICTION_RADIUS_SQ) {
-            floating_entities.entities[slot].is_active = 0u;
-            return;
-        }
+        // THE CUBE'S SOLE DEATH PATH STOOD HERE (STAGE_0 U2), the twin
+        // of the sphere's. A cube now has none — which is what the
+        // PERMANENT CHOIR needs: a key that could be evicted is a key
+        // that could go dark mid-phrase for a reason the music never gave.
 
         if (!sphere_frozen()) {
             fe.t = fe.t + dt;

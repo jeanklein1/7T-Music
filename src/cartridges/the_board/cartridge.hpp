@@ -912,7 +912,7 @@ namespace t7 {
                 ClearInputDeltas, COUNT
             };
             enum class RPhase : uint32_t {
-                WitnessHarvest, SurfaceVisibility, RespawnAgents,
+                WitnessHarvest, SurfaceVisibility,
                 CensusDumps, RibbonTick, EntityMeshGen, UploadLights, LiveCardWrite, DispatchCompute,
                 WitnessCapture, AutomatonStep, PawnAura, OrbSky,
                 FrustumCull, ShadowPass, MainPass,
@@ -1874,15 +1874,12 @@ namespace t7 {
                 // field. Both left at ONE_SURFACE-I U6.
             }
 
-            // R4 — RESPAWN AGENTS (S3, algo; RC-1: after stream). Refills slots
-            // the GPU evicted last frame; slots 1+ only (slot 0 never evicted),
-            // and the stream's bubble center reads point_.x/z refreshed at
-            // HARVEST — no data edge. ROSTER-GATE wanderers — call site.
-            void phase_respawn_agents(RenderCtx& c) {
-                auto& queue = c.queue;
-                respawn_evicted_agents(agent_state_, &agents_deps_, world_state_.active_seed,
-                                       world_box_().first, world_box_().second, queue);
-            }
+            // R4 — RESPAWN AGENTS stood here (STAGE_0 U2), a render spine row
+            // that refilled the slots the GPU had evicted. With eviction
+            // retired the row has nothing to do, so it leaves the SPINE as
+            // well as the file: RPhase::RespawnAgents, its RENDER_SPINE row
+            // and the RC-1 ordering assert go with it, and the render spine
+            // is fifteen rows.
 
             // R6 — CENSUS DUMPS (wall-clock interval, diagnostic). GoL residue
             // proof (G3, constexpr-gated intra-movement) + entity census.
@@ -2654,7 +2651,6 @@ namespace t7 {
             static constexpr RRow RENDER_SPINE[] = {
                 { RPhase::WitnessHarvest,      "witness_harvest",       &Cartridge::phase_witness_harvest,       Driver::Algo,      true,                                   F_WITNESS },
                 { RPhase::SurfaceVisibility,   "surface_visibility",    &Cartridge::phase_surface_visibility,    Driver::Algo,      true,                                   F_STREAM },
-                { RPhase::RespawnAgents,       "respawn_agents",        &Cartridge::phase_respawn_agents,        Driver::Algo,      ROSTER.wanderers,                       F_NONE },
                 { RPhase::CensusDumps,         "census_dumps",          &Cartridge::phase_census_dumps,          Driver::WallClock, true,                                   F_NONE },
                 { RPhase::RibbonTick,          "ribbon_tick",           &Cartridge::phase_ribbon_tick,           Driver::Mixed,     ROSTER.ribbon,                          F_SIGNAL },
                 { RPhase::EntityMeshGen,       "entity_mesh_gen",       &Cartridge::phase_entity_mesh_gen,       Driver::Algo,      true,                                   F_COMPUTE },
@@ -2828,7 +2824,6 @@ namespace t7 {
             static_assert((uint32_t)RPhase::RibbonTick < (uint32_t)RPhase::DispatchCompute, "O-1: the ribbon's state write precedes the compute that reads it");
             static_assert((uint32_t)RPhase::WitnessHarvest < (uint32_t)RPhase::DispatchCompute, "O-2: witness harvest before compute");
             static_assert((uint32_t)RPhase::DispatchCompute < (uint32_t)RPhase::WitnessCapture, "O-2: witness capture after compute (feeds next frame's harvest)");
-            static_assert((uint32_t)RPhase::SurfaceVisibility < (uint32_t)RPhase::RespawnAgents, "RC-1: respawn after the surface (S3 after S2)");
             static_assert((uint32_t)RPhase::FrustumCull < (uint32_t)RPhase::ShadowPass, "O-7: frustum cull precedes the shadow pass (ordering pin)");
             static_assert((uint32_t)RPhase::FrustumCull < (uint32_t)RPhase::MainPass, "O-7: frustum cull before the main pass (indirect draws consume the cull)");
             static_assert((uint32_t)RPhase::LiveCardWrite > (uint32_t)RPhase::UploadLights &&

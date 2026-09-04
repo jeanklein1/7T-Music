@@ -100,16 +100,13 @@ inline constexpr uint32_t PLAYER_SLOT = 0;
 // which is why the pair could stop being a pair.
 
 //
-// SEAM[agents:L2] hardware mirror — AGENT_EVICTION_RADIUS must agree
-//   with world.wgsl's identically-named const. The compiler cannot
-//   catch drift; the prose below is the contract.
-// THE VEIL CHAIN (ruled, V1): grounded existence = Dim::EXIST_RADIUS
-//   (350, the pregen edge) — was 360, overshooting patch residency.
-//
-inline constexpr float AGENT_EVICTION_RADIUS    = 350.0f;
-inline constexpr float AGENT_EVICTION_RADIUS_SQ = AGENT_EVICTION_RADIUS * AGENT_EVICTION_RADIUS;
-static_assert(AGENT_EVICTION_RADIUS == Dim::EXIST_RADIUS,
-    "VEIL CHAIN: grounded existence eviction sits ON the EXIST ring");
+// AGENT_EVICTION_RADIUS / _SQ and the VEIL CHAIN assert stood here
+// (STAGE_0 U2). The pair was a HARDWARE MIRROR — it had to agree with an
+// identically-named WGSL const that no compiler could check, and the
+// static_assert bound it to Dim::EXIST_RADIUS to give the unassertable
+// half at least one fence. All three are gone with the eviction they
+// described: WHAT SPAWNS, STAYS, so there is no radius left to mirror and
+// no chain left to sit on.
 
 // AGENT_CENSUS_INTERVAL — wall-clock period (seconds). The periodic
 // agent census died (BATCH C); the surviving consumer is the ROSTER
@@ -166,9 +163,16 @@ void spawn_population(AgentState& as, AgentsDeps* c,
                                uint32_t seed,
                                float center_x, float center_z,
                                wgpu::Queue& queue);
-void respawn_evicted_agents(AgentState& as, AgentsDeps* c,
-                            uint32_t world_seed,
-                            wgpu::Queue& queue);
+// `respawn_evicted_agents` was declared here (STAGE_0 U2) — and the
+// declaration was WRONG, in a way nothing could catch. It named four
+// parameters (as, c, world_seed, queue); the definition took SIX, adding
+// box_min and box_max. Those are two different overloads, so this line
+// declared a function that was never defined and never called: legal C++,
+// invisible to the TU gate (which type-checks and does not link), invisible
+// to the shell gate (which never links this path) and invisible to the
+// probe (which never reaches it). Anyone who had called the four-argument
+// form would have got a link error at the very end of a build. It goes with
+// the definition, and the trap goes with it.
 // Player commands
 void try_possess_nearest(AgentState& as, AgentsDeps* c, wgpu::Queue& queue);
 void seed_player_body(AgentState& as, AgentsDeps* c);
@@ -441,66 +445,17 @@ inline void spawn_population(AgentState& as, AgentsDeps* c,
 // GPU's per-frame player update never sees a stale CPU snapshot.
 // (respawn_counters lives in the CPU MIRROR section of agents.hpp.)
 
-inline void respawn_evicted_agents(AgentState& as, AgentsDeps* c,
-                            uint32_t world_seed,
-                            float box_min, float box_max,
-                            wgpu::Queue& queue) {
-    const auto& pop = AGENTS_LIVE;
-    if (pop.count == 0) return;
-
-    // THE SUMS ARE THE BANK'S NOW (ONE_WORLD-II U1c). OIL_1 U6 replaced a
-    // per-frame re-sum with constexpr AGENT_BEH_SUMS / AGENT_TIER_SUMS over
-    // the authored table — right while the table was the only truth, wrong
-    // against a writable bank: a constexpr sum over the DESIGN goes stale
-    // the moment a weight dial moves, and the normalisation below would
-    // divide by a total its own weights no longer add to. Fourteen adds,
-    // in a body that already walks both arrays.
-    const float beh_sum = agents_behavior_sum();
-    const float tier_sum = agents_tier_sum();
-    if (beh_sum <= 0.0f || tier_sum <= 0.0f) return;
-
-    const uint32_t possessed = c->player_.possessed_slot;
-    // THE POINT: fresh agents cluster around the point —
-    // point_.x/z, host-authored. Pawn-host value-identical (the
-    // slot mirror and the point come from the same P5 harvest
-    // snapshot); in free-fly the population spawns in the xz plane
-    // around wherever you flew (Jean's ruling — presence follows
-    // the point; behaviors unchanged).
-    const float px = c->point_.x;
-    const float pz = c->point_.z;
-
-    const uint32_t n = std::min(pop.count, Dim::MAX_AGENTS - 1u);
-    uint32_t respawned = 0;
-
-    for (uint32_t i = 0; i < n; i++) {
-        // Non-player slots pack densely from slot 1 upward.
-        uint32_t slot = i + 1u;
-        if (slot == possessed) continue;
-        if (as.slots[slot].is_active != 0u) continue;
-
-        as.respawn_counters[slot]++;
-        uint32_t agent_seed = cpu_hash(
-            cpu_hash(world_seed, AGENT_SPAWN_SALT),   // the same frozen salt (ONE_WORLD-II U1c)
-            slot * 0x10001u + as.respawn_counters[slot] * 0x100u);
-
-        populate_agent_slot_(as, as.slots[slot], pop, agent_seed,
-                             beh_sum, tier_sum,
-                             px, pz, box_min, box_max);
-
-        c->gpuState_.upload_agent_slot(queue, slot, &as.slots[slot]);
-        respawned++;
-    }
-
-    // RIBBON_4: respawn_evicted_agents is a per-frame spine row, and under a
-    // fast point agents are evicted and respawned continuously — steady-state
-    // chatter, not a transition witness. The spawn line above stays.
-    if constexpr (t7::INSTRUMENTS.stream_witness) {
-        if (respawned > 0) {
-            std::cout << "[Agents] Respawn " << respawned
-                      << " around (" << px << "," << pz << ")\n";
-        }
-    }
-}
+// THE DEFINITION STOOD HERE (STAGE_0 U2). It walked the non-player slots,
+// found the ones the GPU had deactivated, drew a fresh agent for each from
+// `cpu_hash(cpu_hash(world_seed, AGENT_SPAWN_SALT), slot·0x10001 + count·0x100)`
+// and uploaded it. It NEVER TESTED A DISTANCE — the eviction was entirely
+// the GPU's, and this was only the refill. With eviction retired there is
+// nothing left to refill: the population is resident, and a world's agents
+// are the agents it was born with.
+//
+// `AgentState::respawn_counters` survives for now — it is the salt that
+// made a respawned agent differ from its predecessor, and cutting it is a
+// struct change on a mirrored type. Flagged for the sweep, not taken here.
 
 // ═══ POSSESSION TRANSFER (Caps Lock) ══════════════════════════════
 

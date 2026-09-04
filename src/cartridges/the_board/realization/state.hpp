@@ -105,7 +105,7 @@ namespace t7 {
             // the whole grid in one nearest-first pass (ONE_SURFACE-I U6).
             // The last reader was set_render_radius's clamp, which left at
             // U2 with the window it clamped.
-            constexpr uint32_t PATCH_PREGEN_RADIUS = 7;                                // deep pre-gen buffer (15×15, 350 world units; OPT_1b — fits default maxTextureArrayLayers, veil chain holds exactly: 7·50 = EXIST_RADIUS)
+            constexpr uint32_t PATCH_PREGEN_RADIUS = 7;                                // deep pre-gen buffer (15×15, 350 world units; OPT_1b — fits default maxTextureArrayLayers). It was pinned to EXIST_RADIUS by an assert until STAGE_0 U2 retired the chain; it is a residency budget on its own terms now, and at WORLD_RADIUS_PIN 2 it covers the whole world with room to spare
             constexpr uint32_t PATCH_PREGEN_SIDE = 2 * PATCH_PREGEN_RADIUS + 1;     // 15
             constexpr uint32_t MAX_ACTIVE_PATCHES = PATCH_PREGEN_SIDE * PATCH_PREGEN_SIDE; // 225
 
@@ -198,47 +198,44 @@ namespace t7 {
             // BOTH rooms or glaw1/Dawn objects.
             constexpr uint32_t TILE_GRID_CAPACITY = 1024;
 
-            // ═══ THE VEIL CHAIN (re-ruled) — THE RING is the DRAW authority; ═══
-            // fog is ICING. Declared here (the registry pattern: authored
-            // once, checked by asserts, never computed); point-anchored.
-            //   RING (325 = 6.5 patches, Jean's enlargement from 5.5): the
-            //     SOLE draw authority — terrain banding, entity cull,
-            //     agents, floaters all gate DRAW MEMBERSHIP on it. Metric:
-            //     nearest-edge for patches; center±extent for entities.
-            //     Nothing is drawn beyond the ring — no wall-colored
-            //     silhouettes against the orb sky.
-            //   ICING (δ 40): the NARROW fog band [RING−δ, RING] in shade_lit
-            //     — draw-set joins materialize inside the fade. Cosmetic
-            //     only; no geometry relies on it for concealment.
-            //   LOD0 (175): the full-mesh/half-mesh terrain split (unchanged).
-            //   EXIST (350; the pregen ring reaches exactly 350 since
-            //     OPT_1b — PREGEN·EXTENT == EXIST, the assert below is now
-            //     tight, not slack): existence eviction (agents unified at
-            //     350 — V1; floaters 400, the flagged spawn-headroom fork).
-            // LIVE values ride config (draw_ring/grain_band,
-            // tunable — "ring at 6.5 feels right vs 5.5, config-tune live").
-            // `LOD0_RADIUS_DEFAULT` (3.5 * PATCH_EXTENT = 175) stood here —
-            // the full/half-mesh split's default. Every patch draws full
-            // mesh since ONE_SURFACE-I U5.
-            constexpr float DRAW_RING_DEFAULT   = 6.84f * PATCH_EXTENT;  // 342 — THE RING (desk-tuned
-                                                                         // from 6.5; the chain asserts
-                                                                         // below hold, but EXIST is now
-                                                                         // only 8 wu further out)
-            // `GRAIN_BAND_DEFAULT` (δ, 42) stood here — the boot rest of
-            // the fade band the GRAIN read. It left at THE_PANEL I U5 with
-            // the mosaic; `veil_t` was its field's one reader and the
-            // mosaic branch was veil_t's one caller.
-            constexpr float EXIST_RADIUS        = 7.0f * PATCH_EXTENT;   // 350
-            static_assert(PATCH_PREGEN_RADIUS * PATCH_EXTENT >= EXIST_RADIUS,
-                "VEIL CHAIN: PREGEN >= EXIST (nothing exists off resident ground)");
-            static_assert(EXIST_RADIUS > DRAW_RING_DEFAULT,
-                "VEIL CHAIN: EXIST > RING (existence outlives the draw set)");
-            // TWO CHAIN LINKS LEFT WITH LOD0 (ONE_SURFACE-I U5): both
-            // bound the split point inside the ring's band, and there is
-            // no split. One of them also named GRAIN_BAND_DEFAULT, which
-            // left at THE_PANEL I U5. What survives is EXIST > RING, which
-            // is the live one: bodies exist to 350 and DRAW to the ring.
-            // THE CHAIN IS ONE LINK NOW, and that is the honest count.
+            // ═══ THE VEIL CHAIN STOOD HERE (STAGE_0 U2) ══════════════════
+            //
+            // RING (the draw authority) · ICING (the fade band) · LOD0 (the
+            // mesh split) · EXIST (the eviction ring). Four radii, declared
+            // once and checked by asserts, that between them decided what a
+            // world showed you. THREE HAD ALREADY DIED before this campaign
+            // — the icing at ONE_SURFACE-I U4, LOD0 at U5, and the CPU half
+            // of the ring at U6 — and the block went on describing all four
+            // as live. It also said RING was 325 when the constant beside it
+            // read 342, and said floaters evicted at 400 when the WGSL const
+            // had been 800 since 309ab754. The most authoritative-looking
+            // text in the chain was its least accurate.
+            //
+            // THE STAGE LAW retires what was left: EVERYTHING COMPUTED IS
+            // VISIBLE, so the world IS the draw set and there is nothing for
+            // a ring to author. What that costs is exact and worth stating:
+            // at WORLD_RADIUS_PIN = 2 the box is 250 wu a side, so the
+            // longest sight line in it — corner to opposite corner — is
+            // 353.6 wu against a ring of 342. The ring was NOT dead at the
+            // pin; it fired in an 11.6 wu sliver, and under this law that
+            // sliver should draw.
+            //
+            // `DRAW_RING_DEFAULT` SURVIVES ALONE, and only to boot a field
+            // that no longer does anything: `config.draw_ring` is an
+            // ENROLLED organ dial, the registry is frozen, so the row stands
+            // DARK per the campaign's §0(d) and the constant is what the
+            // boot pin writes into it. Nothing in either room reads it.
+            constexpr float DRAW_RING_DEFAULT   = 6.84f * PATCH_EXTENT;  // 342 — DARK since STAGE_0 U2
+            // `EXIST_RADIUS` (350) and its two chain asserts stood here.
+            // The radius had NO RUNTIME READER — every occurrence was an
+            // assert or a comment — and both asserts bound it to links that
+            // are gone: PREGEN >= EXIST (nothing exists off resident ground)
+            // and EXIST > RING (existence outlives the draw set). With no
+            // eviction there is no existence ring to outlive anything.
+            // THE CHAIN HAS NO LINKS NOW, and that is the honest count.
+            // Two left with LOD0 (ONE_SURFACE-I U5), one with the grain
+            // (THE_PANEL I U5), and the last — EXIST > RING — with the
+            // eviction and the ring together at STAGE_0 U2.
 
             // ── THE MOSAIC'S FOUR RESTS STOOD HERE ──
             // SHARD_SIZE, PASSAGE, BLEND and FACET, under a banner that
@@ -2105,9 +2102,13 @@ namespace t7 {
             // still owns the rest law — only the timestamp pair retired.
             // Every id below dropped ONE at ONE_WORLD-I: the PortalTrigger
             // row sat at index 1 and left with the doors.
+            // AND EVERY ID BELOW 2 DROPPED ONE AGAIN AT STAGE_0 U2, the
+            // third time this shape has run: RespawnAgents sat at index 2
+            // and left with the eviction it refilled. SurfaceVisibility is
+            // above the cut and does not move; everything under it does.
             inline constexpr uint32_t SurfaceVisibility   = 1;
-            inline constexpr uint32_t EntityMeshGen       = 5;
-            inline constexpr uint32_t DispatchCompute     = 8;
+            inline constexpr uint32_t EntityMeshGen       = 4;
+            inline constexpr uint32_t DispatchCompute     = 7;
             // TWO ROWS BECAME ONE (ONE_SURFACE-II U1). GolDeriveFlush sat at
             // 10 and GolZoneCompute at 11; the derive flush died with the
             // seam it served, and every id below dropped one — the same
@@ -2116,12 +2117,12 @@ namespace t7 {
             // passes both armed GolZoneCompute: the second pair overwrites
             // the first, so the reading is the evolve, which is the one that
             // costs.
-            inline constexpr uint32_t AutomatonStep       = 10;
-            inline constexpr uint32_t PawnAura            = 11;
-            inline constexpr uint32_t OrbSky              = 12;
-            inline constexpr uint32_t FrustumCull         = 13;
-            inline constexpr uint32_t ShadowPass          = 14;
-            inline constexpr uint32_t MainPass            = 15;
+            inline constexpr uint32_t AutomatonStep       = 9;
+            inline constexpr uint32_t PawnAura            = 10;
+            inline constexpr uint32_t OrbSky              = 11;
+            inline constexpr uint32_t FrustumCull         = 12;
+            inline constexpr uint32_t ShadowPass          = 13;
+            inline constexpr uint32_t MainPass            = 14;
         }
 
         // GROUP 1 CARRIED A DYNAMIC SEAT (shadow_slot) and `kFrameSlotZero`
@@ -3080,7 +3081,12 @@ namespace t7 {
             // `set_veil_strength` and `set_veil_dither` stood here. The
             // first wrote a value the pin made constant; the second wrote a
             // knob whose two arms had been identical since (ONE_SURFACE-I U4).
-            float draw_ring()   const { return config_.draw_ring; }
+            // `draw_ring()` stood here (STAGE_0 U2). Its ONLY caller was
+            // update_entity_draw_visibility, a callerless empty shell since
+            // ONE_SURFACE-I U6 — so this accessor had been reaching a live
+            // field on behalf of nobody for two campaigns, while two
+            // ledgers went on recording a live CPU half of the veil chain.
+            // The field survives, dark and enrolled; the door to it does not.
             const GPUDesignConfig& config() const { return config_; }
 
             // ═══ TWENTY-SIX ACCESSORS STOOD IN THIS CLASS AND NOTHING
