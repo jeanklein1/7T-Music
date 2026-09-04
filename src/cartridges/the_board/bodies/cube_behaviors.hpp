@@ -196,13 +196,35 @@ static_assert(sizeof(CHOIR_TIERS) / sizeof(CHOIR_TIERS[0]) == CUBE_CHOIR_N,
 // a DIAL rather than a constant: the birth stands on the REST wheel and
 // the wheel's inner radius is the number it stands at.
 
-// THE SYNTHETIC PATCH ROW, and it is load-bearing — see birth_the_choir.
-// A boot-born cube belongs to no patch, and the projector recomputes its
-// base colour from tile_seed(world seed, patch_gx, patch_gz). Left at the
-// 0,0 default every key would hash the SAME seed and the whole choir
-// would come out ONE FLAT COLOUR. So each key is given a distinct
-// synthetic pair on a row no real patch grid reaches.
-inline constexpr int32_t CHOIR_PATCH_ROW = -30000;
+// CHOIR_PATCH_ROW stood here (STAGE_0 R4) — a synthetic patch row at
+// -30000, one distinct pair per key, invented because the projector
+// recomputed a key's colour from tile_seed(world seed, patch_gx,
+// patch_gz) and boot-born cubes have no patch. Left at the 0,0 default
+// every key hashed the SAME seed and the whole choir came out ONE FLAT
+// COLOUR; the synthetic row was the fix, and it was a workaround for a
+// seed the birth did not choose.
+//
+// THE BIRTH CHOOSES IT NOW. choir_slot_seed(k) is cpu_hash(CHOIR_SEED, k)
+// — per-key distinct by construction, and world-independent, so a key
+// wears the same colour in every world and in every run exactly as it
+// wears the same body. No patch coordinates are consulted by anything.
+//
+// ── AND IT IS PROVED, WHICH IT NEVER WAS ────────────────────────
+// The monochrome failure was found by hand at STAGE_0 and asserted by
+// nothing: 24 keys hashing to one seed is legal C++ that simply looks
+// wrong, and no gate in an eleven-row battery reads a colour. With the
+// seed now a pure function of a compile-time key, the COMPILER can
+// settle it — 276 pairs, checked at build time, on the one draw where a
+// collision is invisible until a device draws it.
+inline constexpr bool choir_palette_is_distinct() {
+    for (uint32_t a = 0; a < CUBE_CHOIR_N; ++a)
+        for (uint32_t b = a + 1u; b < CUBE_CHOIR_N; ++b)
+            if (cpu_hash(CHOIR_SEED, a) == cpu_hash(CHOIR_SEED, b)) return false;
+    return true;
+}
+static_assert(choir_palette_is_distinct(),
+    "two keys share a colour seed — the choir would come out part monochrome, "
+    "and nothing but a device would say so. Move CHOIR_SEED.");
 
 // ─ THE AUTOMATON band stood here (CHOIR_0 U5) ───────────────────
 // TICK_BEATS, REV_BEATS, EXCITE_DIFFUSE, ASYMMETRY, EXCITE_HALF_BEATS,
@@ -390,9 +412,13 @@ struct CubeBehaviorsState {
     // THE FORCE FLAG. A cube's look changes with the MODE as well as
     // with the music, and the projector is gated on the music — so a
     // mode change that moves the look has to say so here, or the new
-    // look waits for a note that may never come (V1 E3). The raiser
-    // cannot reach the world seed the projector needs, so it raises this
-    // instead and choir_project spends it as a FORCE on its next pass.
+    // look waits for a note that may never come (V1 E3). The raiser is a
+    // door verb with no GPU hand of its own, so it raises this instead
+    // and choir_project spends it as a FORCE on its next pass. (It used
+    // to be that the raiser "could not reach the world seed the projector
+    // needs" — the projector needs no world seed since STAGE_0 R4; the
+    // flag survives its own justification because the door still cannot
+    // write a colour.)
     // ONE RAISER, ONE EDGE now: reveal_zoetrope, on the ROAM↔WHEEL flip
     // — the swell's jurisdiction changes there and nothing else does.
     // (The dim's two edges retired with the dim; the arrival edge
@@ -479,15 +505,16 @@ void reconcile_cube_mirror(CubeBehaviorsState& cs, CubeDeps* c, const GPUFloatin
 void zoetrope_service(CubeBehaviorsState& cbs, GPUState& gpu, wgpu::Queue& queue);
 // THE PROJECTOR — one home: the light reaches pixels here and nowhere
 // else. `zoetrope_cell_intensity`, `project_cell_color` and `zoetrope_
-// project_slot` stood here and are superseded by these; the seed
-// recompute survives the rename intact as choir_slot_seed. choir_light
-// is I's ONE computation (the G6 door, inherited whole).
-uint32_t choir_slot_seed(const CubeBehaviorsState& cbs, uint32_t active_seed, uint32_t slot);
+// project_slot` stood here and are superseded by these. The seed
+// recompute crossed over intact as choir_slot_seed at CHOIR_0 and stopped
+// being a recompute at STAGE_0 R4 — it authors now, off CHOIR_SEED and
+// the key, and takes neither a mirror nor a world. choir_light is I's ONE
+// computation (the G6 door, inherited whole).
+uint32_t choir_slot_seed(uint32_t key);
 float choir_light(const CubeBehaviorsState& cbs, uint32_t slot);
-void choir_project_color(const CubeBehaviorsState& cbs, uint32_t active_seed, uint32_t slot,
+void choir_project_color(const CubeBehaviorsState& cbs, uint32_t slot,
     float& out_r, float& out_g, float& out_b);
-void choir_project(CubeBehaviorsState& cbs, GPUState& gpu, wgpu::Queue& queue,
-    uint32_t active_seed);
+void choir_project(CubeBehaviorsState& cbs, GPUState& gpu, wgpu::Queue& queue);
 // THE BIRTH (STAGE_0 U3): the choir is authored, not spawned.
 void birth_the_choir(MachineCtx* c, wgpu::Queue& queue);
 
@@ -960,10 +987,11 @@ inline void cube_write_gpu(MachineCtx* c, const EntityInstance& inst, wgpu::Queu
     fe.base_color[0] = inst.colors[0]; fe.base_color[1] = inst.colors[1]; fe.base_color[2] = inst.colors[2];
     // THE CHOIR (U4): a cube BORN MID-NOTE IS BORN LIT. The key's light
     // is already standing in the mirror, so the newborn dresses from it
-    // rather than waking dark and catching up (write_active has already
-    // seated the mirror, so the slot's seed recomputes; at I = 0 this is
-    // inst.colors bit-exactly — the silent path is today's).
-    choir_project_color(c->cube_behaviors_state_, c->world_state_.active_seed, inst.slot,
+    // rather than waking dark and catching up (the slot's colour seed is
+    // the key itself since STAGE_0 R4, so this needs nothing seated ahead
+    // of it; at I = 0 it is inst.colors bit-exactly — the silent path is
+    // today's, and R4 did not move it).
+    choir_project_color(c->cube_behaviors_state_, inst.slot,
                         fe.color[0], fe.color[1], fe.color[2]);
     fe.aspect_y = inst.params[CubeIdx::ASPECT_Y];
     fe.aspect_z = inst.params[CubeIdx::ASPECT_Z];
@@ -1136,31 +1164,41 @@ inline void dispatch_commit_cube_generic(MachineCtx* self, PlacementEntry& pe, w
 // registry (record_entity retired at ONE_SURFACE-I U3), so that is all of
 // it.
 //
-// TWO SEEDS, AND THE SECOND ONE IS NOT OPTIONAL.
+// ONE SEED, AND THE SECOND ONE WAS THE WORLD'S (STAGE_0 R4).
 //
-//   THE BODY SEED — cpu_hash(CHOIR_SEED, k) — draws radius, bob, aspects
-//   and face variance. World-independent, as the commission asks: the
-//   same cubes every run, every world.
+// This block read "TWO SEEDS, AND THE SECOND ONE IS NOT OPTIONAL", and
+// the second was tile_seed(world seed, patch_gx, patch_gz) — NOT ours to
+// choose, it said, because the projector recomputed it from the mirror's
+// patch coordinates on every poke, and that function was on the choir
+// light's PROTECT LIST. So the birth seated a synthetic patch the
+// projector could recompute from, and dressed inst.colors through the
+// same seed or the first poke would have repainted every cube.
 //
-//   THE COLOUR SEED — tile_seed(world seed, patch_gx, patch_gz) — is NOT
-//   ours to choose, because THE PROJECTOR RECOMPUTES IT. choir_slot_seed
-//   reads the mirror's patch coordinates and re-derives the base colour
-//   on every poke, and that function is on the choir light's protect
-//   list. So the birth must seat patch coordinates the projector can
-//   recompute from, and must dress inst.colors THROUGH THE SAME SEED, or
-//   the first poke would change every cube's colour.
+// THE BLOCK ENDED BY NAMING ITS OWN SUCCESSOR: "the BODIES are
+// world-independent and the PALETTE is not — the same instrument wears a
+// different finish in each world. That reads well and it is one line to
+// change (CHOIR_SEED in place of the world seed), but the call site is
+// protected and the choice is Jean's."
 //
-//   LEFT AT THE 0,0 DEFAULT — which is what "boot-born cubes have no
-//   patch" naturally gives you — all twenty-four keys hash the SAME
-//   tile_seed and THE WHOLE CHOIR COMES OUT ONE FLAT COLOUR. Nothing
-//   asserts it; it would simply look wrong. CHOIR_PATCH_ROW is the fix:
-//   one distinct synthetic pair per key, on a row no real patch reaches.
+// ── THE PROTECT-LIST ENTRY IS FORMALLY AMENDED ──────────────────
+// The choice is made and it is Jean's: the determinism commission
+// outranks the protect list, and the protect list's own subject was the
+// LIGHT — the envelope, the mix law, the silence bit-exactness — not the
+// arithmetic that picks a base colour. WHEEL_0 already drew this line
+// once, when organ_gap refused birth_station's PANEL_TABLE read: "what
+// the protect list guards is the BODY draw; where a key STANDS is the
+// wheel's business". Where a key's FINISH comes from is the same class
+// of question, and the same answer.
 //
-//   WHAT THIS LEAVES, NAMED: the BODIES are world-independent and the
-//   PALETTE is not — the same instrument wears a different finish in each
-//   world. That reads well and it is one line to change (CHOIR_SEED in
-//   place of the world seed, at choir_slot_seed's call site), but the
-//   call site is protected and the choice is Jean's.
+// WHAT SURVIVES UNTOUCHED, because the amendment is narrow: the mix law
+// (base + (light - base)*I), the variance's (1 - I) close, the swell,
+// and THE SILENCE BIT-EXACTNESS — at I = 0 the projector still returns
+// the mirror's own draw to the last bit. Only the arithmetic upstream of
+// "base" moved.
+//
+// ONE SEED NOW: cpu_hash(CHOIR_SEED, k), for the body AND the palette.
+// A key is the same key in every world, finish included, and the
+// compiler proves the twenty-four are distinct (THE CHOIR band).
 
 // `birth_station`'s PLACEHOLDER BODY stood here (WHEEL_0 U2) — angle
 // 2πk/N on a 60 wu circle, declared a placeholder the day it was
@@ -1170,24 +1208,22 @@ inline void dispatch_commit_cube_generic(MachineCtx* self, PlacementEntry& pe, w
 // a position inline, and nothing else in this file changed to re-aim it.
 
 inline void birth_the_choir(MachineCtx* c, wgpu::Queue& queue) {
-    const uint32_t active_seed = c->world_state_.active_seed;
     for (uint32_t k = 0; k < CUBE_CHOIR_N; ++k) {
         const uint32_t tier = CHOIR_TIERS[k];
         const TierProfile& profile = cube_get_tier_profile(tier);
 
-        // THE SYNTHETIC PATCH. Distinct per key so the projector's
-        // recompute gives twenty-four different colours; on a row no real
-        // grid reaches so it can never collide with a ground patch's seed.
-        const int32_t gx = (int32_t)k;
-        const int32_t gz = CHOIR_PATCH_ROW;
-
+        // NO PATCH, AND THAT IS THE TRUTH ABOUT A BOOT-BORN CUBE
+        // (STAGE_0 R4). A synthetic pair was seated here so the
+        // projector's colour recompute would differ per key; the colour
+        // is authored now, so the coordinates go back to the honest 0,0
+        // that "belongs to no patch" means. Nothing reads them — the
+        // mirror's patch_gx/gz had exactly one reader tree-wide and it
+        // was the recompute.
         EntityInstance inst{};
         inst.family_id  = PopFamily::CUBE;
         inst.slot       = k;
         inst.tier_idx   = tier;
-        inst.seed       = cpu_hash(CHOIR_SEED, k);   // THE BODY SEED
-        inst.trigger_gx = gx; inst.trigger_gz = gz;
-        inst.host_gx    = gx; inst.host_gz    = gz;
+        inst.seed       = cpu_hash(CHOIR_SEED, k);   // THE SEED — body AND palette
 
         // The tier draws, off the body seed — the same sampler the
         // pipeline used, so a key's body is what the tier table says.
@@ -1208,24 +1244,22 @@ inline void birth_the_choir(MachineCtx* c, wgpu::Queue& queue) {
         inst.cx = st.off_x;
         inst.cz = st.off_z;
 
-        // THE COLOUR SEED, and it must be the projector's. Dressing
-        // inst.colors from the body seed would put base_color and the
-        // projector's recompute one hash apart, and the first poke would
-        // repaint every cube.
-        {
-            EntityInstance tmp{};
-            tmp.seed = tile_seed(active_seed, gx, gz);
-            cube_compute_colors(tmp, CUBE_TRAITS, cube_get_tier_profile(0));
-            inst.colors[0] = tmp.colors[0];
-            inst.colors[1] = tmp.colors[1];
-            inst.colors[2] = tmp.colors[2];
-        }
+        // THE COLOURS, off the same seed the projector will use — which
+        // is now inst.seed itself, so the borrowed-instance dance this
+        // block used to do is gone. The invariant it protected is
+        // unchanged and is what makes the silence bit-exact: base_color
+        // and the projector's recompute must be ONE hash, or the first
+        // poke repaints every cube.
+        cube_compute_colors(inst, CUBE_TRAITS, cube_get_tier_profile(0));
 
         // THE MIRROR, THEN THE GPU SLOT — generic_commit's own two calls,
         // in its own order, minus the post_commit the cube adapter never
-        // had. The order is load-bearing and always was: cube_write_gpu's
-        // projector call reads the mirror's patch coordinates that
-        // cube_write_active has just seated. write_active also sets
+        // had. THE ORDER IS STILL LOAD-BEARING, for a narrower reason
+        // than it was: cube_write_gpu's projector call no longer needs
+        // the patch coordinates write_active seated (STAGE_0 R4 authored
+        // the colour seed), but it DOES read the mirror's own body_radius
+        // for the swell and its face_variance for the (1 - I) close, and
+        // write_active is what seats those. write_active also sets
         // `active` and `last_alloc_time`, so it IS the reservation the
         // gate used to make.
         cube_write_active(c, inst);
@@ -1234,7 +1268,7 @@ inline void birth_the_choir(MachineCtx* c, wgpu::Queue& queue) {
     std::cout << "[CHOIR] born: " << CUBE_CHOIR_N << " keys, "
               << CUBE_CHOIR_RANKS << " rank(s), seed 0x"
               << std::hex << CHOIR_SEED << std::dec
-              << " (bodies authored; palette is the world's)\n";
+              << " (bodies AND palette authored — one seed, 24 distinct keys)\n";
 }
 
 // ═══ THE ZOETROPE'S LATTICE SUBSTRATE STOOD HERE (CHOIR_0 U5) ═════
@@ -1260,15 +1294,18 @@ inline void birth_the_choir(MachineCtx* c, wgpu::Queue& queue) {
 // names and no other, which is what a keyboard is.
 //
 // `zoetrope_slot_seed` is the one thing that crossed over intact — the
-// seed recompute, renamed choir_slot_seed and standing below.
+// seed recompute, renamed choir_slot_seed and standing below. It kept the
+// lattice's arithmetic for two more campaigns and lost it at STAGE_0 R4:
+// the name is all that is left of the inheritance now.
 
 // ═══ THE CHOIR'S PROJECTOR — ONE HOME ════════════════════════════
 //
-// The successor to the lattice's projector, and its whole inheritance:
-// the base is RECOMPUTED through the seed fn from the slot's TRUE spawn
-// seed (never cached — the gate drew tile_seed(active world seed,
-// trigger patch) and the mirror keeps the trigger patch, so the seed
-// reconstructs bit-exactly), and the silent path is still bit-exact
+// The successor to the lattice's projector. The base is DERIVED through
+// the seed fn rather than cached — that half is the inheritance and it
+// has not moved — but what the seed fn reads has: it drew
+// tile_seed(active world seed, trigger patch) and reconstructed from the
+// mirror's own coordinates until STAGE_0 R4 authored it as
+// cpu_hash(CHOIR_SEED, key). The silent path is still bit-exact
 // WHERE IT WAS BEFORE: at I = 0 the mix returns its base unchanged and
 // the variance returns the spawn draw, both to the last bit. The base is
 // the seed colour itself, in both modes, since WHEEL_0 U3 — the SCREEN
@@ -1292,21 +1329,37 @@ inline float choir_light(const CubeBehaviorsState& cbs, uint32_t slot) {
     return (slot < CUBE_CHOIR_N) ? cbs.choir_I[slot] : 0.0f;
 }
 
-// THE SEED RECOMPUTE, inherited whole (only the name changed). The base
-// is never cached: the gate drew tile_seed(active world seed, trigger
-// patch) (machine/spawn_engine.hpp evaluate_spawn_gate) and the mirror
-// keeps the trigger patch, so the seed reconstructs bit-exactly from
-// what the slot already carries.
-inline uint32_t choir_slot_seed(const CubeBehaviorsState& cbs, uint32_t active_seed, uint32_t slot) {
-    const ActiveCube& ac = cbs.activeCubes_[slot];
-    return tile_seed(active_seed, ac.patch_gx, ac.patch_gz);
+// THE COLOUR SEED, AUTHORED (STAGE_0 R4). It was inherited from the
+// spawn gate — tile_seed(active world seed, trigger patch), reconstructed
+// on every poke from the mirror's own patch coordinates — and that shape
+// was a RECOMPUTE of something the pipeline had chosen. There is no
+// pipeline: the choir is authored, so its palette is authored too.
+//
+// ONE KEY, ONE SEED, EVERY WORLD. cpu_hash(CHOIR_SEED, k) is the same
+// hash the BODY draws from, which is the second half of the commission:
+// the instrument is the same instrument everywhere, finish included.
+//
+// THE BODY AND THE PALETTE NOW SHARE ONE STREAM, and that is safe by
+// property index rather than by luck: the colour triple draws at
+// CubeProp COLOR_R/G/B (150/151/152), the nine tier params at
+// {140,142,144,145,146,147,153,154,155} with their Gaussian partners at
+// +1000, and the behaviour picks at 0xBEEF11A0 / 0xF10A7E70. Disjoint,
+// all of them. It is still a collapse of what STAGE_0 called "two seeds,
+// and the second one is not optional" into one, and it is named in the
+// campaign report as such.
+//
+// IT TAKES A KEY AND NOTHING ELSE. No mirror, no world, no state — which
+// is what let the distinctness witness up in THE CHOIR band be written at
+// all.
+inline uint32_t choir_slot_seed(uint32_t key) {
+    return cpu_hash(CHOIR_SEED, key);
 }
 
-inline void choir_project_color(const CubeBehaviorsState& cbs, uint32_t active_seed, uint32_t slot,
+inline void choir_project_color(const CubeBehaviorsState& cbs, uint32_t slot,
     float& out_r, float& out_g, float& out_b) {
     const float I = choir_light(cbs, slot);
     EntityInstance tmp{};
-    tmp.seed = choir_slot_seed(cbs, active_seed, slot);
+    tmp.seed = choir_slot_seed(slot);
     // The seed fn's exact signature takes traits + tier; it reads neither
     // (both unnamed) — the call adapts, the law does not. G5 V2 verdict:
     // profile-INVARIANT — no profile field is consulted (and CUBE_TIERS'
@@ -1354,9 +1407,9 @@ inline void choir_project_color(const CubeBehaviorsState& cbs, uint32_t active_s
 // touch bodies, so it multiplies THE MIRROR'S OWN DRAW and a Monolith
 // swells like a Monolith.
 inline void choir_project_slot(const CubeBehaviorsState& cbs, GPUState& gpu,
-    wgpu::Queue& queue, uint32_t active_seed, uint32_t slot) {
+    wgpu::Queue& queue, uint32_t slot) {
     float cr, cg, cb;
-    choir_project_color(cbs, active_seed, slot, cr, cg, cb);
+    choir_project_color(cbs, slot, cr, cg, cb);
     gpu.upload_cube_color(queue, slot, cr, cg, cb);
 
     // GLOW UNIFIES: the spawn draw is the REST and the light closes it.
@@ -1391,14 +1444,13 @@ inline void choir_project_slot(const CubeBehaviorsState& cbs, GPUState& gpu,
 // cube arriving under a HELD key stood unswollen until that key next
 // moved. The first two had nothing left to dim; the third had nothing
 // left to arrive.
-inline void choir_project(CubeBehaviorsState& cbs, GPUState& gpu, wgpu::Queue& queue,
-    uint32_t active_seed) {
+inline void choir_project(CubeBehaviorsState& cbs, GPUState& gpu, wgpu::Queue& queue) {
     const bool force = cbs.repaint_all;
     for (uint32_t slot = 0; slot < CUBE_CHOIR_N; ++slot) {
         if (!cbs.activeCubes_[slot].active) continue;
         const float I = choir_light(cbs, slot);   // the one door, here too
         if (!force && std::fabs(I - cbs.choir_flushed[slot]) <= CHOIR_FLUSH_EPS) continue;
-        choir_project_slot(cbs, gpu, queue, active_seed, slot);
+        choir_project_slot(cbs, gpu, queue, slot);
         cbs.choir_flushed[slot] = I;
     }
     cbs.repaint_all = false;

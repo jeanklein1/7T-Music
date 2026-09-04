@@ -22,7 +22,16 @@ namespace t7 {
 namespace the_board {
 
 // Hashing utilities (mirror GPU hash functions for determinism)
-inline uint32_t cpu_hash(uint32_t seed, uint32_t property) {
+//
+// `cpu_hash` IS CONSTEXPR (STAGE_0 R4) and the arithmetic did not move a
+// bit — the body is four lines of unsigned integer maths that were always
+// a constant expression; only the keyword was missing. What it buys is a
+// CLASS OF WITNESS this tree could not write before: a seeded draw whose
+// inputs are known at compile time can now be PROVED distinct by the
+// compiler. The first one is the choir's palette (bodies/cube_behaviors.hpp,
+// THE CHOIR band), where a colliding pair would have been silent.
+// constexpr implies inline, so no linkage changed either.
+constexpr uint32_t cpu_hash(uint32_t seed, uint32_t property) {
     uint32_t h = seed * 747796405u + property * 2891336453u + 1u;
     h = ((h >> 16) ^ h) * 2654435769u;
     h = ((h >> 16) ^ h) * 2654435769u;

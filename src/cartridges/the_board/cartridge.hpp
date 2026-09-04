@@ -1256,8 +1256,7 @@ namespace t7 {
                 // authors GOALS (glide targets). The order is now free,
                 // and is kept as written only because there is no reason
                 // to move it.
-                choir_project(cube_behaviors_state_, gpuState_, c.queue,
-                    world_state_.active_seed);
+                choir_project(cube_behaviors_state_, gpuState_, c.queue);
                 // THE WHEEL'S SERVE — the formation machine, entire. It
                 // kept a musical clock and a world seed for the lattice
                 // and the flush (both left at CHOIR_0 U5), then dt and
