@@ -311,7 +311,9 @@ inline CubeBank CUBE_LIVE = CUBE_TABLE;
 
 struct CubeBehaviorsState {
     uint32_t   behavior_override  = CUBE_BEHAVIOR_STATIONARY;
-    bool       kite_mode          = false;
+    // `kite_mode` stood here (STAGE_0 U4) — one CPU flag for the flock,
+    // against a per-cube truth that lived on the GPU. Formations anchor in
+    // the world now, so there is no frame to choose between.
     ActiveCube activeCubes_[Dim::MAX_CUBE_INSTANCES]{};
 
     // ── The reveal machine (C6R; H1: F6 IS A CYCLE) ── staged capture,
@@ -392,8 +394,8 @@ void dispatch_commit_cube_generic(MachineCtx* self, PlacementEntry& pe, wgpu::Qu
 // Player commands
 void cycle_cube_behavior_override(CubeBehaviorsState& cbs, CubeDeps* c, wgpu::Queue& queue);
 void reveal_zoetrope(CubeBehaviorsState& cbs, CubeDeps* c, wgpu::Queue& queue);
-uint32_t set_cube_kite(CubeBehaviorsState& cbs, GPUState& gpu, wgpu::Queue& queue, bool on);  // the ONE kite home (G3)
-void toggle_cube_kite_mode(CubeBehaviorsState& cbs, CubeDeps* c, wgpu::Queue& queue);
+// `set_cube_kite` (the ONE kite home, G3) and `toggle_cube_kite_mode`
+// stood here (STAGE_0 U4), with door 6 that pressed the second.
 // Per-frame
 void reconcile_cube_mirror(CubeBehaviorsState& cs, CubeDeps* c, const GPUFloatingEntityState* data);
 // The zoetrope — the FORMATION machine's per-frame service. `zoetrope_
@@ -673,34 +675,17 @@ inline void reveal_zoetrope(CubeBehaviorsState& cbs, CubeDeps* c, wgpu::Queue& q
 // happens where drift lives. (Release clears drift.xz only; the
 // vertical WALKS home on the existing spring/drag rather than
 // snapping. Capture is xz-exact to f32.)
-inline uint32_t set_cube_kite(CubeBehaviorsState& cbs, GPUState& gpu, wgpu::Queue& queue, bool on) {
-    cbs.kite_mode = on;
-    const uint32_t sentinel = on ? 3u : 2u;
-    uint32_t affected = 0;
-    for (uint32_t i = 0; i < Dim::MAX_CUBE_INSTANCES; i++) {
-        if (!cbs.activeCubes_[i].active) continue;
-        gpu.upload_cube_follow_pawn(queue, i, sentinel);
-        affected++;
-    }
-    return affected;
-}
-
-inline void toggle_cube_kite_mode(CubeBehaviorsState& cbs, CubeDeps* c, wgpu::Queue& queue) {
-    // F7 CHANGES THE FRAME, NOT THE SHAPE (K1). Fully live in every
-    // state: the flag, the sentinel to every active cube, the print —
-    // exactly as before the borrow existed. A standing formation simply
-    // re-seats itself in the new coordinate frame; the sentinel must eat
-    // before that re-seat, so the stage frame is re-armed with it.
-    const uint32_t affected = set_cube_kite(cbs, c->gpuState_, queue, !cbs.kite_mode);
-
-    std::cout << "[Floaters] kite mode: " << (cbs.kite_mode ? "ON" : "OFF")
-              << " (" << affected << " cube(s))\n";
-
-    if (cbs.formation != CubeBehaviorsState::Formation::ROAM) {
-        cbs.stations_sent = false;
-        cbs.stage_wait    = true;
-    }
-}
+// THE KITE'S TWO VERBS STOOD HERE (STAGE_0 U4). `set_cube_kite` wrote the
+// 2u/3u sentinel to every active cube — capture (offset := the true
+// present) or release (anchor := current pos, drift.xz zeroed) — and both
+// were xz-position-preserving even under drift, because the capture
+// happened where drift lives. `toggle_cube_kite_mode` was door 6's verb
+// and the flag's one writer; the F7 key its comments named had already
+// left at ONE_WORLD-II, so the door was the only way in.
+//
+// THE LAW THEY SERVED IS THE ONE THE STAGE RETIRES: "F6 chooses shape,
+// F7 chooses whether it follows". A formation now always stands in the
+// world, so there is no second frame for a shape to be expressed in.
 
 // ═══ THE EVICTOR ══════════════════════════════════════════════════
 
@@ -971,28 +956,15 @@ inline void cube_write_gpu(MachineCtx* c, const EntityInstance& inst, wgpu::Queu
         }
     }
 
-    if (c->cube_behaviors_state_.kite_mode) {
-        // Kite arm: the param is the OFFSET from the point, and the
-        // point is point_.x/z — the same host-authored snapshot the
-        // seat pass rings around.
-        // THE SPAWN LAW: the offset is the one that PRESERVES the
-        // patch position (inst.cx/cz), formation or not.
-        fe.follow_pawn = 1u;
-        fe.pawn_offset[0] = inst.cx - c->point_.x;
-        fe.pawn_offset[1] = 0.0f;
-        fe.pawn_offset[2] = inst.cz - c->point_.z;
-        fe.target_x = fe.pawn_offset[0];
-        fe.target_z = fe.pawn_offset[2];
-    } else {
-        // Anchor arm: the param is anchor.xz, written above from the
-        // spawn position — and it STAYS that, formation or not (THE
-        // SPAWN LAW). K1's absolute-seat arm is retired: it planted
-        // newborns where the point stood.
-        fe.follow_pawn = 0u;
-        fe.pawn_offset[0] = 0.0f; fe.pawn_offset[1] = 0.0f; fe.pawn_offset[2] = 0.0f;
-        fe.target_x = inst.cx;
-        fe.target_z = inst.cz;
-    }
+    // ONE ARM (STAGE_0 U4). The kite arm wrote pawn_offset and the 1u
+    // sentinel so a newborn joined whatever frame was live at its spawn;
+    // there is one frame now. The param is anchor.xz, written above from
+    // the spawn position, and it STAYS that whatever formation stands —
+    // THE SPAWN LAW, which is the half of this block that survives both
+    // arms.
+    fe.target_x = inst.cx;
+    fe.target_z = inst.cz;
+
     c->gpuState_.upload_cube_entity_slot(queue, inst.slot, fe);
 
     // ZOETROPE (C6R + G5): birth bookkeeping — the walker's shadows
@@ -1225,12 +1197,11 @@ inline void zoetrope_service(CubeBehaviorsState& cbs, GPUState& gpu, wgpu::Queue
         const float delta = std::sqrt(ddx * ddx + ddz * ddz);
         if ((cbs.formation == Formation::TO_SCATTER || cbs.formation == Formation::SCATTERED
              || cbs.formation == Formation::TO_SCREEN || cbs.formation == Formation::SCREEN)
-            && cbs.kite_mode && delta > ZOETROPE_RESEAT_JUMP) {
+            && delta > ZOETROPE_RESEAT_JUMP) {
             // Only a FOLLOWING formation reseats (K1 E4): an anchored one
             // is planted in the world and a possession is none of its
             // business. The capture re-derives every offset from the new
             // host, so the seat pass below lands in the new frame.
-            set_cube_kite(cbs, gpu, queue, true);   // re-capture at the new host
             if (cbs.formation == Formation::SCATTERED)   cbs.formation = Formation::TO_SCATTER;
             else if (cbs.formation == Formation::SCREEN) cbs.formation = Formation::TO_SCREEN;
             cbs.stations_sent = false;
@@ -1283,11 +1254,11 @@ inline void zoetrope_service(CubeBehaviorsState& cbs, GPUState& gpu, wgpu::Queue
                     if (!cbs.activeCubes_[slot].active) continue;
                     const ZoetropeStation st = to_screen ? zoetrope_station(slot)
                                                          : station_scatter(cbs, slot);
-                    if (cbs.kite_mode)
-                        gpu.upload_cube_glide_target(queue, slot, st.off_x, st.off_z);
-                    else
-                        gpu.upload_cube_glide_target(queue, slot,
-                            point_x + st.off_x, point_z + st.off_z);
+                    // ONE ARM (STAGE_0 U4): an anchored formation walks its
+                    // ANCHOR through world coordinates, so the seat is the
+                    // ring about the point, planted rather than carried.
+                    gpu.upload_cube_glide_target(queue, slot,
+                        point_x + st.off_x, point_z + st.off_z);
                 }
                 cbs.stations_sent = true;
             }
@@ -1338,17 +1309,37 @@ inline void zoetrope_service(CubeBehaviorsState& cbs, GPUState& gpu, wgpu::Queue
             }
             if (all_settled) {
                 if (!to_screen && !to_scatter) {
-                    // THE HAND-BACK. Re-sending the sentinel it already
-                    // wears recaptures target := present in-kernel, so the
-                    // glide term goes to zero and the cube is returned to
-                    // drift and its behavior force — free where it stands.
-                    // kite_mode is UNCHANGED by construction: we resend
-                    // what it already is. F6 chooses shape; F7 chooses
-                    // frame. (Not set_cube_kite — that would rewrite the
-                    // flag and print.)
+                    // THE HAND-BACK, RE-BUILT ON THE DOOR THAT SURVIVED
+                    // (STAGE_0 U4). It re-sent the kite sentinel the cube
+                    // already wore, and the KERNEL recaptured target :=
+                    // present, so the glide term went to zero and the cube
+                    // was returned to drift and its behavior force — free
+                    // where it stands. That sentinel is gone, and the
+                    // mechanism was load-bearing: without a release the
+                    // anchor keeps walking to the last station and the
+                    // "roam" that follows does not roam.
+                    //
+                    // THE CPU CAN SAY THE SAME THING THROUGH THE GLIDE
+                    // DOOR. Aim the target at where the body actually is —
+                    // the mirror's live_pos, harvested by the readback
+                    // funnel — and the anchor walks the last few wu to meet
+                    // it, the delta decays to zero, and drift owns the
+                    // picture again. ONE FRAME STALE BY LAW (E-4, the same
+                    // staleness the reseat watch reads), which for a
+                    // release is immaterial: it is a let-go, not a capture.
+                    //
+                    // WHAT IS LOST, NAMED: the sentinel also ZEROED
+                    // drift.xz, and no CPU can — drift lives only on the
+                    // GPU. So a cube handed back mid-shove keeps its drift
+                    // and settles on the spring instead of stopping dead.
+                    // With the presence push retired at U5 the only drift
+                    // left is the behaviour kernels', which is the drift
+                    // this hand-back is giving the cube BACK to.
                     for (uint32_t slot = 0; slot < LATTICE_CELLS; slot++) {
                         if (!cbs.activeCubes_[slot].active) continue;
-                        gpu.upload_cube_follow_pawn(queue, slot, cbs.kite_mode ? 3u : 2u);
+                        const ActiveCube& ac = cbs.activeCubes_[slot];
+                        gpu.upload_cube_glide_target(queue, slot,
+                            ac.live_pos[0], ac.live_pos[2]);
                     }
                 }
                 // THE ARRIVAL IS A REPAINT EDGE TOO (CHOIR_0 U6). The

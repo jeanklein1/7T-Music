@@ -1096,13 +1096,15 @@ struct FloatingEntityState {
     tier_idx: u32,             // 156: runtime tier lookup for gain tables
     drift_vel: vec3<f32>,      // 160: drift integrator velocity
     behavior_id: u32,          // 172: cube behavior registry index
-    // Kite mode: when follow_pawn != 0, home is computed
-    // from pawn position + pawn_offset rather than from anchor + ground.
-    // pawn_offset must sit at a 16-aligned offset (176) for vec3 layout —
+    // `pawn_offset: vec3<f32>` (176) and `follow_pawn: u32` (192) stood
+    // here (STAGE_0 U4) — the kite. Together they were exactly 16 bytes,
+    // so the struct lands on 192 = 12 x 16 with no padding added or
+    // removed anywhere. The old banner said pawn_offset had to sit at a
+    // 16-aligned offset for vec3 layout, which was true and is now moot.
+    // Formations anchor in the world.
+    // (The two lines below are what survives of that comment block.)
     // see state.hpp for the C++ ordering and rationale.
-    pawn_offset: vec3<f32>,    // 176/180/184: cube position relative to pawn
     behavior_phase: u32,       // 188: per-slot phase hash for behavior diversity
-    follow_pawn: u32,          // 192: 0=anchor-relative, 1=pawn-relative
     plasticity: f32,           // 196: CONTACT_2 λ (0=elastic; drift→anchor leak rate). Was _pad0.
     // The anchor law (ONE_ANCHOR_1): goals may leap; values only walk.
     // update_cube walks the live param (anchor.xz / pawn_offset.xz)
@@ -9099,47 +9101,18 @@ fn update_cube(@builtin(global_invocation_id) gid: vec3<u32>) {
             // latency, race-prone — or a drift estimate, imperfect:
             // CurlField drifts cubes by ~3 wu, a visible jump).
             //
-            // follow_pawn == 2u — kite-RELEASE: freeze the cube's
-            // CURRENT world xz as the new anchor, cancel any in-flight
-            // glide (target := the captured anchor), switch to anchor
-            // mode. xz is preserved bit-exactly (anchor := pos, drift
-            // .xz zeroed, so pos.xz = home.xz), and Y WALKS HOME: only
-            // the xz components of drift and drift_vel are cleared,
-            // and the existing spring/drag settle the vertical the way
-            // every other displacement settles. Zeroing drift.y here
-            // was a ~10 wu snap under PhaseWave (a vertical force);
-            // goals may leap, values may only walk — the same law the
-            // xz side already obeys. Bit-neutral whenever drift.y is
-            // zero, which is every planar behavior.
+            // THE TWO KITE SENTINELS STOOD HERE (STAGE_0 U4).
+            // follow_pawn == 2u was kite-RELEASE (freeze the current world
+            // xz as the new anchor, cancel the in-flight glide, let Y walk
+            // home) and == 3u was kite-CAPTURE (take the offset from the
+            // true present with drift subtracted, so home + drift
+            // reconstructs pos exactly). They existed because only this
+            // kernel knows the true present: pos.xz = home.xz + drift.xz,
+            // and drift lives only on the GPU.
             //
-            // follow_pawn == 3u — kite-CAPTURE: the offset is taken
-            // from the true present WITH drift subtracted, so
-            // home.xz + drift.xz reconstructs pos.xz — algebraically
-            // exact, a few f32 ULPs in practice — even mid-shove.
-            // target := the captured offset cancels any in-flight
-            // glide (stated and deliberate: a mode switch retargets
-            // to the present). drift is untouched — it carries
-            // across the switch.
-            //
-            // After either sentinel fires, the rest of update_cube
-            // runs in the new mode this frame, on consistent state.
-            if (fe.follow_pawn == 2u) {
-                fe.anchor = vec3(fe.pos.x, 0.0, fe.pos.z);
-                fe.target_x = fe.pos.x;
-                fe.target_z = fe.pos.z;
-                fe.drift.x = 0.0;
-                fe.drift.z = 0.0;
-                fe.drift_vel.x = 0.0;
-                fe.drift_vel.z = 0.0;
-                fe.follow_pawn = 0u;
-            }
-            if (fe.follow_pawn == 3u) {
-                let off = fe.pos.xz - point_xz - fe.drift.xz;
-                fe.pawn_offset = vec3(off.x, 0.0, off.y);
-                fe.target_x = off.x;
-                fe.target_z = off.y;
-                fe.follow_pawn = 1u;
-            }
+            // THAT REASON OUTLIVES THEM AND IS WORTH KEEPING IN VIEW: any
+            // future mode switch on a drifting cube has the same problem,
+            // and a CPU capture still cannot solve it without a readback.
 
             // ── THE WALK (the anchor law) ─────────────────────────
             // The one control law, many authors: the CPU corral (and
@@ -9151,59 +9124,40 @@ fn update_cube(@builtin(global_invocation_id) gid: vec3<u32>) {
             // (spawn init + both sentinels above), the delta is zero,
             // and the walk moves nothing: rest is identity,
             // structurally, not by tuning.
+            // ONE ARM NOW. The walk had two — the kite arm walked
+            // pawn_offset, the anchor arm walks anchor — and STAGE_0 U4
+            // left the anchor. The law is unchanged and so is the door:
+            // the CPU writes TARGETS, this is the only mover of the param.
             let glide_k = 1.0 - exp(-dt / CUBE_GLIDE_TAU);
-            if (fe.follow_pawn == 1u) {
-                fe.pawn_offset.x += (fe.target_x - fe.pawn_offset.x) * glide_k;
-                fe.pawn_offset.z += (fe.target_z - fe.pawn_offset.z) * glide_k;
-            } else {
-                fe.anchor.x += (fe.target_x - fe.anchor.x) * glide_k;
-                fe.anchor.z += (fe.target_z - fe.anchor.z) * glide_k;
-            }
+            fe.anchor.x += (fe.target_x - fe.anchor.x) * glide_k;
+            fe.anchor.z += (fe.target_z - fe.anchor.z) * glide_k;
 
             // ── Analytical home ───────────────────────────────────
-            // Two modes:
-            //   follow_pawn = 0 (default): home.xz = anchor.xz; home.y
-            //     terrain-relative at home.xz.
-            //   follow_pawn = 1 (kite mode): home.xz = POINT.xz +
-            //     offset (was the pawn — the kite target is the
-            //     point, Jean's ruling; the offset is captured
-            //     IN-KERNEL by the sentinel-3 block above, from the
-            //     true present). home.y still terrain-relative at
-            //     home.xz.
+            // ONE MODE NOW (STAGE_0 U4). It was two: anchor-relative, and
+            // a KITE mode where home.xz was the POINT plus a captured
+            // offset — cubes as balloons leashed to whoever was walking.
+            // The stage retires the leash; a formation anchors in the
+            // world.
             //
-            // Y is *always* terrain-relative in both modes, so cubes
-            // feel like balloons leashed to the point — they float at
-            // orbit_height above whatever terrain they are over,
-            // regardless of the point's current altitude. Under ruling
-            // 1 that now holds in BOTH modes; before it, the anchor arm
-            // read its BIRTHPLACE's ground and the claim was kite-only.
+            // Y IS TERRAIN-RELATIVE, which was true in both modes and is
+            // the half worth keeping: a cube floats at orbit_height above
+            // whatever ground it is over.
             //
-            // F7 toggle, what is preserved and what is not. pos.xz is
-            // continuous BOTH ways, even under drift — the sentinels
-            // capture from the true present (release: anchor := pos;
-            // capture: offset := pos − point − drift). home.y is
-            // continuous only when drift.xz is zero: the anchor arm
-            // queries ground at pos.xz (ruling 1) while the kite arm
-            // still queries at kite_xz. A cube toggled mid-drift
-            // across a slope therefore steps vertically by the ground
-            // difference over drift.xz — zero for a cube at rest,
-            // visible on a pyramid face under CurlField's ~3 wu.
-            // Closing it is ruling 1 applied to the kite arm as well
-            // (kite_xz -> pos.xz); that is ANCHOR_2, not this edit.
+            // AND ONE KNOWN DISCONTINUITY GOES WITH THE SECOND MODE. The
+            // F7 toggle preserved pos.xz exactly but not home.y: the
+            // anchor arm queried ground at pos.xz while the kite arm
+            // queried at kite_xz, so a cube toggled mid-drift across a
+            // slope stepped vertically by the ground difference over
+            // drift.xz. It was zero at rest and visible on a slope under
+            // CurlField's ~3 wu, and closing it was filed as ANCHOR_2.
+            // With one arm there is nothing to step between; ANCHOR_2 is
+            // closed by excision rather than by the fix it asked for.
             //
             // POLICY_FLYER — the ground query picks up radial pulses
-            // and pawn aura, same as anchor mode.
+            // and pawn aura.
             let bob_y = sin(fe.t * 6.283185 / max(fe.bob_period, 0.1)) * fe.bob_amplitude;
             var home: vec3<f32>;
-            if (fe.follow_pawn != 0u) {
-                let point_p = point_pos();
-                let kite_xz = vec2(point_p.x + fe.pawn_offset.x,
-                                   point_p.z + fe.pawn_offset.z);
-                let kite_qi = QueryInputs(vec3(kite_xz.x, 0.0, kite_xz.y),
-                                          signal.t_seconds);
-                let ground_k = manifold_position(vec3(kite_xz.x, 0.0, kite_xz.y), POLICY_FLYER, kite_qi).y;
-                home = vec3(kite_xz.x, ground_k + fe.orbit_height + bob_y, kite_xz.y);
-            } else {
+            {
                 // RULING 1 (anchor): clearance is a PER-FRAME evaluation, so
                 // it evaluates where the body IS — the live xz — not where it
                 // was born.  home.xz stays anchor.xz: the spring's rest point

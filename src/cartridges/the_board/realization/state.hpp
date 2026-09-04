@@ -1260,28 +1260,37 @@ namespace t7 {
             uint32_t tier_idx;         // 156: runtime tier lookup for gain tables
             float drift_vel[3];        // 160: drift integrator velocity
             uint32_t behavior_id;      // 172: cube behavior registry index (Phase 3)
-            // ─── Kite mode (Phase 3.3) ───────────────────────────────
+            // ─── The kite stood here (STAGE_0 U4) ────────────────────
             //
-            // Field order: pawn_offset must sit at a 16-aligned offset
-            // (176) for WGSL's vec3 alignment rules. behavior_phase
-            // and follow_pawn (both u32, 4-aligned) follow it. Putting
-            // pawn_offset later would force WGSL to insert 8 bytes of
-            // padding, growing the GPU struct to 224 while C++ stayed
-            // at 208 — buffer-binding size mismatch on any pipeline
-            // that reads the array.
-            float    pawn_offset[3];   // 176/180/184: cube position relative to pawn
-            uint32_t behavior_phase;   // 188: per-slot phase hash for behavior diversity
-            uint32_t follow_pawn;      // 192: 0=anchor-relative, 1=pawn-relative
-            float plasticity;          // 196 — CONTACT_2 λ (0=elastic; drift→anchor leak). Was _pad0.
+            // `pawn_offset[3]` at 176/180/184 and `follow_pawn` at 192.
+            // The old banner explained that pawn_offset HAD to sit at a
+            // 16-aligned offset or WGSL would insert 8 bytes of padding
+            // and grow the GPU struct to 224 against a C++ 208 — a
+            // buffer-binding size mismatch on every pipeline reading the
+            // array. That hazard is gone with the fields.
+            //
+            // THE TWO WERE EXACTLY 16 BYTES, so the struct lands on
+            // 192 = 12 x 16 with no padding added or removed in either
+            // room, and every surviving field's offset drops by exactly
+            // 16 from behavior_phase down. THE STRIDE MOVED — 208 to 192
+            // — on the ONE buffer every floater family shares, and this
+            // struct carries no BYTE-FOR-BYTE marker in world.wgsl, so
+            // tools/mirror_offsets.py does not witness it field by field.
+            // The three asserts below are the whole of the static proof;
+            // beyond them it is the probe's.
+            uint32_t behavior_phase;   // 172+4 = 176: per-slot phase hash for behavior diversity
+            float plasticity;          // 180 — CONTACT_2 λ. Its last consumer (the leak) left at U5.
             // ─── The anchor law (ONE_ANCHOR_1) ────────────────────────
             // Goals may leap; values only walk. The CPU (and later the
             // music couplings) author these targets; update_cube walks
-            // the live param (anchor.xz in mode 0, pawn_offset.xz in
-            // mode 1) toward them each frame. At rest target == param
-            // and the glide term is exactly zero.
-            float target_x;            // 200 — glide target x. Was _pad1.
-            float target_z;            // 204 — glide target z. Was _pad2.
-        };                             // 208 total (13×16)
+            // the live param (anchor.xz — the one mode left) toward them
+            // each frame. At rest target == param and the glide term is
+            // exactly zero. THIS DOOR IS THE WHEEL'S: WHEEL_0 serves its
+            // stations through it, which is why U4 cuts the kite around it
+            // and leaves it standing.
+            float target_x;            // 184 — glide target x. Was _pad1.
+            float target_z;            // 188 — glide target z. Was _pad2.
+        };                             // 192 total (12×16)
 
         struct alignas(16) GPURibbonState {
             float anchor[3];                                                    // 0
@@ -1967,9 +1976,16 @@ namespace t7 {
         static_assert(sizeof(GPUPawnFigure) == 288, "GPUPawnFigure must be 288 bytes");
         static_assert(sizeof(GPUPawnFigure) % 16 == 0, "GPUPawnFigure must be 16-byte aligned");
         static_assert(sizeof(GPUCameraState) == 48, "GPUCameraState must be 48 bytes");
-        static_assert(sizeof(GPUFloatingEntityState) == 208, "GPUFloatingEntityState must be 208 bytes");
-        static_assert(offsetof(GPUFloatingEntityState, target_x) == 200, "target_x must sit at _pad1's retired slot (200)");
-        static_assert(offsetof(GPUFloatingEntityState, target_z) == 204, "target_z must sit at _pad2's retired slot (204)");
+        // THE STRIDE IS 192 SINCE STAGE_0 U4 (was 208). These three are
+        // the ONLY static proof this struct has: world.wgsl gives it no
+        // BYTE-FOR-BYTE marker, so mirror_offsets.py's per-field witness —
+        // 128 members across 7 structs — does not cover it. A field added
+        // here without its WGSL twin still fails only on a device.
+        static_assert(sizeof(GPUFloatingEntityState) == 192, "GPUFloatingEntityState must be 192 bytes (12x16)");
+        static_assert(offsetof(GPUFloatingEntityState, target_x) == 184, "target_x sits 16 below its old 200 — the kite's exact width");
+        static_assert(offsetof(GPUFloatingEntityState, target_z) == 188, "target_z sits 16 below its old 204 — the kite's exact width");
+        static_assert(offsetof(GPUFloatingEntityState, behavior_phase) == 176,
+            "behavior_phase moved up into pawn_offset's 16-aligned slot when the kite left");
         static_assert(sizeof(GPURibbonState) == 112, "GPURibbonState must be 112 bytes");
         static_assert(offsetof(GPURibbonState, checker_scatter) == 28, "checker_scatter must sit at twist_amp's retired slot (28)");
         static_assert(offsetof(GPURibbonState, seed) == 60, "seed must sit at twist_freq's retired slot (60)");
@@ -2804,11 +2820,9 @@ namespace t7 {
                     &t, sizeof(GPUFieldAuthored));
             }
 
-            void upload_cube_follow_pawn(wgpu::Queue& queue, uint32_t slot, uint32_t follow) {
-                size_t base = (Dim::CUBE_SLOT_OFFSET + slot) * sizeof(GPUFloatingEntityState);
-                size_t off = offsetof(GPUFloatingEntityState, follow_pawn);
-                queue.WriteBuffer(floatingEntityBuffer_, base + off, &follow, sizeof(uint32_t));
-            }
+            // `upload_cube_follow_pawn` stood here (STAGE_0 U4) — the
+            // partial write that sent the 2u/3u kite sentinels. The
+            // glide-target door beside it STAYS: it is the wheel's.
             void upload_cube_glide_target(wgpu::Queue& queue, uint32_t slot, float tx, float tz) {
                 size_t base = (Dim::CUBE_SLOT_OFFSET + slot) * sizeof(GPUFloatingEntityState);
                 size_t off = offsetof(GPUFloatingEntityState, target_x);

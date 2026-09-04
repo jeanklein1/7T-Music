@@ -63,8 +63,7 @@
                         cycle_cube_behavior_override(cube_behaviors_state_, &cube_deps_, queue);
                     if (doors & (1u << t7::organ::ORGAN_DOOR_ZOETROPE))
                         reveal_zoetrope(cube_behaviors_state_, &cube_deps_, queue);
-                    if (doors & (1u << t7::organ::ORGAN_DOOR_CUBE_KITE))
-                        toggle_cube_kite_mode(cube_behaviors_state_, &cube_deps_, queue);
+                    // Door 6 (CUBE_KITE) was pressed here (STAGE_0 U4).
                 }
 
                 // THE HOST DOOR (RIBBON_1) — the same transaction key R

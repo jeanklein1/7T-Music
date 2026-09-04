@@ -651,8 +651,10 @@ enum : uint32_t {
     ORGAN_DOOR_ZOETROPE      = 5, // reveal_zoetrope — roam → scatter →
                                   // screen → roam, one door three
                                   // destinations
-    ORGAN_DOOR_CUBE_KITE     = 6, // toggle_cube_kite_mode
-    ORGAN_DOOR_COUNT       = 7,
+    // ORGAN_DOOR_CUBE_KITE = 6 stood here (STAGE_0 U4) with the verb it
+    // pressed. It was the LAST id, so doors 0-5 keep their numbers and
+    // their bitmask bits, and nothing renumbers.
+    ORGAN_DOOR_COUNT       = 6,   // was 7 — the kite's door left at STAGE_0 U4
 };
 
 struct OrganDoor { uint32_t id; const char* label; };
@@ -664,7 +666,6 @@ inline constexpr OrganDoor kOrganDoors[] = {
     { ORGAN_DOOR_REBIRTH,     "Rebirth the world" },
     { ORGAN_DOOR_CUBE_BEHAVIOR, "Cycle cube behaviour" },
     { ORGAN_DOOR_ZOETROPE,      "Zoetrope: gather / reveal / release" },
-    { ORGAN_DOOR_CUBE_KITE,     "Toggle cube kite mode" },
 };
 static_assert(sizeof(kOrganDoors) / sizeof(kOrganDoors[0]) == ORGAN_DOOR_COUNT,
     "one row per door id — the manifest emits this table and a consumer "
