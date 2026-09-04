@@ -31,9 +31,9 @@ only — `draw_orbs` is called from `bodies/orbs.hpp`, not from
 |---|---|
 | `src/cartridges/the_board/bodies/orbs.hpp` | `475d3de82ddd4d979d55ad146039937cd3316a0148466ed5c1db5566bde9a8b1` |
 | `src/cartridges/the_board/bodies/pawn.hpp` | `7915ec242a2a3094537882c50a2980c9494e4f1460a3a2f786232b67ec6ead12` |
-| `src/cartridges/the_board/cartridge.hpp` | `ab71557515489dc4ad54d53a7596545e8b1d7e9300ae54412f33060fc8233e37` |
+| `src/cartridges/the_board/cartridge.hpp` | `fd795a615106534d6ba38fc3aa5369babd5aa99859cec8e92e53d07e9659ab96` |
 | `src/cartridges/the_board/realization/render_passes.hpp` | `d00857c2e8456fc08af94cc8e97d880f5dfb956e493c4cb90bb0e5e5d49bd9fa` |
-| `src/cartridges/the_board/surface/automaton.hpp` | `e98d2e703e4b4fd148d65502565de16e9ab36babd3a09ab5759677c4962aebe4` |
+| `src/cartridges/the_board/surface/automaton.hpp` | `e55cc9b3e428a05ee74ee0338db1f3c2fcdf37aa4f4ef70df4fc0f3920a14006` |
 | `src/cartridges/the_board/surface/patch_system.hpp` | `debf840f01152700ce9956eb022d3eb0de3e427c60cee4a7905c57085f20f648` |
 
 The source commit is the last commit touching any of the four primary

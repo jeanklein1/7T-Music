@@ -63,8 +63,9 @@ of the rule). The census: **boundary 106 · driven 14 · gen 25 · live 162**.
 `canvas_1::initialize` publishes **55 names**: seven readings over each of
 seven voices (49) plus six group readings over `Source::group({0..6})`.
 
-**Six are heard. Forty-nine are published into silence.** (It was
-twelve and forty-three until CHOIR_0: the zoetrope's seven onset ears
+**Seven are heard. Forty-eight are published into silence.** (Six and
+forty-nine until GROUND_VOICE_0 took `all.current_pc` off the shelf; and it
+was twelve and forty-three until CHOIR_0: the zoetrope's seven onset ears
 retired with the lattice they fed, and one new source — `ch6.present_count`
 — took their place. Net, the heard set halved and got *narrower and
 deeper*: one voice, read for what it is holding rather than for what it
@@ -74,16 +75,17 @@ That is the real shape of the uncoupled analysis side — not misses, but
 **unheard publications**. Every one is a source a coupling could take
 today with no analysis work at all.
 
-### The six that are read
+### The seven that are read
 
 | # | source name | reading | resolved in | drives |
 |---|---|---|---|---|
-| 1 | `all.field` | `Reading::Field` | `fog_field_` | fog density + fog colour (a table index into `FOG_BY_FIELD`) |
+| 1 | `all.field` | `Reading::Field` | `fog_field_` | fog density + fog colour (a table index into `FOG_BY_FIELD`) — **and, since GROUND_VOICE_0, the ground's lift. TWO READERS, ONE BINDING**: the ground does not re-resolve it |
 | 2 | `ch1.present_count` | `Reading::PresentCount` | `voice_playhead_` | the sustain swell's hold clock (`RIBBON_VOICE`) |
 | 3 | `all.window_length` | `Reading::WindowLength` | `room_wagon_` | the room tint's HUE (pitch-class centre of mass) |
 | 4 | `all.present_count` | `Reading::PresentCount` | `room_playhead_` | the room tint's MIX gate (sounding vs silent) |
 | 5 | `ch1.window_length` | `Reading::WindowLength` | `checker_win_` | the checker resultant colour (`CHECKER_VOICE`) |
 | 6 | `ch6.present_count` | `Reading::PresentCount` | `choir_ear_` | the cube choir's 24 keys — one enveloped light per key (`CHOIR_VOICE`). It was 36 until CHOIR_1 |
+| 7 | `all.current_pc` | `Reading::CurrentPC` | `room_current_pc_` | summed over its twelve lanes into the room's POLYPHONIC DENSITY, which quickens the ground's automaton (GROUND_VOICE_0) |
 
 `RIBBON_VOICE` and `CHECKER_VOICE` are the same wire, `ch1`, the chordal
 piano: **one voice carries two of the couplings**. `CHOIR_VOICE` is the
@@ -107,7 +109,7 @@ anything wants it.
 | `chN.current_pc` (7) | the one-hot current note per voice | a per-voice melodic pointer — nothing reads a single voice's note |
 | `chN.distance` (7) | the line's signed distance | **contour**: whether a voice is rising or falling. No consumer at all |
 | `chN.dft_mag` (7) + `chN.dft_phase` (7) | the six interval families per voice | **the whole pc-DFT capability is unheard on every voice** |
-| `all.current_pc` | per-pc voice count | the room's note density |
+| ~~`all.current_pc`~~ | per-pc voice count | **HEARD since GROUND_VOICE_0** — summed to a density that quickens the ground |
 | `all.dft_mag` + `all.dft_phase` | the room's interval families | consonance / dissonance as a scalar the world could wear |
 | `chN.present_count` (5 of 7) | the Playhead per voice | `ch1` (the ribbon's hold clock) and `ch6` (the choir) are heard |
 | `chN.window_length` (6 of 7) | the Wagon per voice | only `ch1` is heard |
@@ -136,18 +138,32 @@ canvas's own; the WORLD's rest is composed in at the seam.
 | 6 | `ribbon.color_mix` | 9 / 1 | `0.0` | `ribbon.hpp`: `mix_raw = valid ? vp.get(base) : R.rest_tint_mix` | the ribbon's tint | **LIVE.** Gated by the room Playhead |
 | 7 | `terrain.checker_mean` | 10 / 3 | `0.0` | `cartridge.hpp`: per lane against `ck.rest_resultant[]` | `set_checker_color_field` | **LIVE.** Sample-and-hold on the beat grid |
 | 8 | `terrain.checker_var` | 13 / 2 | `0.0` | same seam: `[0]` amount, `[1]` variance | `set_checker_color_field` | **LIVE.** Amount 0 → each cell's SEED colour, not gray |
-| 9 | `cube.light` | 15 / 36 | `0.0` (DARK) | `cartridge.hpp`, `phase_motion_drivers`: `gain · I` per lane, mirrored into `CubeBehaviorsState::choir_I` | `choir_project` → `upload_cube_color` / `upload_cube_face_variance` / `upload_cube_body_radius` | **LIVE** (CHOIR_0). One lane per key; rest 0 is the seed draw bit-exactly |
+| 9 | `cube.light` | 15 / 36 | `0.0` (DARK) | `cartridge.hpp`, `phase_motion_drivers`: `gain · I` per lane, mirrored into `CubeBehaviorsState::choir_I` | `choir_project` → `upload_cube_color` / `upload_cube_face_variance` / `upload_cube_body_radius` | **LIVE** (CHOIR_0). 36 LANES, of which `CUBE_CHOIR_N` are keys — 24 since CHOIR_1, and the rest sit dark. Rest 0 is the seed draw bit-exactly |
+| 10 | `ground.energy` | 51 / 1 | `0.0` | `cartridge.hpp`, `phase_motion_drivers`: `clamp(1 + height_gain · energy, …)` | `set_mode_gol_scales` → `config.mode_gol_height_scale` | **LIVE** (GROUND_VOICE_0). Carries `all.field` — the fog's own binding, read a second time |
+| 11 | `ground.density` | 52 / 1 | `0.0` | same seam: `clamp(1 / (1 + tick_gain · density), …)` | `set_mode_gol_scales` → `config.mode_gol_tick_scale` → `upload_automaton_header`'s step gate | **LIVE** (GROUND_VOICE_0). Carries Σ `all.current_pc` — the room's voices |
 
-**All nine are live and all nine have a reader.** They occupy slots 0–50
-of a **256-slot** bank (`VISUAL_PARAM_SLOTS`), so the register map is
-**20% allocated** — it was 6% before CHOIR_0, and the jump is one pipe:
-`cube.light` alone is 36 of the 51. **The bank is the first place in this
+**All eleven are live and all eleven have a reader.** They occupy slots
+0–52 of a **256-slot** bank (`VISUAL_PARAM_SLOTS`), so the register map is
+**21% allocated** — it was 6% before CHOIR_0, and the jump is one pipe:
+`cube.light` alone is 36 of the 53.
+
+**TWO OF THE ELEVEN CARRY SOURCES RATHER THAN TARGETS**, and they are the
+ground's. Every other pipe carries a decoded, target-shaped value that the
+seam composes LINEARLY (`rest + gain·(driven − rest)`); the ground's law is
+not linear in its gain — the gain sits INSIDE the expression (`1 + g·field`,
+`1/(1 + g·dens)`) — so splitting it canvas-side would change what the gain
+MEANS. At the authored tick gain the linear form could only ever shorten the
+period by 15%, where the ruled form reaches the clamp on a dense chord. The
+law and its desk numbers were authored together, so the law stays whole at
+the seam and these two carry what it needs. Their rest of 0 is the fog's
+convention: the `1 +` in the law is what makes silence a multiplier of
+exactly one, so no rest constant has to promise it. **The bank is the first place in this
 layer where a coupling has ever wanted a RUN rather than a scalar or a
 colour**, and it took it without the hand-laid map needing a rethink; the
 overlap witness carried it unchanged.
 
-**The gain rows live in `DRIVER_LIVE`** (22 words: fog 1, aura 4, checker
-6, ribbon 7, cube 4) — enrolled, panel-visible, and the thing that makes
+**The gain rows live in `DRIVER_LIVE`** (24 words: fog 1, aura 4, checker
+6, ribbon 7, cube 4, ground 2) — enrolled, panel-visible, and the thing that makes
 every coupling dialable to silence without unwiring it. **`DRIVER_LIVE.aura`
 carries `intent = 0`**: the aura's coupling is authored and OFF, and its
 own comment records that it rested ON for exactly one commit. **The cube

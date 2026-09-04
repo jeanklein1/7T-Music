@@ -1660,6 +1660,107 @@ running the regeneration, not by reasoning about it.
 new heights and radii, the attack's shape at τ = 8/6, the two-rank keyboard,
 and the flatter gathering (flag 2).
 
+## GROUND_VOICE_0 — THE GROUND HEARS (landed; one campaign-level finding, three corrections, three flags)
+
+Landed on `master`. **Working name — naming is Jean's gate.** The GoL cells'
+heights and speed of update are coupled to the music. The room's held ENERGY
+lifts the ground; its polyphonic DENSITY quickens it. No new mechanism on the
+height side and one line on the tick side (see finding 1); `world.wgsl` is
+byte-identical.
+
+```
+height_mul = clamp(1 + ground.height_gain · field,   0.25, 4.0)
+tick_mul   = clamp(1 / (1 + ground.tick_gain · dens), 0.25, 4.0)
+```
+
+Two SOURCE pipes (`ground.energy` 51, `ground.density` 52, rest 0), two gains
+in the drivers' room (`Ground{height_gain 0.8, tick_gain 0.15}`, 22 → 24
+words), and the clamps in the AUTOMATON's own room
+(`GROUND_SCALE_MIN/MAX`) — because they say what this ground will accept, not
+how loudly a coupling speaks, so a different coupling aimed at the same two
+fields inherits them.
+
+**1 · THE FINDING THAT MATTERS — THE TICK HALF WAS NOT PLUMBED.** The
+commission says the plumbing exists end to end. For the height it does. For
+the tick it did not: `config.mode_gol_tick_scale` had exactly TWO readers and
+both are inside `world.wgsl`'s `pulse_cell_target` — the PULSE field's
+per-cell target. **The bank boots CONWAY** (`AUTO_TABLE`'s own static_assert
+says so), and the Conway branch gates on `should_tick`, which is not a WGSL
+fact at all: it is computed on the CPU in `upload_automaton_header` from
+`as.tick_period` alone, with no scale anywhere in it. The dial reached
+nothing on the ground this program actually runs, and "speed of update
+connects to musical parameters" would have shipped as a knob that does
+nothing. **The fix is one line at that step gate**, in the same shape the two
+dormant WGSL readers already use. The RULE and the FULL-TORUS STEP are
+untouched — it changes WHEN a step fires, never what a step does, which is
+what the protect list means by "scales modulate".
+
+**2 · THE ARGUMENT ORDER IS (tick, height).** `set_mode_gol_scales(float
+tick_scale, float height_scale)`. The commission names it the other way round.
+Both are floats resting at 1.0, so a swap compiles, passes every text gate,
+and is visible only on the device — the exact class this repo's own gate
+banner warns about.
+
+**3 · cartridge.hpp:582 IS A BOOT PIN, not a per-frame seam.** It sits inside
+`initialize()` beside the terrain rest pins, so it cannot carry a coupling.
+The boot pin STAYS as the rest — the fog's and the checker's own shape — and
+the coupling is a new per-frame block in `phase_motion_drivers` beside them.
+
+**4 · GAIN 0 IS HANDS OFF, PER TERM, AND IT HAD TO BE.** Every other driven
+config value in this tree is an `ORGAN_PARAM_RO` meter with its rest
+elsewhere; `mode_gol_tick_scale` and `mode_gol_height_scale` are
+`ORGAN_PARAM` — **writable dials whose rest IS the field**. A seam writing
+unconditionally would overwrite the dial every frame and quietly kill it. So
+at gain 0 the term passes the dial's own value straight back, the setter's
+inequality gate sees no change, and the dial is the author again. "0 manual …
+1 coupling verbatim", meant literally — and the registry freeze holds with
+zero organ edits. **At freeze-lift these two want the fog's three-row shape**
+(an `_RO` meter for the driven value, a rest home, and the gain), which is a
+bigger question than a row kind, because their rest is currently the field
+itself.
+
+**5 · FLAG — `field` IS NOT EMA'd, AND THE GROUND WILL JUMP.** §0 waves the
+smoothing question away on that premise. `canvas_1` publishes
+`Reading::Field` as `field_index(p.field)` — a discrete held ELECTION. The
+fog reads the same source and answers exactly that by carrying it on a
+Segment "so density and color drift across a modulation instead of snapping".
+Without one, **the whole ground changes height in a single frame when the
+field elects.** Built as ruled and flagged rather than fixed: a ground that
+jumps on a modulation may be the percept, and that is a desk question. The
+one-idiom fix is one line per pipe and is written out at the site.
+
+**6 · FLAG — THE HEIGHT GAIN SATURATES OVER HALF ITS RANGE.** `height_gain
+0.8` against a field of 0..6 gives 1.0 / 1.8 / 2.6 / 3.4 / 4.2 / 5.0 / 5.8
+against a ceiling of 4.0 — so **fields 4, 5 and 6 are one height**. May be
+right; is a choice. **0.5 is the gain that maps the full field range onto the
+full clamp**, field 6 landing on 4.0 exactly. `tick_gain 0.15` wants no note:
+voices 0..12 give period × 1.0 down to 0.36, monotone, well clear of the
+floor.
+
+**7 · FLAG — CONFIG'S "GPU-SIDE" SCOPE REASON IS NOW INCOMPLETE.**
+`tools/organ_readers.py` excludes the CONFIG family with the reason "GPU-side:
+`config_` is uploaded whole and read in world.wgsl". Since this campaign,
+`mode_gol_tick_scale` is *also* read CPU-side, at the step gate. The exclusion
+still stands and no gate moves, but the reason no longer covers every field it
+names.
+
+**8 · OPEN — THE PROBE.** Every gate CC can run is green. Jean's desk: the
+lift at a loud passage, the tick under dense chords, both clamps, and whether
+the ground should jump or drift on a modulation (flag 5).
+
+## THE GoL COLOUR RULING (standing — Jean's, recorded at GROUND_VOICE_0)
+
+**When the GoL cells gain musical COLOUR, it is chosen within the system that
+already colours them — the tint funnel / checker path. There is no second
+colour home.**
+
+The ground's cells are already coloured by `apply_automaton_color` over the
+checker field's resultant, and that path already has a musical driver
+(`terrain.checker_mean` / `terrain.checker_var`, the pc-colour field). A
+second colour authority aimed at the same cells would give one surface two
+masters and no way to say which wins. **No colour work was done in
+GROUND_VOICE_0**; this records the constraint on whoever does it.
+
 ## THE HANDOVER LIST (THE_PANEL's close — the coupling campaign's table)
 
 **THE WRAP ORDER §2.3 asks that the next campaign's handoff be authorable
@@ -1671,7 +1772,7 @@ outlives a chat.
 
 | what | where | what it carries |
 |---|---|---|
-| **THE COUPLING ATLAS** | `docs/COUPLING_ATLAS.md` | five tables by symbol — SOURCES (55 published, **6 heard, 49 unheard** since CHOIR_0; it was 12/43), PIPES (PARAM_LAYOUT's **nine**), THE CHOIR (one voice, **24 keys since CHOIR_1**, 36 pipe lanes — the table that was EARS, the zoetrope's seven), THE UNCOUPLED NEW WORLD (every candidate dial **with its cadence**), THE ORPHANED |
+| **THE COUPLING ATLAS** | `docs/COUPLING_ATLAS.md` | five tables by symbol — SOURCES (55 published, **7 heard, 48 unheard** since GROUND_VOICE_0; 6/49 at CHOIR_0, 12/43 before it), PIPES (PARAM_LAYOUT's **eleven** since GROUND_VOICE_0), THE CHOIR (one voice, **24 keys since CHOIR_1**, 36 pipe lanes — the table that was EARS, the zoetrope's seven), THE UNCOUPLED NEW WORLD (every candidate dial **with its cadence**), THE ORPHANED |
 | **THE SEAM SCOUT** | the atlas's own appendix | the native analysis side as it stands — the clock end to end, the loopMIDI lane, `StatLayoutView`'s publish/bind seam, `AnalysisSignal`'s shape — and the three transports with costs. **No transport chosen: that is Jean's.** |
 
 ### 2 · THE LIVE DIAL INVENTORY, WITH CADENCES
@@ -2232,6 +2333,7 @@ written out here.
 | SUNRISE_0 · KEEL_0 · HELM_0 | the fork, the build constitution, the preset surface | LANDED |
 | CHOIR_0 | the cube lattice out; `ch6` cast, 36 keys, one enveloped light per key | LANDED — **Jean's probe + visual desk open** (see CHOIR_0 above) |
 | CHOIR_1 | two ranks (24), the flock lower and smaller, the attack snappier | LANDED — **Jean's probe + visual desk open** (see CHOIR_1 above) |
+| GROUND_VOICE_0 | the room's energy lifts the ground, its density quickens it | LANDED — **Jean's probe + desk open** (see GROUND_VOICE_0 above) |
 | EMBER_0 | the D3D12 lanes | **OPEN — on Jean's button** (see EMBER_0 above) |
 
 Roster: PYRAMID, SPHERE, RIBBON, CUBE. The ground: one automaton, ~3.1%
