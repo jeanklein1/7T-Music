@@ -212,15 +212,47 @@ itself**, so the only thing left to author is an envelope, and an envelope
 is 36 floats and two spans. The width goes with the spread: a note lights
 the key it names and no other, which is what a keyboard is.
 
-### `reveal_zoetrope` survives the lattice it was named for
+### Door 5 outlived the lattice AND the screen: it is the wheel's now
 
-`reveal_zoetrope` is Door 5, and it is untouched. The lattice was the
-zoetrope's SUBSTRATE; the formation machine — the stations, the walk, the
-reseat watch, the settle law, the hand-back — is the zoetrope's BODY, and
-that is what the door reveals. The screen still assembles, still dims to
-`ZOETROPE_REST_DIM` when it stands, and still swells on `ZOETROPE_SWELL_GAIN`
-— it simply breathes with the choir now rather than with a cellular
-automaton.
+`reveal_zoetrope` is Door 5, and it has been re-aimed twice without ever
+being renamed. The lattice was the zoetrope's SUBSTRATE and went at
+CHOIR_0; the formation machine — the stations, the walk, the reseat
+watch, the settle law, the hand-back — was its BODY and went at WHEEL_0
+U3. What the door presses now is **the mode**, and there are two of them:
+
+| mode | what it aims a key's glide target at |
+|---|---|
+| **`WHEEL`** (rest) | the key's station on THE INTERVAL WHEEL, recomputed every frame off `PANEL_LIVE.wheel` |
+| `ROAM` | the key's recorded BIRTH ANCHOR — the wheel stops being read at all and drift owns the picture |
+
+**The wheel is `PanelSurface::Wheel`, five axes, all live, all PARKED for
+enrolment under the registry freeze:** `step`, `radius`, `rank_sep`,
+`twist`, `phase`, resting at `{ 1.0, 60.0, 14.0, 0.0, 0.0 }`. Key `k` is
+already pitch class `k%12` and rank `k/12` (§3's keyboard row), so the
+wheel is what makes the FORMATION say what the KEYBOARD already knows:
+
+```
+theta(k)  = phase + twist·r + (2π/12)·wrap12(step · pc)
+radius(k) = radius + rank_sep·r
+```
+
+**`step` is the transformation axis and it is the coupling target worth
+naming.** At 1 the ring is the chromatic circle; walked continuously to 7
+it passes every star polygon {12/step} and arrives at the circle of
+fifths, so the same chord draws a near-diameter at one end of the axis
+and a neighbour pair at the other. Nothing snaps on the way: the stations
+go through `upload_cube_glide_target` and are walked in-kernel at
+`CUBE_GLIDE_TAU`, so **a moving `step` braids twenty-four cubes past each
+other across the floor.** The named gen-2 coupling is the pc-DFT's phase
+rotating `phase` — interval ENERGY turning interval GEOMETRY — and it is
+**not wired**.
+
+`ZOETROPE_SWELL_GAIN` survives both retirements, re-aimed: gated on
+`WHEEL` where it was gated on `SCREEN`, and multiplying **the mirror's own
+tier draw** where it multiplied the screen's uniform pixel — so a
+Monolith swells like a Monolith. `ZOETROPE_REST_DIM` did not survive:
+there is no dark screen to rest, and a formation standing in the world
+takes the world's own ruling against dimming.
 
 ## §4 — THE UNCOUPLED NEW WORLD: live-bank dials a voice could take
 

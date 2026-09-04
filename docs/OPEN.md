@@ -1496,6 +1496,12 @@ WALK retired with the strike that used it). The screen bands, `SWELL_GAIN`,
 `REST_DIM`. `zoetrope_service` keeps its name because the zoetrope's BODY
 is the formation machine; only its SUBSTRATE was the lattice.
 
+> **SUPERSEDED AT WHEEL_0 U3.** The BODY went too. Of the list above only
+> `reveal_zoetrope` (re-aimed to ROAM↔WHEEL), `repaint_all` (one edge where
+> it had three), `SWELL_GAIN` (re-aimed twice — gated on WHEEL, and
+> multiplying the mirror's own draw) and the function name survive. Door 6
+> and the kite law went at STAGE_0 U4.
+
 **1 · THE DIVERGENCE — THE PIPE'S BASE IS 15, NOT 16.** The handoff says
 `{ "cube.light", 16, 36, 0.0f }` and, in the same sentence, "the first free
 run" and "15/256 → 51/256 allocated". The terrain run ends at slot 14, so
@@ -1630,6 +1636,12 @@ size-biased depth, but a lot more of it now sits on one plane. **Reported,
 not acted on** — §3 forbids growing a unit's scope, and the fix is a taste
 call on `ZOETROPE_SCATTER_JITTER_H` (28 wu was chosen against means of
 25–75) that belongs on Jean's desk with the rest of the visual gate.
+
+> **CLOSED MOOT AT WHEEL_0 U3.** The gathering retired with the screen it
+> fed; `station_scatter` and its whole band are gone. The wheel is XZ only
+> and never authors a height, so the heights a key stands at are exactly
+> the ones CHOIR_1 tuned — which is the outcome this flag wanted and could
+> not get from a seating function.
 
 **3 · THE WITNESS U1 FALSIFIED, FIXED.** The `[CHOIR]` boot line printed
 "36 keys, 3 rank(s)" from `CHOIR_LANES`. With the choir narrower than the
@@ -1891,6 +1903,106 @@ GROUND_VOICE_0; restated here because it is a stage fact.)
 **4 · THE BOARD'S VISIBLE EDGE IS THE ACCEPTED LOOK.** A walled world that shows
 its wall is the picture, not a defect to conceal. The veil existed to hide an
 edge the stage no longer apologises for.
+
+## WHEEL_0 — THE INTERVAL WHEEL (landed; one law violation caught by a gate, four flags)
+
+Landed on `master`. **Working name — naming is Jean's gate.** The first
+cube↔cube dynamic: a formation that is not trivial, not random, and
+modulable — a transformation SPACE rather than a shape. Ran after STAGE_0,
+whose `birth_station(k)` seam it re-aims.
+
+**THE LAW.** Concentric rings about the world's centre. For key `k`, with
+`pc = k % 12` and rank `r = k / 12`:
+
+```
+theta(k)  = phase + twist·r + (2π/12)·wrap12(step · pc)
+radius(k) = radius + rank_sep·r
+```
+
+Key `k` was already a pitch class and a rank by construction; the wheel is
+what makes the FORMATION say so. **`step` is the transformation axis** — 1
+is the chromatic circle, 7 is the circle of fifths, and the walk between
+passes every star polygon {12/step}. Because stations reach a cube through
+`upload_cube_glide_target` and are walked in-kernel at `CUBE_GLIDE_TAU`, a
+MOVING `step` braids twenty-four cubes past each other across the floor.
+**No new motion mechanism exists anywhere in this campaign.**
+
+**U1 · THE AXES.** `PanelSurface::Wheel { step, radius, rank_sep, twist,
+phase }`, table rest `{ 1.0, 60.0, 14.0, 0.0, 0.0 }`, two static_asserts.
+Five organ rows PARKED under the ORGAN_REST freeze; the paste-ready lines
+are in `docs/WHEEL_0_REPORT.md`.
+
+**U2 · THE SERVE.** One pass per frame in `zoetrope_service`, gated on the
+station having moved past `WHEEL_SERVE_EPS = 0.05` wu **since the last
+serve** — the poke gate's own reading, so a slow turn accumulates rather
+than being lost. `birth_station` re-aimed to the wheel: born on it, in
+position, so the first serve pokes nothing.
+
+**U3 · THE MODE FOLD.** `Formation` is `{ ROAM, WHEEL }`, rest `WHEEL`. No
+TO_ states — the glide door IS the transition. Retired with tombstones: the
+LATTICE band and the helix pair with both witnesses, the screen and scatter
+station bands, the walk's three numbers, the climb, the settle, the reseat
+watch, the hand-back, `stage_wait`, `stations_sent`, the walk shadows, the
+settled flags, `ZOETROPE_REST_DIM`.
+
+### The finding a gate made, and it is the campaign's best one
+
+**`birth_station` read `PANEL_TABLE`, and `organ_gap --gate` refused it.**
+It was written that way on a determinism argument — the birth is on the
+protect list, so let it stand on the REST wheel and no scene can move the
+instrument. The argument answers the wrong question: what the protect list
+guards is the BODY draw (`CHOIR_SEED`, the tier table), and where a key
+STANDS is the wheel's business. More to the point, `PanelSurface` is a
+GRADUATED PAIR and the law of one is that the design table is a seed and an
+assert subject and **never** a runtime read — exactly the defect the reader
+witness exists to catch. It caught it on the first run.
+
+**The fix made ROAM better.** `birth_station` reads `PANEL_LIVE`, which
+means ROAM can no longer be "recompute the birth station" — that would make
+letting go of the wheel still follow its dials. ROAM aims at a **recorded**
+birth anchor (`birth_ax/az`, seeded once from the target the birth actually
+wrote, never rewritten). A record, not a recomputation: the wheel as it
+stood on the day, frozen.
+
+### Four flags
+
+**1 · THE STAR-POLYGON DEGENERACY IS REAL AND IS NOT GUARDED.** At
+`step = 12m/d` two distinct pitch classes land on the same bearing and,
+within a rank, the same POINT — verified numerically: at `step = 1.20` keys
+0 and 10 coincide exactly (1.2 × 10 = 12 ≡ 0). Sweeping step 0.01→6.00 the
+worst same-rank separation is 0.000 wu. **This is the law's own content,
+not a defect** — at `step = 6` the wheel collapses to the tritone axis, at 4
+to a triangle, at 3 to a square, and those are the musical facts the axis
+exists to draw. Turning through such a step is the braid passing through
+itself. Named because nothing in the tree says it, and because it means
+cubes WILL interpenetrate at some settings.
+
+**2 · `rank_sep = 14` CLEARS THE BODIES, BARELY, AT FULL SWELL.** The tight
+pair is same-pc adjacent ranks; the worst by tier means is key 10 (Med,
+r = 3.0) against key 22 (Large, r = 5.0): 8.0 wu of half-extent across a 14
+wu gap, and **12.8 wu at full swell** (×1.6). Clears by 1.2 wu at the means
+and does not clear on the upper tail of the draws, before aspect ratios are
+counted. `rank_sep` is a live dial and this is a desk number.
+
+**3 · THE LATTICE BAND RETIRED TOO, WHICH IS ONE STEP PAST THE STATED
+LIST.** §U3 names "the helix pair and now its constants";
+`LATTICE_ROWS/COLS/CELLS` are a separate band whose every reader left with
+the two station functions. Retired rather than left dead, and the one
+surviving assert re-aimed to the constraint that was always the real one:
+`CUBE_CHOIR_N <= Dim::MAX_CUBE_INSTANCES`, because a key is a SLOT.
+
+**4 · §U4's "the door's scripted cycle re-aimed" HAS NO SUBJECT.** The shell
+gate scripts `door 3` (rebirth) and `door 99` (the out-of-range refusal); it
+never presses door 5, and no tool in `tools/` mentions the zoetrope at all.
+Nothing to re-aim. Door 5's LABEL was changed (`"Wheel: take the choir /
+let it roam"`) on the reading that the label IS the verb text §U3 asks to
+rename; the identifier `ORGAN_DOOR_ZOETROPE` stands, and a fuller rename is
+Jean's gate.
+
+**OPEN — the probe, and it is the whole visual gate.** Every gate CC can run
+is green. What only a device can answer: the braid at a hand-turned `step`,
+the rest wheel's radius and rank separation, the swell on the wheel, and the
+ROAM↔WHEEL flip.
 
 ## THE HANDOVER LIST (THE_PANEL's close — the coupling campaign's table)
 
