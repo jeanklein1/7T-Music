@@ -421,7 +421,7 @@ states a belief; only the reader proves it. The tail of its run,
 verbatim:
 
 ```
-      · derive_finite_radius               src/cartridges/the_board/direction/sky.hpp
+      ? census also names the bank here: become_world           src/cartridges/the_board/cartridge.hpp
 
   OUT OF SCOPE, with the reason:
       AGENT_ROOM   GPU-side: tier_gains and behaviors ship as whole arrays through two WriteBuffers and are read in world.wgsl
