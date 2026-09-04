@@ -14,8 +14,8 @@ merge rows the API charges separately.
 | field | value |
 |---|---|
 | demo column censused | `full` |
-| source commit | `17cdc81411a8d3f6f633a1d880edcafe3b269c2b` |
-| | CHOIR_0 U6b — the arrival is a repaint edge: the swell bug the poke gate bought |
+| source commit | `08b59cbebbd6285b167cf9132c0250c69ab2c82e` |
+| | STAGE_0 U1d — a stale number I wrote, corrected by naming the symbol instead |
 | `src/cartridges/the_board/realization/state.hpp` | `sha256:0e93d283cccf122875e80f32f49640f1efa71496a75340a9475eb8ecc7f28125` |
 | `src/cartridges/the_board/realization/binding_surface.gen.inc` | `sha256:c1b64eadb92b14b2b6a69475f78ca71b4144979f3737b157568a29e5f4a7bcf6` |
 | `src/cartridges/the_board/realization/binding_registry.hpp` | `sha256:79b70d3e7510cce71f5d67f85b994a781745d7c090efefd76ba7af165be17281` |

@@ -15,15 +15,15 @@ carry those facts, or leave them in place and patch around them.
 
 | field | value |
 |---|---|
-| source commit | `33501fc4daa366d21ddaf63c5b60f89bf0a00a28` |
-| | STAGE_0 U1b — ledger settle after the pin |
+| source commit | `08b59cbebbd6285b167cf9132c0250c69ab2c82e` |
+| | STAGE_0 U1d — a stale number I wrote, corrected by naming the symbol instead |
 | `src/cartridges/the_board/realization/binding_registry.hpp` | `sha256:79b70d3e7510cce71f5d67f85b994a781745d7c090efefd76ba7af165be17281` |
 | `src/cartridges/the_board/realization/world.wgsl` | `sha256:9bf6a83b750924fc9bb616a9837ea2ec6811b7d6918dd4a5f1083e7cb746220d` |
 | `src/cartridges/the_board/realization/state.hpp` | `sha256:0e93d283cccf122875e80f32f49640f1efa71496a75340a9475eb8ecc7f28125` |
 | `src/cartridges/the_board/realization/binding_surface.gen.inc` | `sha256:c1b64eadb92b14b2b6a69475f78ca71b4144979f3737b157568a29e5f4a7bcf6` |
 | `src/cartridges/the_board/realization/renderer.hpp` | `sha256:4e6ead2a95e61d69118502d43ef838bc3e2e8bc3568be1f7c980bcdb9b534f4e` |
 | `tools/binding_ledger.py` | `sha256:a3c75bab894774eb0302686e5efd52275b280e14abfcf4e8753b28d5b5086692` |
-| `audit/BINDING_LEDGER.md` | `sha256:f7d5dbdff3a375617f41b6cd3fc9358418ddd8edad04f0907344a6b438143f35` |
+| `audit/BINDING_LEDGER.md` | `sha256:2487e9dea1be51a5ab7e07d42aa1feecb3654ac7f50d95ba38e91dbb737fc7b8` |
 
 `tools/binding_ledger.py` is an input because its parsers are IMPORTED,
 not copied — one parse, two artifacts, no drift between instruments.
