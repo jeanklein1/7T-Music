@@ -1810,6 +1810,20 @@ tests, `update_entity_draw_visibility`, `GPUState::draw_ring()`,
 the plasticity leak was gated `if (fe.follow_pawn == 0u)`, so cutting the kite
 first would have made it unconditional for the first time.
 
+> **R3 — "U4 and U5 land as one commit; the pawn's two hands leave
+> together." THE SUBSTANCE WAS SATISFIED; THE FORM WAS NOT, and the form was
+> never the load-bearing half.** The requirement is that *no ordering window
+> exists in which the leak is live*, and none does: U5 removed the leak and
+> the `if (fe.follow_pawn == 0u)` that wrapped it **as a single hunk** —
+> they were never separable objects. The gate was the `if` around the leak's
+> own five statements; only the FIELD it read lived elsewhere. So the two
+> hands did leave together, in the sense that mattered; they left in two
+> commits, in the sense that did not. Re-verified against both diffs and
+> against the intermediate tree at `31992a3f`. **Not squashed:** the commits
+> are pushed history, and this register is where the divergence is recorded
+> rather than rewritten. The site carries its own warning against an
+> isolated `git revert` of U5 (`world.wgsl`, `update_cube`).
+
 **U3 · THE PERMANENT CHOIR.** `CHOIR_SEED`, `CHOIR_TIERS[24]`, `birth_station(k)`,
 `birth_the_choir` in `build_world`. The gate REFUSES rather than vanishing —
 `CUBE_ADAPTER` and `FAMILY_DISPATCH`'s row are positional aggregates.
@@ -1822,6 +1836,20 @@ so the longest sight line — corner to opposite corner — is **353.6 wu agains
 ring of 342**. THE RING FIRED, in an 11.6 wu sliver. Under the stage law that
 sliver should draw, so the excision is right for a reason the handoff did not
 give.
+
+> **R1 — RE-RULED: EXCISE, and the corrected premise makes the case
+> STRONGER.** A draw authority that contradicts the stage law *in its only
+> live band* is dead by commission, not by disuse — an 11.6 wu sliver in
+> which the program refuses to draw what it has computed is precisely the
+> thing the law forbids, and "it hardly ever fires" was never the argument.
+> **The shadow finding seals it:** the shadow pass never had a ring gate, so
+> at r ≥ 2 the tree ALREADY drew shadows with no visible caster. The excision
+> closes that inconsistency rather than opening one — the ring was the half
+> of the pair that was wrong.
+>
+> **AND THE HISTORY MUST READ AS A RE-RULING, NOT AS A CONTRADICTION
+> IGNORED** — see *THE RING: A THIRD RULING ON ONE SUBJECT* below, which
+> cites the prior written refusals and marks them superseded.
 
 **2 · THE MONOCHROME CHOIR.** `choir_slot_seed` recomputes each cube's base
 colour from `tile_seed(world seed, patch_gx, patch_gz)`. A boot-born cube has no
@@ -1893,6 +1921,97 @@ word.**
 **OPEN — the probe.** Every gate CC can run is green. `--probe=N` and G-LAW 1
 are Jean's, and this is the campaign that most needs them: a stride change on a
 shared buffer is exactly what only a device can refuse.
+
+## THE RING: A THIRD RULING ON ONE SUBJECT (recorded at STAGE_0 R1)
+
+**R1 orders that the excision read as a RE-RULING under a new commission,
+never as a contradiction ignored.** The prior written refusals are therefore
+cited here and marked superseded. They were not wrong; they were measured
+against a different acceptance test.
+
+### The original rulings, both Jean's, both 2026-07-16
+
+| commit | what it ruled |
+|---|---|
+| `376115f1` | *"The veil: one point-anchored visibility authority (ruled, all six)"* — establishes the chain RING / ICING / LOD0 / EXIST with its asserts |
+| `7b26911c` | *"The veil flip: the ring is the draw authority, fog is icing **(re-ruled)**"* — *"the DRAW SET is the authority, fog is cosmetic"* |
+
+**Note the word in the second: `(re-ruled)`.** This subject has been ruled on
+three times, and the vocabulary for doing so is Jean's own.
+
+### The three refusals — SUPERSEDED BY THE STAGE LAW
+
+**REFUSAL 1 — ONE_SURFACE-I U4 (`68d3622f`). The excision was formally
+proposed and formally refused.** The handoff's §1.2 proposed the whole chain
+as existing "to hide an edge the finite world does not have". U4 built a
+reader-by-reader fold table at `veil_strength == 0`, found the ICING dies and
+the RING does not, and refused: *"NOT ONE OF THE FOUR RING GATES IS GATED BY
+STRENGTH, and the ring still CULLS inside a wall… Deleting the ring would
+make distant bodies APPEAR — the opposite of 'the world must look
+untouched', which is this handoff's own acceptance test."*
+**Its text is still in the tree, at `state.hpp`'s `draw_ring` banner, and is
+LEFT STANDING with a supersession note beside it** — a reader who cannot find
+the argument the excision had to beat cannot judge the excision.
+**Why it falls:** its acceptance test was *the world must look untouched*.
+The stage law's is *everything computed is visible*. A distant body appearing
+is the bug under the first and the POINT under the second. The arithmetic
+was and remains exactly right.
+
+**REFUSAL 2 — THE_PANEL I U5a (`8b9762cd`). The ring left standing while
+everything around it was cut.** The mosaic retirement took `veil_t`,
+`grain_band`, `paint_y`, 211 shader lines and six config fields, and stopped
+at the ring: *"draw_ring — the other half, and the one four live gates read —
+is unaffected"*, with the keep written into the shader as a durable sentence:
+*"THE RING SURVIVES AND IS UNTOUCHED: `config.draw_ring` is the draw
+authority, read by four VS gates that never asked about any of this."* That
+sentence lived exactly three days, from THE_PANEL I U5a to STAGE_0 U2.
+**Why it falls:** it is a scope refusal, not a merits refusal — the campaign
+was retiring the ICING and said so. It is cited because it is the clearest
+statement that the ring was *deliberately* kept.
+
+**REFUSAL 3 — HEM_1 U4 (`c8b856dc`). The eviction radii, refused on the
+merits, one day before STAGE_0 cut them.** *"THE EVICTION IS ACCEPTED, NOT
+FIXED. `AGENT_EVICTION_RADIUS` is 350 against a box whose diagonal is 212 wu
+at radius 1 and 636 at radius 4… The spawn-far / walk-in / evict-out economy
+is replaced by a RESIDENT POPULATION… Scaling the radius by the fit factor
+would need that factor GPU-side… which is the one property this campaign
+held. A future reader wondering why `respawn_evicted_agents` is quiet finds
+the answer here rather than a bug."*
+**Why it falls, and this is the sharpest of the three:** HEM_1 reached *the
+same conclusion the stage law reaches* — nobody leaves, so nobody needs
+replacing — and declined to cut because cutting was outside its property.
+STAGE_0 held the property. The refusal was a scope boundary that expired.
+
+### Three more, earlier, that also qualify
+
+- **ONE_WORLD-II U5 (`b9552c16`), the FINITE pin** — the event that made the
+  chain arguable, refusing to act on it in the same breath: *"THE OPEN PATHS
+  ARE UNTOUCHED, DELIBERATELY… **A pin is a value, not an excision, and this
+  unit does not pretend otherwise.**"*
+- **GROUND_CARD_CLOSE (`3fcc7dd1`)**, the earliest, naming the exact gate U2
+  cut: *"PARKED, untouched: the veil_ring finite-mode rim discard…"*
+- **THE SPAWN LAW (`1688ada4`), and it is Jean's own** — *"a cube spawns at
+  its patch, outside the render radius — no matter what… (the draw authority,
+  veil_ring, is untouched)."* **This is the refusal a re-ruling most needs to
+  name, because the law itself presupposed the ring.** It is repealed at
+  STAGE_0 R5, at the site where it was written.
+
+### Two supporting records
+
+- **ONE_SURFACE's close** — `veil_ring`/`veil_icing` were flagged for RENAME
+  and taken at THE_PANEL I U3c as `draw_ring`/`grain_band`. The campaign that
+  could most cheaply have cut them renamed them instead.
+- **ORGAN_REST flag 11** — two days before STAGE_0, the campaign auditing the
+  organ found the chain constraint had rotted (*"a live range is constrained
+  against two dead terms"*) and declined: *"Flagged, not fixed: it is a ruling
+  about a range, not a prose move."* It was right that it was a ruling.
+
+### What no law ever said
+
+`docs/LAWS.md` never protected the ring, the veil chain or the eviction radii
+**by name**. L12 and L13 lean on the ICING (`1 − veil_t`, the grain
+smoothstep), which died at ONE_SURFACE-I U4. The protection was always
+prose-and-ruling, never law — which is why a ruling could lift it.
 
 ## THE STAGE LAW (standing — Jean's, recorded at STAGE_0)
 
@@ -2678,6 +2797,7 @@ state, and filing it here would be the second home L46 forbids.
 | UNIT.1 (the `D3D12_Dxc` boot) halted until route (a) lands | **EMBER_0** above |
 | orphan verbs default to DOORS | THE_PANEL I U4's commit and `docs/ORGAN.md` |
 | no constructive GPU work ships unprobed | **L48**, and `CLAUDE.md`'s gate table |
+| the ring is excised; three prior refusals superseded | *THE RING: A THIRD RULING ON ONE SUBJECT*, above (STAGE_0 R1) |
 | a coupling that drives a WRITABLE dial is hands-off at gain 0 | *THE HANDS-OFF-REST SEAM*, above (STAGE_0 R6) |
 | everything computed is visible | *THE STAGE LAW*, above (STAGE_0) |
 | GoL cell colour goes through the tint funnel | *THE GoL COLOUR RULING*, above (GROUND_VOICE_0) |

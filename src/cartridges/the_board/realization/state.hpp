@@ -719,6 +719,20 @@ namespace t7 {
             //   diagonal is 636 wu against a ring of 342, so a body inside
             //   the wall can stand outside the ring. Deleting it would make
             //   distant bodies appear, which is the opposite of untouched.
+            //
+            //   ─ SUPERSEDED BY THE STAGE LAW (STAGE_0 U2, recorded R1) ─
+            //   THIS REFUSAL WAS CORRECT AND IS LEFT STANDING, because it
+            //   is the argument the excision had to beat and a reader who
+            //   cannot find it cannot judge the excision. What changed is
+            //   not the arithmetic — the arithmetic is still exactly right
+            //   — but the ACCEPTANCE TEST it was measured against. This
+            //   refusal's test was "the world must look UNTOUCHED", which
+            //   makes a body appearing a defect. The stage law's test is
+            //   EVERYTHING COMPUTED IS VISIBLE, which makes the same body
+            //   appearing the POINT. A distant body appearing is the
+            //   feature under the new commission and the bug under the
+            //   old. The ring is gone at STAGE_0 U2 and this paragraph is
+            //   its epitaph, not a live objection.
             // grain_band: δ, and the grain's band now. Its only surviving
             //   reader is veil_t's smoothstep, whose only surviving caller
             //   is entity_fs' `grain = 1 - veil_t`. MOSAIC_2 bound the two
