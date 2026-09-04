@@ -206,10 +206,28 @@ namespace t7 {
             // world showed you. THREE HAD ALREADY DIED before this campaign
             // — the icing at ONE_SURFACE-I U4, LOD0 at U5, and the CPU half
             // of the ring at U6 — and the block went on describing all four
-            // as live. It also said RING was 325 when the constant beside it
-            // read 342, and said floaters evicted at 400 when the WGSL const
-            // had been 800 since 309ab754. The most authoritative-looking
-            // text in the chain was its least accurate.
+            // as live.
+            //
+            // AND IT CARRIED THREE WRONG NUMBERS (STAGE_0 R8 — tombstones
+            // die honest, so all three are recorded at their true values
+            // rather than the two that made the first draft):
+            //   RING 325   — the constant eighteen lines below read 342.
+            //   ICING δ 40 — GRAIN_BAND_DEFAULT was 42.0f. Off by two, and
+            //                named NOWHERE until this line: not in the
+            //                first tombstone, not in the campaign report,
+            //                not in the commit. It is the one that got
+            //                away, and it got away because the icing was
+            //                already dead so nobody re-derived it.
+            //   floaters 400 — the WGSL const had been 800 since 309ab754.
+            // ALL THREE WERE TRUE THE DAY THE BANNER WAS WRITTEN
+            // (7b26911c). One commit — 705baec7, "the four-mood desk
+            // lands" — moved 6.5f->6.84f and 40.0f->42.0f together, and
+            // neither prose line followed; 309ab754 moved the floater
+            // radius and fixed the ledger row in world.wgsl but not the
+            // parenthetical here. That is the shape of the whole defect
+            // class: the numbers were not wrong, they were LEFT.
+            // The most authoritative-looking text in the chain was its
+            // least accurate.
             //
             // THE STAGE LAW retires what was left: EVERYTHING COMPUTED IS
             // VISIBLE, so the world IS the draw set and there is nothing for
@@ -4711,10 +4729,27 @@ namespace t7 {
                         config_.palette_weight[i] = terrain_looks::PALETTE_WEIGHT_REST[i];
                     }
                 }
-                // THE VEIL — chain defaults (Dim: ring 325 / icing 40 /
-                // lod0 175); strength staged per frame by U5 (0 in a finite
-                // world). Boot open-on.
-                config_.draw_ring   = Dim::DRAW_RING_DEFAULT;
+                // THE VEIL'S BOOT PINS, and the banner over them was the
+                // SAME ROSTER as the Dim block's — written in the same
+                // commit (7b26911c), carrying the same three numbers, and
+                // missed when STAGE_0 U2 retired its twin. It read:
+                // "THE VEIL — chain defaults (Dim: ring 325 / icing 40 /
+                // lod0 175); strength staged per frame by U5 (0 in a
+                // finite world). Boot open-on."
+                //
+                // EVERY CLAIM IN IT WAS FALSE BY THEN (STAGE_0 R8):
+                // Dim::DRAW_RING_DEFAULT is 342, not 325, and DARK since
+                // U2 — nothing in either room reads config.draw_ring.
+                // Dim::GRAIN_BAND_DEFAULT does not exist (it was 42, not
+                // 40, and retired at THE_PANEL I U5a). Dim::LOD0_RADIUS_
+                // DEFAULT does not exist (ONE_SURFACE-I U5). And
+                // "strength staged per frame" names veil_strength, whose
+                // setter is retired too.
+                //
+                // WHAT IS ACTUALLY HERE: one boot pin into a dark enrolled
+                // dial, and three zero-writes into retired pads that keep
+                // their names so the struct's offsets do not move.
+                config_.draw_ring   = Dim::DRAW_RING_DEFAULT;   // 342, DARK — the frozen row's boot value
                 config_._pad_grain_band_retired = 0.0f;
                 config_._pad_veil_strength_retired = 0.0f;
                 config_._pad_lod0_radius_retired = 0.0f;

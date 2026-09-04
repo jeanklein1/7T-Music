@@ -8064,7 +8064,13 @@ fn behavior_levy_flight(agent_in: AgentState) -> AgentState {
 // radius MUST exceed the patch allocation radius, or every floater
 // committed at the streaming frontier is evicted the frame it spawns —
 // silently". It was 400 until commit 309ab754 fixed exactly that, and
-// three comments in two rooms still said 400 afterwards. The banner also
+// TWO comments in two rooms still said 400 afterwards — the Dim veil
+// block's parenthetical and this room's own scale-ledger row. (This
+// tombstone said THREE when it was written; STAGE_0 R8 re-counted the
+// pre-U2 tree and the third was state.hpp's "the pregen ring now reaches
+// 400", which was about PATCH_PREGEN_RADIUS 8 x 50 and was TRUE the day
+// it was written. Tombstones die honest, including about their own
+// arithmetic.) The banner also
 // queued the real fix — derive it CPU-side and upload it, so both values
 // live in one room and the relation becomes assertable. THE STAGE LAW
 // closes the ticket a different way: with no eviction there is no radius

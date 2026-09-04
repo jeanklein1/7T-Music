@@ -151,7 +151,12 @@ READERS = {
     # constexpr sum for exactly that reason.
     "AGENTS": ("AGENTS_LIVE", "AgentPopulationBank", [
         ("src/cartridges/the_board/bodies/agents.hpp", "spawn_population"),
-        ("src/cartridges/the_board/bodies/agents.hpp", "respawn_evicted_agents"),
+        # `respawn_evicted_agents` was declared here as a second reader and
+        # retired at STAGE_0 U2 with the eviction it answered. The entry
+        # outlived it by three campaigns and the ledger never noticed: this
+        # tool SILENTLY IGNORES a reader entry naming a function that no
+        # longer exists, so a stale row costs a real reader's coverage and
+        # reports NO SUSPECTS either way. Removed at STAGE_0 R8.
         # The annulus and the weights are read one level down, in the slot
         # populator both spawners hand the bank to — blind spot 1's exact
         # shape (a helper taking the value by parameter).

@@ -159,20 +159,49 @@ struct AgentState {
 
 // Lifecycle
 void upload_agent_registries_to_gpu(AgentsDeps* c, wgpu::Queue& queue);
+// ═══ THE PHANTOM AND ITS TWIN (STAGE_0 R8) ═════════════════════════
+//
+// `respawn_evicted_agents` was declared here and RETIRED at STAGE_0 U2 —
+// and its declaration was A PHANTOM, in the exact sense: it named four
+// parameters (as, c, world_seed, queue) where the definition took SIX,
+// adding box_min and box_max. Those are two different overloads, so the
+// line declared a function that was NEVER DEFINED and NEVER CALLED. The
+// one real call site passed six arguments and always bound the real one,
+// so overload resolution never selected the phantom and no link error
+// was ever forced. Legal C++, invisible to the TU gate (which
+// type-checks and does not link), invisible to the shell gate (which
+// never links this path) and invisible to the probe (which never reaches
+// it). Anyone who had called the four-argument form would have got a
+// link error at the very end of a build.
+//
+// ── AND THE PHANTOM HAD A TWIN, THREE LINES ABOVE, STILL STANDING ──
+// `spawn_population` carried the IDENTICAL defect from the IDENTICAL
+// commit. 66752a61 ("HEM_1 U1+U2+U3 — the wall and the slope law reach
+// the walk") added `float box_min, float box_max` to three DEFINITIONS —
+// populate_agent_slot_, spawn_population and respawn_evicted_agents —
+// and touched none of the forward declarations. It made two phantoms in
+// one commit. STAGE_0 U2 killed one, because it was retiring that
+// function anyway, and never looked up at the declaration directly above
+// the one it was deleting.
+//
+// The declaration above is CORRECTED, not deleted: spawn_population is
+// live, it has two real callers (cartridge.hpp, boot and rebirth), and
+// both pass eight arguments. It now names the eight the definition takes.
+// The rest of this file was swept at the same time —
+// upload_agent_registries_to_gpu, try_possess_nearest, seed_player_body,
+// reseed_player_body and dump_agent_census all match their definitions
+// exactly, and spawn_population was the last one that did not.
+//
+// WHAT NO GATE SAW, NAMED: a declaration with no definition is only
+// caught at LINK, and nothing in this battery links the cartridge. The
+// TU gate type-checks it; the shell gate links a different TU. That is
+// the standing hole, and today the only instrument against it is a
+// reader.
 void spawn_population(AgentState& as, AgentsDeps* c,
                                uint32_t seed,
                                float center_x, float center_z,
+                               float box_min, float box_max,
                                wgpu::Queue& queue);
-// `respawn_evicted_agents` was declared here (STAGE_0 U2) — and the
-// declaration was WRONG, in a way nothing could catch. It named four
-// parameters (as, c, world_seed, queue); the definition took SIX, adding
-// box_min and box_max. Those are two different overloads, so this line
-// declared a function that was never defined and never called: legal C++,
-// invisible to the TU gate (which type-checks and does not link), invisible
-// to the shell gate (which never links this path) and invisible to the
-// probe (which never reaches it). Anyone who had called the four-argument
-// form would have got a link error at the very end of a build. It goes with
-// the definition, and the trap goes with it.
 // Player commands
 void try_possess_nearest(AgentState& as, AgentsDeps* c, wgpu::Queue& queue);
 void seed_player_body(AgentState& as, AgentsDeps* c);

@@ -760,9 +760,11 @@ ORGAN_PARAM(CONFIG, GPUDesignConfig, shadow_pcf_taps, U32, 4.0f, 16.0f, 12.0f, "
 // indexed by mood until ONE_WORLD-II U1c, and unenrolled until U6b —
 // NEW rows, not a re-home, which is why they arrive here last.
 // DESTRUCTIVE-ish by cadence: spawn_population reads the bank at a
-// world's birth and respawn_evicted_agents reads it per frame, so a
-// weight edit reaches the next agent to die and the whole population at
-// the next rebirth.
+// world's BIRTH, and that is now the only time it is read. The second
+// reader named here, respawn_evicted_agents, read it per frame and
+// retired with the eviction at STAGE_0 U2 — so a weight edit no longer
+// "reaches the next agent to die"; nothing dies. It reaches the whole
+// population at the next rebirth, and only there. (STAGE_0 R8.)
 ORGAN_PARAM_GEN(AGENTS, AgentPopulationBank, count,                U32, 0.0f, 31.0f,  1.0f,  "Population · Agents", "count")
 ORGAN_PARAM_GEN(AGENTS, AgentPopulationBank, spawn_inner_radius,   F32, 0.0f, 800.0f, 2.0f,  "Population · Agents", "annulus inner radius")
 ORGAN_PARAM_GEN(AGENTS, AgentPopulationBank, spawn_radius,         F32, 0.0f, 1200.0f,4.0f,  "Population · Agents", "annulus outer radius")

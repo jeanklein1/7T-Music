@@ -14,13 +14,13 @@ merge rows the API charges separately.
 | field | value |
 |---|---|
 | demo column censused | `full` |
-| source commit | `6f4481e23f2d90390f3dcb3c38e6bccc5b546878` |
-| | STAGE_0 U4 — the kite cut: formations anchor in the world |
-| `src/cartridges/the_board/realization/state.hpp` | `sha256:af9733dcc77f7ce36a91dfdf647fffb1f56fa75f540bddbcaaed9281e08970ab` |
+| source commit | `14ae5a6d966edb48b934531bb14f9ec1349ddc0d` |
+| | STAGE_0 R2 — the layout witness reaches the struct whose stride moved |
+| `src/cartridges/the_board/realization/state.hpp` | `sha256:cdc9fe55c43805391396eda78c64de72193c643fe6aaee0e31449c6fda7de7ae` |
 | `src/cartridges/the_board/realization/binding_surface.gen.inc` | `sha256:c1b64eadb92b14b2b6a69475f78ca71b4144979f3737b157568a29e5f4a7bcf6` |
 | `src/cartridges/the_board/realization/binding_registry.hpp` | `sha256:79b70d3e7510cce71f5d67f85b994a781745d7c090efefd76ba7af165be17281` |
 | `src/cartridges/the_board/realization/renderer.hpp` | `sha256:4e6ead2a95e61d69118502d43ef838bc3e2e8bc3568be1f7c980bcdb9b534f4e` |
-| `src/cartridges/the_board/realization/world.wgsl` | `sha256:7be9f4cd092406fd837d1bc998a05c9c879e10f47a9ce22a6048cf18cd20f6bd` |
+| `src/cartridges/the_board/realization/world.wgsl` | `sha256:044e8696f11f8e08ba077760f6600656c6af08355874d94824ad66aad737737b` |
 
 
 BUDGET_0f's call-shape census reads further files, for INVOCATION SITES
@@ -31,7 +31,7 @@ only — `draw_orbs` is called from `bodies/orbs.hpp`, not from
 |---|---|
 | `src/cartridges/the_board/bodies/orbs.hpp` | `475d3de82ddd4d979d55ad146039937cd3316a0148466ed5c1db5566bde9a8b1` |
 | `src/cartridges/the_board/bodies/pawn.hpp` | `7915ec242a2a3094537882c50a2980c9494e4f1460a3a2f786232b67ec6ead12` |
-| `src/cartridges/the_board/cartridge.hpp` | `775cac1fd2a8fa401e7023b7c3632e35e629cb926af0ab3602f8e63856a1c751` |
+| `src/cartridges/the_board/cartridge.hpp` | `59f78473e934c0c507dfdd34d1f2d87679e0236f6f5551296729ebd777b1b6a1` |
 | `src/cartridges/the_board/realization/render_passes.hpp` | `d00857c2e8456fc08af94cc8e97d880f5dfb956e493c4cb90bb0e5e5d49bd9fa` |
 | `src/cartridges/the_board/surface/automaton.hpp` | `e55cc9b3e428a05ee74ee0338db1f3c2fcdf37aa4f4ef70df4fc0f3920a14006` |
 | `src/cartridges/the_board/surface/patch_system.hpp` | `6fefa8aa398a213cdc437825d74390ba914758f66942fdd12ecddd2784b13073` |
@@ -883,14 +883,14 @@ one column that can.
 | `shadowPatchTerrainPipeline_` | pipeline | `src/cartridges/the_board/realization/renderer.hpp` | 1823 | `measured` | A:proximity |
 | `shadowPawnPipeline_` | pipeline | `src/cartridges/the_board/realization/renderer.hpp` | 1826 | `measured` | A:proximity |
 | `(file banner)` | file | `src/cartridges/the_board/realization/state.hpp` | 1 | `law-ref` | banner |
-| `Frame R Layout` | layout | `src/cartridges/the_board/realization/state.hpp` | 4694 | `law-ref` | A:proximity, B:named |
-| `Agents State Layout entries[7]` | layout entry | `src/cartridges/the_board/realization/state.hpp` | 4786 | `law-ref` | A:proximity |
-| `Cull State Layout entries[4]` | layout entry | `src/cartridges/the_board/realization/state.hpp` | 4898 | `witness` | A:proximity |
-| `Frame K State Layout entries[5]` | layout entry | `src/cartridges/the_board/realization/state.hpp` | 4945 | `law-ref` | A:proximity |
-| `Orbs A State Layout entries[0]` | layout entry | `src/cartridges/the_board/realization/state.hpp` | 4996 | `law-ref` | A:proximity |
-| `Orbs A State Layout` | layout | `src/cartridges/the_board/realization/state.hpp` | 5009 | `law-ref` | A:proximity, B:named |
-| `Scene State Layout entries[5]` | layout entry | `src/cartridges/the_board/realization/state.hpp` | 5238 | `budget`, `per-stage`, `slot-cap` | A:proximity |
-| `Shadow State Layout entries[4]` | layout entry | `src/cartridges/the_board/realization/state.hpp` | 5334 | `budget`, `per-stage`, `slot-cap` | A:proximity |
+| `Frame R Layout` | layout | `src/cartridges/the_board/realization/state.hpp` | 4712 | `law-ref` | A:proximity, B:named |
+| `Agents State Layout entries[7]` | layout entry | `src/cartridges/the_board/realization/state.hpp` | 4804 | `law-ref` | A:proximity |
+| `Cull State Layout entries[4]` | layout entry | `src/cartridges/the_board/realization/state.hpp` | 4916 | `witness` | A:proximity |
+| `Frame K State Layout entries[5]` | layout entry | `src/cartridges/the_board/realization/state.hpp` | 4963 | `law-ref` | A:proximity |
+| `Orbs A State Layout entries[0]` | layout entry | `src/cartridges/the_board/realization/state.hpp` | 5014 | `law-ref` | A:proximity |
+| `Orbs A State Layout` | layout | `src/cartridges/the_board/realization/state.hpp` | 5027 | `law-ref` | A:proximity, B:named |
+| `Scene State Layout entries[5]` | layout entry | `src/cartridges/the_board/realization/state.hpp` | 5256 | `budget`, `per-stage`, `slot-cap` | A:proximity |
+| `Shadow State Layout entries[4]` | layout entry | `src/cartridges/the_board/realization/state.hpp` | 5352 | `budget`, `per-stage`, `slot-cap` | A:proximity |
 | `(file banner)` | file | `src/cartridges/the_board/realization/world.wgsl` | 1 | `FXC`, `budget`, `compile-time`, `law-ref`, `per-stage`, `witness` | banner |
 | `cell_address` | wgsl function | `src/cartridges/the_board/realization/world.wgsl` | 274 | `law-ref` | A:proximity, B:named |
 | `scene_constants` | wgsl binding | `src/cartridges/the_board/realization/world.wgsl` | 1040 | `law-ref`, `witness` | A:proximity, B:named |
@@ -941,28 +941,28 @@ one column that can.
 | `agent_post_step` | wgsl function | `src/cartridges/the_board/realization/world.wgsl` | 7242 | `FXC` | A:proximity, C:body |
 | `behavior_player_controlled` | wgsl function | `src/cartridges/the_board/realization/world.wgsl` | 7373 | `budget`, `compile-time`, `law-ref`, `time-cost` | A:proximity, B:named, C:body |
 | `behavior_random_walk` | wgsl function | `src/cartridges/the_board/realization/world.wgsl` | 7588 | `budget`, `compile-time` | A:proximity, B:named, C:body |
-| `update_player_agent` | wgsl entry point | `src/cartridges/the_board/realization/world.wgsl` | 8089 | `FXC`, `budget`, `compile-time`, `law-ref`, `measured` | A:proximity, B:named, C:body |
-| `field_pair` | wgsl function | `src/cartridges/the_board/realization/world.wgsl` | 8270 | `FXC`, `law-ref`, `measured`, `witness` | A:proximity, B:named |
-| `field_sum` | wgsl function | `src/cartridges/the_board/realization/world.wgsl` | 8275 | `FXC`, `law-ref`, `measured`, `witness` | A:proximity, B:named, C:body |
-| `update_other_agents` | wgsl entry point | `src/cartridges/the_board/realization/world.wgsl` | 8422 | `budget`, `compile-time`, `law-ref`, `witness` | A:proximity, B:named, C:body |
-| `finite_bounds_resolve` | wgsl function | `src/cartridges/the_board/realization/world.wgsl` | 8610 | `law-ref` | A:proximity, B:named, C:body |
-| `update_camera_vp` | wgsl entry point | `src/cartridges/the_board/realization/world.wgsl` | 8619 | `law-ref`, `time-cost`, `witness` | A:proximity, B:named, C:body |
-| `update_sphere` | wgsl entry point | `src/cartridges/the_board/realization/world.wgsl` | 8860 | `budget`, `compile-time`, `law-ref`, `witness` | A:proximity, B:named, C:body |
-| `cube_force_witness` | wgsl function | `src/cartridges/the_board/realization/world.wgsl` | 9035 | `witness` | A:proximity, B:named, C:body |
-| `cube_behavior_force` | wgsl function | `src/cartridges/the_board/realization/world.wgsl` | 9052 | `witness` | A:proximity |
-| `update_cube` | wgsl entry point | `src/cartridges/the_board/realization/world.wgsl` | 9081 | `budget`, `compile-time`, `law-ref`, `measured`, `time-cost`, `witness` | A:proximity, B:named, C:body |
-| `tag_cell_behavior` | wgsl function | `src/cartridges/the_board/realization/world.wgsl` | 9784 | `law-ref` | A:proximity |
-| `generate_patch_cells` | wgsl entry point | `src/cartridges/the_board/realization/world.wgsl` | 9790 | `law-ref` | A:proximity, C:body |
-| `automaton_evolve` | wgsl entry point | `src/cartridges/the_board/realization/world.wgsl` | 9931 | `law-ref`, `measured`, `witness` | A:proximity, B:named, C:body |
-| `sample_cell_retract` | wgsl function | `src/cartridges/the_board/realization/world.wgsl` | 10103 | `compile-time`, `law-ref` | A:proximity, B:named |
-| `sample_terrain_y_at` | wgsl function | `src/cartridges/the_board/realization/world.wgsl` | 10562 | `measured` | A:proximity, B:named |
-| `fc_visible` | wgsl binding | `src/cartridges/the_board/realization/world.wgsl` | 10661 | `law-ref`, `witness` | A:proximity, B:named |
-| `fc_indirect` | wgsl binding | `src/cartridges/the_board/realization/world.wgsl` | 10662 | `law-ref`, `witness` | A:proximity, B:named |
-| `orb_state` | wgsl binding | `src/cartridges/the_board/realization/world.wgsl` | 11040 | `law-ref` | A:proximity, B:named |
-| `orb_state_prev` | wgsl binding | `src/cartridges/the_board/realization/world.wgsl` | 11045 | `law-ref` | A:proximity, B:named |
-| `orb_state_prev_copy` | wgsl entry point | `src/cartridges/the_board/realization/world.wgsl` | 11200 | `law-ref` | A:proximity |
-| `orb_init` | wgsl entry point | `src/cartridges/the_board/realization/world.wgsl` | 11207 | `law-ref` | A:proximity, C:body |
-| `orb_dynamics` | wgsl entry point | `src/cartridges/the_board/realization/world.wgsl` | 11338 | `law-ref` | A:proximity, C:body |
+| `update_player_agent` | wgsl entry point | `src/cartridges/the_board/realization/world.wgsl` | 8095 | `FXC`, `budget`, `compile-time`, `law-ref`, `measured` | A:proximity, B:named, C:body |
+| `field_pair` | wgsl function | `src/cartridges/the_board/realization/world.wgsl` | 8276 | `FXC`, `law-ref`, `measured`, `witness` | A:proximity, B:named |
+| `field_sum` | wgsl function | `src/cartridges/the_board/realization/world.wgsl` | 8281 | `FXC`, `law-ref`, `measured`, `witness` | A:proximity, B:named, C:body |
+| `update_other_agents` | wgsl entry point | `src/cartridges/the_board/realization/world.wgsl` | 8428 | `budget`, `compile-time`, `law-ref`, `witness` | A:proximity, B:named, C:body |
+| `finite_bounds_resolve` | wgsl function | `src/cartridges/the_board/realization/world.wgsl` | 8616 | `law-ref` | A:proximity, B:named, C:body |
+| `update_camera_vp` | wgsl entry point | `src/cartridges/the_board/realization/world.wgsl` | 8625 | `law-ref`, `time-cost`, `witness` | A:proximity, B:named, C:body |
+| `update_sphere` | wgsl entry point | `src/cartridges/the_board/realization/world.wgsl` | 8866 | `budget`, `compile-time`, `law-ref`, `witness` | A:proximity, B:named, C:body |
+| `cube_force_witness` | wgsl function | `src/cartridges/the_board/realization/world.wgsl` | 9041 | `witness` | A:proximity, B:named, C:body |
+| `cube_behavior_force` | wgsl function | `src/cartridges/the_board/realization/world.wgsl` | 9058 | `witness` | A:proximity |
+| `update_cube` | wgsl entry point | `src/cartridges/the_board/realization/world.wgsl` | 9087 | `budget`, `compile-time`, `law-ref`, `measured`, `time-cost`, `witness` | A:proximity, B:named, C:body |
+| `tag_cell_behavior` | wgsl function | `src/cartridges/the_board/realization/world.wgsl` | 9790 | `law-ref` | A:proximity |
+| `generate_patch_cells` | wgsl entry point | `src/cartridges/the_board/realization/world.wgsl` | 9796 | `law-ref` | A:proximity, C:body |
+| `automaton_evolve` | wgsl entry point | `src/cartridges/the_board/realization/world.wgsl` | 9937 | `law-ref`, `measured`, `witness` | A:proximity, B:named, C:body |
+| `sample_cell_retract` | wgsl function | `src/cartridges/the_board/realization/world.wgsl` | 10109 | `compile-time`, `law-ref` | A:proximity, B:named |
+| `sample_terrain_y_at` | wgsl function | `src/cartridges/the_board/realization/world.wgsl` | 10568 | `measured` | A:proximity, B:named |
+| `fc_visible` | wgsl binding | `src/cartridges/the_board/realization/world.wgsl` | 10667 | `law-ref`, `witness` | A:proximity, B:named |
+| `fc_indirect` | wgsl binding | `src/cartridges/the_board/realization/world.wgsl` | 10668 | `law-ref`, `witness` | A:proximity, B:named |
+| `orb_state` | wgsl binding | `src/cartridges/the_board/realization/world.wgsl` | 11046 | `law-ref` | A:proximity, B:named |
+| `orb_state_prev` | wgsl binding | `src/cartridges/the_board/realization/world.wgsl` | 11051 | `law-ref` | A:proximity, B:named |
+| `orb_state_prev_copy` | wgsl entry point | `src/cartridges/the_board/realization/world.wgsl` | 11206 | `law-ref` | A:proximity |
+| `orb_init` | wgsl entry point | `src/cartridges/the_board/realization/world.wgsl` | 11213 | `law-ref` | A:proximity, C:body |
+| `orb_dynamics` | wgsl entry point | `src/cartridges/the_board/realization/world.wgsl` | 11344 | `law-ref` | A:proximity, C:body |
 
 ## Appendix 1 — the WGSL declaration table (0b-i)
 
@@ -1085,58 +1085,58 @@ summarised by binding rather than listed.
 
 | function | binding | index expression | class | use | override gate | line |
 |---|---|---|---|---|---|---|
-| `automaton_evolve` | `auto_life` | `AUTO_CELL_VISUAL + idx` | `builtin_derived(global_invocation_id)` | r | — | 9940 |
-| `automaton_evolve` | `auto_life` | `AUTO_CELL_VELOCITY + idx` | `builtin_derived(global_invocation_id)` | r | — | 9941 |
-| `automaton_evolve` | `auto_life` | `AUTO_CELL_TARGET + idx` | `builtin_derived(global_invocation_id)` | r | — | 9942 |
-| `automaton_evolve` | `auto_life` | `AUTO_CELL_TARGET + ni` | `builtin_derived(global_invocation_id)` | r | — | 9961 |
-| `automaton_evolve` | `auto_life` | `AUTO_CELL_NEXT + idx` | `builtin_derived(global_invocation_id)` | w | — | 9965 |
-| `automaton_evolve` | `auto_life` | `AUTO_CELL_NEXT + idx` | `builtin_derived(global_invocation_id)` | w | — | 9983 |
-| `automaton_evolve` | `auto_life` | `AUTO_CELL_TARGET + idx` | `builtin_derived(global_invocation_id)` | w | — | 9985 |
-| `automaton_evolve` | `auto_life` | `AUTO_CELL_TARGET + idx` | `builtin_derived(global_invocation_id)` | r | — | 9989 |
-| `automaton_evolve` | `auto_life` | `AUTO_CELL_VISUAL + idx` | `builtin_derived(global_invocation_id)` | w | — | 10017 |
-| `automaton_evolve` | `auto_life` | `AUTO_CELL_VELOCITY + idx` | `builtin_derived(global_invocation_id)` | w | — | 10018 |
-| `automaton_evolve` | `auto_life` | `AUTO_CELL_RETRACT + idx` | `builtin_derived(global_invocation_id)` | w | — | 10080 |
+| `automaton_evolve` | `auto_life` | `AUTO_CELL_VISUAL + idx` | `builtin_derived(global_invocation_id)` | r | — | 9946 |
+| `automaton_evolve` | `auto_life` | `AUTO_CELL_VELOCITY + idx` | `builtin_derived(global_invocation_id)` | r | — | 9947 |
+| `automaton_evolve` | `auto_life` | `AUTO_CELL_TARGET + idx` | `builtin_derived(global_invocation_id)` | r | — | 9948 |
+| `automaton_evolve` | `auto_life` | `AUTO_CELL_TARGET + ni` | `builtin_derived(global_invocation_id)` | r | — | 9967 |
+| `automaton_evolve` | `auto_life` | `AUTO_CELL_NEXT + idx` | `builtin_derived(global_invocation_id)` | w | — | 9971 |
+| `automaton_evolve` | `auto_life` | `AUTO_CELL_NEXT + idx` | `builtin_derived(global_invocation_id)` | w | — | 9989 |
+| `automaton_evolve` | `auto_life` | `AUTO_CELL_TARGET + idx` | `builtin_derived(global_invocation_id)` | w | — | 9991 |
+| `automaton_evolve` | `auto_life` | `AUTO_CELL_TARGET + idx` | `builtin_derived(global_invocation_id)` | r | — | 9995 |
+| `automaton_evolve` | `auto_life` | `AUTO_CELL_VISUAL + idx` | `builtin_derived(global_invocation_id)` | w | — | 10023 |
+| `automaton_evolve` | `auto_life` | `AUTO_CELL_VELOCITY + idx` | `builtin_derived(global_invocation_id)` | w | — | 10024 |
+| `automaton_evolve` | `auto_life` | `AUTO_CELL_RETRACT + idx` | `builtin_derived(global_invocation_id)` | w | — | 10086 |
 | `automaton_seed` | `auto_life` | `AUTO_CELL_VISUAL + idx` | `builtin_derived(global_invocation_id)` | w | — | 7022 |
 | `automaton_seed` | `auto_life` | `AUTO_CELL_VELOCITY + idx` | `builtin_derived(global_invocation_id)` | w | — | 7023 |
 | `automaton_seed` | `auto_life` | `AUTO_CELL_TARGET + idx` | `builtin_derived(global_invocation_id)` | w | — | 7024 |
 | `automaton_seed` | `auto_life` | `AUTO_CELL_NEXT + idx` | `builtin_derived(global_invocation_id)` | w | — | 7025 |
 | `automaton_seed` | `auto_life` | `AUTO_CELL_HEIGHT_FACTOR + idx` | `builtin_derived(global_invocation_id)` | w | — | 7026 |
 | `automaton_seed` | `auto_life` | `AUTO_CELL_RETRACT + idx` | `builtin_derived(global_invocation_id)` | w | — | 7027 |
-| `automaton_sync` | `auto_life` | `AUTO_CELL_TARGET + idx` | `builtin_derived(global_invocation_id)` | w | — | 9919 |
-| `automaton_sync` | `auto_life` | `AUTO_CELL_NEXT + idx` | `builtin_derived(global_invocation_id)` | r | — | 9919 |
-| `bake_patch_heightfield` | `patch_params_batch` | `wid.z` | `builtin_derived(workgroup_id)` | r | — | 9468 |
+| `automaton_sync` | `auto_life` | `AUTO_CELL_TARGET + idx` | `builtin_derived(global_invocation_id)` | w | — | 9925 |
+| `automaton_sync` | `auto_life` | `AUTO_CELL_NEXT + idx` | `builtin_derived(global_invocation_id)` | r | — | 9925 |
+| `bake_patch_heightfield` | `patch_params_batch` | `wid.z` | `builtin_derived(workgroup_id)` | r | — | 9474 |
 | `behavior_biased_walk` | `agent_state` | `other_slot` | `other(other_slot)` | r | — | 7653 |
 | `behavior_flock2d` | `agent_state` | `other_slot` | `other(other_slot)` | r | — | 7934 |
-| `compute_pawn_aura` | `pawn_aura_cells` | `slot_idx` | `builtin_derived(global_invocation_id)` | r | — | 10356 |
-| `compute_pawn_aura` | `pawn_aura_cells` | `slot_idx` | `builtin_derived(global_invocation_id)` | w | — | 10475 |
+| `compute_pawn_aura` | `pawn_aura_cells` | `slot_idx` | `builtin_derived(global_invocation_id)` | r | — | 10362 |
+| `compute_pawn_aura` | `pawn_aura_cells` | `slot_idx` | `builtin_derived(global_invocation_id)` | w | — | 10481 |
 | `contrib_automaton_at` | `auto_life` | `AUTO_CELL_VISUAL + idx` | `other(cell_address(world_xz))` | r | — | 3185 |
 | `contrib_automaton_at` | `auto_life` | `AUTO_CELL_HEIGHT_FACTOR + idx` | `other(cell_address(world_xz))` | r | — | 3186 |
-| `field_sum` | `agent_state` | `sub_i` | `other(callee parameter: sub_i)` | r | — | 8283 |
-| `frustum_cull_patches` | `fc_patches` | `id.x` | `builtin_derived(global_invocation_id)` | r | — | 10745 |
-| `frustum_cull_patches` | `fc_visible` | `FC_SEG_A_BASE + slot` | `indirected(fc_indirect)` | w | — | 10799 |
-| `frustum_cull_patches` | `fc_visible` | `FC_SEG_B_BASE + slot` | `indirected(fc_indirect)` | w | — | 10803 |
-| `generate_patch_cells` | `patch_params_batch` | `wid.z` | `builtin_derived(workgroup_id)` | r | — | 9797 |
-| `orb_dynamics` | `orb_state` | `i` | `builtin_derived(global_invocation_id)` | r | — | 11342 |
-| `orb_dynamics` | `orb_state` | `i` | `builtin_derived(global_invocation_id)` | w | — | 11630 |
-| `orb_dynamics` | `orb_state_prev` | `j` | `builtin_derived(global_invocation_id)` | r | — | 11489 |
-| `orb_init` | `orb_state` | `i` | `builtin_derived(global_invocation_id)` | w | — | 11274 |
-| `orb_init` | `orb_state` | `i` | `builtin_derived(global_invocation_id)` | w | — | 11275 |
-| `orb_init` | `orb_state` | `i` | `builtin_derived(global_invocation_id)` | w | — | 11276 |
-| `orb_init` | `orb_state` | `i` | `builtin_derived(global_invocation_id)` | w | — | 11277 |
-| `orb_init` | `orb_state` | `i` | `builtin_derived(global_invocation_id)` | w | — | 11278 |
-| `orb_init` | `orb_state` | `i` | `builtin_derived(global_invocation_id)` | w | — | 11279 |
+| `field_sum` | `agent_state` | `sub_i` | `other(callee parameter: sub_i)` | r | — | 8289 |
+| `frustum_cull_patches` | `fc_patches` | `id.x` | `builtin_derived(global_invocation_id)` | r | — | 10751 |
+| `frustum_cull_patches` | `fc_visible` | `FC_SEG_A_BASE + slot` | `indirected(fc_indirect)` | w | — | 10805 |
+| `frustum_cull_patches` | `fc_visible` | `FC_SEG_B_BASE + slot` | `indirected(fc_indirect)` | w | — | 10809 |
+| `generate_patch_cells` | `patch_params_batch` | `wid.z` | `builtin_derived(workgroup_id)` | r | — | 9803 |
+| `orb_dynamics` | `orb_state` | `i` | `builtin_derived(global_invocation_id)` | r | — | 11348 |
+| `orb_dynamics` | `orb_state` | `i` | `builtin_derived(global_invocation_id)` | w | — | 11636 |
+| `orb_dynamics` | `orb_state_prev` | `j` | `builtin_derived(global_invocation_id)` | r | — | 11495 |
 | `orb_init` | `orb_state` | `i` | `builtin_derived(global_invocation_id)` | w | — | 11280 |
 | `orb_init` | `orb_state` | `i` | `builtin_derived(global_invocation_id)` | w | — | 11281 |
 | `orb_init` | `orb_state` | `i` | `builtin_derived(global_invocation_id)` | w | — | 11282 |
 | `orb_init` | `orb_state` | `i` | `builtin_derived(global_invocation_id)` | w | — | 11283 |
 | `orb_init` | `orb_state` | `i` | `builtin_derived(global_invocation_id)` | w | — | 11284 |
 | `orb_init` | `orb_state` | `i` | `builtin_derived(global_invocation_id)` | w | — | 11285 |
-| `orb_recolor` | `orb_state` | `i` | `builtin_derived(global_invocation_id)` | r | — | 11317 |
-| `orb_recolor` | `orb_state` | `i` | `builtin_derived(global_invocation_id)` | w | — | 11330 |
-| `orb_recolor` | `orb_state` | `i` | `builtin_derived(global_invocation_id)` | w | — | 11331 |
-| `orb_recolor` | `orb_state` | `i` | `builtin_derived(global_invocation_id)` | w | — | 11332 |
-| `orb_state_prev_copy` | `orb_state_prev_rw` | `i` | `builtin_derived(global_invocation_id)` | w | — | 11203 |
-| `orb_state_prev_copy` | `orb_state_ro` | `i` | `builtin_derived(global_invocation_id)` | r | — | 11203 |
+| `orb_init` | `orb_state` | `i` | `builtin_derived(global_invocation_id)` | w | — | 11286 |
+| `orb_init` | `orb_state` | `i` | `builtin_derived(global_invocation_id)` | w | — | 11287 |
+| `orb_init` | `orb_state` | `i` | `builtin_derived(global_invocation_id)` | w | — | 11288 |
+| `orb_init` | `orb_state` | `i` | `builtin_derived(global_invocation_id)` | w | — | 11289 |
+| `orb_init` | `orb_state` | `i` | `builtin_derived(global_invocation_id)` | w | — | 11290 |
+| `orb_init` | `orb_state` | `i` | `builtin_derived(global_invocation_id)` | w | — | 11291 |
+| `orb_recolor` | `orb_state` | `i` | `builtin_derived(global_invocation_id)` | r | — | 11323 |
+| `orb_recolor` | `orb_state` | `i` | `builtin_derived(global_invocation_id)` | w | — | 11336 |
+| `orb_recolor` | `orb_state` | `i` | `builtin_derived(global_invocation_id)` | w | — | 11337 |
+| `orb_recolor` | `orb_state` | `i` | `builtin_derived(global_invocation_id)` | w | — | 11338 |
+| `orb_state_prev_copy` | `orb_state_prev_rw` | `i` | `builtin_derived(global_invocation_id)` | w | — | 11209 |
+| `orb_state_prev_copy` | `orb_state_ro` | `i` | `builtin_derived(global_invocation_id)` | r | — | 11209 |
 | `patch_terrain_vs` | `patch_instances` | `actual_id` | `other(vertex attribute @location(0))` | r | — | 4530 |
 | `pawn_vs` | `render_agents` | `inst` | `builtin_sequential(instance)` | r | — | 5144 |
 | `ribbon_body` | `ring_xforms` | `k` | `builtin_derived(global_invocation_id)` | w | — | 6036 |
@@ -1157,12 +1157,12 @@ summarised by binding rather than listed.
 | `shadow_patch_terrain_vs` | `patch_instances` | `patch_id` | `builtin_sequential(instance)` | r | — | 4878 |
 | `shadow_pawn_vs` | `render_agents` | `inst` | `builtin_sequential(instance)` | r | — | 5376 |
 | `shadow_ribbon_vs` | `render_ring_xforms` | `ring_idx` | `builtin_derived(vertex)` | r | — | 6371 |
-| `update_cube` | `field_forces` | `32u + slot` | `builtin_derived(global_invocation_id)` | r | — | 9216 |
-| `update_other_agents` | `agent_state` | `slot` | `builtin_derived(global_invocation_id)` | r | — | 8437 |
-| `update_other_agents` | `agent_state` | `slot` | `builtin_derived(global_invocation_id)` | w | — | 8558 |
-| `update_other_agents` | `field_forces` | `slot` | `builtin_derived(global_invocation_id)` | w | — | 8432 |
-| `update_other_agents` | `field_forces` | `slot` | `builtin_derived(global_invocation_id)` | r | — | 8537 |
-| `update_other_agents` | `field_forces` | `slot` | `builtin_derived(global_invocation_id)` | r | — | 8538 |
+| `update_cube` | `field_forces` | `32u + slot` | `builtin_derived(global_invocation_id)` | r | — | 9222 |
+| `update_other_agents` | `agent_state` | `slot` | `builtin_derived(global_invocation_id)` | r | — | 8443 |
+| `update_other_agents` | `agent_state` | `slot` | `builtin_derived(global_invocation_id)` | w | — | 8564 |
+| `update_other_agents` | `field_forces` | `slot` | `builtin_derived(global_invocation_id)` | w | — | 8438 |
+| `update_other_agents` | `field_forces` | `slot` | `builtin_derived(global_invocation_id)` | r | — | 8543 |
+| `update_other_agents` | `field_forces` | `slot` | `builtin_derived(global_invocation_id)` | r | — | 8544 |
 
 Scalar-indexed sites by binding: `agent_room` 27, `agent_state` 8, `auto_config` 37, `auto_life_read` 2, `auto_life_tex_write` 1, `bilinear_sampler` 2, `camera_state` 11, `config` 134, `fc_config` 1, `fc_draw_plan` 3, `fc_indirect` 4, `fc_vp` 1, `field_bus` 7, `field_forces` 1, `floating_entities` 9, `frame_r` 20, `live_card_read` 2, `live_card_write` 1, `nearest_sampler` 1, `orb_config` 149, `patch_cell_color_array_read` 1, `patch_cell_color_array_write` 1, `patch_grid` 16, `patch_heightfield_array_read` 2, `patch_heightfield_array_write` 1, `pawn_aura_cfg` 14, `pawn_aura_read` 1, `pawn_aura_tex_write` 2, `photo_heightfield` 2, `photo_sampler` 2, `pyramid_instances` 2, `render_agents` 4, `render_floating` 7, `ribbon_body_read` 6, `ribbon_body_rw` 14, `ribbon_state` 2, `scene_constants` 5, `shadow_map` 20, `shadow_sampler` 20, `signal` 80, `tile_grid` 6, `vp_data` 2.
 
