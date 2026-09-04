@@ -53,6 +53,19 @@ struct DriverSurface {
         float rest_tint_mix;      // 0.0
         float gain;               // one gain, the seam's volume
     } ribbon;
+    // THE CUBE CHOIR'S SEAM. phase_motion_drivers reads the canvas's
+    // "cube.light" run — one enveloped intensity per key — and mirrors
+    // gain·I into the cube body's own state, where the projector
+    // composes it. The REST here is DARK (I = 0), and dark is not a
+    // colour: at I = 0 the projector returns each cube's SEED DRAW
+    // bit-exactly, the checker's return-to-seed law wearing a different
+    // subject. So the room keeps the incandescence the mix AIMS at, and
+    // the gain — there is no rest triple to keep, because rest is the
+    // absence of the mix, not a value of it.
+    struct Cube {
+        float light_color[3];     // the incandescence the mix aims at
+        float gain;               // 0 manual … 1 coupling verbatim
+    } cube;
 };
 
 // The authored design — the code panel. The fog row carries the gain
@@ -66,14 +79,16 @@ inline constexpr DriverSurface DRIVER_TABLE = {
                                 // the next desk export put it back off.)
     { { 0.0f, 0.0f, 0.0f }, 0.0f, 0.0f, 1.0f },   // checker: a return to seed
     { 1.0f, 1.0f, { 0.0f, 0.0f, 0.0f }, 0.0f, 1.0f },   // ribbon: the seam's own fallbacks
+    { { 1.0f, 0.92f, 0.72f }, 1.0f },   // cube: warm incandescent against
+                                        // seed-cool bodies (Jean's desk)
 };
 
 // The live surface — the panel's fourth block and the seams' read.
 inline DriverSurface DRIVER_LIVE = DRIVER_TABLE;
-static_assert(sizeof(DriverSurface) == 18 * sizeof(float),
+static_assert(sizeof(DriverSurface) == 22 * sizeof(float),
     "DRIVER_LIVE is a whole-struct copy of the design row: a field added "
-    "to one is added to the other by construction. 18 words — fog 1, "
-    "aura 4, checker 6, ribbon 7");
+    "to one is added to the other by construction. 22 words — fog 1, "
+    "aura 4, checker 6, ribbon 7, cube 4");
 
 } // namespace the_board
 } // namespace t7

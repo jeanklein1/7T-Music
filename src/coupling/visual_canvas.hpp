@@ -51,6 +51,22 @@
 // count — applied DIRECTLY to the checker cells. Console witness:
 // [CHECKER] per read.
 //
+// THE CUBE CHOIR — THE LIGHT INSIDE THE CUBES. Channel 6 is cast as the
+// cube voice, and its PRESENT COUNT (twelve lanes, sounding notes per
+// pitch class) plays a keyboard of CHOIR_LANES keys read as stacked
+// pianos: key k is rank k/12 of raw pitch class k%12, and key k IS cube
+// slot k by the spawn law (the lowest-free-slot reservation keeps the
+// population dense, so an evicted key's refill relights the same dark
+// key). ACTIVATION AND DEACTIVATION ONLY — no held-length book is kept;
+// the envelope is the memory. While a key sounds its light climbs the
+// house's saturating-approach curve (τ = light_plateau/4, so ≈ 98% at
+// the plateau — steepest at switch-on, which IS the fast attack); when
+// it falls silent the light falls on a FIXED SLOPE, full brightness to
+// dark in light_release beats. Fast attack, slow decay, simple. The run
+// leaves through "cube.light"; the cartridge's motion-drivers phase
+// composes it against the drivers' room and mirrors it to the cubes.
+// Console witness: [CHOIR] on the activation edge.
+//
 // USAGE
 //   visual_canvas_.bind(analysis_layout);          // startup
 //   visual_canvas_.tick(signal);                   // per frame, after analysis
@@ -71,9 +87,9 @@
 #include <string>    // casting-sheet name composition ("<voice>.present_count")
 #include <array>     // the hue unit-vector table (OIL_1 U5)
 #include <cstddef>   // size_t — the table's index casts (OIL_1 U5)
-#include <cmath>     // std::floor / cos / sin / sqrt / atan2 — decode math
+#include <cmath>     // std::floor / cos / sin / sqrt / exp — decode math (exp: the choir's attack)
 #include <algorithm> // std::min/std::max — decode clamps
-#include <cstdio>    // std::fprintf — the [CHECKER] witness line
+#include <cstdio>    // std::fprintf — the [CHECKER] and [CHOIR] witness lines
 #include "coupling/canvas_surface.hpp"   // ORGAN_3b P2 — CANVAS_LIVE: the envelope authorities' live surface
 
 namespace t7 {
@@ -136,17 +152,37 @@ namespace t7 {
     // of these is the CASTING SHEET. The ribbon is the chordal piano.
     inline constexpr const char* RIBBON_VOICE = "ch1";   // live prefix verified: chN (canvas_1 NAME_* tables)
 
-    // ── The zoetrope's ears ── a listener SET, not a voice: bit N =
-    // wire chN listens. DIAGNOSTIC WIDE: the screen hears the whole
-    // composition. Narrow to a set once the pipe is proven — {ch6}
-    // (0b0100'0000u) was the ruling; wire = Ableton − 1.
-    inline constexpr uint32_t ZOETROPE_EARS = 0b0111'1111u;
+    // ── THE CUBE CHOIR ── ONE VOICE, CAST (the avatar principle again):
+    // channel 6 is the cube voice. `ZOETROPE_EARS = 0b0111'1111` — a
+    // seven-channel listener SET — retired here with the lattice it fed;
+    // the narrowing to {ch6} that band already named as the ruling is
+    // what a cast voice IS, so the set collapses to a name.
+    inline constexpr const char* CHOIR_VOICE = "ch6";   // chN = wire = Ableton − 1
 
-    // ── The mode fold ── pc → screen row, bottom = tonic. Seven rows =
-    // E Phrygian dominant {E F G# A B C D} = pc {4 5 8 9 11 0 2}.
-    // Out-of-mode pcs borrow the nearest degree's row, ties downward.
-    inline constexpr uint8_t ZOETROPE_ROW_OF_PC[12] =
-        { 5, 5, 6, 6, 0, 1, 1, 2, 2, 3, 3, 4 };
+    // THE KEYBOARD'S WIDTH, canvas-side. The PIPE is this wide; the
+    // POPULATION cap that reads it is the cartridge's own
+    // (the_board::CUBE_CHOIR_N), and the seam static_asserts that the
+    // choir fits the pipe. They are deliberately two constants: the
+    // canvas may not name a cartridge, and a pipe wider than the choir
+    // costs only rest-valued lanes, so flipping the choir to 24 stays
+    // the one token the commission asked for.
+    inline constexpr int CHOIR_LANES = 36;
+    static_assert(CHOIR_LANES % 12 == 0, "the choir is stacked pianos");
+
+    // ── The keyboard fold (the un-dressing) ── THE INVERSE PAIR.
+    // Published vectors ship DRESSED to D: index 0 = D, so dressed
+    // index i reads RAW pitch class (i + 2) % 12 — the fold the
+    // zoetrope's ears used, and the contract PC_COLOR binds too. The
+    // keyboard is authored the other way round, in RAW pitch class
+    // (0 = C, the bottom of a rank), so it needs that map INVERTED:
+    // raw pc p sits at dressed index (p + 10) % 12. Read the two
+    // together — (i + 2) and (p + 10) are inverses mod 12 — and the
+    // pair is checkable by eye rather than by trust.
+    inline constexpr int dressed_of_pc(int raw_pc) { return (raw_pc + 10) % 12; }
+    static_assert(dressed_of_pc(2) == 0, "D is the dressed origin");
+    static_assert(dressed_of_pc((0 + 2) % 12) == 0
+               && dressed_of_pc((7 + 2) % 12) == 7,
+        "dressed_of_pc must invert the ears' (i + 2) % 12 fold");
 
     // ── Sustain swell (movement) ── PURE ADDITIVE: the dance is the seed
     // idle PLUS the chord's contribution. goal = 1 + (CEILING−1)·t where
@@ -245,6 +281,12 @@ namespace t7 {
         // color; the_board's authored rests: terrain_looks ROW 2 REST_CHECKER_*).
         { "terrain.checker_mean", 10, 3, 0.0f },
         { "terrain.checker_var",  13, 2, 0.0f },
+        // ── the cube choir ── one lane per key, the ENVELOPED light the
+        // cartridge mirrors into the cubes. Rest 0 is DARK, and dark is
+        // the seed draw exactly: the projector's silent path composes
+        // nothing at I = 0. Base 15 is the first free slot after the
+        // terrain run; the bank goes 15/256 → 51/256 allocated.
+        { "cube.light", 15, CHOIR_LANES, 0.0f },
     };
     inline constexpr uint32_t PARAM_LAYOUT_COUNT =
         sizeof(PARAM_LAYOUT) / sizeof(PARAM_LAYOUT[0]);
@@ -326,26 +368,21 @@ namespace t7 {
             checker_var_seg_  = Segment{ 0.0f, 0.0f, 0.0f, 0.0f };
             checker_next_read_ = 0.0f;   // first frame reads, then grid-locks
 
-            // zoetrope ears (the listener set): one "chN.onset" resolve per
-            // set bit of ZOETROPE_EARS. A miss warns and disables that ear —
-            // the resolver's own semantics; the deaf ear simply never sums.
-            zoetrope_ear_count_ = 0;
-            for (int ch = 0; ch < 8; ++ch) {
-                if (!(ZOETROPE_EARS & (1u << ch))) continue;
-                std::string v("ch" + std::to_string(ch));
-                zoetrope_ears_[zoetrope_ear_count_++] =
-                    signal_layout_.resolve((v + ".onset").c_str());
-            }
-            for (int r = 0; r < 7; ++r) zoetrope_rows_[r] = 0.0f;
-            // Boot witness — doctrine, not measurement (P6): one line,
-            // always, so a deaf zoetrope names its fault at the seam.
+            // THE CHOIR'S ONE EAR (the casting sheet): the cube voice's
+            // PRESENT COUNT — twelve lanes, the count of sounding notes
+            // per pitch class, zero in silence. Already published by
+            // canvas_1 for every voice; the analysis side is untouched.
             {
-                int bound = 0;
-                for (int e = 0; e < zoetrope_ear_count_; ++e)
-                    if (zoetrope_ears_[e].valid) ++bound;
-                std::fprintf(stderr, "[Zoetrope] ears bound: %d of %d (mask 0x%02X)\n",
-                    bound, zoetrope_ear_count_, ZOETROPE_EARS);
+                std::string v(CHOIR_VOICE);
+                choir_ear_ = signal_layout_.resolve((v + ".present_count").c_str());
             }
+            for (int k = 0; k < CHOIR_LANES; ++k) choir_I_[k] = 0.0f;
+            choir_sounding_ = 0ull;
+            choir_target_ = param_layout_.resolve("cube.light");
+            // Boot witness — doctrine, not measurement (P6): one line,
+            // always, so a deaf choir names its fault at the seam.
+            std::fprintf(stderr, "[CHOIR] ear %s: %s.present_count (%d lanes)\n",
+                choir_ear_.valid ? "bound" : "UNBOUND", CHOIR_VOICE, CHOIR_LANES);
 
             // PORT_4c — THE SOCKET, in one line. Every signal-side
             // resolve above happens here. Against canvas_1's published
@@ -556,22 +593,65 @@ namespace t7 {
                         (checker_var_goal_ > 0.0f ? canvas::CANVAS_LIVE.checker_attack : canvas::CANVAS_LIVE.checker_release)));
             }
 
-            // ── the zoetrope's ears (row impulses) ──────────────────────
-            // Sum the resolved ears' onset vectors into pc impulses and fold
-            // them through the mode table. Published vectors ship DRESSED to
-            // D (index 0 = D — the canvas contract the checker's PC_COLOR
-            // table already binds); ZOETROPE_ROW_OF_PC is authored by raw
-            // pitch class (0 = C), so the fold un-dresses: pc = (i + 2) % 12.
-            // Overwritten every tick — impulses, not an accumulator; the
-            // lattice integrates, this side only hears.
-            for (int r = 0; r < 7; ++r) zoetrope_rows_[r] = 0.0f;
-            for (int e = 0; e < zoetrope_ear_count_; ++e) {
-                const SourceBinding& ear = zoetrope_ears_[e];
-                if (!ear.valid) continue;
-                for (int i = 0; i < 12; ++i) {
-                    const float w = signal.stat(ear.channel, ear.base + i);
-                    if (w <= 0.0f) continue;
-                    zoetrope_rows_[ZOETROPE_ROW_OF_PC[(i + 2) % 12]] += w;
+            // ── THE CUBE CHOIR (the light inside the cubes) ─────────────
+            // The keyboard: key k is rank k/12 of raw pitch class k%12,
+            // and KEY k IS SLOT k by the spawn law. ACTIVATION AND
+            // DEACTIVATION ONLY — no held-length book; the envelope is
+            // the memory.
+            //
+            //   active(k) ⇔ present_count[dressed(k%12)] > k/12
+            //
+            // THE DOUBLING LIGHTS THE NEXT RANK: one sounding D lights
+            // rank 0's D; a second D in another octave lights rank 1's;
+            // a third lights rank 2's. (Octave-true ranking is PARKED —
+            // it would need a note-domain reading, and present_count is
+            // a pitch-class vector by construction.)
+            //
+            // ATTACK  — the glide law's own integrator aimed at 1, the
+            //   house's standing exponential-approach idiom
+            //   (CUBE_GLIDE_TAU, ZOETROPE_LIFT_TAU are the same k-form).
+            //   τ = plateau/4 puts I(plateau) = 1 − e⁻⁴ ≈ 0.982.
+            //   Logarithmic: steepest at switch-on — the fast attack IS
+            //   the curve's own first derivative, not a separate rule.
+            // RELEASE — a FIXED SLOPE, 1/light_release per beat: full
+            //   brightness to dark in exactly light_release beats, and a
+            //   dimmer key proportionally sooner.
+            // RE-ARTICULATION resumes from the present: the ODE reads
+            //   its own state, so a key struck mid-fall climbs from
+            //   where it is. Goals may leap; values may only walk.
+            // THE LOOP SEAM re-anchors Δbeats only — I PERSISTS across a
+            //   backward jump, the cells-persist precedent.
+            if (choir_ear_.valid && choir_target_.valid) {
+                const float dch  = beat - last_beat_;
+                const float dbe  = (dch > 0.0f) ? dch : 0.0f;   // a backward jump costs no time
+                const float tau  = canvas::CANVAS_LIVE.light_plateau * 0.25f;
+                const float rise = (tau > 0.0f && dbe > 0.0f)
+                    ? 1.0f - std::exp(-dbe / tau) : 0.0f;
+                const float fall = (canvas::CANVAS_LIVE.light_release > 0.0f)
+                    ? dbe / canvas::CANVAS_LIVE.light_release : 1.0f;
+                const int lanes = (choir_target_.count < CHOIR_LANES)
+                    ? choir_target_.count : CHOIR_LANES;
+                for (int k = 0; k < lanes; ++k) {
+                    const int   rank  = k / 12;
+                    const int   pc    = k % 12;
+                    const float count = signal.stat(choir_ear_.channel,
+                        choir_ear_.base + dressed_of_pc(pc));
+                    const bool  on    = (count > (float)rank);
+                    float I = choir_I_[k];
+                    if (on) I += (1.0f - I) * rise;             // saturating climb to 1
+                    else    I  = (I > fall) ? I - fall : 0.0f;  // fixed slope to dark
+                    choir_I_[k] = I;
+                    params_.set(choir_target_.base + k, I);
+                    // The witness rides the ACTIVATION EDGE — the strike
+                    // frame of an instrument that has no strike. On the
+                    // zoetrope's dial (rename PARKED; churn minimized).
+                    const unsigned long long bit = 1ull << k;
+                    if constexpr (INSTRUMENTS.zoetrope_witness) {
+                        if (on && !(choir_sounding_ & bit))
+                            std::fprintf(stderr, "[CHOIR] key=%02d I=%.2f\n", k, I);
+                    }
+                    if (on) choir_sounding_ |=  bit;
+                    else    choir_sounding_ &= ~bit;
                 }
             }
 
@@ -582,9 +662,12 @@ namespace t7 {
         const VisualParams& params() const { return params_; }
         const ParamLayout& layout() const { return param_layout_; }
 
-        // The zoetrope's row impulses — seven floats, bottom row = tonic,
-        // overwritten each tick. The lattice (the_board) strikes from these.
-        const float* zoetrope_rows() const { return zoetrope_rows_; }
+        // The choir's ENVELOPED intensities — CHOIR_LANES floats, one per
+        // key, key k = slot k. Not impulses: the light itself, already
+        // integrated, so a reader composes it and never re-integrates.
+        // (The pipe "cube.light" carries the same run through the bank;
+        // this accessor is for a reader that holds the canvas directly.)
+        const float* choir_light() const { return choir_I_; }
 
     private:
         VisualParams params_;
@@ -626,10 +709,13 @@ namespace t7 {
         Segment       checker_amount_seg_{};
         Segment       checker_var_seg_{};
 
-        // ── zoetrope coupling state (the ears + the fold) ────────────────
-        SourceBinding zoetrope_ears_[8]{};    // "chN.onset" per set bit of ZOETROPE_EARS
-        int           zoetrope_ear_count_ = 0;
-        float         zoetrope_rows_[7] = {}; // row impulses, overwritten each tick
+        // ── choir coupling state (one ear, one envelope per key) ─────────
+        SourceBinding choir_ear_{};              // "<CHOIR_VOICE>.present_count" — the sounding count per pc
+        TargetBinding choir_target_{};           // "cube.light" — CHOIR_LANES wide
+        float         choir_I_[CHOIR_LANES] = {};  // the enveloped light, one per key; state, not an impulse
+        unsigned long long choir_sounding_ = 0ull; // the activation edge's memory — one bit per key (36 ≤ 64)
+        static_assert(CHOIR_LANES <= 64,
+            "choir_sounding_ is one bit per key — widen it past 64 lanes");
     };
 
 } // namespace t7

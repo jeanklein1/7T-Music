@@ -3,6 +3,7 @@
 #include <array>
 #include "cartridges/the_board/realization/state.hpp"                       // Dim::MAX_CUBE_INSTANCES, GPUState, GPUFloatingEntityState, wgpu
 #include "cartridges/the_board/contracts/floaters.hpp"  // ActiveCube, CUBE_TIER_COUNT
+#include "cartridges/the_board/contracts/driver_surface.hpp"  // THE DRIVERS' ROOM: DRIVER_LIVE.cube — the choir's incandescence + gain
 #include "cartridges/the_board/contracts/wgpu_fwd.hpp"   // wgpu handle fwds (lockstep insurance)
 #include "cartridges/the_board/contracts/entity_types.hpp"   // queue types (the funnel signatures)
 
@@ -87,6 +88,34 @@ static_assert((ZOETROPE_CELL_STRIDE * ZOETROPE_CELL_UNSTRIDE) % LATTICE_CELLS ==
               "helix inverse broken — recompute UNSTRIDE for these dims");
 static_assert(std::gcd(ZOETROPE_CELL_STRIDE, LATTICE_CELLS) == 1u,
               "helix stride must be coprime to the lattice");
+
+// ─ THE CHOIR band ─ the boot choice: how many keys the instrument has.
+// Not random, chosen before boot (Jean). Two ranks or three of twelve.
+//
+// KEY k = SLOT k, BY CONSTRUCTION. run_spawn_preamble reserves the LOWEST
+// FREE SLOT (machine/spawn_engine.hpp, step 8-9), so capping the family's
+// max_instances here keeps the population dense in slots 0..N-1 and an
+// evicted key's refill takes the lowest free slot — THE SAME DARK KEY
+// RELIGHTS. No mapping table, no registry: the identity IS the law.
+//
+// The lattice geometry above is untouched by this: LATTICE_COLS is 36 by
+// arithmetic (256/7) and CUBE_CHOIR_N is 36 by CHOICE. Two facts that
+// happen to share a number today; flipping the choir to 24 moves one and
+// not the other, which is why they are not the same constant.
+inline constexpr uint32_t CUBE_CHOIR_N = 36;
+static_assert(CUBE_CHOIR_N == 24u || CUBE_CHOIR_N == 36u,
+    "the choir is stacked pianos: two ranks or three, nothing else");
+static_assert(CUBE_CHOIR_N % 12u == 0u, "ranks are whole pianos");
+static_assert(CUBE_CHOIR_N <= LATTICE_CELLS,
+    "the choir seats through the helix bijection — it may not outrun the lattice");
+inline constexpr uint32_t CUBE_CHOIR_RANKS = CUBE_CHOIR_N / 12u;
+// THE POKE GATE. The projector runs every frame now — the lattice's
+// tick is gone and there is nothing left to hide a flush behind — so
+// the flush is gated on the LIGHT instead of on a clock: a slot pokes
+// only when its light moved past this. Steady state pokes nothing;
+// a full attack spends ~1000 pokes over its plateau and a release the
+// same over its fall, both far under the tick sweep this replaces.
+inline constexpr float CHOIR_FLUSH_EPS = 1e-3f;
 
 // ─ THE AUTOMATON band ───────────────────────────────────────────
 // THE COMPOSITE LAW, so the flash is predictable rather than tuned by
@@ -277,6 +306,22 @@ struct CubeBehaviorsState {
     float last_px = 0.0f, last_pz = 0.0f;
     bool  point_seen = false;
 
+    // ── THE CHOIR'S LIGHT (the mirror, and the poke gate) ──────────
+    // choir_I is written by ONE AUTHOR, once per frame: the cartridge's
+    // motion-drivers phase, which reads the canvas's "cube.light" run
+    // and composes it against the drivers' room (gain·I over a DARK
+    // rest). THE MIRROR IS THE PRIOR — every reader in this file (the
+    // newborn's dress, the swell, the projector) reads it here and none
+    // of them reaches back into the coupling layer.
+    //
+    // choir_flushed is the poke gate: the last light each slot was
+    // actually flushed at. Steady state pokes NOTHING, which is what
+    // makes a per-frame projector affordable where the lattice's needed
+    // a tick to hide behind. Seeded at birth by cube_write_gpu (which
+    // writes the whole slot, light included) and reset by clear_cubes.
+    float choir_I[CUBE_CHOIR_N]{};
+    float choir_flushed[CUBE_CHOIR_N]{};
+
     // ── The zoetrope lattice (C4) ── zero-init is the law: boot is a
     // transition from nothing — the lattice wakes silent, never replayed.
     ZoetropeCell cells[LATTICE_CELLS]{};
@@ -317,6 +362,14 @@ void zoetrope_service(CubeBehaviorsState& cbs, GPUState& gpu, wgpu::Queue& queue
     uint32_t active_seed, float t_beats, float dt, float point_x, float point_z);
 // The projector (C5): one home — cells reach pixels here and nowhere else
 uint32_t zoetrope_slot_seed(const CubeBehaviorsState& cbs, uint32_t active_seed, uint32_t slot);
+// THE CHOIR'S PROJECTOR — the successor home: the light reaches pixels
+// here and nowhere else. choir_light is I's ONE computation (the G6
+// door, inherited whole from the intensity it replaces).
+float choir_light(const CubeBehaviorsState& cbs, uint32_t slot);
+void choir_project_color(const CubeBehaviorsState& cbs, uint32_t active_seed, uint32_t slot,
+    float& out_r, float& out_g, float& out_b);
+void choir_project(CubeBehaviorsState& cbs, GPUState& gpu, wgpu::Queue& queue,
+    uint32_t active_seed);
 float zoetrope_cell_intensity(const CubeBehaviorsState& cbs, uint32_t slot);  // I — ONE computation (G6)
 void project_cell_color(const CubeBehaviorsState& cbs, uint32_t active_seed, uint32_t slot,
     float& out_r, float& out_g, float& out_b);
@@ -382,12 +435,17 @@ inline void clear_cubes(CubeBehaviorsState& cbs, GPUState& gpu, wgpu::Queue& que
     // THE FORMATION MACHINE RESETS WITH THE WORLD (K1 E5). A portal taken
     // mid-screen used to carry a phantom formation into the new world,
     // where the reseat watch narrated a screen that was not there and the
-    // seat pass sprayed ring offsets at strangers. THE CELLS ARE NOT
-    // RESET: the ghost law owns them — the lattice's memory outlives any
-    // world, and the automaton never replays.
+    // seat pass sprayed ring offsets at strangers.
+    //
+    // THE CHOIR'S LIGHT IS WORLD-AGNOSTIC and is not reset here: it is
+    // the MUSIC's state, not the world's, and it is re-mirrored from the
+    // live signal every frame regardless. Only the POKE GATE resets —
+    // the slots it shadowed have just been wiped on the GPU, so every
+    // shadow it holds is now a lie about an empty slot.
     cbs.formation     = CubeBehaviorsState::Formation::ROAM;
     cbs.stations_sent = false;
     cbs.stage_wait    = false;
+    for (uint32_t i = 0; i < CUBE_CHOIR_N; i++) cbs.choir_flushed[i] = 0.0f;
     for (uint32_t i = 0; i < LATTICE_CELLS; i++) {
         cbs.settled[i] = false;
         cbs.walk_[i]   = {};
@@ -535,7 +593,7 @@ inline void reveal_zoetrope(CubeBehaviorsState& cbs, CubeDeps* c, wgpu::Queue& q
             cbs.walk_[i] = { ac.orbit_height, ac.body_radius, ac.aspect_y, ac.aspect_z };
         else if (from_screen)
             cbs.walk_[i].r = ZOETROPE_PIXEL_RADIUS
-                * (1.0f + ZOETROPE_SWELL_GAIN * zoetrope_cell_intensity(cbs, i));
+                * (1.0f + ZOETROPE_SWELL_GAIN * choir_light(cbs, i));
         cbs.settled[i] = false;
         staged++;
     }
@@ -698,7 +756,7 @@ inline const TierProfile& cube_get_tier_profile(uint32_t tier_idx) {
 }
 
 inline constexpr EntityFamilyTraits CUBE_TRAITS = {
-    PopFamily::CUBE, LATTICE_CELLS,   // the LIVING ceiling (7×36 = 252); capacity stays 256 — slots 252-255 never allocate
+    PopFamily::CUBE, CUBE_CHOIR_N,   // THE CHOIR is the living ceiling now (the lattice's 252 was); capacity stays 256
     false,                // NOT grounded — hovers and drifts; claims no ground (ruling 21)
     CubeProp::SPAWN_ROLL, CubeConfig::SPAWN_CHANCE,
     CubeConfig::POSITION_JITTER,
@@ -755,20 +813,22 @@ inline void cube_write_gpu(MachineCtx* c, const EntityInstance& inst, wgpu::Queu
     fe.bob_period = inst.params[CubeIdx::BOB_PERIOD];
     fe.spin_tilt_x = tilt_x; fe.spin_tilt_z = tilt_z;
     fe.base_color[0] = inst.colors[0]; fe.base_color[1] = inst.colors[1]; fe.base_color[2] = inst.colors[2];
-    // ZOETROPE (C5): the ghost dresses the newborn — color projects the
-    // cell's accumulated state over the seed base (write_active has already
+    // THE CHOIR (U4): a cube BORN MID-NOTE IS BORN LIT. The key's light
+    // is already standing in the mirror, so the newborn dresses from it
+    // rather than waking dark and catching up (write_active has already
     // seated the mirror, so the slot's seed recomputes; at I = 0 this is
     // inst.colors bit-exactly — the silent path is today's).
-    project_cell_color(c->cube_behaviors_state_, c->world_state_.active_seed, inst.slot,
-                       fe.color[0], fe.color[1], fe.color[2]);
+    choir_project_color(c->cube_behaviors_state_, c->world_state_.active_seed, inst.slot,
+                        fe.color[0], fe.color[1], fe.color[2]);
     fe.aspect_y = inst.params[CubeIdx::ASPECT_Y];
     fe.aspect_z = inst.params[CubeIdx::ASPECT_Z];
-    // ZOETROPE (G6): the ghost's splay dresses the newborn whole-slot —
-    // variance = the tier draw + SPLAY·I of the inherited cell (the
-    // mirror keeps the bare draw; the projector relaxes it as I dims).
+    // THE CHOIR (G6, inherited): the same law the projector runs, at
+    // birth — GLOW UNIFIES, so the tier draw is CLOSED by the light
+    // rather than splayed by it. The mirror keeps the bare draw
+    // (write_active); this is the projected face, and at I = 0 it is
+    // that draw to the bit.
     fe.face_variance = inst.params[CubeIdx::FACE_VARIANCE]
-                     + ZOETROPE_FACE_SPLAY
-                       * zoetrope_cell_intensity(c->cube_behaviors_state_, inst.slot);
+                     * (1.0f - choir_light(c->cube_behaviors_state_, inst.slot));
     fe.geometry_type = 1; fe.motion_type = 1;
     fe.entity_seed = Dim::CUBE_SLOT_OFFSET + inst.slot;
     fe.t = 0.0f; fe.orientation[3] = 1.0f;
@@ -866,6 +926,13 @@ inline void cube_write_gpu(MachineCtx* c, const EntityInstance& inst, wgpu::Queu
     auto& zcbs = c->cube_behaviors_state_;
     zcbs.walk_[inst.slot] = { fe.orbit_height, fe.body_radius, fe.aspect_y, fe.aspect_z };
     zcbs.settled[inst.slot] = true;
+    // THE POKE GATE IS BOOKKEEPING TOO: the whole-slot write above has
+    // just flushed this slot at the live light, so the gate records it.
+    // Without this a slot inheriting a stale shadow from its previous
+    // tenant could sit one epsilon from the truth and never poke — the
+    // one way a dark key could fail to relight.
+    if (inst.slot < CUBE_CHOIR_N)
+        zcbs.choir_flushed[inst.slot] = zcbs.choir_I[inst.slot];
 }
 
 // CUBE_INDOOR_RESCALE_PARAMS and its CAP policy note stood here —
@@ -1009,6 +1076,115 @@ inline void zoetrope_project_slot(const CubeBehaviorsState& cbs, GPUState& gpu,
     if (cbs.formation == Formation::SCREEN)
         gpu.upload_cube_body_radius(queue, slot,
             ZOETROPE_PIXEL_RADIUS * (1.0f + ZOETROPE_SWELL_GAIN * I));
+}
+
+// ═══ THE CHOIR'S PROJECTOR — ONE HOME ════════════════════════════
+//
+// The successor to the lattice's projector, and its whole inheritance:
+// the base is RECOMPUTED through the seed fn from the slot's TRUE spawn
+// seed (never cached — the gate drew tile_seed(active world seed,
+// trigger patch) and the mirror keeps the trigger patch, so the seed
+// reconstructs bit-exactly), the SCREEN dim survives, and the silent
+// path is still bit-exact: at I = 0 the mix returns the seed colour and
+// the variance returns the spawn draw, both to the last bit.
+//
+// WHAT CHANGED IS THE VARIANCE'S DIRECTION. The strike SPLAYED — it
+// added face variance, because a struck cell was a cell disturbed. The
+// light UNIFIES: a lit cube converges on one face, because incandescence
+// is the body glowing through, not the surface breaking up. So variance
+// is the spawn draw SCALED DOWN by the light rather than a rest scaled
+// up plus a splay — which is also why no restore pass exists: the law is
+// self-restoring at I = 0 and needs no separate return.
+
+// I's ONE COMPUTATION (the G6 door, inherited). Every reader — the
+// newborn's dress, the swell, the colour mix, the variance — reads the
+// light through here and no other way. Slots past the choir are DARK by
+// construction rather than by luck: the population cap keeps them
+// unallocated, and this door keeps them silent even if one ever were.
+inline float choir_light(const CubeBehaviorsState& cbs, uint32_t slot) {
+    return (slot < CUBE_CHOIR_N) ? cbs.choir_I[slot] : 0.0f;
+}
+
+inline void choir_project_color(const CubeBehaviorsState& cbs, uint32_t active_seed, uint32_t slot,
+    float& out_r, float& out_g, float& out_b) {
+    const float I = choir_light(cbs, slot);
+    EntityInstance tmp{};
+    tmp.seed = zoetrope_slot_seed(cbs, active_seed, slot);
+    // The seed fn's exact signature takes traits + tier; it reads neither
+    // (both unnamed) — the call adapts, the law does not. G5 V2 verdict:
+    // profile-INVARIANT — no profile field is consulted (and CUBE_TIERS'
+    // color_var column is 0.0 in every row), so profile(0) is bit-exact
+    // for every tier.
+    cube_compute_colors(tmp, CUBE_TRAITS, cube_get_tier_profile(0));
+    // THE DARK REST (V1): the instrument is dark until played. The base
+    // dims in the SCREEN states ONLY — a lit rock face spends the whole
+    // of I on a tint nobody can see, so the screen makes room for the
+    // music first. ROAM and the gathering keep the world's own swarm at
+    // full brightness; dimming those would darken the world, not an
+    // instrument. At I = 1 the destination is the light either way, so
+    // the dim costs the gesture nothing — it only lowers the floor.
+    using Formation = CubeBehaviorsState::Formation;
+    const bool screen = (cbs.formation == Formation::SCREEN
+                      || cbs.formation == Formation::TO_SCREEN);
+    const float dim = screen ? ZOETROPE_REST_DIM : 1.0f;
+    const float br = tmp.colors[0] * dim;
+    const float bg = tmp.colors[1] * dim;
+    const float bb = tmp.colors[2] * dim;
+    const float* lc = DRIVER_LIVE.cube.light_color;
+    out_r = br + (lc[0] - br) * I;
+    out_g = bg + (lc[1] - bg) * I;
+    out_b = bb + (lc[2] - bb) * I;
+}
+
+// THE ONE POKE HOME: every projector write for a slot goes through here,
+// so no two paths can disagree about what a lit cube looks like.
+//
+// COLOUR AND VARIANCE POKE IN EVERY FORMATION STATE, ROAM INCLUDED —
+// the light is the music's, not the screen's, and a roaming cube is as
+// entitled to it as a seated one. (The lattice's projector returned
+// early in ROAM because its variance term was a REST MULTIPLIER that
+// only made sense in formation; this one's is self-restoring, so there
+// is nothing to hold back.) The SWELL is the exception and keeps its old
+// jurisdiction exactly: the walk owns body_radius during every TO_*
+// state, so the swell speaks only when the screen STANDS.
+inline void choir_project_slot(const CubeBehaviorsState& cbs, GPUState& gpu,
+    wgpu::Queue& queue, uint32_t active_seed, uint32_t slot) {
+    float cr, cg, cb;
+    choir_project_color(cbs, active_seed, slot, cr, cg, cb);
+    gpu.upload_cube_color(queue, slot, cr, cg, cb);
+
+    // GLOW UNIFIES: the spawn draw is the REST and the light closes it.
+    // At I = 0 this is the mirror's bare draw to the bit — the silent
+    // path — and at I = 1 one flat face.
+    const float I = choir_light(cbs, slot);
+    gpu.upload_cube_face_variance(queue, slot,
+        cbs.activeCubes_[slot].face_variance * (1.0f - I));
+
+    using Formation = CubeBehaviorsState::Formation;
+    if (cbs.formation == Formation::SCREEN)
+        gpu.upload_cube_body_radius(queue, slot,
+            ZOETROPE_PIXEL_RADIUS * (1.0f + ZOETROPE_SWELL_GAIN * I));
+}
+
+// THE PER-FRAME FLUSH, POKE-ON-CHANGE. The lattice's flush hid behind a
+// tick (0.25 beats); the choir has no tick to hide behind, so the gate is
+// the light itself: a slot pokes only when its light MOVED past epsilon.
+// A silent room pokes nothing at all, a sustained chord pokes only while
+// it climbs, and the release pokes for exactly light_release beats. The
+// repaint edge (V1 E3) rides through as a FORCE — the two formation
+// transitions that move the dim change what a cube looks like without
+// moving its light, so they cannot be gated on the light.
+inline void choir_project(CubeBehaviorsState& cbs, GPUState& gpu, wgpu::Queue& queue,
+    uint32_t active_seed) {
+    const bool force = cbs.repaint_all;
+    for (uint32_t slot = 0; slot < CUBE_CHOIR_N; ++slot) {
+        if (!cbs.activeCubes_[slot].active) continue;
+        const float I = cbs.choir_I[slot];
+        if (!force && std::fabs(I - cbs.choir_flushed[slot]) <= CHOIR_FLUSH_EPS) continue;
+        choir_project_slot(cbs, gpu, queue, active_seed, slot);
+        cbs.choir_flushed[slot] = I;
+    }
+    cbs.repaint_all = false;
 }
 
 inline void zoetrope_strike(CubeBehaviorsState& cbs, GPUState& gpu, wgpu::Queue& queue,

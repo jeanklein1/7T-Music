@@ -54,6 +54,17 @@ struct CanvasSurface {
     float checker_read_span;    // beats — the read cadence
     float checker_attack;       // beats — LINEAR rise to the new target
     float checker_release;      // beats — LINEAR fall to rest (→ seed color)
+
+    // ── The cube choir's light ────────────────────────────────────
+    // ACTIVATION AND DEACTIVATION ONLY — no held-length book is kept;
+    // the envelope itself is the memory. The attack is the house's
+    // standing exponential-approach idiom aimed at 1 (CUBE_GLIDE_TAU /
+    // ZOETROPE_LIFT_TAU are the same k-form), so the growth is
+    // logarithmic: steepest at switch-on, decelerating into the
+    // plateau. The release is a FIXED SLOPE, not a span: a dimmer key
+    // falls proportionally sooner than a bright one.
+    float light_plateau;        // beats — attack plateau; τ = plateau/4 ⇒ I(plateau) ≈ 0.982
+    float light_release;        // beats — FULL-SCALE linear fall to dark (the slope is 1/this)
 };
 
 // The authored design — values carried verbatim from the module's own
@@ -77,10 +88,12 @@ inline constexpr CanvasSurface CANVAS_TABLE = {
     3.25f,     // checker_read_span — tuned on the desk (was 4.0)
     2.0f,      // checker_attack
     8.0f,      // checker_release
+    8.0f,      // light_plateau — the choir's attack plateau (beats)
+    8.0f,      // light_release — full brightness to dark in 8 beats
 };
 
 inline CanvasSurface CANVAS_LIVE = CANVAS_TABLE;
-static_assert(sizeof(CanvasSurface) == 15 * sizeof(float),
+static_assert(sizeof(CanvasSurface) == 17 * sizeof(float),
     "CANVAS_LIVE is a whole-struct copy of the design row: a field added "
     "to one is added to the other by construction");
 

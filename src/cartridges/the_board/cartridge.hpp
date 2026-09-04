@@ -260,6 +260,8 @@ namespace t7 {
             // Checker pipes (CHECKER-1) — resolved once at bind.
             TargetBinding checker_mean_dst_{};
             TargetBinding checker_var_dst_{};
+            // The choir's pipe (CHOIR_0) — CHOIR_LANES wide, resolved once.
+            TargetBinding cube_light_dst_{};
 
             // Sun + atmosphere — authored solely by stage_world_birth, at boot
             // and at every rebirth. No boot literals: ATMOS_LIVE is the one
@@ -794,6 +796,7 @@ namespace t7 {
                 ribbon_tint_mix_dst_ = visual_canvas_.layout().resolve("ribbon.color_mix");
                 checker_mean_dst_ = visual_canvas_.layout().resolve("terrain.checker_mean");
                 checker_var_dst_ = visual_canvas_.layout().resolve("terrain.checker_var");
+                cube_light_dst_ = visual_canvas_.layout().resolve("cube.light");
                 std::fprintf(stderr,
                     "[the_board] fog.density base=%d valid=%d | fog.color base=%d count=%d valid=%d\n",
                     fog_density_dst_.base, (int)fog_density_dst_.valid,
@@ -802,6 +805,10 @@ namespace t7 {
                     "[the_board] terrain.checker_mean base=%d count=%d valid=%d | terrain.checker_var base=%d valid=%d\n",
                     checker_mean_dst_.base, checker_mean_dst_.count, (int)checker_mean_dst_.valid,
                     checker_var_dst_.base, (int)checker_var_dst_.valid);
+                std::fprintf(stderr,
+                    "[the_board] cube.light base=%d count=%d valid=%d | choir %u key(s), %u rank(s)\n",
+                    cube_light_dst_.base, cube_light_dst_.count, (int)cube_light_dst_.valid,
+                    CUBE_CHOIR_N, CUBE_CHOIR_RANKS);
             }
 
             // ═══════════════════════════════════════════════════════════════
@@ -1120,12 +1127,41 @@ namespace t7 {
                                                       ck.rest_amount, ck.rest_variance);
                 }
 
-                // ZOETROPE (C4/C5): the lattice hears the canvas's row
-                // impulses, ticks on the musical clock, and projects cells
-                // to cube color through the partial-write door. Same member
-                // plumbing as the flushes above; the queue is the phase's.
-                zoetrope_strike(cube_behaviors_state_, gpuState_, c.queue,
-                    world_state_.active_seed, visual_canvas_.zoetrope_rows(), signal.t_beats);
+                // THE CHOIR (CHOIR_0 U4): the canvas envelopes one light
+                // per key; this seam composes it against the drivers' room
+                // and MIRRORS the result into the cube body's own state.
+                // ONE AUTHOR PER FRAME, here — the mirror is the prior, so
+                // the body file's readers (the newborn's dress, the swell,
+                // the projector) never reach into the coupling layer.
+                //
+                // The recipe is the fog's and the checker's verbatim,
+                // out = rest + gain·(driven − rest), with the rest DARK:
+                // rest 0 collapses it to gain·I, and gain 0 is a dark
+                // instrument wearing its seed draws exactly.
+                //
+                // THE TWO WIDTHS MEET HERE and nowhere else — the canvas
+                // owns the pipe's, the body owns the population's, and
+                // this is the one room that can see both.
+                static_assert((int)CUBE_CHOIR_N <= CHOIR_LANES,
+                    "the choir has more keys than the cube.light pipe has lanes");
+                {
+                    const float g = DRIVER_LIVE.cube.gain;
+                    if (cube_light_dst_.valid) {
+                        const VisualParams& lp = visual_canvas_.params();
+                        for (uint32_t k = 0; k < CUBE_CHOIR_N; ++k)
+                            cube_behaviors_state_.choir_I[k] = g * lp.get(cube_light_dst_.base + (int)k);
+                    } else {
+                        // No binding: the rest alone speaks, and the rest
+                        // is dark — the fog seam's headless arm again.
+                        for (uint32_t k = 0; k < CUBE_CHOIR_N; ++k)
+                            cube_behaviors_state_.choir_I[k] = 0.0f;
+                    }
+                }
+                // The projector's own home, poke-on-change: only a key
+                // whose light MOVED reaches the GPU. Runs before the
+                // service, the order the lattice's flush held.
+                choir_project(cube_behaviors_state_, gpuState_, c.queue,
+                    world_state_.active_seed);
                 zoetrope_service(cube_behaviors_state_, gpuState_, c.queue,
                     world_state_.active_seed, signal.t_beats, signal.dt,
                     point_.x, point_.z);   // the point mirror — the reseat watch (G4)
