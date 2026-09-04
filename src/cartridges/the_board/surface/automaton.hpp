@@ -188,7 +188,33 @@ namespace the_board {
     // frames it spans.
     inline void upload_automaton_header(AutomatonState& as, AutomatonDeps* c,
                                         wgpu::Queue& queue) {
-        const float effective_period = std::max(as.tick_period, 0.01f);
+        // THE TICK SCALE REACHES THE STEP HERE, AND ONLY HERE
+        // (GROUND_VOICE_0). `config.mode_gol_tick_scale` had two readers
+        // and both were inside world.wgsl's `pulse_cell_target` — the
+        // PULSE field's per-cell target. The bank boots CONWAY
+        // (AUTO_TABLE's own static_assert), and the Conway branch gates
+        // on `should_tick`, which is COMPUTED HERE, on the CPU, from
+        // as.tick_period alone. So the dial reached nothing on the
+        // shipping ground: a "speed of update" coupling would have been
+        // inert. It multiplies the PERIOD, in the same shape the two
+        // WGSL readers already give it, so smaller is faster.
+        //
+        // THE RULE AND THE FULL-TORUS STEP ARE UNTOUCHED: this changes
+        // WHEN a step fires, never what a step does.
+        //
+        // WELL-BEHAVED BECAUSE THE SOURCE IS DISCRETE. The gate is
+        // `floor(beats / period)` against a stored index, so a period
+        // that varies CONTINUOUSLY would make the index wander and fire
+        // steps on frames that are not tick boundaries. The scale's
+        // driver is the room's polyphony — an integer count — so the
+        // period holds still between note changes and moves once when
+        // the music does. A note change therefore costs at most one
+        // extra step, which is the coupling's own intent rather than a
+        // glitch in it. A CONTINUOUS driver aimed at this field would
+        // want a phase accumulator instead of a floor, and that is new
+        // mechanism: flagged, not built.
+        const float tick_scale = std::max(c->gpuState_.config().mode_gol_tick_scale, 0.01f);
+        const float effective_period = std::max(as.tick_period * tick_scale, 0.01f);
         const int32_t current_tick = (int32_t)std::floor(c->time_state_.beats / effective_period);
         const bool should_tick = (current_tick != as.last_tick_index);
         if (should_tick) as.last_tick_index = current_tick;

@@ -1151,11 +1151,21 @@ namespace t7 {
                 //   tick_mul   = clamp(1 / (1 + tick_gain · dens), 0.25, 4)
                 //
                 // THE RECIPROCAL IS THE POINT of the second: tick_scale
-                // multiplies the automaton's tick PERIOD (world.wgsl,
-                // `max(tick_period * config.mode_gol_tick_scale, …)`), so
-                // SMALLER IS FASTER — denser music, faster life. Getting
-                // that backwards would be legal C++, legal WGSL, and
-                // visible only on the device.
+                // multiplies the automaton's tick PERIOD, so SMALLER IS
+                // FASTER — denser music, faster life. Getting that
+                // backwards would be legal C++, legal WGSL, and visible
+                // only on the device.
+                //
+                // THE FIELD HAS THREE READERS AND ONLY ONE OF THEM RUNS
+                // ON THIS GROUND. Two are in world.wgsl's
+                // `pulse_cell_target` (the PULSE field's per-cell target,
+                // with divisor floors of 0.01 and 0.1 — deliberately not
+                // the same number, and neither is this seam's clamp); the
+                // bank boots CONWAY, so both are dormant. The one that
+                // runs is `upload_automaton_header` in surface/
+                // automaton.hpp, the CPU's own step gate, which
+                // GROUND_VOICE_0 taught to read it — see that site for
+                // why the coupling would otherwise have been inert.
                 //
                 // GAIN 0 IS HANDS OFF, PER TERM. Every other seam composes
                 // a driven value against a rest that lives somewhere else,
