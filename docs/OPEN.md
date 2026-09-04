@@ -1761,6 +1761,137 @@ second colour authority aimed at the same cells would give one surface two
 masters and no way to say which wins. **No colour work was done in
 GROUND_VOICE_0**; this records the constraint on whoever does it.
 
+## STAGE_0 — THE STAGE IS THE WORLD (landed; five findings, four flags)
+
+Landed on `master`. **Working name — naming is Jean's gate.** One law:
+*everything computed is visible.* The world's radius is authored, the veil
+chain is excised whole, the choir is permanent and boot-born, and the two
+pawn-centric cube mechanisms — the kite and the presence push — retire.
+The ground keeps its seed, by Jean's explicit exemption.
+
+**U1 · THE PIN.** `WORLD_RADIUS_PIN = 2u`. Seated into `WORLD_LIVE`'s range at
+boot so `derive_finite_radius` returns it through its own `lo >= hi` arm without
+reaching the hash. **Not by retiring that function, as §U1 sketched**: it is the
+declared reader of two ENROLLED radius dials, so retiring it turns
+`organ_ledger --check` RED under a freeze that forbids retiring the rows. It is
+also the last fence before the radius becomes a buffer index. The seed is a
+salted hash at property 77u, used by nothing else, so the ground's draws are
+provably unperturbed.
+
+**U2 · THE VEIL CHAIN.** Four WGSL ring gates, both eviction radii and their
+tests, `update_entity_draw_visibility`, `GPUState::draw_ring()`,
+`ENTITY_CULL_HYSTERESIS`, `respawn_evicted_agents` and its render spine row,
+`EXIST_RADIUS` and both chain asserts, and the `Dim` veil block. The spine is
+**fifteen** render rows.
+
+**U5 · THE PRESENCE PUSH**, then **U4 · THE KITE** — in that order, deliberately:
+the plasticity leak was gated `if (fe.follow_pawn == 0u)`, so cutting the kite
+first would have made it unconditional for the first time.
+
+**U3 · THE PERMANENT CHOIR.** `CHOIR_SEED`, `CHOIR_TIERS[24]`, `birth_station(k)`,
+`birth_the_choir` in `build_world`. The gate REFUSES rather than vanishing —
+`CUBE_ADAPTER` and `FAMILY_DISPATCH`'s row are positional aggregates.
+
+### The five findings
+
+**1 · THE PREMISE OF U2 WAS WRONG, AND THE CONCLUSION SURVIVES IT.** §0(b) says
+the chain never fires at a pinned radius. At radius 2 the box is 250 wu a side,
+so the longest sight line — corner to opposite corner — is **353.6 wu against a
+ring of 342**. THE RING FIRED, in an 11.6 wu sliver. Under the stage law that
+sliver should draw, so the excision is right for a reason the handoff did not
+give.
+
+**2 · THE MONOCHROME CHOIR.** `choir_slot_seed` recomputes each cube's base
+colour from `tile_seed(world seed, patch_gx, patch_gz)`. A boot-born cube has no
+patch, so those sit at 0,0 and **all 24 keys hash the same seed** — one flat
+colour, asserted by nothing. `CHOIR_PATCH_ROW` gives each key a distinct
+synthetic pair. Counted: 24 distinct seeds where the naive birth gives 1.
+
+**3 · A DECLARATION/DEFINITION MISMATCH NO GATE COULD SEE.** `agents.hpp`
+declared `respawn_evicted_agents` with FOUR parameters and defined it with SIX —
+different overloads, so the declaration named a function never defined and never
+called. Invisible to the TU gate (does not link), the shell gate (never links
+this path) and the probe (never reaches it). Gone with the definition.
+
+**4 · THE FOLD IN §U2 WOULD HAVE BEEN A BUG.** "`render_patch_count` folds into
+`active_patch_count`" is true of the RING and false of the PHASE: `band_patches`
+skips any patch not `GENERATED`, so the two differ while a world builds. NOT
+DONE; the field's comment, which blamed the ring and was already false, now says
+what actually separates them.
+
+**5 · THE CPU HALF OF THE RING WAS ALREADY DEAD.**
+`update_entity_draw_visibility` has had an empty body and no caller since
+ONE_SURFACE-I U6, yet was the sole reader of `draw_ring()` — so two ledgers
+described a live CPU draw authority for two campaigns.
+
+### Four flags
+
+**F1 · THE STRIDE MOVED ON A STRUCT THE WITNESS DOES NOT COVER.**
+`GPUFloatingEntityState` goes 208 → 192 (12×16, no padding either way), on the
+one buffer every floater family shares — and it carries **no BYTE-FOR-BYTE
+marker in `world.wgsl`**, so `mirror_offsets.py`'s per-field witness (128
+members, 7 structs) does not see it. Three `static_asserts` are the whole static
+proof; one was added to pin `behavior_phase` into the kite's vacated slot.
+**Beyond them it is the probe's.**
+
+**F2 · THE HAND-BACK LOST ITS DRIFT ZEROING.** The kite sentinel also zeroed
+`drift.xz`, and no CPU can — drift lives only on the GPU. The rebuilt hand-back
+aims the glide target at the mirror's `live_pos` (one frame stale by law E-4),
+so a cube handed back mid-shove settles on the spring instead of stopping dead.
+With the push retired the only drift left is the behaviour kernels', which is
+what the hand-back is giving back.
+
+**F3 · TWO ENROLLED DIALS STAND DARK**, per §0(d): `config.draw_ring` and
+`config.cube_plasticity`. No gate notices — `organ_readers.py` declares the whole
+CONFIG family out of scope. Row retirement is parked for the freeze-lift.
+
+**F4 · AN IDENTITY OUTLIVED ITS NAME.** `CUBE_REACH_CEILING` was 30.0, which is
+also exactly `2.0 * ZONE_SUPPRESS_OUTER` — so "a floater carves iff it is
+shoveable" was one test written twice, in two rooms, with no gate tying them.
+The banner warned that retuning either alone would break it silently; retiring
+one breaks it just as silently. The carve keeps its 30.0 longhand.
+
+### The record ritual — PREPARED AND HELD
+
+`glaw2` is **GREEN without a re-record** (258 fn, 253 const, 22 symbols retired
+cleanly — 18 before). `--record` was run against a copy and **reverted**; it
+would change:
+
+- my four: `AGENT_EVICTION_RADIUS(_SQ)`, `FLOATER_EVICTION_RADIUS(_SQ)`
+- **seventeen already-retired names the baseline never dropped**: the whole
+  `MOSAIC_*` set, `veil_t`, `seg_closest`, `signal_active`, `render_point_pos`
+- **six names in the tree the baseline never gained**: `AUTO_CELL_RETRACT`,
+  `AUTO_MODE_THRESHOLD`, `agent_ground_resolve`, `gol_carve_fade`,
+  `sample_cell_retract`, `ug_cell_center`
+
+Re-recording now would silently bless two campaigns' worth of unrecorded drift
+as baseline. **The baseline is restored byte-for-byte; the re-record is Jean's
+word.**
+
+**OPEN — the probe.** Every gate CC can run is green. `--probe=N` and G-LAW 1
+are Jean's, and this is the campaign that most needs them: a stride change on a
+shared buffer is exactly what only a device can refuse.
+
+## THE STAGE LAW (standing — Jean's, recorded at STAGE_0)
+
+**1 · EVERYTHING COMPUTED IS VISIBLE.** The world is the draw set. There is no
+ring, no fade band and no eviction radius between what exists and what is seen;
+what spawns, stays, and what is built, draws.
+
+**2 · DETERMINISM, PARAMETRIZED OUR WAY — WITH ONE EXEMPTION.** Every fact about
+the stage is authored: its radius, its instrument, its keys' bodies. **The
+ground's GENERATION keeps the seed** — heights, patch generation, GoL seeding
+and the automaton's birth — because it looks good BECAUSE it is somewhat random.
+Only shape facts stop listening.
+
+**3 · GoL CELL COLOUR GOES THROUGH THE SYSTEM THAT ALREADY COLOURS THEM** — the
+tint funnel / checker path. No second colour home. (Recorded at
+GROUND_VOICE_0; restated here because it is a stage fact.)
+
+**4 · THE BOARD'S VISIBLE EDGE IS THE ACCEPTED LOOK.** A walled world that shows
+its wall is the picture, not a defect to conceal. The veil existed to hide an
+edge the stage no longer apologises for.
+
 ## THE HANDOVER LIST (THE_PANEL's close — the coupling campaign's table)
 
 **THE WRAP ORDER §2.3 asks that the next campaign's handoff be authorable
@@ -2334,6 +2465,7 @@ written out here.
 | CHOIR_0 | the cube lattice out; `ch6` cast, 36 keys, one enveloped light per key | LANDED — **Jean's probe + visual desk open** (see CHOIR_0 above) |
 | CHOIR_1 | two ranks (24), the flock lower and smaller, the attack snappier | LANDED — **Jean's probe + visual desk open** (see CHOIR_1 above) |
 | GROUND_VOICE_0 | the room's energy lifts the ground, its density quickens it | LANDED — **Jean's probe + desk open** (see GROUND_VOICE_0 above) |
+| STAGE_0 | the stage is the world: radius pinned, veil excised, choir boot-born, kite + push retired | LANDED — **Jean's probe, desk and the held glaw2 record** (see STAGE_0 above) |
 | EMBER_0 | the D3D12 lanes | **OPEN — on Jean's button** (see EMBER_0 above) |
 
 Roster: PYRAMID, SPHERE, RIBBON, CUBE. The ground: one automaton, ~3.1%
