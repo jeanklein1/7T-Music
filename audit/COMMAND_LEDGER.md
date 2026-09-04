@@ -5,14 +5,14 @@ Read-only: a census of the program's pass and submit surface.
 
 ## Provenance
 
-Last commit touching any scanned file: `bf936674045db9b5e44f7ba5b4dff25e60bb2c53`
-(STAGE_0 R4 — the choir's palette is authored, and the compiler proves it)
+Last commit touching any scanned file: `823390e134631b6d6651a18140bccaa38b63be01`
+(WHEEL_0 R7 — the second repaint edge, and the gate grows to cover door 5)
 
 | file scanned | sha256 |
 |---|---|
 | `src/cartridges/the_board/realization/render_passes.hpp` | `sha256:d00857c2e8456fc08af94cc8e97d880f5dfb956e493c4cb90bb0e5e5d49bd9fa` |
 | `src/cartridges/the_board/realization/renderer.hpp` | `sha256:4e6ead2a95e61d69118502d43ef838bc3e2e8bc3568be1f7c980bcdb9b534f4e` |
-| `src/cartridges/the_board/cartridge.hpp` | `sha256:59f78473e934c0c507dfdd34d1f2d87679e0236f6f5551296729ebd777b1b6a1` |
+| `src/cartridges/the_board/cartridge.hpp` | `sha256:47a65298ffb46b086a98d031c7ee047c5c13507f2c702f0a5e08339b5089141a` |
 | `src/cartridges/the_board/surface/patch_system.hpp` | `sha256:6fefa8aa398a213cdc437825d74390ba914758f66942fdd12ecddd2784b13073` |
 | `src/cartridges/the_board/surface/automaton.hpp` | `sha256:e55cc9b3e428a05ee74ee0338db1f3c2fcdf37aa4f4ef70df4fc0f3920a14006` |
 | `src/cartridges/the_board/bodies/pawn.hpp` | `sha256:7915ec242a2a3094537882c50a2980c9494e4f1460a3a2f786232b67ec6ead12` |
@@ -36,7 +36,7 @@ in `console.hpp`.
 | 2 | Frustum Cull Patches | compute | `dispatch_frustum_cull` | `src/cartridges/the_board/realization/render_passes.hpp:230` | — | — | — |
 | 3 | Shadow Pass | render | `render_shadow_pass` | `src/cartridges/the_board/realization/render_passes.hpp:272` | (none: depth-only) | Clear/Store, readOnly (absent) → `c->gpuState_.shadow_map_view()` | (no stencil aspect) |
 | 4 | Rasterized Scene | render | `render_main_pass` | `src/cartridges/the_board/realization/render_passes.hpp:541` | Clear/Store or Discard → `backbuffer or msaaColor` resolve → `backbuffer` | Clear/Discard, readOnly (absent) → `depth` | (no stencil aspect) |
-| 5 | Entity Mesh Gen | compute | `phase_entity_mesh_gen` | `src/cartridges/the_board/cartridge.hpp:2209` | — | — | — |
+| 5 | Entity Mesh Gen | compute | `phase_entity_mesh_gen` | `src/cartridges/the_board/cartridge.hpp:2248` | — | — | — |
 | 6 | Patch Bake (fused) | compute | `generate_patch_batch` | `src/cartridges/the_board/surface/patch_system.hpp:159` | — | — | — |
 | 7 | Automaton Seed | compute | `birth_automaton` | `src/cartridges/the_board/surface/automaton.hpp:172` | — | — | — |
 | 8 | Automaton Sync | compute | `dispatch_automaton_sync` | `src/cartridges/the_board/surface/automaton.hpp:239` | — | — | — |
@@ -53,7 +53,7 @@ in `console.hpp`.
 
 | # | receiver | enclosing function | site |
 |---|---|---|---|
-| 1 | `queue.Submit` | `birth_the_automaton` | `src/cartridges/the_board/cartridge.hpp:2285` |
+| 1 | `queue.Submit` | `birth_the_automaton` | `src/cartridges/the_board/cartridge.hpp:2324` |
 | 2 | `queue.Submit` | `build_world` | `src/cartridges/the_board/surface/patch_system.hpp:569` |
 | 3 | `app->queue.Submit` | `frame` | `src/the_board.cpp:386` |
 
@@ -83,7 +83,7 @@ every landing.
 
 | # | label | enclosing function | site |
 |---|---|---|---|
-| 1 | `"birth_the_automaton"` | `birth_the_automaton` | `src/cartridges/the_board/cartridge.hpp:2282` |
+| 1 | `"birth_the_automaton"` | `birth_the_automaton` | `src/cartridges/the_board/cartridge.hpp:2321` |
 | 2 | `"build_world"` | `build_world` | `src/cartridges/the_board/surface/patch_system.hpp:563` |
 | 3 | `"frame"` | `frame` | `src/the_board.cpp:377` |
 
