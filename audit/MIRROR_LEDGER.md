@@ -15,8 +15,8 @@ carry those facts, or leave them in place and patch around them.
 
 | field | value |
 |---|---|
-| source commit | `31992a3f22c6a2f8237ce6945c4b483cbfb7c41d` |
-| | STAGE_0 U5 — the presence push retires; the camera push stays |
+| source commit | `6f4481e23f2d90390f3dcb3c38e6bccc5b546878` |
+| | STAGE_0 U4 — the kite cut: formations anchor in the world |
 | `src/cartridges/the_board/realization/binding_registry.hpp` | `sha256:79b70d3e7510cce71f5d67f85b994a781745d7c090efefd76ba7af165be17281` |
 | `src/cartridges/the_board/realization/world.wgsl` | `sha256:399f934c79d4aa258a07b34ba27b4a2311ff9734628017f2ec5ed00972a2653a` |
 | `src/cartridges/the_board/realization/state.hpp` | `sha256:afd52da085443a4e8942a6ded8891f826c943b93401e64a11289fbb30ccdd250` |

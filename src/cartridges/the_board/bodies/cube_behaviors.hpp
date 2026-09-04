@@ -162,6 +162,43 @@ inline constexpr uint32_t CUBE_CHOIR_RANKS = CUBE_CHOIR_N / 12u;
 // Silence pokes NOTHING.
 inline constexpr float CHOIR_FLUSH_EPS = 1e-3f;
 
+// ─ THE CHOIR'S OWN SEED (STAGE_0 U3) ─ the instrument is AUTHORED, so
+// its bodies do not draw from the world. Every Gaussian a key takes —
+// radius, bob, aspects, face variance — hashes off THIS constant and the
+// key index, so the same twenty-four cubes stand in every world and in
+// every run. Not the ground's seed: the ground keeps its own by ruling.
+inline constexpr uint32_t CHOIR_SEED = 0x7C0119E5u;
+
+// THE ROSTER, tier per key, at the old weights' proportions
+// ({0.40, 0.32, 0.20, 0.08} over 24 = 9.6 / 7.7 / 4.8 / 1.9). Rounded to
+// 10 / 8 / 5 / 1 — the Monolith is rounded DOWN to one because two would
+// be 8% of a 24-key instrument reading as 4%, and one tall thing is a
+// landmark where two are a pair. ITS PLACEMENT IS JEAN'S DESK; ruled
+// default key 18, which is rank 1's pitch class 6 — the tritone, and the
+// far side of the wheel from key 0.
+inline constexpr uint8_t CHOIR_TIERS[CUBE_CHOIR_N] = {
+    0,0,0,0,0,0,0,0,0,0,      // keys  0-9  SmallCube  (10)
+    1,1,1,1,1,1,1,1,          // keys 10-17 MedCube    ( 8)
+    3,                        // key  18    Monolith   ( 1)  ← Jean's desk
+    2,2,2,2,2,                // keys 19-23 LargeCube  ( 5)
+};
+static_assert(sizeof(CHOIR_TIERS) / sizeof(CHOIR_TIERS[0]) == CUBE_CHOIR_N,
+    "one tier per key, hand-authored — a keyboard has no weights to roll");
+
+// THE BIRTH CIRCLE — PLACEHOLDER BY DECLARATION. Key k sits at angle
+// 2πk/N on a circle about the world's centre. WHEEL_0 re-aims THIS ONE
+// FUNCTION to the interval wheel's stations, which is why the birth calls
+// it rather than computing a position inline.
+inline constexpr float CHOIR_BIRTH_RADIUS = 60.0f;
+
+// THE SYNTHETIC PATCH ROW, and it is load-bearing — see birth_the_choir.
+// A boot-born cube belongs to no patch, and the projector recomputes its
+// base colour from tile_seed(world seed, patch_gx, patch_gz). Left at the
+// 0,0 default every key would hash the SAME seed and the whole choir
+// would come out ONE FLAT COLOUR. So each key is given a distinct
+// synthetic pair on a row no real patch grid reaches.
+inline constexpr int32_t CHOIR_PATCH_ROW = -30000;
+
 // ─ THE AUTOMATON band stood here (CHOIR_0 U5) ───────────────────
 // TICK_BEATS, REV_BEATS, EXCITE_DIFFUSE, ASYMMETRY, EXCITE_HALF_BEATS,
 // PIGMENT_GAIN, PIGMENT_HALF_BEATS, STRIKE_SPREAD, WEIGHT_SEED, the two
@@ -416,6 +453,8 @@ void choir_project_color(const CubeBehaviorsState& cbs, uint32_t active_seed, ui
     float& out_r, float& out_g, float& out_b);
 void choir_project(CubeBehaviorsState& cbs, GPUState& gpu, wgpu::Queue& queue,
     uint32_t active_seed);
+// THE BIRTH (STAGE_0 U3): the choir is authored, not spawned.
+void birth_the_choir(MachineCtx* c, wgpu::Queue& queue);
 
 // ═══ IMPL:
 // rows deref cube_state(own) + time/world via MachineCtx; corral/kite
@@ -809,6 +848,15 @@ inline const TierProfile& cube_get_tier_profile(uint32_t tier_idx) {
 
 inline constexpr EntityFamilyTraits CUBE_TRAITS = {
     PopFamily::CUBE, CUBE_CHOIR_N,   // THE CHOIR is the living ceiling now (the lattice's 252 was); capacity stays 256
+    // THREE FIELDS BELOW ARE DEAD SINCE STAGE_0 U3 and are kept as VALUES,
+    // not as law: spawn_roll_prop, spawn_chance and position_jitter were
+    // read only by the gate this campaign retired. They stay because
+    // EntityFamilyTraits is a POSITIONAL AGGREGATE — removing a field
+    // silently slides every later initialiser up one slot, which is the
+    // exact hazard T7_GATE_PIN exists to catch — and because CubeProp's
+    // indices are the FROZEN BIOGRAPHY contract and SPAWN_ROLL is one of
+    // them. Zeroing spawn_chance would read as "never spawns" and be just
+    // as dead while looking like a dial. Flagged, not cut.
     false,                // NOT grounded — hovers and drifts; claims no ground (ruling 21)
     CubeProp::SPAWN_ROLL, CubeConfig::SPAWN_CHANCE,
     CubeConfig::POSITION_JITTER,
@@ -818,8 +866,24 @@ inline constexpr EntityFamilyTraits CUBE_TRAITS = {
     0, nullptr,
 };
 
+// THE GATE REFUSES (STAGE_0 U3). It delegated to gate_from_traits, which
+// rolled CubeConfig::SPAWN_CHANCE per patch and reserved the lowest free
+// slot. THE CHOIR IS AUTHORED NOW — birth_the_choir lays twenty-four keys
+// at world birth — so there is nothing left to roll, and a gate that could
+// still fire would put a twenty-fifth cube in a twenty-four-key
+// instrument.
+//
+// IT REFUSES RATHER THAN VANISHING, and that is deliberate. This function
+// is one slot of CUBE_ADAPTER, which is a POSITIONAL AGGREGATE, and the
+// three funnels below are three more slots of FAMILY_DISPATCH's cube row.
+// Removing any of them slides every later initialiser up one — the exact
+// hazard T7_GATE_PIN and the tail-pointer asserts exist to catch, and a
+// hazard with no upside here: an early `return {false,…}` is one branch
+// the compiler folds, and generic_select exits on it before touching a
+// tier weight. The SHAPE stays, the SPAWN goes.
 inline SpawnGateOutput cube_run_gate(MachineCtx* c, int32_t gx, int32_t gz) {
-    return gate_from_traits(c, gx, gz, CUBE_TRAITS, c->cube_behaviors_state_.activeCubes_);
+    (void)c; (void)gx; (void)gz;
+    return { false, 0u, 0u };
 }
 
 inline void cube_compute_solid_half(EntityInstance& inst, const TierProfile&) {
@@ -994,6 +1058,13 @@ inline constexpr EntityFamilyAdapter CUBE_ADAPTER = {
     cube_get_tier_profile,
 };
 
+// THE THREE DISPATCH FUNNELS — select, place and commit, the cube's arm of
+// the three-phase pipeline. They stand unchanged and UNREACHABLE: the gate
+// above refuses, so generic_select returns false before any of this runs.
+// They keep their slots in FAMILY_DISPATCH's cube row for the positional
+// reason stated at the gate, and the row's other slots — the census pair,
+// the mesh pair — are live as ever, because a family that no longer spawns
+// still has a population to count.
 inline bool dispatch_select_cube_generic(MachineCtx* self, int32_t gx, int32_t gz, EntityQueueEntry& e) {
     EntityInstance inst{};
     if (!generic_select(self, CUBE_TRAITS, CUBE_ADAPTER, gx, gz, inst)) return false;
@@ -1006,14 +1077,134 @@ inline bool dispatch_place_cube_generic(MachineCtx* self, EntityQueueEntry& e, P
 }
 inline void dispatch_commit_cube_generic(MachineCtx* self, PlacementEntry& pe, wgpu::Queue& queue) {
     auto* host = find_patch(self, pe.generic.host_gx, pe.generic.host_gz);
-    if (host) {
-        generic_commit(self, CUBE_TRAITS, CUBE_ADAPTER, pe.generic, queue);
-        // Lifecycle Phase 2: cube lifetime decoupled from host patch.
-        // See dispatch_commit_sphere_generic for the rationale.
-    }
+    if (host) { generic_commit(self, CUBE_TRAITS, CUBE_ADAPTER, pe.generic, queue); }
     else { self->cube_behaviors_state_.activeCubes_[pe.generic.slot].active = false; }
 }
 
+
+// ═══ THE CHOIR'S BIRTH (STAGE_0 U3) ══════════════════════════════
+//
+// The cube spawn path is gone. Cubes are not scattered by a patch roll
+// any more — the instrument is AUTHORED, twenty-four keys born at boot
+// and at every rebirth, the same twenty-four in every world.
+//
+// WHAT A BIRTH OWES, and it is the union of three things the pipeline
+// used to do in three places:
+//   1. RESERVE the slot. run_spawn_preamble set activeCubes_[k].active
+//      at GATE time, which is why "KEY k = SLOT k by construction" was
+//      ever true. With no gate, the birth reserves — and the law becomes
+//      an assignment rather than a consequence, which is stronger.
+//   2. cube_write_active — the MIRROR, the PRIOR every release walks back
+//      to.
+//   3. cube_write_gpu — the whole GPU slot, plus the choir bookkeeping
+//      (the walk shadow, the settled flag, the poke gate's seed).
+// Cubes touch no footprint registry (they are not grounded) and no patch
+// registry (record_entity retired at ONE_SURFACE-I U3), so that is all of
+// it.
+//
+// TWO SEEDS, AND THE SECOND ONE IS NOT OPTIONAL.
+//
+//   THE BODY SEED — cpu_hash(CHOIR_SEED, k) — draws radius, bob, aspects
+//   and face variance. World-independent, as the commission asks: the
+//   same cubes every run, every world.
+//
+//   THE COLOUR SEED — tile_seed(world seed, patch_gx, patch_gz) — is NOT
+//   ours to choose, because THE PROJECTOR RECOMPUTES IT. choir_slot_seed
+//   reads the mirror's patch coordinates and re-derives the base colour
+//   on every poke, and that function is on the choir light's protect
+//   list. So the birth must seat patch coordinates the projector can
+//   recompute from, and must dress inst.colors THROUGH THE SAME SEED, or
+//   the first poke would change every cube's colour.
+//
+//   LEFT AT THE 0,0 DEFAULT — which is what "boot-born cubes have no
+//   patch" naturally gives you — all twenty-four keys hash the SAME
+//   tile_seed and THE WHOLE CHOIR COMES OUT ONE FLAT COLOUR. Nothing
+//   asserts it; it would simply look wrong. CHOIR_PATCH_ROW is the fix:
+//   one distinct synthetic pair per key, on a row no real patch reaches.
+//
+//   WHAT THIS LEAVES, NAMED: the BODIES are world-independent and the
+//   PALETTE is not — the same instrument wears a different finish in each
+//   world. That reads well and it is one line to change (CHOIR_SEED in
+//   place of the world seed, at choir_slot_seed's call site), but the
+//   call site is protected and the choice is Jean's.
+
+// Key k's birth position. PLACEHOLDER BY DECLARATION — WHEEL_0 re-aims
+// this one function to the interval wheel, which is why the birth asks it
+// rather than computing a circle inline.
+inline ZoetropeStation birth_station(uint32_t k) {
+    const float two_pi = 6.28318530718f;
+    const float theta = two_pi * float(k) / float(CUBE_CHOIR_N);
+    return { std::cos(theta) * CHOIR_BIRTH_RADIUS,
+             std::sin(theta) * CHOIR_BIRTH_RADIUS, 0.0f };
+}
+
+inline void birth_the_choir(MachineCtx* c, wgpu::Queue& queue) {
+    const uint32_t active_seed = c->world_state_.active_seed;
+    for (uint32_t k = 0; k < CUBE_CHOIR_N; ++k) {
+        const uint32_t tier = CHOIR_TIERS[k];
+        const TierProfile& profile = cube_get_tier_profile(tier);
+
+        // THE SYNTHETIC PATCH. Distinct per key so the projector's
+        // recompute gives twenty-four different colours; on a row no real
+        // grid reaches so it can never collide with a ground patch's seed.
+        const int32_t gx = (int32_t)k;
+        const int32_t gz = CHOIR_PATCH_ROW;
+
+        EntityInstance inst{};
+        inst.family_id  = PopFamily::CUBE;
+        inst.slot       = k;
+        inst.tier_idx   = tier;
+        inst.seed       = cpu_hash(CHOIR_SEED, k);   // THE BODY SEED
+        inst.trigger_gx = gx; inst.trigger_gz = gz;
+        inst.host_gx    = gx; inst.host_gz    = gz;
+
+        // The tier draws, off the body seed — the same sampler the
+        // pipeline used, so a key's body is what the tier table says.
+        for (uint32_t i = 0; i < CUBE_PARAM_COUNT; ++i) {
+            const auto& pd = CUBE_PARAM_DEFS[i];
+            float v = cpu_sample_gaussian(inst.seed, pd.prop,
+                                          profile.params[i].mean, profile.params[i].sigma);
+            // generic_select's clamp order, verbatim — round, floor,
+            // then the ceiling only if it is a real one.
+            if (pd.do_round) v = std::round(v);
+            v = std::max(pd.floor, v);
+            if (pd.ceiling < 1e29f) v = std::min(pd.ceiling, v);
+            inst.params[i] = v;
+        }
+        cube_compute_solid_half(inst, profile);
+
+        const ZoetropeStation st = birth_station(k);
+        inst.cx = st.off_x;
+        inst.cz = st.off_z;
+
+        // THE COLOUR SEED, and it must be the projector's. Dressing
+        // inst.colors from the body seed would put base_color and the
+        // projector's recompute one hash apart, and the first poke would
+        // repaint every cube.
+        {
+            EntityInstance tmp{};
+            tmp.seed = tile_seed(active_seed, gx, gz);
+            cube_compute_colors(tmp, CUBE_TRAITS, cube_get_tier_profile(0));
+            inst.colors[0] = tmp.colors[0];
+            inst.colors[1] = tmp.colors[1];
+            inst.colors[2] = tmp.colors[2];
+        }
+
+        // THE MIRROR, THEN THE GPU SLOT — generic_commit's own two calls,
+        // in its own order, minus the post_commit the cube adapter never
+        // had. The order is load-bearing and always was: cube_write_gpu's
+        // projector call reads the mirror's patch coordinates that
+        // cube_write_active has just seated. write_active also sets
+        // `active` and `last_alloc_time`, so it IS the reservation the
+        // gate used to make.
+        cube_write_active(c, inst);
+        cube_write_gpu(c, inst, queue);
+    }
+    std::cout << "[CHOIR] born: " << CUBE_CHOIR_N << " keys, "
+              << CUBE_CHOIR_RANKS << " rank(s), seed 0x"
+              << std::hex << CHOIR_SEED << std::dec
+              << " (bodies authored; palette is the world's)\n";
+}
 
 // ═══ THE ZOETROPE'S LATTICE SUBSTRATE STOOD HERE (CHOIR_0 U5) ═════
 //

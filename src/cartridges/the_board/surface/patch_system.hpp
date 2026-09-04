@@ -587,6 +587,20 @@ inline void build_world(MachineCtx* c, wgpu::Device& device, wgpu::Queue& queue,
     // budget to select. The field left at ONE_SURFACE-I U6; the LAW it
     // stated is this function.
 
+    // ── THE CHOIR IS BORN WITH THE WORLD (STAGE_0 U3) ────────────────
+    // Not spawned: AUTHORED. Every other family is scattered by a per-patch
+    // roll inside the walk above; the cubes are an instrument, so they are
+    // laid out by hand, twenty-four keys, the same twenty-four in every
+    // world. It sits HERE — after the patches exist and before the census
+    // counts them — because the census is "the first count of a world that
+    // exists" and a world without its instrument is not one.
+    //
+    // AND IT IS SAFE HERE ONLY BECAUSE U2 RETIRED EVICTION. A choir born
+    // into a world that could still evict floaters would lose keys to a
+    // radius test, silently, and a key that goes dark for a reason the
+    // music never gave is the one thing this instrument may not do.
+    birth_the_choir(c, queue);
+
     // THE BIRTH CENSUS (OVERTURE_0), kept at its own moment: the first
     // count of a world that exists.
     dump_entity_census(c, "born");
