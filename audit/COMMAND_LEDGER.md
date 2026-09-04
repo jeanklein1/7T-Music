@@ -5,8 +5,8 @@ Read-only: a census of the program's pass and submit surface.
 
 ## Provenance
 
-Last commit touching any scanned file: `2475882cb93db2d65b417f5ceaa9e5bf135c983f`
-(STAGE_0 U3 — the choir is born, not spawned)
+Last commit touching any scanned file: `a1cca7027ba72eb0bf167750bb43fd8d732e34ac`
+(WHEEL_0 U2+U3 — the serve and the mode fold, in one breath)
 
 | file scanned | sha256 |
 |---|---|

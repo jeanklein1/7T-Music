@@ -15,8 +15,8 @@ carry those facts, or leave them in place and patch around them.
 
 | field | value |
 |---|---|
-| source commit | `6b55bbb04262f4ebd67ffaa3465563418c51671d` |
-| | STAGE_0 U6 — gates, the record, and the stage law |
+| source commit | `a1cca7027ba72eb0bf167750bb43fd8d732e34ac` |
+| | WHEEL_0 U2+U3 — the serve and the mode fold, in one breath |
 | `src/cartridges/the_board/realization/binding_registry.hpp` | `sha256:79b70d3e7510cce71f5d67f85b994a781745d7c090efefd76ba7af165be17281` |
 | `src/cartridges/the_board/realization/world.wgsl` | `sha256:399f934c79d4aa258a07b34ba27b4a2311ff9734628017f2ec5ed00972a2653a` |
 | `src/cartridges/the_board/realization/state.hpp` | `sha256:afd52da085443a4e8942a6ded8891f826c943b93401e64a11289fbb30ccdd250` |
