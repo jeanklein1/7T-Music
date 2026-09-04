@@ -438,26 +438,43 @@ fixed pre-existing drift rather than recording mine: `BINDING_LEDGER.md` and
 `MIRROR_LEDGER.md` still carried `HEM_1`/`c8b856dc` provenance at
 `be0eb28f`. Noted so the delta is not read as this campaign's.
 
-**AND HERE IS WHY THEY GO STALE — a property of the tooling, not an
-accident.** Each of these ledgers stamps *"the last commit touching any file
-I scan"*. `BINDING_LEDGER` and `MIRROR_LEDGER` both scan `state.hpp`. So
-regenerating them **in the same commit that edits a scanned file** stamps
-them ONE COMMIT BEHIND by construction — the commit they belong to does not
-exist yet when the tool reads the log. The only stamp that can be right is
-one written by a FOLLOW-UP commit. This campaign hit it twice (U6 and U6b
-each stamped their predecessor) and closed it with U6d; the two ledgers that
-arrived stale at `be0eb28f` are the same mechanism, unclosed.
+**AND HERE IS WHY THEY GO STALE — a property of the tooling, measured, not
+guessed.** Each of these ledgers stamps *"the last commit touching any file I
+scan"*, so regenerating one **in the same commit that edits a scanned file**
+stamps it ONE COMMIT BEHIND by construction: the commit it belongs to does
+not exist yet when the tool reads the log. The only stamp that can be right
+is one a FOLLOW-UP commit writes.
 
-`mirror_census.py` makes it easy to hit, because **it is a gate and a
-generator in one file**: running it to check a verdict rewrites its artifact
-as a side effect. Running the battery after a commit therefore dirties the
-tree. Both facts are worth a successor's attention — **the fix is to
-regenerate last and commit the ledgers alone**, which is what U6d is.
+**AND THE TWO LEDGERS ARE CHAINED, which makes it a two-step settle rather
+than one.** `MIRROR_LEDGER`'s scanned inputs include **`audit/BINDING_LEDGER.md`
+itself** (the parsers are imported, not copied — one parse, two artifacts).
+So a commit that re-stamps BOTH ledgers moves a MIRROR input, and MIRROR is
+immediately one behind again. The fixed point is reached in exactly two
+commits and no more:
 
-The witness that this is only a stamp and not a structural drift: the second
-full regeneration produced the identical file list, so nothing oscillates,
-and the **L33 rebuild witness was re-run at the settled state and is
-byte-identical across all six artifacts.**
+| commit | touches | `BINDING` stamp | `MIRROR` stamp |
+|---|---|---|---|
+| U6b | `state.hpp` (+ code) | *stale* `d0472c31` | *stale* `d0472c31` |
+| U6d | both ledgers | **`17cdc814`** ✓ stable | *one behind* — U6d moved a MIRROR input |
+| U6e | `MIRROR_LEDGER.md` alone | `17cdc814` ✓ | **`593622fb`** ✓ stable |
+
+U6e is the fixed point because MIRROR does **not** scan itself, so a commit
+carrying only MIRROR touches none of its own inputs. Verified by running the
+full six-tool regeneration three more times after U6d: the stamp held at
+`593622fb` on every pass, and `BINDING` never moved off `17cdc814`.
+
+`mirror_census.py` makes the whole class easy to hit because **it is a gate
+and a generator in one file**: running it to read a verdict rewrites its
+artifact as a side effect, so running the battery *after* a commit dirties
+the tree. All of this is worth a successor's attention — **regenerate last,
+commit the ledgers alone, and expect MIRROR to need one commit more than
+BINDING.** The two ledgers that arrived stale at `be0eb28f` are the same
+mechanism, left unclosed.
+
+The witness that this is only a stamp and not structural drift: repeated full
+regenerations produce the identical file list, so nothing oscillates, and the
+**L33 rebuild witness was re-run at the settled state and is byte-identical
+across all six artifacts.**
 
 ---
 
