@@ -446,7 +446,7 @@ inline void dispatch_commit_pyramid_generic(MachineCtx* self, PlacementEntry& pe
 // grounded(4) is pinned too, which brackets the first removal from both sides.
 #define T7_GATE_PIN(TR, FAM, MAXN, GND, PROP, CHANCE, NCOL)                       \
     static_assert(TR.family_id       == FAM,     #TR " family_id must match");    \
-    static_assert(TR.max_instances   <= MAXN,    #TR " population law ≤ capacity; the lattice owns the living ceiling");\
+    static_assert(TR.max_instances   <= MAXN,    #TR " population law ≤ capacity; the family's own row owns the living ceiling (the cube's is CUBE_CHOIR_N since CHOIR_0, and was the lattice's before it)");\
     static_assert(TR.grounded        == GND,     #TR " grounded must match");     \
     static_assert(TR.spawn_roll_prop == PROP,    #TR " spawn_roll_prop must match"); \
     static_assert(TR.spawn_chance    == CHANCE,  #TR " spawn_chance must match"); \

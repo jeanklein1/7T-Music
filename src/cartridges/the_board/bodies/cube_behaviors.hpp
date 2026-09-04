@@ -19,7 +19,9 @@
 #include <cmath>      // std::cos, std::sin, std::exp, std::fabs   // (impl, merged)
 #include <iostream>   // diagnostics feedback   // (impl, merged)
 #include <numeric>    // std::gcd — the helix coprimality witness
-#include <algorithm>  // std::min / std::max — the walk's clamps and settle norm
+#include <algorithm>  // std::max — the scatter's altitude floor and the settle norm
+                      // (std::min left with the lattice: it clamped the
+                      // cell intensity, and there is no cell to clamp)
 // <cstdio> and core/instruments.hpp stood here (CHOIR_0 U5) for the
 // [ZOETROPE] strike witness. The witness went with the strike, and its
 // successor prints from the canvas, where the envelope it reports lives
@@ -192,9 +194,14 @@ inline constexpr float ZOETROPE_REST_DIM = 0.30f;  // SCREEN rest brightness —
 inline constexpr float ZOETROPE_SWELL_GAIN = 0.60f;  // × pixel radius at full I
 // PIGMENT_R/G/B/WEIGHT stood here (CHOIR_0 U5) — the ethereal ice the
 // mix aimed at, and the stain under the flash. Their successor is
-// DRIVER_LIVE.cube.light_color, which is a DRIVER's dial rather than a
-// module constant: a driven parameter wears no dial on its value, it
-// wears one on its driver (contracts/driver_surface.hpp).
+// DRIVER_LIVE.cube.light_color, which belongs in the DRIVERS' ROOM
+// rather than in a module console: a driven parameter wears no dial on
+// its value, it wears one on its driver (contracts/driver_surface.hpp).
+// IT IS NOT A REACHABLE DIAL YET — its organ row is PARKED under the
+// ORGAN_REST registry freeze, so today it is edited here-and-recompile
+// exactly as the constants it replaces were. What changed is its HOME
+// and therefore what it will cost to enrol: one organ_params.inc line,
+// not a graduation.
 //
 // FACE_SPLAY and FACE_REST stood here too, with the calibration note
 // TUNE_2 B2 wrote for the splay's magnitude. Both retire with the law
@@ -301,13 +308,16 @@ struct CubeBehaviorsState {
         ROAM, TO_SCATTER, SCATTERED, TO_SCREEN, SCREEN, TO_ROAM };
     Formation formation = Formation::ROAM;
     bool  stations_sent = false;
-    // The dim changes with the formation, not with the music, so the
-    // projector must repaint once at the transition — otherwise the new
-    // rest waits for a note that may never come (V1 E3). reveal_zoetrope
-    // cannot reach the world seed the projector needs, so it raises this
-    // and choir_project spends it as a FORCE on its next pass — the one
-    // thing that has to outrank the poke gate, because it changes what a
-    // cube looks like without moving its light.
+    // THE FORCE FLAG. A cube's look changes with the FORMATION as well as
+    // with the music, and the projector is gated on the music — so every
+    // formation change that moves the look has to say so here, or the new
+    // look waits for a note that may never come (V1 E3). Neither raiser
+    // can reach the world seed the projector needs, so both raise this
+    // instead and choir_project spends it as a FORCE on its next pass.
+    // TWO RAISERS, THREE EDGES: reveal_zoetrope on the dim's two
+    // transitions (TO_SCREEN on, TO_ROAM off), and zoetrope_service at
+    // every settle (CHOIR_0 U6b — the arrival, where the walk has just
+    // snapped the radius and the swell must be re-asserted).
     bool  repaint_all   = false;
     // The stage frame: a kite sentinel is in flight and will EAT any
     // target written before it is consumed (V1), so the seat pass waits
@@ -1031,8 +1041,12 @@ inline void dispatch_commit_cube_generic(MachineCtx* self, PlacementEntry& pe, w
 // seed (never cached — the gate drew tile_seed(active world seed,
 // trigger patch) and the mirror keeps the trigger patch, so the seed
 // reconstructs bit-exactly), the SCREEN dim survives, and the silent
-// path is still bit-exact: at I = 0 the mix returns the seed colour and
-// the variance returns the spawn draw, both to the last bit.
+// path is still bit-exact WHERE IT WAS BEFORE: at I = 0 the mix returns
+// its base unchanged and the variance returns the spawn draw, both to the
+// last bit. The base is the seed colour itself in ROAM and the gathering,
+// and seed x ZOETROPE_REST_DIM in the two SCREEN states — the dim is not
+// the light and does not answer to I, which is exactly why the screen is
+// DARK when the instrument is not being played rather than merely unlit.
 //
 // WHAT CHANGED IS THE VARIANCE'S DIRECTION. The strike SPLAYED — it
 // added face variance, because a struck cell was a cell disturbed. The
@@ -1127,9 +1141,16 @@ inline void choir_project_slot(const CubeBehaviorsState& cbs, GPUState& gpu,
 // the light itself: a slot pokes only when its light MOVED past epsilon.
 // A silent room pokes nothing at all, a sustained chord pokes only while
 // it climbs, and the release pokes for exactly light_release beats. The
-// repaint edge (V1 E3) rides through as a FORCE — the two formation
-// transitions that move the dim change what a cube looks like without
-// moving its light, so they cannot be gated on the light.
+// repaint edge rides through as a FORCE. THREE THINGS RAISE IT, and they
+// share one property: each changes what a cube LOOKS LIKE without moving
+// its LIGHT, so none of them can be gated on the light.
+//   · entering TO_SCREEN — the dim goes on   (V1 E3)
+//   · entering TO_ROAM   — the dim goes off  (V1 E3)
+//   · the ARRIVAL, at every settle (CHOIR_0 U6b) — the walk has just
+//     snapped body_radius to the bare pixel and the formation changed
+//     underneath the projector, so the swell has to be re-asserted or a
+//     cube arriving under a HELD key stands unswollen until that key
+//     next moves.
 inline void choir_project(CubeBehaviorsState& cbs, GPUState& gpu, wgpu::Queue& queue,
     uint32_t active_seed) {
     const bool force = cbs.repaint_all;

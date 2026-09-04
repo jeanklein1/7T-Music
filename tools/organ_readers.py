@@ -84,6 +84,14 @@ READERS = {
         ("src/cartridges/the_board/bodies/pawn.hpp", "toggle_aura"),
         ("src/cartridges/the_board/bodies/pawn.hpp", "apply_aura_policy"),
         ("src/cartridges/the_board/bodies/ribbon.hpp", "ribbon_frame_tick"),
+        # CHOIR_0: the choir's projector reads DRIVER_LIVE.cube.light_color
+        # directly, because the incandescence is a MIX TARGET rather than a
+        # rest composed at a seam — there is nothing for phase_motion_drivers
+        # to blend it against. Listed the moment the reader appeared: the
+        # census printed it as a "?" line, which is this table's whole
+        # anti-staleness mechanism doing its job. Without the row the cube
+        # dials would read as SUSPECTS the moment the registry freeze lifts.
+        ("src/cartridges/the_board/bodies/cube_behaviors.hpp", "choir_project_color"),
     ]),
     "PAWN": ("PAWN_AURA_LIVE", "PawnAuraProfile", [
         ("src/cartridges/the_board/bodies/pawn.hpp", "tick_pawn_couplings"),

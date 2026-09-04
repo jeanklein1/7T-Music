@@ -330,9 +330,21 @@ seven rows' worth of seats. Accepted percept, on the visual gate.
 The finished diff was put through a six-dimension review — the envelope law,
 the population cap, the projector and its flush, the excision, the contracts
 and tooling, the cross-tier seam — with every finding then handed to three
-independent verifiers instructed to REFUTE it. **Ten findings landed and all
-ten are fixed. One of them was a real behavioural regression, and it is the
-single most valuable thing this pass produced:**
+independent verifiers instructed to REFUTE it. **Nineteen findings landed
+across two waves and all nineteen are fixed. One was a real behavioural
+regression, and it is the single most valuable thing this pass produced.**
+
+**A NOTE ON THE VERIFY PHASE, BECAUSE ITS HEADLINE IS MISLEADING.** The
+harness reported *0 confirmed, 19 refuted (0/3 stood)* — and that is an
+ARTIFACT OF A RACE, not a clean bill. The review agents finished before the
+verifiers did, and I acted on wave one as it arrived, so by the time each
+refuter read the tree the defect it was sent to attack had already been
+fixed. "The code does not say what the claim says it says" is precisely what
+a refuter reports on an applied fix. **Every finding below was verified
+against the tree by hand before it was acted on**, and the two that could not
+survive that check are marked as such. A verify pass that races the fixes it
+is verifying reports nothing useful; that is a lesson about the harness, not
+about the findings.
 
 ### A1 · THE SWELL WAS NOT RE-ASSERTED AT THE SETTLE — a real bug, now fixed
 
@@ -377,6 +389,30 @@ Every counted claim in §2 was re-derived numerically rather than estimated —
 the first draft of the poke-gate comment said "about six sevenths of the way
 up, roughly two thirds through the plateau", and the count says **I ≈ 0.939
 at frame 199 of 240**.
+
+### Wave two — the four later dimensions
+
+The projector, excision, contracts and seam dimensions landed after the first
+round of fixes. **Nine more, all record-accuracy, all fixed.** Two of them
+are the same class as the swell bug: a fix landed and its own documentation
+did not move with it.
+
+| finding | disposition |
+|---|---|
+| `tools/organ_readers.py`'s `DRIVERS` table did not list `choir_project_color`, the sixth `DRIVER_LIVE` reader — and the tool's own census was printing it as a `?` line, which is that table's whole anti-staleness mechanism working | **fixed** — the row is added. Left alone it would have made `DRIVERS.cube.*` read as SUSPECTS the moment the freeze lifts. The eight remaining `?` lines are **byte-identical to baseline** — pre-existing, none this campaign's |
+| `choir_project`'s force-edge inventory still named only the dim's two edges after U6b added the settle as a third | **fixed** — all three listed, with the property they share |
+| `repaint_all`'s field doc named `reveal_zoetrope` as its only raiser | **fixed** — two raisers, three edges |
+| the seam claimed `choir_project` "runs before the service, the order the lattice's flush held" — **it does not**: the old flush sat INSIDE `zoetrope_service`, between the reseat watch and the climb, so the watch is now *after* the projector | **fixed** — the comment states what actually moved and why the half that carries a hazard (projector before *climb*, so swell and walk never write `body_radius` in one frame) is the half that is preserved |
+| the projector banner claimed I = 0 returns "the seed colour… to the last bit" — true at `dim = 1`, but `REST_DIM` multiplies it in the two SCREEN states | **fixed** — bit-exact *where it was before*, and the dim is named as not answering to I |
+| `T7_GATE_PIN`'s `static_assert` message still credited "the lattice" with the cube's living ceiling | **fixed** |
+| `<algorithm>`'s include rationale named `std::min`, which left with the cell-intensity clamp | **fixed** — `std::max` only, and where it went |
+| the `[CHOIR]` boot witness printed the KEYBOARD's 36 beside the SOURCE's name, reading as a claim that `ch6.present_count` is 36 lanes wide (it is 12) | **fixed** — `(12 pc lanes) -> 36 keys, 3 rank(s)` |
+| `OPEN.md`'s "THE COUPLING ATLAS (landed)" section still carried eight pipes, twelve bindings, 12-heard/43-unheard, 6% allocated and `ears bound: 7 of 7` | **fixed** — the section records the atlas AT ITS LANDING and now says so, with what CHOIR_0 moved and the finding that survives it (reach is still the constraint) |
+
+Two wave-two claims did **not** survive my own check and were not acted on:
+the swell orphaning (already fixed at U6b, the reviewer read a pre-U6b tree)
+and an `OPEN.md` flag said to describe a mechanism that does not exist (it
+does — `zoetrope_service` raises `repaint_all` at the settle).
 
 ---
 

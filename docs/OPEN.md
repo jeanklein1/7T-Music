@@ -1166,28 +1166,40 @@ substrate: five tables, every row by symbol, **no rewiring**. Jean
 composes on it; the coupling campaign builds what he composes.
 
 **The reassurance held and the tree proved it**: eight pipes, twelve
-bindings, two seams, one composition law, all live. The atlas corrected
-two premises of its own commission —
+bindings, two seams, one composition law, all live **at the time this
+landed**. CHOIR_0 has moved every count in this section since — nine
+pipes, six bindings, three seams — and the atlas itself is the live
+authority; the numbers below are kept as the atlas's own findings AT ITS
+LANDING, because that is what this entry records. The atlas corrected two
+premises of its own commission —
 
 - **there are no misses.** LIGATURE_1 retired `BeatClock`, so all twelve
-  sources resolve; Jean's boot log is the witness (`ears bound: 7 of 7`,
+  sources resolve; Jean's boot log was the witness (`ears bound: 7 of 7`,
   and no `[SignalLayout] … unbound` line, which prints only on a miss).
-  The seam's shape is one bit further out: `loopMIDI open=0/1`.
+  CHOIR_0 retired that line; the misses count is still 0 and its silence
+  still means the same thing. The seam's shape is one bit further out:
+  `loopMIDI open=0/1`.
 - **cadence is FOUR, not three** — LIVE / GEN / BOUNDARY / DRIVEN, and
   the fourth is load-bearing: a DRIVEN row is a METER and `organ_set`
   refuses it, so it can never carry a voice.
 
 **The finding that reframes the campaign**: the layer's problem is not
-rot, it is REACH. canvas_1 publishes 55 names and **12 are heard** — the
+rot, it is REACH. canvas_1 publishes 55 names and **12 were heard** — the
 entire pc-DFT capability (16 names) and every voice's `distance` contour
-have no consumer anywhere in the tree. Meanwhile the automaton adds 15
-candidate dials of which NONE is enrolled. 43 unheard publications on one
-side, 15 unreachable dials on the other, and a 256-slot bank that is 6%
-allocated.
+have no consumer anywhere in the tree. Meanwhile the ground automaton
+adds 15 candidate dials of which NONE is enrolled. 43 unheard
+publications on one side, 15 unreachable dials on the other, and a
+256-slot bank that was 6% allocated. **CHOIR_0 moved two of those three
+numbers** — 6 heard / 49 unheard, and 20% allocated, `cube.light` being
+36 of the 51 — and left the finding itself standing: reach is still the
+constraint.
 
 Also settled there, for PANEL-I U4: **`reveal_zoetrope` is a DOOR, not a
-death** — the ears are bound 7 of 7 and the rows are struck every tick,
-so it is an honest lever on live machinery.
+death** — it was an honest lever on live machinery then (the ears bound
+7 of 7, the rows struck every tick), and it IS a door now (id 5). CHOIR_0
+retired the ears and the strike and left the door and the whole formation
+machine it opens untouched: the lattice was the zoetrope's SUBSTRATE, and
+what the door reveals is its BODY.
 
 ## THE GoL VOCABULARY OUTLIVED THE GoL (open, named at THE_PANEL I U5)
 

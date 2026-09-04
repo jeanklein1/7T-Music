@@ -388,8 +388,14 @@ namespace t7 {
             choir_target_ = param_layout_.resolve("cube.light");
             // Boot witness — doctrine, not measurement (P6): one line,
             // always, so a deaf choir names its fault at the seam.
-            std::fprintf(stderr, "[CHOIR] ear %s: %s.present_count (%d lanes)\n",
-                choir_ear_.valid ? "bound" : "UNBOUND", CHOIR_VOICE, CHOIR_LANES);
+            // TWO WIDTHS, AND THE LINE MUST NOT CONFLATE THEM: the EAR is
+            // twelve lanes (a pitch-class vector), the KEYBOARD is
+            // CHOIR_LANES keys stacked over it. Printing 36 beside the
+            // source name would read as a claim about the source.
+            std::fprintf(stderr, "[CHOIR] ear %s: %s.present_count (12 pc lanes)"
+                                 " -> %d keys, %d rank(s)\n",
+                choir_ear_.valid ? "bound" : "UNBOUND", CHOIR_VOICE,
+                CHOIR_LANES, CHOIR_LANES / 12);
 
             // PORT_4c — THE SOCKET, in one line. Every signal-side
             // resolve above happens here. Against canvas_1's published

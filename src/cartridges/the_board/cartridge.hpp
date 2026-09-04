@@ -1158,8 +1158,21 @@ namespace t7 {
                     }
                 }
                 // The projector's own home, poke-on-change: only a key
-                // whose light MOVED reaches the GPU. Runs before the
-                // service, the order the lattice's flush held.
+                // whose light MOVED reaches the GPU.
+                //
+                // THE ORDER MOVED, and it is worth being exact about how.
+                // The lattice's flush lived INSIDE zoetrope_service,
+                // between the reseat watch and the climb; this one runs
+                // before the whole service, so the reseat watch is now
+                // AFTER the projector rather than before it. What is
+                // PRESERVED is the half that carries a hazard — the
+                // projector still runs before THE CLIMB, so the swell and
+                // the walk never write body_radius in the same frame.
+                // What moved is harmless: the reseat watch authors
+                // targets and sentinels, never a colour or a variance,
+                // and a reseat that lands after the projector is seen on
+                // the next frame's pass — which the settle's own force
+                // edge repaints anyway.
                 choir_project(cube_behaviors_state_, gpuState_, c.queue,
                     world_state_.active_seed);
                 // The formation machine's own service — the reseat watch
