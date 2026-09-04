@@ -5,8 +5,8 @@ Read-only: a census of the program's pass and submit surface.
 
 ## Provenance
 
-Last commit touching any scanned file: `1b6cc7573357b3818547bee99636c3e8bd315153`
-(CHOIR_0 U5 — the old light dies whole: the lattice, the strike, the projector)
+Last commit touching any scanned file: `ffbbf77650d5661e5130a4c21e1624bf35f083c3`
+(CHOIR_0 U6f — the review's second wave: nine record defects, and a reader table that asked to be updated)
 
 | file scanned | sha256 |
 |---|---|
