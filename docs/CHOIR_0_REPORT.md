@@ -195,13 +195,16 @@ headers, not a built Dawn, and no display**, so the probe row is Jean's.
 | shell gate | **PASS** — 5 scenes, the scripted session, the export→import round trip |
 | score census | **GREEN** — 7 update + 16 render rows, bijection both directions |
 | WGSL gate | **PASS** — and it is a genuine no-op: `world.wgsl` is **byte-identical**. *This row did not run at baseline* — `naga` was absent from the container; `cargo install naga-cli` was run so the row could actually answer instead of failing open. |
-| binding surface (`--check`) | **PASS on every row but S-6**, which is `commit integrity: … vs upstream (none)` — an environment fact (no upstream tracking ref in this clone), red at baseline too, and unrelated to the diff. **S-8 unchanged: 11 fixed extents checked.** |
+| binding surface (`--check`) | **PASS — every relation, every witness**, S-6 included: `commit integrity: working tree clean; HEAD 17cdc81 == pushed tip`. It was red for the whole campaign and red at baseline too, for one reason S-6 states in its own verdict: the clone arrived with no upstream tracking ref, so there was no pushed tip to be equal to. It went green the moment the work was pushed, which is what that witness is for. **S-8 unchanged: 11 fixed WGSL extents checked.** |
 | organ gap (`--gate`) | **PASS** — 0 surviving runtime readers across 14 graduated pairs |
 | organ ledger (`--check`) | **PASS** — NO SUSPECTS |
 | mirror census | **GREEN** |
 | mirror offsets (`--check`) | **PASS** — 128 members, 7 structs |
 | G-LAW 1 | **JEAN'S** — needs the pinned emdawnwebgpu surface build |
 | **`--probe=N`** | **JEAN'S — THE DEVICE GATE. No visual sign-off before it.** |
+
+**Every gate CC can run is green, S-6 included.** Two rows are Jean's, and one
+of them is the only row that runs on a device.
 
 **THE L33 REBUILD WITNESS WAS RUN, NOT ASSERTED.** The five `audit/` files and
 `mirror_offsets.gen.inc` were deleted, the six tools re-run, and the result

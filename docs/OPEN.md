@@ -1541,8 +1541,11 @@ cheaper flush buys — **any state change that alters a cube's look without
 moving its light must raise the force**, and there are now three that do:
 the dim's two edges and the arrival.
 
-**7 · OPEN — THE PROBE.** Every text gate CC can run is green (see the
-report), and green is not a world that draws. `the-board --probe=N` and the
+**7 · OPEN — THE PROBE.** Every text gate CC can run is green — including
+`binding_gen --check`'s S-6, which had been red since the fork for the reason
+it states in its own verdict (the clone carried no upstream tracking ref, so
+there was no pushed tip to equal) and went green the moment this work was
+pushed. Green is not a world that draws. `the-board --probe=N` and the
 visual desk are Jean's: the light colour triple, the attack's shape at
 τ = 2, the variance convergence, and the **sparse screen percept** — 36
 cubes seated through the helix across a 7×36 geometry is a much emptier
