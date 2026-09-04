@@ -1528,7 +1528,20 @@ retired name is claimed by a tombstone in the diff** — the ritual's actual
 requirement — and the WGSL gate is a genuine no-op, stated rather than
 assumed: `world.wgsl` is byte-identical.
 
-**6 · OPEN — THE PROBE.** Every text gate CC can run is green (see the
+**6 · THE POKE GATE COST ONE REAL BUG, CAUGHT AND FIXED.** An adversarial
+pass over the finished diff found it: the climb ends by snapping
+`body_radius` to the BARE pixel, and the SWELL lives in the projector, which
+is gated on the light MOVING — so a cube arriving on the screen **under a
+held chord** would stand unswollen until its key next changed. The lattice's
+flush hid the whole class (it ran unconditionally every 0.25-beat tick).
+**The arrival now declares itself**: the settle raises `repaint_all`, and a
+newborn under a STANDING screen is dressed with the swell as it is dressed
+with the light. Recorded here because it is the general shape of what a
+cheaper flush buys — **any state change that alters a cube's look without
+moving its light must raise the force**, and there are now three that do:
+the dim's two edges and the arrival.
+
+**7 · OPEN — THE PROBE.** Every text gate CC can run is green (see the
 report), and green is not a world that draws. `the-board --probe=N` and the
 visual desk are Jean's: the light colour triple, the attack's shape at
 τ = 2, the variance convergence, and the **sparse screen percept** — 36

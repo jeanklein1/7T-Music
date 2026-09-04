@@ -124,17 +124,26 @@ inline constexpr uint32_t CUBE_CHOIR_RANKS = CUBE_CHOIR_N / 12u;
 // the flush is gated on the LIGHT instead of on a clock: a slot pokes
 // only when its light moved past this.
 //
+// THE GATE COMPARES AGAINST THE LAST FLUSH, NOT THE LAST FRAME, which
+// is the difference between thinning and stopping: when a frame's step
+// falls under this, the residual keeps ACCUMULATING against the stored
+// shadow and pokes when the sum crosses. So the light never sits more
+// than one epsilon from what the GPU holds, and a slow drift is
+// reported late rather than lost.
+//
 // THE ARITHMETIC, at 120 BPM / 60 fps (30 frames a beat, Δ = 1/30 beat),
-// with the default 8-beat plateau and 8-beat release — counted, not
+// with the default 8-beat plateau and 8-beat release — COUNTED, not
 // estimated. ATTACK: ΔI = (1 − I)·(1 − e^(−Δ/τ)) = 0.01653·(1 − I) at
-// τ = 2, so a key stops poking once (1 − I) drops under 0.0605, i.e. at
-// I ≈ 0.939 — 199 pokes out of the plateau's 240 frames, and the last
-// 41 frames of the climb are free. RELEASE: the slope is 1/8 per beat =
-// 0.00417 a frame, four times this gate, so a fall pokes every one of
-// its 240 frames. WORST CASE is therefore one poke per SOUNDING key per
-// frame — 36 twelve-byte colour writes and 36 four-byte variance writes
-// with the whole choir falling at once — against the lattice's
-// ≤252-slot sweep every quarter beat. Silence pokes NOTHING.
+// τ = 2 — **199 pokes across the plateau's 240 frames**, then it thins
+// with the residual: about 17 more over the following ten plateaus as
+// I closes on 1. RELEASE: the slope is 1/8 per beat = 0.00417 a frame,
+// four times this gate, so a fall pokes **every one of its 240 frames**.
+// WORST CASE is one poke per SOUNDING key per frame with the whole
+// choir falling at once: 36 twelve-byte colour writes and 36 four-byte
+// variance writes — and, WHEN THE SCREEN STANDS, 36 four-byte radius
+// writes as well, because the swell rides the same poke. 720 B a frame
+// against the lattice's ≤252-slot sweep every quarter beat. Silence
+// pokes NOTHING.
 inline constexpr float CHOIR_FLUSH_EPS = 1e-3f;
 
 // ─ THE AUTOMATON band stood here (CHOIR_0 U5) ───────────────────
@@ -903,7 +912,16 @@ inline void cube_write_gpu(MachineCtx* c, const EntityInstance& inst, wgpu::Queu
                             : station_scatter(c->cube_behaviors_state_, inst.slot);
         fe.orbit_height = st.h;
         if (born_to_screen) {
-            fe.body_radius = ZOETROPE_PIXEL_RADIUS;
+            // THE SWELL DRESSES THE NEWBORN TOO, and only where it has
+            // jurisdiction: under a STANDING screen the swell owns the
+            // radius, so a cube born into a held chord is born swollen
+            // exactly as it is born lit. Under TO_SCREEN the WALK owns it
+            // and the newborn takes the bare pixel, which is the target
+            // the walk is already carrying every other cube toward.
+            fe.body_radius = (formation == Formation::SCREEN)
+                ? ZOETROPE_PIXEL_RADIUS * (1.0f + ZOETROPE_SWELL_GAIN
+                    * choir_light(c->cube_behaviors_state_, inst.slot))
+                : ZOETROPE_PIXEL_RADIUS;
             fe.aspect_y    = 1.0f;
             fe.aspect_z    = 1.0f;
         }
@@ -1117,7 +1135,7 @@ inline void choir_project(CubeBehaviorsState& cbs, GPUState& gpu, wgpu::Queue& q
     const bool force = cbs.repaint_all;
     for (uint32_t slot = 0; slot < CUBE_CHOIR_N; ++slot) {
         if (!cbs.activeCubes_[slot].active) continue;
-        const float I = cbs.choir_I[slot];
+        const float I = choir_light(cbs, slot);   // the one door, here too
         if (!force && std::fabs(I - cbs.choir_flushed[slot]) <= CHOIR_FLUSH_EPS) continue;
         choir_project_slot(cbs, gpu, queue, active_seed, slot);
         cbs.choir_flushed[slot] = I;
@@ -1278,6 +1296,18 @@ inline void zoetrope_service(CubeBehaviorsState& cbs, GPUState& gpu, wgpu::Queue
                         gpu.upload_cube_follow_pawn(queue, slot, cbs.kite_mode ? 3u : 2u);
                     }
                 }
+                // THE ARRIVAL IS A REPAINT EDGE TOO (CHOIR_0 U6). The
+                // walk snapped body_radius to the BARE pixel and the
+                // formation changes underneath the projector — but the
+                // LIGHT did not move, so the poke gate would skip every
+                // slot and a cube arriving under a HELD chord would stand
+                // at the bare radius, unswelled, until its key next
+                // changed. The lattice's flush hid this: it ran
+                // unconditionally every tick, so the swell landed within
+                // a quarter beat whatever the gate thought. Poke-on-change
+                // has no such backstop, so the arrival has to declare
+                // itself. One forced pass, on the frame after the settle.
+                cbs.repaint_all = true;
                 cbs.formation = to_screen  ? Formation::SCREEN
                               : to_scatter ? Formation::SCATTERED
                                            : Formation::ROAM;

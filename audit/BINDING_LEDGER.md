@@ -16,7 +16,7 @@ merge rows the API charges separately.
 | demo column censused | `full` |
 | source commit | `be0eb28ff7f4280533cdada58453aebd8b7e9bd6` |
 | | SKIRT_WELD_1 — the perimeter skirt hangs from the base band, and the tint's variation becomes a gain |
-| `src/cartridges/the_board/realization/state.hpp` | `sha256:f7295eaac1c39e8ec203139659f913b724f7797a7ee5b8abfbc6b46f77bf2865` |
+| `src/cartridges/the_board/realization/state.hpp` | `sha256:e07ca7d94bbc9dd377ed19b25d42e73859653471b14bfa0cdeb89e11f10e4660` |
 | `src/cartridges/the_board/realization/binding_surface.gen.inc` | `sha256:c1b64eadb92b14b2b6a69475f78ca71b4144979f3737b157568a29e5f4a7bcf6` |
 | `src/cartridges/the_board/realization/binding_registry.hpp` | `sha256:79b70d3e7510cce71f5d67f85b994a781745d7c090efefd76ba7af165be17281` |
 | `src/cartridges/the_board/realization/renderer.hpp` | `sha256:4e6ead2a95e61d69118502d43ef838bc3e2e8bc3568be1f7c980bcdb9b534f4e` |
@@ -883,14 +883,14 @@ one column that can.
 | `shadowPatchTerrainPipeline_` | pipeline | `src/cartridges/the_board/realization/renderer.hpp` | 1823 | `measured` | A:proximity |
 | `shadowPawnPipeline_` | pipeline | `src/cartridges/the_board/realization/renderer.hpp` | 1826 | `measured` | A:proximity |
 | `(file banner)` | file | `src/cartridges/the_board/realization/state.hpp` | 1 | `law-ref` | banner |
-| `Frame R Layout` | layout | `src/cartridges/the_board/realization/state.hpp` | 4656 | `law-ref` | A:proximity, B:named |
-| `Agents State Layout entries[7]` | layout entry | `src/cartridges/the_board/realization/state.hpp` | 4748 | `law-ref` | A:proximity |
-| `Cull State Layout entries[4]` | layout entry | `src/cartridges/the_board/realization/state.hpp` | 4860 | `witness` | A:proximity |
-| `Frame K State Layout entries[5]` | layout entry | `src/cartridges/the_board/realization/state.hpp` | 4907 | `law-ref` | A:proximity |
-| `Orbs A State Layout entries[0]` | layout entry | `src/cartridges/the_board/realization/state.hpp` | 4958 | `law-ref` | A:proximity |
-| `Orbs A State Layout` | layout | `src/cartridges/the_board/realization/state.hpp` | 4971 | `law-ref` | A:proximity, B:named |
-| `Scene State Layout entries[5]` | layout entry | `src/cartridges/the_board/realization/state.hpp` | 5200 | `budget`, `per-stage`, `slot-cap` | A:proximity |
-| `Shadow State Layout entries[4]` | layout entry | `src/cartridges/the_board/realization/state.hpp` | 5296 | `budget`, `per-stage`, `slot-cap` | A:proximity |
+| `Frame R Layout` | layout | `src/cartridges/the_board/realization/state.hpp` | 4658 | `law-ref` | A:proximity, B:named |
+| `Agents State Layout entries[7]` | layout entry | `src/cartridges/the_board/realization/state.hpp` | 4750 | `law-ref` | A:proximity |
+| `Cull State Layout entries[4]` | layout entry | `src/cartridges/the_board/realization/state.hpp` | 4862 | `witness` | A:proximity |
+| `Frame K State Layout entries[5]` | layout entry | `src/cartridges/the_board/realization/state.hpp` | 4909 | `law-ref` | A:proximity |
+| `Orbs A State Layout entries[0]` | layout entry | `src/cartridges/the_board/realization/state.hpp` | 4960 | `law-ref` | A:proximity |
+| `Orbs A State Layout` | layout | `src/cartridges/the_board/realization/state.hpp` | 4973 | `law-ref` | A:proximity, B:named |
+| `Scene State Layout entries[5]` | layout entry | `src/cartridges/the_board/realization/state.hpp` | 5202 | `budget`, `per-stage`, `slot-cap` | A:proximity |
+| `Shadow State Layout entries[4]` | layout entry | `src/cartridges/the_board/realization/state.hpp` | 5298 | `budget`, `per-stage`, `slot-cap` | A:proximity |
 | `(file banner)` | file | `src/cartridges/the_board/realization/world.wgsl` | 1 | `FXC`, `budget`, `compile-time`, `law-ref`, `per-stage`, `witness` | banner |
 | `cell_address` | wgsl function | `src/cartridges/the_board/realization/world.wgsl` | 274 | `law-ref` | A:proximity, B:named |
 | `scene_constants` | wgsl binding | `src/cartridges/the_board/realization/world.wgsl` | 1040 | `law-ref`, `witness` | A:proximity, B:named |

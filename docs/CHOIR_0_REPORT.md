@@ -327,22 +327,53 @@ seven rows' worth of seats. Accepted percept, on the visual gate.
 The finished diff was put through a six-dimension review — the envelope law,
 the population cap, the projector and its flush, the excision, the contracts
 and tooling, the cross-tier seam — with every finding then handed to three
-independent verifiers whose instruction was to REFUTE it. **Five findings
-survived, all of them true, none behavioural:**
+independent verifiers instructed to REFUTE it. **Ten findings landed and all
+ten are fixed. One of them was a real behavioural regression, and it is the
+single most valuable thing this pass produced:**
+
+### A1 · THE SWELL WAS NOT RE-ASSERTED AT THE SETTLE — a real bug, now fixed
+
+**The failure.** The climb ends by snapping `body_radius` to the BARE
+`ZOETROPE_PIXEL_RADIUS` and flipping the formation to `SCREEN`. The swell
+lives in the projector, and the projector is gated on the light MOVING. So a
+cube arriving on the screen **under a held chord** — light steady at the
+plateau, not moving — would be skipped by the gate and stand at the bare
+pixel radius, unswollen, until its key next changed. **The lattice hid this
+class entirely**: its flush ran unconditionally on every 0.25-beat tick, so
+the swell landed within a quarter beat whatever the gate thought.
+Poke-on-change has no such backstop, and that is exactly the kind of thing a
+cheaper flush buys you if nobody looks.
+
+**The fix.** The arrival is a repaint edge, so it declares itself: the settle
+raises `repaint_all`, and the next frame's `choir_project` forces one full
+pass — colour, variance and swell — at the new formation. Same mechanism the
+dim's two edges already used, one frame of latency where the old code had up
+to a quarter beat.
+
+**The same class, one step over.** A cube BORN into a standing screen took
+the bare pixel too, and its gate is seeded at birth so nothing would poke it
+either. `cube_write_gpu` now swells the newborn when the screen STANDS — and
+only then, because under `TO_SCREEN` the walk owns the radius and the bare
+pixel is the target it is carrying every other cube toward.
+
+### The other nine
 
 | finding | disposition |
 |---|---|
-| the inversion `static_assert` proved one point twice (`dressed_of_pc(2)` and `dressed_of_pc((0+2)%12)` are the same claim) and left ten lanes unchecked | **fixed** — replaced with a `constexpr` walk over all twelve |
+| the poke gate compares against the last FLUSHED value, not the last frame — so it THINS rather than stops, and the comment implied stopping | **fixed** — the comment states the accumulate-against-the-shadow behaviour and the counted tail (≈17 more pokes over the next ten plateaus) |
+| the traffic tally omitted the swell's `body_radius` write, which fires on every poke in the one state the instrument is played in | **fixed** — 3 writes, 720 B/frame worst case, stated |
+| `choir_light` advertises itself as I's one door, and `choir_project` read `choir_I` directly past it | **fixed** — it reads through the door |
+| `state.hpp`'s FIELD_2 subscriber comment still named 252 as the cube living ceiling | **fixed** — it names the capacity as capacity, and `CUBE_CHOIR_N` as what moved |
+| the inversion `static_assert` proved one point twice (`dressed_of_pc(2)` and `dressed_of_pc((0+2)%12)` are the same claim) and left ten lanes unchecked | **fixed** — a `constexpr` walk over all twelve |
 | `VisualCanvas::choir_light()` had no caller anywhere | **fixed** — removed, D6 |
-| "logarithmic" is wrong for `1 − e^(−t/τ)`, in three comments | **fixed** — the commission's word is kept and the actual curve is named beside it, with the asymptote that is the real difference |
+| "logarithmic" is wrong for `1 − e^(−t/τ)`, in three comments | **fixed** — the commission's word is kept and the actual curve named beside it, with the asymptote that is the real difference |
 | `INSTRUMENTS.zoetrope_witness`'s comment described the deleted `[ZOETROPE]` line | **fixed** |
-| `canvas_1`'s `[ONSET]` witness comment cited that same deleted line as its partner | **fixed**, D7 |
+| `canvas_1`'s `[ONSET]` witness cited that same deleted line as its partner | **fixed**, D7 |
 
-The four counted claims in §2 were re-derived numerically before they were
-written down — the first draft of the poke-gate comment said "about six
-sevenths of the way up, roughly two thirds through the plateau" and the
-count says **I ≈ 0.939 at frame 199 of 240**, so the comment carries the
-counted numbers now and not the estimate.
+Every counted claim in §2 was re-derived numerically rather than estimated —
+the first draft of the poke-gate comment said "about six sevenths of the way
+up, roughly two thirds through the plateau", and the count says **I ≈ 0.939
+at frame 199 of 240**.
 
 ---
 
@@ -389,6 +420,7 @@ with no reader. The chain is one commit; the excision is its own.
 | `docs/OPEN.md` | the CHOIR_0 entry; the campaign ledger row; three stale citations repaired |
 | `docs/CHOIR_0_REPORT.md` | this |
 | `src/core/instruments.hpp` | one comment: the dial gates `[CHOIR]` + `[ONSET]` now, not the deleted `[ZOETROPE]` line |
+| `src/cartridges/the_board/realization/state.hpp` | one comment: FIELD_2's subscriber cap names the capacity as capacity (§8b) |
 | `src/analysis/canvas_1/canvas.hpp` | **one comment only — see D7.** Zero mechanism |
 | `audit/BINDING_LEDGER.md`, `COMMAND_LEDGER.md`, `MIRROR_LEDGER.md` | regenerated (provenance stamps only — **no structural row moved**) |
 
