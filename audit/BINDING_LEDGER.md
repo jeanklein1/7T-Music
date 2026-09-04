@@ -14,8 +14,8 @@ merge rows the API charges separately.
 | field | value |
 |---|---|
 | demo column censused | `full` |
-| source commit | `be0eb28ff7f4280533cdada58453aebd8b7e9bd6` |
-| | SKIRT_WELD_1 — the perimeter skirt hangs from the base band, and the tint's variation becomes a gain |
+| source commit | `17cdc81411a8d3f6f633a1d880edcafe3b269c2b` |
+| | CHOIR_0 U6b — the arrival is a repaint edge: the swell bug the poke gate bought |
 | `src/cartridges/the_board/realization/state.hpp` | `sha256:e07ca7d94bbc9dd377ed19b25d42e73859653471b14bfa0cdeb89e11f10e4660` |
 | `src/cartridges/the_board/realization/binding_surface.gen.inc` | `sha256:c1b64eadb92b14b2b6a69475f78ca71b4144979f3737b157568a29e5f4a7bcf6` |
 | `src/cartridges/the_board/realization/binding_registry.hpp` | `sha256:79b70d3e7510cce71f5d67f85b994a781745d7c090efefd76ba7af165be17281` |

@@ -438,6 +438,27 @@ fixed pre-existing drift rather than recording mine: `BINDING_LEDGER.md` and
 `MIRROR_LEDGER.md` still carried `HEM_1`/`c8b856dc` provenance at
 `be0eb28f`. Noted so the delta is not read as this campaign's.
 
+**AND HERE IS WHY THEY GO STALE — a property of the tooling, not an
+accident.** Each of these ledgers stamps *"the last commit touching any file
+I scan"*. `BINDING_LEDGER` and `MIRROR_LEDGER` both scan `state.hpp`. So
+regenerating them **in the same commit that edits a scanned file** stamps
+them ONE COMMIT BEHIND by construction — the commit they belong to does not
+exist yet when the tool reads the log. The only stamp that can be right is
+one written by a FOLLOW-UP commit. This campaign hit it twice (U6 and U6b
+each stamped their predecessor) and closed it with U6d; the two ledgers that
+arrived stale at `be0eb28f` are the same mechanism, unclosed.
+
+`mirror_census.py` makes it easy to hit, because **it is a gate and a
+generator in one file**: running it to check a verdict rewrites its artifact
+as a side effect. Running the battery after a commit therefore dirties the
+tree. Both facts are worth a successor's attention — **the fix is to
+regenerate last and commit the ledgers alone**, which is what U6d is.
+
+The witness that this is only a stamp and not a structural drift: the second
+full regeneration produced the identical file list, so nothing oscillates,
+and the **L33 rebuild witness was re-run at the settled state and is
+byte-identical across all six artifacts.**
+
 ---
 
 ## 11 · FOR JEAN — THE VISUAL GATE

@@ -15,15 +15,15 @@ carry those facts, or leave them in place and patch around them.
 
 | field | value |
 |---|---|
-| source commit | `d0472c319c4645307b129d45fed57e9d065a7e42` |
-| | CHOIR_0 U6 — gates, the ledgers, the record, and five findings from an adversarial pass |
+| source commit | `17cdc81411a8d3f6f633a1d880edcafe3b269c2b` |
+| | CHOIR_0 U6b — the arrival is a repaint edge: the swell bug the poke gate bought |
 | `src/cartridges/the_board/realization/binding_registry.hpp` | `sha256:79b70d3e7510cce71f5d67f85b994a781745d7c090efefd76ba7af165be17281` |
 | `src/cartridges/the_board/realization/world.wgsl` | `sha256:9bf6a83b750924fc9bb616a9837ea2ec6811b7d6918dd4a5f1083e7cb746220d` |
 | `src/cartridges/the_board/realization/state.hpp` | `sha256:e07ca7d94bbc9dd377ed19b25d42e73859653471b14bfa0cdeb89e11f10e4660` |
 | `src/cartridges/the_board/realization/binding_surface.gen.inc` | `sha256:c1b64eadb92b14b2b6a69475f78ca71b4144979f3737b157568a29e5f4a7bcf6` |
 | `src/cartridges/the_board/realization/renderer.hpp` | `sha256:4e6ead2a95e61d69118502d43ef838bc3e2e8bc3568be1f7c980bcdb9b534f4e` |
 | `tools/binding_ledger.py` | `sha256:a3c75bab894774eb0302686e5efd52275b280e14abfcf4e8753b28d5b5086692` |
-| `audit/BINDING_LEDGER.md` | `sha256:dfa1d167ccd4bf6d75f86da13f19da219abee149463f7db73ce4845604998b43` |
+| `audit/BINDING_LEDGER.md` | `sha256:247779f509c2086f5861fe669a45970539cf4cbf522e52f3691e861b32f775ee` |
 
 `tools/binding_ledger.py` is an input because its parsers are IMPORTED,
 not copied — one parse, two artifacts, no drift between instruments.
