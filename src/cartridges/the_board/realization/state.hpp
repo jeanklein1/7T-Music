@@ -398,8 +398,10 @@ namespace t7 {
 
             // FIELD_2: one force slot per subscriber — 32 agents + 8 spheres
             // + 256 cubes (CAPACITY, not the living ceiling; that is
-            // the_board::CUBE_CHOIR_N = 36 since CHOIR_0, and was the
-            // lattice's 252 before it — the cap moves, this does not).
+            // the_board::CUBE_CHOIR_N, which has been 24 since CHOIR_1,
+            // was 36 at CHOIR_0 and the lattice's 252 before that — the
+            // cap moves, this does not, and NAMING THE SYMBOL is what
+            // keeps this comment true the next time it moves).
             // Index map lives at the WGSL field consts: [0..31] agents ·
             // [32..39] spheres · [40..295] cubes.
             constexpr uint32_t FIELD_SUBSCRIBER_CAP = MAX_AGENTS + MAX_SPHERE_INSTANCES + MAX_CUBE_INSTANCES;  // 296
