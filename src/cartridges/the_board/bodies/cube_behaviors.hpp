@@ -124,15 +124,17 @@ inline constexpr uint32_t CUBE_CHOIR_RANKS = CUBE_CHOIR_N / 12u;
 // the flush is gated on the LIGHT instead of on a clock: a slot pokes
 // only when its light moved past this.
 //
-// THE ARITHMETIC, at 120 BPM / 60 fps (30 frames a beat, Δ = 1/30 beat).
-// ATTACK: ΔI = (1 − I)·(1 − e^(−Δ/τ)) ≈ 0.0165·(1 − I) at τ = 2, so a
-// key stops poking once (1 − I) falls under ~0.06 — about six sevenths
-// of the way up, roughly two thirds through the plateau. RELEASE: the
-// slope is 1/8 per beat = ~0.0042 a frame, four times this gate, so a
-// fall pokes every frame it lasts. Worst case is therefore ONE poke per
-// SOUNDING key per frame — 36 twelve-byte colour writes and 36 four-byte
-// variance writes with the whole choir in full release — against the
-// lattice's ≤252-slot sweep every quarter beat. Silence pokes NOTHING.
+// THE ARITHMETIC, at 120 BPM / 60 fps (30 frames a beat, Δ = 1/30 beat),
+// with the default 8-beat plateau and 8-beat release — counted, not
+// estimated. ATTACK: ΔI = (1 − I)·(1 − e^(−Δ/τ)) = 0.01653·(1 − I) at
+// τ = 2, so a key stops poking once (1 − I) drops under 0.0605, i.e. at
+// I ≈ 0.939 — 199 pokes out of the plateau's 240 frames, and the last
+// 41 frames of the climb are free. RELEASE: the slope is 1/8 per beat =
+// 0.00417 a frame, four times this gate, so a fall pokes every one of
+// its 240 frames. WORST CASE is therefore one poke per SOUNDING key per
+// frame — 36 twelve-byte colour writes and 36 four-byte variance writes
+// with the whole choir falling at once — against the lattice's
+// ≤252-slot sweep every quarter beat. Silence pokes NOTHING.
 inline constexpr float CHOIR_FLUSH_EPS = 1e-3f;
 
 // ─ THE AUTOMATON band stood here (CHOIR_0 U5) ───────────────────

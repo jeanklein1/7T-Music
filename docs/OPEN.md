@@ -1074,7 +1074,11 @@ LIGATURE_1 U1 spliced `canvas_1` into that socket and deleted
 `ch1.window_length`, and `ch0.onset` through `ch6.onset`.
 `SignalLayout::misses()` is therefore 0, so the release twin's
 `[SignalLayout] N sources unbound` line no longer prints and the
-`[Zoetrope] ears bound:` line reads 7 of 7.
+`[Zoetrope] ears bound:` line read 7 of 7. **CHOIR_0 retired the ears**:
+the twelve bound names are six now, the seven onsets went back on the
+shelf, `ch6.present_count` joined, and the boot line at that seam reads
+`[CHOIR] ear bound: ch6.present_count (36 lanes)`. The misses count is
+still 0 and its silence still means the same thing.
 
 Nothing was resurrected. LIGATURE_0 §1 established that the analysis arm
 returned byte-identical at "bringing back the music"; this was a wiring
@@ -1096,10 +1100,14 @@ not a hop the splice broke, and LIGATURE_1 R1 scoped it out deliberately.
 The GPU end is DRIVERLESS and its comments name a driver that does not
 exist.
 
-**The decision, open:** a gen-2 coupling — the onset ears already fold into
-`zoetrope_rows_`, but a pawn-origin pulse needs a readback path the coupling
-layer does not have — or delete the WGSL contributor and its config seats.
-Jean's, with a design pass.
+**The decision, open:** a gen-2 coupling — a pawn-origin pulse needs a
+readback path the coupling layer does not have — or delete the WGSL
+contributor and its config seats. Jean's, with a design pass. (This entry
+once offered the onset ears' fold into `zoetrope_rows_` as the near half of
+the wiring; CHOIR_0 retired both, so the seven `chN.onset` publications are
+now unread capability on the shelf and the pulse would take them from
+there. The readback half is unchanged and is still what makes this a
+decision rather than a wiring job.)
 
 ## CUT_1c LEFTOVERS NOT RESTORED (open, low)
 
@@ -1120,8 +1128,11 @@ Restore only if the lab returns. Recovery is `git show 1a52f2db^:<path>`.
 reader inherits that. The census is in `docs/LIGATURE_1_REPORT.md` §U2.3
 verbatim; the load-bearing consumers are `visual_canvas.hpp`'s envelope
 clock, `cartridge.hpp`'s `time_state_.beats` and the `dt_beats` that gates
-`step_trigger`, the zoetrope strike, `state.hpp`'s GPU signal header, and
-four `world.wgsl` read sites.
+`step_trigger`, `state.hpp`'s GPU signal header, and four `world.wgsl`
+read sites. (The zoetrope STRIKE was on that list until CHOIR_0 excised
+it; the choir's envelope reads the same `t_beats` through the canvas's
+envelope clock, already named above, so the census loses a row rather than
+gaining one.)
 
 With the transport stopped `t_beats` holds, so `dt_beats` is 0 and every
 beat-derived motion freezes. **No fallback was added** — LIGATURE_1's ruling
@@ -1409,6 +1420,121 @@ it Jean-gated and destructive), so running it here would have rewritten a
 ledger over a campaign that moved nothing glaw2 tracks. The tombstone for
 `skirt_cap_index` is the diff's.
 
+## CHOIR_0 — THE LIGHT INSIDE THE CUBES (landed; one divergence, three flags)
+
+Landed on `master`. **Working name — naming is Jean's gate.** The function
+that lights the cubes with the music is rewritten from the ground up. `ch6`
+is cast as the cube voice; its `present_count` — twelve lanes, the count of
+sounding notes per pitch class — plays a keyboard of `CUBE_CHOIR_N = 36`
+cubes read as stacked pianos, key `k` being rank `k/12` of raw pitch class
+`k%12`. Each active key lights one cube from within: a saturating attack
+(τ = `light_plateau`/4, ≈ 0.982 at the 8-beat plateau, steepest at
+switch-on) and a fixed-slope release (full brightness to dark in
+`light_release` beats). **Activation and deactivation only** — no
+held-length book is kept, because the envelope IS the memory.
+
+**KEY k = SLOT k, BY CONSTRUCTION.** `run_spawn_preamble` reserves the
+lowest free slot, so capping `CUBE_TRAITS.max_instances` at `CUBE_CHOIR_N`
+keeps the population dense in `0..N−1` and an evicted key's refill relights
+the same dark key. There is no mapping table and no registry: the identity
+is the law. Flipping to two ranks is the one token `CUBE_CHOIR_N = 24`; the
+static_assert pair refuses anything else.
+
+**ZERO WGSL EDITS. `world.wgsl` IS BYTE-IDENTICAL.** Colour and face
+variance are buffer facts written through the existing partial-write doors
+(`upload_cube_color`, `upload_cube_face_variance`). `canvas_1` already
+published `PresentCount` for every voice — the coupling simply took one of
+the atlas's unheard names. `Reading::PresentLength` stays an orphan by
+Jean's ruling; no `publish_reading` was added.
+
+**ZERO ANALYSIS MECHANISM EDITS, AND ONE COMMENT.** §0(a) said "ZERO
+EDITS" of the analysis side and explained it as "no `publish_reading`, no
+writer case, nothing" — and no reading, slot, writer or publication moved,
+not one executable token. **One comment did**: `canvas_1`'s `[ONSET]`
+witness justified itself as one half of a pair with the board's
+`[ZOETROPE]` strike line, which this campaign deleted. It is named in the
+report as D7 rather than done quietly, because the handoff's word was
+"zero".
+
+**WHAT DIED.** The zoetrope's LATTICE, whole: `ZoetropeCell`, `cells[]`,
+`cell_scratch[]`, `wdir[][]`, `primed`, `last_tick_beat`; the AUTOMATON
+console band with its composite-retention law; `zoetrope_strike` and its
+write head; the tick's diffusion/decay pass, the prime pass, both clock
+guards and the per-tick projector flush inside `zoetrope_service`;
+`zoetrope_cell_intensity`, `project_cell_color`, `zoetrope_project_slot`;
+`slot_of_cell`; `ZOETROPE_PIGMENT_R/G/B/WEIGHT`; `ZOETROPE_FACE_SPLAY` and
+`ZOETROPE_FACE_REST`; and canvas-side `ZOETROPE_EARS`, `ZOETROPE_ROW_OF_PC`,
+`zoetrope_rows_[7]` and the seven-ear resolve. **The seven onset
+publications STAY published** (capability doctrine): they lost their only
+reader, not their right to exist.
+
+**WHAT SURVIVED, AND IT IS MOST OF THE FILE.** The formation machine
+entire — `reveal_zoetrope` (Door 5), the two stations, the walk, the reseat
+watch, `stage_wait`, `repaint_all`, the settle law, the hand-back. Doors
+4/5/6 and the kite law. `LATTICE_ROWS/COLS/CELLS`, the helix constants and
+BOTH their static_asserts (the bijection is still proved; only the inverse
+WALK retired with the strike that used it). The screen bands, `SWELL_GAIN`,
+`REST_DIM`. `zoetrope_service` keeps its name because the zoetrope's BODY
+is the formation machine; only its SUBSTRATE was the lattice.
+
+**1 · THE DIVERGENCE — THE PIPE'S BASE IS 15, NOT 16.** The handoff says
+`{ "cube.light", 16, 36, 0.0f }` and, in the same sentence, "the first free
+run" and "15/256 → 51/256 allocated". The terrain run ends at slot 14, so
+the first free slot is 15, and 15 + 36 = 51 is the stated total; base 16
+would leave slot 15 an unexplained hole in a hand-laid register map and
+total 52. Two of the three signals say 15 and they are the two that are
+internally consistent, so the pipe sits at 15. **Trivially movable if the
+16 was deliberate** — one number in `PARAM_LAYOUT` and the cartridge
+re-resolves by name.
+
+**2 · FLAG — THE FACE VARIANCE'S REST MOVED, VISIBLY.** The old law was
+`draw · FACE_REST + FACE_SPLAY · I` with `FACE_REST = 1.20`, so a cube
+standing dark in ANY formation wore 1.2× its spawn draw; the new law is
+`draw · (1 − I)`, so it wears 1.0×. This is the commission's own law
+(`var = spawn_draw · (1 − I)`, and FACE_REST explicitly retires), and it is
+what makes the law self-restoring at I = 0 with no restore pass — but it is
+a **percept change on a standing screen with the music silent**, not only
+on a lit one. Jean's visual desk owns it. Restoring the boost would cost
+the self-restoring property, which is why it was not quietly kept.
+
+**3 · FLAG — THE POKE GATE REPLACES A TICK.** The lattice's flush hid
+behind a 0.25-beat tick; the choir has no tick, so `choir_project` runs
+every frame and gates on the LIGHT (`CHOIR_FLUSH_EPS = 1e-3`). At 120 BPM /
+60 fps the attack stops poking about two thirds through its plateau and the
+release pokes every frame it lasts, so the worst case is one poke per
+SOUNDING key per frame — 36 twelve-byte colour writes against the old
+≤252-slot sweep every quarter beat. **Silence pokes nothing.** The birth
+path seeds the gate (`cube_write_gpu`) and `clear_cubes` resets it, which
+together are what make "the same dark key relights" true at the GPU as well
+as at the slot.
+
+**4 · FLAG — TWO DIALS PARKED, NOT ENROLLED.** `CANVAS_LIVE.light_plateau`
+/ `.light_release` (15 → 17 floats) and `DRIVER_LIVE.cube.light_color` /
+`.gain` (18 → 22 words) are authored in their structs with design values
+and carry NO `organ_params.inc` row — the ORGAN_REST registry freeze holds
+until the Ableton seam campaign. Four `ORGAN_PARAM` lines when it lifts:
+two `ORGAN_PARAM_NS(canvas, CANVAS, …)` beside the checker cadence rows,
+and two `ORGAN_PARAM(DRIVERS, …)` beside the checker's gain. `organ_gap
+--gate` and `organ_ledger --check` are both PASS with them unenrolled — an
+unenrolled field is not a suspect, it is simply not a dial yet.
+
+**5 · THE RECORD RITUAL, PER SKIRT_WELD_1's PRECEDENT.** The handoff asks
+for `glaw2 --record`. **Every retired name here is C++**, which glaw2 does
+not see: no WGSL entry point, const or struct moved, and glaw2 is GREEN
+without a re-record (`18 symbols retired cleanly`, unchanged). `--record`
+rewrites the whole baseline including the `declared` retirement ledger
+(RETRACT_0 R10: Jean-gated and destructive), so it was not run. **Every
+retired name is claimed by a tombstone in the diff** — the ritual's actual
+requirement — and the WGSL gate is a genuine no-op, stated rather than
+assumed: `world.wgsl` is byte-identical.
+
+**6 · OPEN — THE PROBE.** Every text gate CC can run is green (see the
+report), and green is not a world that draws. `the-board --probe=N` and the
+visual desk are Jean's: the light colour triple, the attack's shape at
+τ = 2, the variance convergence, and the **sparse screen percept** — 36
+cubes seated through the helix across a 7×36 geometry is a much emptier
+screen than 252 was, and that is the cap's intended consequence, not a bug.
+
 ## THE HANDOVER LIST (THE_PANEL's close — the coupling campaign's table)
 
 **THE WRAP ORDER §2.3 asks that the next campaign's handoff be authorable
@@ -1420,7 +1546,7 @@ outlives a chat.
 
 | what | where | what it carries |
 |---|---|---|
-| **THE COUPLING ATLAS** | `docs/COUPLING_ATLAS.md` | five tables by symbol — SOURCES (55 published, 12 heard, **43 unheard**), PIPES (PARAM_LAYOUT's eight), EARS (the zoetrope's seven), THE UNCOUPLED NEW WORLD (every candidate dial **with its cadence**), THE ORPHANED |
+| **THE COUPLING ATLAS** | `docs/COUPLING_ATLAS.md` | five tables by symbol — SOURCES (55 published, **6 heard, 49 unheard** since CHOIR_0; it was 12/43), PIPES (PARAM_LAYOUT's **nine**), THE CHOIR (one voice, 36 keys — the table that was EARS, the zoetrope's seven), THE UNCOUPLED NEW WORLD (every candidate dial **with its cadence**), THE ORPHANED |
 | **THE SEAM SCOUT** | the atlas's own appendix | the native analysis side as it stands — the clock end to end, the loopMIDI lane, `StatLayoutView`'s publish/bind seam, `AnalysisSignal`'s shape — and the three transports with costs. **No transport chosen: that is Jean's.** |
 
 ### 2 · THE LIVE DIAL INVENTORY, WITH CADENCES
@@ -1979,6 +2105,7 @@ written out here.
 | THE_PANEL I — THE KNOBS | enrollment, the relayout, the seed door | LANDED |
 | THE_PANEL II — THE HAND | `--scene=`, the watcher, the stdin REPL, the shell gate | LANDED |
 | SUNRISE_0 · KEEL_0 · HELM_0 | the fork, the build constitution, the preset surface | LANDED |
+| CHOIR_0 | the cube lattice out; `ch6` cast, 36 keys, one enveloped light per key | LANDED — **Jean's probe + visual desk open** (see CHOIR_0 above) |
 | EMBER_0 | the D3D12 lanes | **OPEN — on Jean's button** (see EMBER_0 above) |
 
 Roster: PYRAMID, SPHERE, RIBBON, CUBE. The ground: one automaton, ~3.1%

@@ -30,9 +30,12 @@ LIGATURE_1 closed it: `BeatClock` no longer exists in the tree, and
 `the_board.cpp` binds `app->analysis.stat_layout()` — canvas_1's real
 published layout. **All twelve resolve.**
 
-Jean's own boot log is the evidence: `[Zoetrope] ears bound: 7 of 7`, and
-NO `[SignalLayout] N sources unbound` line — that line prints only on a
-miss, and its absence is the witness.
+Jean's own boot log was the evidence: `[Zoetrope] ears bound: 7 of 7`,
+and NO `[SignalLayout] N sources unbound` line — that line prints only on
+a miss, and its absence is the witness. **CHOIR_0 retired the ears** and
+with them that line; the one-line boot witness at the same seam is now
+`[CHOIR] ear bound: ch6.present_count (36 lanes)`, and the absence of the
+`[SignalLayout]` line still says the same thing about every other source.
 
 **So the seam's shape is not a set of misses.** It is one bit further
 out: `port_.open_by_name("loopMIDI")`, and `[canvas] loopMIDI open=0/1`
@@ -60,13 +63,18 @@ of the rule). The census: **boundary 106 · driven 14 · gen 25 · live 162**.
 `canvas_1::initialize` publishes **55 names**: seven readings over each of
 seven voices (49) plus six group readings over `Source::group({0..6})`.
 
-**Twelve are heard. Forty-three are published into silence.**
+**Six are heard. Forty-nine are published into silence.** (It was
+twelve and forty-three until CHOIR_0: the zoetrope's seven onset ears
+retired with the lattice they fed, and one new source — `ch6.present_count`
+— took their place. Net, the heard set halved and got *narrower and
+deeper*: one voice, read for what it is holding rather than for what it
+just struck.)
 
 That is the real shape of the uncoupled analysis side — not misses, but
 **unheard publications**. Every one is a source a coupling could take
 today with no analysis work at all.
 
-### The twelve that are read
+### The six that are read
 
 | # | source name | reading | resolved in | drives |
 |---|---|---|---|---|
@@ -75,11 +83,22 @@ today with no analysis work at all.
 | 3 | `all.window_length` | `Reading::WindowLength` | `room_wagon_` | the room tint's HUE (pitch-class centre of mass) |
 | 4 | `all.present_count` | `Reading::PresentCount` | `room_playhead_` | the room tint's MIX gate (sounding vs silent) |
 | 5 | `ch1.window_length` | `Reading::WindowLength` | `checker_win_` | the checker resultant colour (`CHECKER_VOICE`) |
-| 6–12 | `ch0.onset` … `ch6.onset` | `Reading::Onset` | `zoetrope_ears_[0..6]` | the zoetrope's seven row impulses (`ZOETROPE_EARS = 0b0111'1111`) |
+| 6 | `ch6.present_count` | `Reading::PresentCount` | `choir_ear_` | the cube choir's 36 keys — one enveloped light per key (`CHOIR_VOICE`) |
 
-Both named voices are `ch1` — `RIBBON_VOICE` and `CHECKER_VOICE` are the
-same wire, the chordal piano. **One voice carries two of the five
-couplings**; the other five MIDI channels are heard only as onsets.
+`RIBBON_VOICE` and `CHECKER_VOICE` are the same wire, `ch1`, the chordal
+piano: **one voice carries two of the couplings**. `CHOIR_VOICE` is the
+second cast voice, `ch6`, and it is the only one read for PRESENCE in its
+own right — the ribbon reads `ch1`'s present count as a hold CLOCK (does
+the sounding set signature change?), where the choir reads `ch6`'s as a
+per-pitch-class COUNT and ranks on it.
+
+**Row 6 replaced seven rows.** `ch0.onset` … `ch6.onset` resolved into
+`zoetrope_ears_[0..6]` under `ZOETROPE_EARS = 0b0111'1111` and fed the
+lattice's row impulses. CHOIR_0 retired the lattice, so all seven fell
+back into the unheard set below — **published, not deleted**: the §1
+doctrine is that an unheard publication is capability, not a corpse, and
+onset is still the one reading with full seven-voice coverage the moment
+anything wants it.
 
 ### The forty-three that are published and unheard
 
@@ -90,9 +109,9 @@ couplings**; the other five MIDI channels are heard only as onsets.
 | `chN.dft_mag` (7) + `chN.dft_phase` (7) | the six interval families per voice | **the whole pc-DFT capability is unheard on every voice** |
 | `all.current_pc` | per-pc voice count | the room's note density |
 | `all.dft_mag` + `all.dft_phase` | the room's interval families | consonance / dissonance as a scalar the world could wear |
-| `chN.present_count` (6 of 7) | the Playhead per voice | only `ch1` is heard |
+| `chN.present_count` (5 of 7) | the Playhead per voice | `ch1` (the ribbon's hold clock) and `ch6` (the choir) are heard |
 | `chN.window_length` (6 of 7) | the Wagon per voice | only `ch1` is heard |
-| `chN.onset` — all 7 heard | — | the one reading with full coverage |
+| `chN.onset` (7) | the velocity-weighted note-on impulses per voice | **unheard since CHOIR_0** — the lattice was their only reader. The one reading published on ALL SEVEN voices, and now the largest single block of capability on the shelf |
 
 **The DFT is the headline.** Fourteen published names (`dft_mag` /
 `dft_phase` across seven voices) plus two group names, computed every
@@ -101,7 +120,7 @@ calls it "the pc-DFT capability"; it is capability with no consumer.
 
 ---
 
-## §2 — PIPES: `PARAM_LAYOUT`'s eight
+## §2 — PIPES: `PARAM_LAYOUT`'s nine
 
 The register map is hand-laid and compile-time-checked: a `static_assert`
 lambda proves no pipe leaves the bank and no two overlap. Rests are the
@@ -117,50 +136,75 @@ canvas's own; the WORLD's rest is composed in at the seam.
 | 6 | `ribbon.color_mix` | 9 / 1 | `0.0` | `ribbon.hpp`: `mix_raw = valid ? vp.get(base) : R.rest_tint_mix` | the ribbon's tint | **LIVE.** Gated by the room Playhead |
 | 7 | `terrain.checker_mean` | 10 / 3 | `0.0` | `cartridge.hpp`: per lane against `ck.rest_resultant[]` | `set_checker_color_field` | **LIVE.** Sample-and-hold on the beat grid |
 | 8 | `terrain.checker_var` | 13 / 2 | `0.0` | same seam: `[0]` amount, `[1]` variance | `set_checker_color_field` | **LIVE.** Amount 0 → each cell's SEED colour, not gray |
+| 9 | `cube.light` | 15 / 36 | `0.0` (DARK) | `cartridge.hpp`, `phase_motion_drivers`: `gain · I` per lane, mirrored into `CubeBehaviorsState::choir_I` | `choir_project` → `upload_cube_color` / `upload_cube_face_variance` / `upload_cube_body_radius` | **LIVE** (CHOIR_0). One lane per key; rest 0 is the seed draw bit-exactly |
 
-**All eight are live and all eight have a reader.** The eight pipes
-occupy slots 0–14 of a **256-slot** bank (`VISUAL_PARAM_SLOTS`), so the
-register map is **6% allocated**. Room is not the constraint on this
-layer; reach is.
+**All nine are live and all nine have a reader.** They occupy slots 0–50
+of a **256-slot** bank (`VISUAL_PARAM_SLOTS`), so the register map is
+**20% allocated** — it was 6% before CHOIR_0, and the jump is one pipe:
+`cube.light` alone is 36 of the 51. **The bank is the first place in this
+layer where a coupling has ever wanted a RUN rather than a scalar or a
+colour**, and it took it without the hand-laid map needing a rethink; the
+overlap witness carried it unchanged.
 
-**The gain rows live in `DRIVER_LIVE`** (18 words: fog 1, aura 4, checker
-6, ribbon 7) — enrolled, panel-visible, and the thing that makes every
-coupling dialable to silence without unwiring it. **`DRIVER_LIVE.aura`
+**The gain rows live in `DRIVER_LIVE`** (22 words: fog 1, aura 4, checker
+6, ribbon 7, cube 4) — enrolled, panel-visible, and the thing that makes
+every coupling dialable to silence without unwiring it. **`DRIVER_LIVE.aura`
 carries `intent = 0`**: the aura's coupling is authored and OFF, and its
-own comment records that it rested ON for exactly one commit.
+own comment records that it rested ON for exactly one commit. **The cube
+row is the one exception to "enrolled"**: it landed under the ORGAN_REST
+registry freeze, so `cube.light_color` and `cube.gain` are authored in the
+struct and PARKED for enrolment — one `organ_params.inc` line each when the
+freeze lifts.
 
-**Every pipe carries a `Segment`** and moves through
+**Every pipe but one carries a `Segment`** and moves through
 `trajectory_release(seg, goal, beat, span)` — spans in BEATS, never
-seconds. That is the composition law's second half and it is uniform
-across all eight.
+seconds. That is the composition law's second half and it held across all
+eight until CHOIR_0. **`cube.light` is the exception, and deliberately**:
+`trajectory_release` is a LINEAR move to a goal, and the choir's attack is
+a saturating approach — an ODE reading its own state — which a Segment
+cannot express, because a Segment re-aims by replanning from the current
+value at a fixed rate rather than by integrating. So the choir keeps its
+own state (`choir_I_[36]`) and advances it in beats from the same clock,
+the same `last_beat_` the sustain swell's hold uses. The UNIT is still
+beats; only the shape is not a line.
 
 ---
 
-## §3 — EARS: the zoetrope's seven rows
+## §3 — THE CHOIR: one voice, thirty-six keys
 
 | fact | value |
 |---|---|
-| source | `chN.onset` for each set bit of `ZOETROPE_EARS = 0b0111'1111` — channels 0–6 |
-| fold | `zoetrope_rows_[ZOETROPE_ROW_OF_PC[(i + 2) % 12]] += w` |
-| the un-dressing | published vectors ship DRESSED to D (index 0 = D, the canvas contract `PC_COLOR` also binds); `ZOETROPE_ROW_OF_PC` is authored by RAW pitch class (0 = C), so `+2` un-dresses |
-| shape | **impulses, not an accumulator** — overwritten every tick; the lattice integrates |
-| accessor | `VisualCanvas::zoetrope_rows()` → `const float*`, seven wide |
-| **its ONE consumer** | `cartridge.hpp:1100` — passed with `world_state_.active_seed` and `signal.t_beats` |
-| witness | `[Zoetrope] ears bound: N of M (mask 0x%02X)` — doctrine, printed always, so a deaf zoetrope names its fault |
+| source | `ch6.present_count` — ONE ear, `CHOIR_VOICE` (`chN` = wire = Ableton − 1). It was a seven-channel listener SET, `ZOETROPE_EARS = 0b0111'1111`; that band's own comment already named `{ch6}` as the ruling, and a cast voice is what that narrowing IS |
+| reading | `Reading::PresentCount` — twelve lanes, the COUNT of sounding notes per pitch class, zero in silence. Presence, not onset: duration arrives already in the signal |
+| the keyboard | key `k` = rank `k/12` of RAW pitch class `k%12`, `CHOIR_LANES = 36` (three ranks). **KEY k IS CUBE SLOT k** — `run_spawn_preamble` reserves the lowest free slot, so capping `CUBE_TRAITS.max_instances` at `CUBE_CHOIR_N` keeps the population dense in `0..N−1` and an evicted key's refill relights the same dark key. No mapping table exists because the identity is the law |
+| the rank law | `active(k) ⇔ count[dressed(k%12)] > k/12` — **the doubling lights the next rank**: one sounding D lights rank 0's D, a second D in another octave lights rank 1's. Octave-true ranking is PARKED (it would need a note-domain reading; `present_count` is a pitch-class vector by construction) |
+| the un-dressing | published vectors ship DRESSED to D (index 0 = D, the contract `PC_COLOR` also binds). The keyboard is authored in RAW pitch class, so it needs the ears' `(i + 2) % 12` fold INVERTED: `dressed_of_pc(p) = (p + 10) % 12`. The two are `static_assert`ed against each other rather than trusted |
+| shape | **enveloped state, not an impulse** — `choir_I_[36]`, activation and deactivation only, no held-length book. ATTACK: `I += (1−I)·(1−e^(−Δ/τ))`, `τ = light_plateau/4` (≈ 0.982 at the plateau, steepest at switch-on). RELEASE: a FIXED SLOPE, `Δ/light_release` per beat, full brightness to dark in `light_release` beats and a dimmer key proportionally sooner |
+| the envelope's home | `canvas::CANVAS_LIVE.light_plateau` / `.light_release`, both 8 beats — envelope AUTHORITIES, so they live in the canvas surface, PARKED for enrolment under the registry freeze |
+| accessor | **none — the BANK is the accessor.** The run leaves through the pipe `cube.light` and nowhere else. `zoetrope_rows()` existed because the strike took the run as an argument; the choir's has to be composed against the drivers' room before anything sees it, so a second door onto the same floats would have no caller |
+| **its ONE consumer** | `cartridge.hpp`, `phase_motion_drivers` — composes `gain · I` against `DRIVER_LIVE.cube` and mirrors it into `CubeBehaviorsState::choir_I`, ONE author per frame. `choir_project` then pokes only the keys whose light MOVED |
+| witness | boot: `[CHOIR] ear bound: ch6.present_count (36 lanes)` — doctrine, printed always, so a deaf choir names its fault. Live: `[CHOIR] key=NN I=X.XX` on the ACTIVATION EDGE, behind `INSTRUMENTS.zoetrope_witness` (the dial's rename is PARKED) |
 
-### The `reveal_zoetrope` tie-in for PANEL-I U4
+### What the lattice was for, and why nothing replaced it
 
-`reveal_zoetrope` (`bodies/cube_behaviors.hpp`, declared and defined)
-is one of the orphan console verbs — **reachable from no key and no
-door**. It is a lever on machinery the program still has: the ears are
-bound 7 of 7 and the rows are being struck every tick.
+The seven ears carried ONSETS, and an onset is a dimensionless impulse: it
+says a note began and nothing about how long it lasts. The lattice existed
+to give that impulse a body — a field to spread across (`STRIKE_SPREAD`
+into both column-neighbours, "a note has width") and a half-life to fade
+on. **Reading presence instead of onset moves the duration into the signal
+itself**, so the only thing left to author is an envelope, and an envelope
+is 36 floats and two spans. The width goes with the spread: a note lights
+the key it names and no other, which is what a keyboard is.
 
-**Atlas verdict for U4: this is a DOOR, not a death.** U4's pre-resolved
-default says an honest lever on surviving machinery graduates to an organ
-door, and this is the clearest case in the parked list — the thing it
-reveals is live, listening, and currently invisible.
+### `reveal_zoetrope` survives the lattice it was named for
 
----
+`reveal_zoetrope` is Door 5, and it is untouched. The lattice was the
+zoetrope's SUBSTRATE; the formation machine — the stations, the walk, the
+reseat watch, the settle law, the hand-back — is the zoetrope's BODY, and
+that is what the door reveals. The screen still assembles, still dims to
+`ZOETROPE_REST_DIM` when it stands, and still swells on `ZOETROPE_SWELL_GAIN`
+— it simply breathes with the choir now rather than with a cellular
+automaton.
 
 ## §4 — THE UNCOUPLED NEW WORLD: live-bank dials a voice could take
 
@@ -235,23 +279,28 @@ takes no position.
 | `Reading::Polyphony` | `canvas.hpp` enum | **PUBLISHED BY NOTHING.** The enumerator exists; no `publish_reading` call names it |
 | `Reading::PresentLength` | same | **PUBLISHED BY NOTHING** |
 | `Reading::WindowCount` | same | **PUBLISHED BY NOTHING** |
-| the 43 unheard names | §1 | published, computed, **read by nothing** — capability, not orphans |
+| the 49 unheard names | §1 | published, computed, **read by nothing** — capability, not orphans. It was 43; CHOIR_0 handed back the seven `chN.onset` names when the lattice that read them died, and took `ch6.present_count` in exchange |
 | `DRIVER_LIVE.aura` | `driver_surface.hpp` | authored with `intent = 0`. Its four words are live, dialable, and currently inert BY THE DIAL, not by a broken wire — the honest state, and its comment says so |
-| `reveal_zoetrope` | `cube_behaviors.hpp` | reachable from no key and no door — **a door candidate, not an orphan** (§3) |
+| `reveal_zoetrope` | `cube_behaviors.hpp` | **NO LONGER AN ORPHAN.** It graduated to Door 5 (`ZOETROPE`) with the other two cube verbs, and CHOIR_0 left it and the whole formation machine untouched (§3) |
 
 **Three enumerators with no publisher is the only true orphan class
 here**, and it is small. The coupling layer's problem is not rot; it is
-**reach**: 43 of 55 published names and 15 of 15 automaton dials have no
-voice, while all eight pipes and all twelve bindings work.
+**reach**: 49 of 55 published names and 15 of 15 GROUND-automaton dials
+(`AUTO_LIVE`, §4 — a different automaton from the zoetrope's, and the one
+still standing) have no voice, while all nine pipes and all six bindings
+work. **CHOIR_0 demonstrated the other honest answer to a dial with no
+voice**: the zoetrope lattice's own console band — TICK_BEATS, REV_BEATS,
+the diffusion and pigment law, STRIKE_SPREAD — was not coupled, it was
+EXCISED, because what it dialled had stopped being the instrument.
 
 ---
 
 ## §6 — WHAT THE MAP SAYS
 
-1. **Nothing is broken.** Eight pipes, twelve bindings, two seams, one
+1. **Nothing is broken.** Nine pipes, six bindings, three seams, one
    composition law, all live. The gain rows can dial any of it to silence
    without unwiring it.
-2. **The analysis side is far richer than the world hears.** 43 unheard
+2. **The analysis side is far richer than the world hears.** 49 unheard
    publications, and the entire pc-DFT capability among them.
 3. **The world got much more dialable while the couplings stood still.**
    The automaton alone adds 15 candidate dials, one of which

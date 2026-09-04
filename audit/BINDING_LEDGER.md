@@ -14,9 +14,9 @@ merge rows the API charges separately.
 | field | value |
 |---|---|
 | demo column censused | `full` |
-| source commit | `66752a61831b76aa3f7ca20c0632e969e82d0e41` |
-| | HEM_1 U1+U2+U3 — the wall and the slope law reach the walkers, and the annulus comes inside the wall |
-| `src/cartridges/the_board/realization/state.hpp` | `sha256:df576dcb4cb21ebed0cf49f7c7b285c2ef7c190e76fc7cc58c7de7f21615918b` |
+| source commit | `be0eb28ff7f4280533cdada58453aebd8b7e9bd6` |
+| | SKIRT_WELD_1 — the perimeter skirt hangs from the base band, and the tint's variation becomes a gain |
+| `src/cartridges/the_board/realization/state.hpp` | `sha256:f7295eaac1c39e8ec203139659f913b724f7797a7ee5b8abfbc6b46f77bf2865` |
 | `src/cartridges/the_board/realization/binding_surface.gen.inc` | `sha256:c1b64eadb92b14b2b6a69475f78ca71b4144979f3737b157568a29e5f4a7bcf6` |
 | `src/cartridges/the_board/realization/binding_registry.hpp` | `sha256:79b70d3e7510cce71f5d67f85b994a781745d7c090efefd76ba7af165be17281` |
 | `src/cartridges/the_board/realization/renderer.hpp` | `sha256:4e6ead2a95e61d69118502d43ef838bc3e2e8bc3568be1f7c980bcdb9b534f4e` |
@@ -31,7 +31,7 @@ only — `draw_orbs` is called from `bodies/orbs.hpp`, not from
 |---|---|
 | `src/cartridges/the_board/bodies/orbs.hpp` | `475d3de82ddd4d979d55ad146039937cd3316a0148466ed5c1db5566bde9a8b1` |
 | `src/cartridges/the_board/bodies/pawn.hpp` | `7915ec242a2a3094537882c50a2980c9494e4f1460a3a2f786232b67ec6ead12` |
-| `src/cartridges/the_board/cartridge.hpp` | `6f8a0f03c134d5099679a0617c31d509d4e051f65319ea3e785db1baa80db3bd` |
+| `src/cartridges/the_board/cartridge.hpp` | `db6b8cd45433c1bef3ad27000ecdfecca3bc260ef17c13642febaa6fec74489a` |
 | `src/cartridges/the_board/realization/render_passes.hpp` | `d00857c2e8456fc08af94cc8e97d880f5dfb956e493c4cb90bb0e5e5d49bd9fa` |
 | `src/cartridges/the_board/surface/automaton.hpp` | `e98d2e703e4b4fd148d65502565de16e9ab36babd3a09ab5759677c4962aebe4` |
 | `src/cartridges/the_board/surface/patch_system.hpp` | `debf840f01152700ce9956eb022d3eb0de3e427c60cee4a7905c57085f20f648` |

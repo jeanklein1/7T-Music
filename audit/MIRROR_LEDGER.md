@@ -15,15 +15,15 @@ carry those facts, or leave them in place and patch around them.
 
 | field | value |
 |---|---|
-| source commit | `c8b856dc56d47affdc02e9092019b381883d2cd6` |
-| | HEM_1 U4+U5+U6 — the eviction ruling, the record, the ledgers |
+| source commit | `be0eb28ff7f4280533cdada58453aebd8b7e9bd6` |
+| | SKIRT_WELD_1 — the perimeter skirt hangs from the base band, and the tint's variation becomes a gain |
 | `src/cartridges/the_board/realization/binding_registry.hpp` | `sha256:79b70d3e7510cce71f5d67f85b994a781745d7c090efefd76ba7af165be17281` |
 | `src/cartridges/the_board/realization/world.wgsl` | `sha256:9bf6a83b750924fc9bb616a9837ea2ec6811b7d6918dd4a5f1083e7cb746220d` |
-| `src/cartridges/the_board/realization/state.hpp` | `sha256:df576dcb4cb21ebed0cf49f7c7b285c2ef7c190e76fc7cc58c7de7f21615918b` |
+| `src/cartridges/the_board/realization/state.hpp` | `sha256:f7295eaac1c39e8ec203139659f913b724f7797a7ee5b8abfbc6b46f77bf2865` |
 | `src/cartridges/the_board/realization/binding_surface.gen.inc` | `sha256:c1b64eadb92b14b2b6a69475f78ca71b4144979f3737b157568a29e5f4a7bcf6` |
 | `src/cartridges/the_board/realization/renderer.hpp` | `sha256:4e6ead2a95e61d69118502d43ef838bc3e2e8bc3568be1f7c980bcdb9b534f4e` |
 | `tools/binding_ledger.py` | `sha256:a3c75bab894774eb0302686e5efd52275b280e14abfcf4e8753b28d5b5086692` |
-| `audit/BINDING_LEDGER.md` | `sha256:dd6cecd66dcce78eabfd49809f86aabab30ad017eba6d53d4bb422eeb2bd91c0` |
+| `audit/BINDING_LEDGER.md` | `sha256:430cd264777877578d62102ff6273df5f16a25c53c5e8f36fc7261594cd994b8` |
 
 `tools/binding_ledger.py` is an input because its parsers are IMPORTED,
 not copied — one parse, two artifacts, no drift between instruments.
@@ -848,8 +848,8 @@ wrapper, 18 wrapper calls) and are not recounted here.
 
 | site (line hint) | enclosing function | idx | group member(s) | dynamic offsets |
 |---|---|---|---|---|
-| `cartridge.hpp:2073` | `phase_entity_mesh_gen` | 0 | `worldGroup_` | — |
-| `cartridge.hpp:2074` | `phase_entity_mesh_gen` | 1 | `frameCGroup_` | — |
+| `cartridge.hpp:2112` | `phase_entity_mesh_gen` | 0 | `worldGroup_` | — |
+| `cartridge.hpp:2113` | `phase_entity_mesh_gen` | 1 | `frameCGroup_` | — |
 | `orbs.hpp:743` | `dispatch_orb_init` | 0 | `worldGroup_` | — |
 | `orbs.hpp:744` | `dispatch_orb_init` | 1 | `frameCGroup_` | — |
 | `orbs.hpp:764` | `dispatch_orb_recolor` | 0 | `worldGroup_` | — |

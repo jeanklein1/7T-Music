@@ -59,8 +59,9 @@
 // population dense, so an evicted key's refill relights the same dark
 // key). ACTIVATION AND DEACTIVATION ONLY — no held-length book is kept;
 // the envelope is the memory. While a key sounds its light climbs the
-// house's saturating-approach curve (τ = light_plateau/4, so ≈ 98% at
-// the plateau — steepest at switch-on, which IS the fast attack); when
+// house's saturating-approach curve, 1 − e^(−t/τ) with τ =
+// light_plateau/4, so ≈ 98% at the plateau — steepest at switch-on,
+// which IS the fast attack the commission asked for; when
 // it falls silent the light falls on a FIXED SLOPE, full brightness to
 // dark in light_release beats. Fast attack, slow decay, simple. The run
 // leaves through "cube.light"; the cartridge's motion-drivers phase
@@ -180,9 +181,15 @@ namespace t7 {
     // pair is checkable by eye rather than by trust.
     inline constexpr int dressed_of_pc(int raw_pc) { return (raw_pc + 10) % 12; }
     static_assert(dressed_of_pc(2) == 0, "D is the dressed origin");
-    static_assert(dressed_of_pc((0 + 2) % 12) == 0
-               && dressed_of_pc((7 + 2) % 12) == 7,
-        "dressed_of_pc must invert the ears' (i + 2) % 12 fold");
+    // THE ROUND TRIP, ALL TWELVE — a spot check would pass on a fold that
+    // is right for two values and wrong for ten. This walks every dressed
+    // index through the ears' `(i + 2) % 12` and back, and demands the
+    // identity on all of them.
+    static_assert([] {
+        for (int i = 0; i < 12; ++i)
+            if (dressed_of_pc((i + 2) % 12) != i) return false;
+        return true;
+        }(), "dressed_of_pc must invert the ears' (i + 2) % 12 fold, on every lane");
 
     // ── Sustain swell (movement) ── PURE ADDITIVE: the dance is the seed
     // idle PLUS the chord's contribution. goal = 1 + (CEILING−1)·t where
@@ -611,8 +618,12 @@ namespace t7 {
             //   house's standing exponential-approach idiom
             //   (CUBE_GLIDE_TAU, ZOETROPE_LIFT_TAU are the same k-form).
             //   τ = plateau/4 puts I(plateau) = 1 − e⁻⁴ ≈ 0.982.
-            //   Logarithmic: steepest at switch-on — the fast attack IS
-            //   the curve's own first derivative, not a separate rule.
+            //   The commission's word for the shape is LOGARITHMIC and it
+            //   reads as one — concave, decelerating; the curve is in fact
+            //   1 − e^(−t/τ), whose inverse is the log, and unlike a true
+            //   logarithm it has an asymptote at 1. Either way the fast
+            //   attack IS the curve's own first derivative at t = 0, not
+            //   a separate rule bolted on.
             // RELEASE — a FIXED SLOPE, 1/light_release per beat: full
             //   brightness to dark in exactly light_release beats, and a
             //   dimmer key proportionally sooner.
@@ -670,12 +681,15 @@ namespace t7 {
         const VisualParams& params() const { return params_; }
         const ParamLayout& layout() const { return param_layout_; }
 
-        // The choir's ENVELOPED intensities — CHOIR_LANES floats, one per
-        // key, key k = slot k. Not impulses: the light itself, already
-        // integrated, so a reader composes it and never re-integrates.
-        // (The pipe "cube.light" carries the same run through the bank;
-        // this accessor is for a reader that holds the canvas directly.)
-        const float* choir_light() const { return choir_I_; }
+        // A `choir_light()` accessor stood here, the `zoetrope_rows()`
+        // pattern carried forward. It was born an ORPHAN and is not kept:
+        // `zoetrope_rows()` existed because the lattice's strike took the
+        // run as an ARGUMENT, so the cartridge had to reach the canvas
+        // directly. The choir's run leaves through the BANK instead
+        // ("cube.light"), because the drivers' room has to compose against
+        // it before anything sees it — and a second door onto the same
+        // floats, with no caller, is exactly the corpse U5 spent itself
+        // removing. The bank IS the accessor.
 
     private:
         VisualParams params_;

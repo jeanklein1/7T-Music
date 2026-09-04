@@ -52,7 +52,13 @@ namespace t7 {
         bool periodic_census;  // the census CADENCE — and the [METER] table, which rides it
         bool census_entity_dump; // the ~50-line entity [CENSUS] text itself (HEADROOM_0 U3)
         bool checker_witness;  // the [CHECKER] line, one per checker read (~every 4 beats)
-        bool zoetrope_witness; // the [ZOETROPE] strike line, one per strike-frame
+        // CHOIR_0 U5: the [ZOETROPE] strike line went with the strike.
+        // The DIAL survives under its old name (the rename is PARKED to
+        // keep that campaign's churn down) and now gates two lines, both
+        // on the same fault: [CHOIR] key=NN I=X.XX on the coupling side,
+        // one per key ACTIVATION EDGE, and canvas_1's [ONSET] on the
+        // publish side. Same pairing as before, one tier over.
+        bool zoetrope_witness; // the [CHOIR] activation line + canvas_1's [ONSET]
         bool watcher_ticks;    // the harness's hot-reload progress dot (a flushed write, 2×/s)
         bool stream_witness;   // RIBBON_4 — the streaming path's spawn/evict lines
         // ATRIUM_5's PASSER WITNESS stood here and left with the round

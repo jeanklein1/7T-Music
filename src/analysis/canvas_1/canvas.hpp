@@ -453,10 +453,18 @@ private:
             write_reading(published_[k]);
 
         // ── THE PUBLISH-SIDE ONSET WITNESS ───────────────────────────
-        // The board's [ZOETROPE] strike line can only say "rows were
-        // empty"; it cannot say whether the EXTRACTOR produced nothing or
-        // the COUPLING failed to read it. This one sits on the publish
-        // side of that line, so the two together bound the fault.
+        // Its partner was the board's [ZOETROPE] strike line, which could
+        // only say "rows were empty" and never whether the EXTRACTOR
+        // produced nothing or the COUPLING failed to read it; this one
+        // sits on the publish side, so the two together bound the fault.
+        // CHOIR_0 retired the strike and with it the coupling half of
+        // that pair: NO COUPLING READS `Reading::Onset` TODAY (the seven
+        // publications stay, as capability). So this witness now bounds
+        // only the extractor's own end, and it still earns its place —
+        // it is the one instrument that can say whether onsets exist at
+        // all before anything is wired to hear them. The dial it rides
+        // gates [CHOIR] on the other side now, which is the same fault
+        // from the same two ends, one tier over.
         //
         // It reports two things, because a silent witness proves nothing:
         // the per-voice onset sums when there ARE any, and — when notes
