@@ -104,7 +104,7 @@ inline constexpr DriverSurface DRIVER_TABLE = {
     { 1.0f, 1.0f, { 0.0f, 0.0f, 0.0f }, 0.0f, 1.0f },   // ribbon: the seam's own fallbacks
     { { 1.0f, 0.92f, 0.72f }, 1.0f },   // cube: warm incandescent against
                                         // seed-cool bodies (Jean's desk)
-    { 0.8f, 0.15f },                    // ground: the lift and the quickening
+    { 0.5f, 0.15f },                    // ground: the lift and the quickening
                                         // (Jean's desk — see the two notes below)
 };
 
@@ -112,13 +112,21 @@ inline constexpr DriverSurface DRIVER_TABLE = {
 // gain whose effect saturates reads as a broken dial rather than a
 // strong one.
 //
-// height_gain 0.8 against a field of 0..6 gives 1.0 / 1.8 / 2.6 / 3.4 /
-// 4.2 / 5.0 / 5.8, and GROUND_SCALE_MAX is 4.0 — so fields 4, 5 and 6
-// all clamp to the same ground and the top HALF of the field range is
-// one height. That may be exactly right (a loud room is a loud room),
-// but it is a choice and not an accident, so: **0.5 is the gain that
-// maps the full field range onto the full clamp**, field 6 landing on
-// 4.0 exactly. One token either way; Jean's desk.
+// height_gain 0.5 against a field of 0..6 gives 1.0 / 1.5 / 2.0 / 2.5 /
+// 3.0 / 3.5 / 4.0, and GROUND_SCALE_MAX is 4.0 — so the full field range
+// maps onto the full clamp, field 6 landing on the ceiling EXACTLY and
+// every field below it landing on its own height. It is the unique gain
+// with that property: 1 + g*6 = 4 has one solution.
+//
+// IT WAS 0.8, AND THE COUNT IS WHY IT MOVED (GROUND_VOICE_0's F2,
+// ruled at STAGE_0 R6). At 0.8 the sequence is 1.0 / 1.8 / 2.6 / 3.4 /
+// 4.2 / 5.0 / 5.8, and fields 4, 5 and 6 ALL CLAMP TO 4.0 — the top half
+// of the driver's range was one height. That might have been right (a
+// loud room is a loud room), but it was a choice nobody had made, and
+// what a saturating gain actually reads as is a broken dial.
+//
+// WHAT THE MOVE COSTS: the quiet end is gentler. Field 1 lifts 1.5x
+// where it lifted 1.8x. The loud end is what was bought.
 //
 // tick_gain 0.15 against voices 0..12 gives period × 1.0 / 0.87 / 0.77 /
 // 0.69 / 0.63 / 0.53 / 0.45 / 0.36 — the whole useful range well clear

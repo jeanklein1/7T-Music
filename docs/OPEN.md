@@ -1718,18 +1718,15 @@ banner warns about.
 The boot pin STAYS as the rest — the fog's and the checker's own shape — and
 the coupling is a new per-frame block in `phase_motion_drivers` beside them.
 
-**4 · GAIN 0 IS HANDS OFF, PER TERM, AND IT HAD TO BE.** Every other driven
-config value in this tree is an `ORGAN_PARAM_RO` meter with its rest
-elsewhere; `mode_gol_tick_scale` and `mode_gol_height_scale` are
-`ORGAN_PARAM` — **writable dials whose rest IS the field**. A seam writing
-unconditionally would overwrite the dial every frame and quietly kill it. So
-at gain 0 the term passes the dial's own value straight back, the setter's
-inequality gate sees no change, and the dial is the author again. "0 manual …
-1 coupling verbatim", meant literally — and the registry freeze holds with
-zero organ edits. **At freeze-lift these two want the fog's three-row shape**
-(an `_RO` meter for the driven value, a rest home, and the gain), which is a
-bigger question than a row kind, because their rest is currently the field
-itself.
+**4 · GAIN 0 IS HANDS OFF, PER TERM, AND IT HAD TO BE.** **PROMOTED at
+STAGE_0 R6 to a standing section — see *THE HANDS-OFF-REST SEAM* below, which
+is now this rule's only home** (L46: one fact, one home). The finding, in
+one line: `mode_gol_tick_scale` / `mode_gol_height_scale` are `ORGAN_PARAM`
+— *writable dials whose rest IS the field* — so a seam writing
+unconditionally would overwrite the dial every frame and quietly kill it.
+**At freeze-lift these two want the fog's three-row shape** (an `_RO` meter
+for the driven value, a rest home, and the gain), which is a bigger question
+than a row kind, because their rest is currently the field itself.
 
 **5 · FLAG — `field` IS NOT EMA'd, AND THE GROUND WILL JUMP.** §0 waves the
 smoothing question away on that premise. `canvas_1` publishes
@@ -1741,6 +1738,13 @@ field elects.** Built as ruled and flagged rather than fixed: a ground that
 jumps on a modulation may be the percept, and that is a desk question. The
 one-idiom fix is one line per pipe and is written out at the site.
 
+> **PRE-AUTHORIZED at STAGE_0 R6, still unbuilt.** The ruling endorses
+> leaving it out and names it a **one-line desk follow-up if Jean's eye wants
+> the drift**: one EMA per pipe at the publishing site, the idiom already
+> written out there. It needs no further ruling — only Jean's eye on the
+> jump. Building it before that would be answering a question nobody has
+> asked of the picture.
+
 **6 · FLAG — THE HEIGHT GAIN SATURATES OVER HALF ITS RANGE.** `height_gain
 0.8` against a field of 0..6 gives 1.0 / 1.8 / 2.6 / 3.4 / 4.2 / 5.0 / 5.8
 against a ceiling of 4.0 — so **fields 4, 5 and 6 are one height**. May be
@@ -1748,6 +1752,12 @@ right; is a choice. **0.5 is the gain that maps the full field range onto the
 full clamp**, field 6 landing on 4.0 exactly. `tick_gain 0.15` wants no note:
 voices 0..12 give period × 1.0 down to 0.36, monotone, well clear of the
 floor.
+
+> **RULED AND LANDED at STAGE_0 R6: `height_gain` is 0.5.** The sequence is
+> now 1.0 / 1.5 / 2.0 / 2.5 / 3.0 / 3.5 / 4.0 — every field its own height,
+> the ceiling reached exactly once, and it is the unique gain with that
+> property (`1 + g·6 = 4` has one solution). What it costs is the quiet end:
+> field 1 lifts 1.5× where it lifted 1.8×.
 
 **7 · FLAG — CONFIG'S "GPU-SIDE" SCOPE REASON IS NOW INCOMPLETE.**
 `tools/organ_readers.py` excludes the CONFIG family with the reason "GPU-side:
@@ -2003,6 +2013,66 @@ Jean's gate.
 is green. What only a device can answer: the braid at a hand-turned `step`,
 the rest wheel's radius and rank separation, the swell on the wheel, and the
 ROAM↔WHEEL flip.
+
+## THE HANDS-OFF-REST SEAM (standing — Jean's, recorded at STAGE_0 R6)
+
+Promoted from GROUND_VOICE_0's flag 4, which is now a pointer rather than a
+second home. **This is the law for every future coupling that drives a
+WRITABLE ENROLLED DIAL**, and the Ableton seam will meet this shape
+repeatedly.
+
+**THE RULE.** When a coupling's target is an `ORGAN_PARAM` — a dial a hand
+can turn — and that dial's *rest is the field itself*, the seam does not
+compose against a rest. **At gain 0 it passes the dial's own value straight
+back.** The setter's inequality gate then sees no change, nothing dirties,
+and the dial is the author again. `// 0 manual … 1 coupling verbatim`, meant
+literally.
+
+**AND IT IS A SWITCH, NOT A BLEND — say this out loud, because the prose it
+was promoted from does not.** The dial's value is used when the gain is
+*exactly* zero (or the pipe is invalid), and at any other gain the coupling
+is the sole author. At `height_gain = 0.5` the output is
+`clamp(1 + 0.5·energy, …)`; the dial's value appears nowhere in it. Anyone
+generalising from the drivers'-room doctrine would write
+`out = dial + gain·(driven − dial)` and be wrong. Dial and coupling are
+**mutually exclusive authors, switched at `gain != 0`**; the gain scales the
+coupling's own excursion around its rest, it does not crossfade between the
+two.
+
+**PER TERM, AND THAT IS STRUCTURAL.** Two independent guards over one setter
+call, not one combined guard: `height_gain = 0` with `tick_gain = 0.15`
+leaves the height dial fully live while the tick is driven.
+
+**AN UNBOUND PIPE IS ALSO HANDS OFF**, and this inverts every other seam in
+the tree. Elsewhere a missing binding means THE REST SPEAKS — the fog writes
+`fog_rest_density`, the checker writes `rest_resultant`, the choir writes a
+dark 0. Here `&& …_dst_.valid` hands authorship back to the dial instead,
+because there is no rest to speak: the dial is the rest.
+
+**WHY THE DOCTRINE DOES NOT COVER THIS CASE.** `out = rest + gain·(driven −
+rest)` needs a rest that lives somewhere the coupling can read and the hand
+cannot fight over. Four of the five couplings have one — the world's for the
+fog, the drivers' room's for the checker and the ribbon, and the absence of
+a mix for the choir. The ground's two are the exception: their rest is a
+live writable field, so composing against it would be composing against the
+hand.
+
+**THE TEST FOR A NEW COUPLING, in one question:** *can a hand turn what I am
+about to write?* If yes, and there is no separate rest home, this shape is
+required — and at freeze-lift the better answer is to GIVE it a rest home
+(the fog's three-row shape: an `_RO` meter for the driven value, a rest of
+its own, and the gain), at which point the doctrine applies again and this
+law stops being needed for that dial.
+
+**THE MECHANISM IT LEANS ON.** `set_mode_gol_scales`'s inequality gate
+(`state.hpp`) is what makes "passes the dial's own value straight back" free
+rather than a per-frame dirty. A seam adopting this shape against a setter
+with no such gate must add one.
+
+**Where it lives in code:** `cartridge.hpp`, `phase_motion_drivers`' ground
+block, and the contract's account at `contracts/driver_surface.hpp`
+(*NO REST TRIPLE HERE*). Both stay; this section is the LAW, they are the
+site.
 
 ## THE HANDOVER LIST (THE_PANEL's close — the coupling campaign's table)
 
@@ -2608,6 +2678,9 @@ state, and filing it here would be the second home L46 forbids.
 | UNIT.1 (the `D3D12_Dxc` boot) halted until route (a) lands | **EMBER_0** above |
 | orphan verbs default to DOORS | THE_PANEL I U4's commit and `docs/ORGAN.md` |
 | no constructive GPU work ships unprobed | **L48**, and `CLAUDE.md`'s gate table |
+| a coupling that drives a WRITABLE dial is hands-off at gain 0 | *THE HANDS-OFF-REST SEAM*, above (STAGE_0 R6) |
+| everything computed is visible | *THE STAGE LAW*, above (STAGE_0) |
+| GoL cell colour goes through the tint funnel | *THE GoL COLOUR RULING*, above (GROUND_VOICE_0) |
 
 ### Jean's open gates
 
