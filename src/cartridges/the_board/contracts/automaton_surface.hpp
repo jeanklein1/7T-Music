@@ -226,5 +226,38 @@ namespace the_board {
     // list to forget a member of.
     inline AutomatonBank AUTO_LIVE = AUTO_TABLE;
 
+    // ═══ WHAT A COUPLING MAY DO TO THE TWO SCALES ════════════════════
+    //
+    // config's `mode_gol_height_scale` and `mode_gol_tick_scale` are the
+    // automaton's two multipliers — the lift on `alive_height` and the
+    // multiplier on the tick PERIOD — and they sat pinned neutral at
+    // boot until GROUND_VOICE_0 gave them a driver. These are the bounds
+    // that driver composes inside, and they live HERE rather than with
+    // the gains because they are the AUTOMATON'S fact: they say what
+    // this ground will accept, not how loudly a coupling speaks. A
+    // different coupling aimed at the same two fields inherits them.
+    //
+    // THE FLOOR IS THE LOAD-BEARING HALF, and it is the tick's. The
+    // period appears as a DIVISOR in world.wgsl (`max(tick_period *
+    // scale, 0.01)`), so a scale approaching zero is a tick rate
+    // approaching the shader's own guard — the automaton would step
+    // every frame and the ground would boil. 0.25 is four times life at
+    // the far end of the ruled gain, which is fast and still reads as
+    // cells. The ceiling is the height's and is merely generous: 4×
+    // `alive_height` is a wall, not a ground, and nothing musical should
+    // reach for it.
+    //
+    // The organ's own rows on these two fields carry ranges of their own
+    // ([0.1, 4.0] tick, [0.0, 4.0] height); those bound THE HAND at the
+    // panel, these bound THE COUPLING at the seam, and they are
+    // deliberately not the same numbers — a hand that asks for a boiling
+    // ground gets one, a coupling never does.
+    inline constexpr float GROUND_SCALE_MIN = 0.25f;
+    inline constexpr float GROUND_SCALE_MAX = 4.0f;
+    static_assert(GROUND_SCALE_MIN > 0.0f && GROUND_SCALE_MIN < 1.0f
+               && GROUND_SCALE_MAX > 1.0f,
+        "the neutral multiplier 1.0 must lie strictly inside the coupling's clamp, "
+        "or silence would not be today's ground");
+
 } // namespace the_board
 } // namespace t7

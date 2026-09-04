@@ -92,6 +92,12 @@ READERS = {
         # anti-staleness mechanism doing its job. Without the row the cube
         # dials would read as SUSPECTS the moment the registry freeze lifts.
         ("src/cartridges/the_board/bodies/cube_behaviors.hpp", "choir_project_color"),
+        # GROUND_VOICE_0: the boot witness prints the ground's two gains
+        # beside its two pipes, so a deaf ground names its fault at the
+        # seam. A printer is a reader in this table by the tree's own
+        # precedent (ORBS lists log_configure_), and the census flagged
+        # this one as a "?" line the moment it appeared.
+        ("src/cartridges/the_board/cartridge.hpp", "bind_signal_layout"),
     ]),
     "PAWN": ("PAWN_AURA_LIVE", "PawnAuraProfile", [
         ("src/cartridges/the_board/bodies/pawn.hpp", "tick_pawn_couplings"),

@@ -848,8 +848,8 @@ wrapper, 18 wrapper calls) and are not recounted here.
 
 | site (line hint) | enclosing function | idx | group member(s) | dynamic offsets |
 |---|---|---|---|---|
-| `cartridge.hpp:2125` | `phase_entity_mesh_gen` | 0 | `worldGroup_` | — |
-| `cartridge.hpp:2126` | `phase_entity_mesh_gen` | 1 | `frameCGroup_` | — |
+| `cartridge.hpp:2191` | `phase_entity_mesh_gen` | 0 | `worldGroup_` | — |
+| `cartridge.hpp:2192` | `phase_entity_mesh_gen` | 1 | `frameCGroup_` | — |
 | `orbs.hpp:743` | `dispatch_orb_init` | 0 | `worldGroup_` | — |
 | `orbs.hpp:744` | `dispatch_orb_init` | 1 | `frameCGroup_` | — |
 | `orbs.hpp:764` | `dispatch_orb_recolor` | 0 | `worldGroup_` | — |
