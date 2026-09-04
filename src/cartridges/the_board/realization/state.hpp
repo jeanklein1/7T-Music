@@ -1976,11 +1976,22 @@ namespace t7 {
         static_assert(sizeof(GPUPawnFigure) == 288, "GPUPawnFigure must be 288 bytes");
         static_assert(sizeof(GPUPawnFigure) % 16 == 0, "GPUPawnFigure must be 16-byte aligned");
         static_assert(sizeof(GPUCameraState) == 48, "GPUCameraState must be 48 bytes");
-        // THE STRIDE IS 192 SINCE STAGE_0 U4 (was 208). These three are
-        // the ONLY static proof this struct has: world.wgsl gives it no
-        // BYTE-FOR-BYTE marker, so mirror_offsets.py's per-field witness —
-        // 128 members across 7 structs — does not cover it. A field added
-        // here without its WGSL twin still fails only on a device.
+        // THE STRIDE IS 192 SINCE STAGE_0 U4 (was 208). These FOUR were
+        // the only static proof this struct had, and the banner that stood
+        // here said so: world.wgsl gave it no BYTE-FOR-BYTE marker, so the
+        // per-field witness did not cover it, and a field added here
+        // without its WGSL twin failed only on a device.
+        //
+        // IT CARRIES ONE NOW (STAGE_0 R2), and the ruling's own order was
+        // "the instrument first": the one witness built to catch
+        // cross-room layout divergence must cover the struct whose stride
+        // this campaign moved. mirror_offsets.py asserts all 33 members
+        // against world.wgsl's own offsets — 161 members across 8
+        // structs — and these four keep their places as the SIZE proof the
+        // per-field witness does not make. The generated asserts caught
+        // their first thing on the day they were written: the WGSL room's
+        // per-member comments had carried the pre-U4 numbers for three
+        // campaigns.
         static_assert(sizeof(GPUFloatingEntityState) == 192, "GPUFloatingEntityState must be 192 bytes (12x16)");
         static_assert(offsetof(GPUFloatingEntityState, target_x) == 184, "target_x sits 16 below its old 200 — the kite's exact width");
         static_assert(offsetof(GPUFloatingEntityState, target_z) == 188, "target_z sits 16 below its old 204 — the kite's exact width");
@@ -2164,8 +2175,8 @@ namespace t7 {
         // member. Both rooms' SIZES stay identical, because each pads
         // implicitly back to the boundary, while every offset in between
         // sits four bytes apart. Neither the sizeof asserts above nor the
-        // binding ledger's 0b-4 can see that. 128 member offsets across
-        // seven marker-registered structs can.
+        // binding ledger's 0b-4 can see that. 161 member offsets across
+        // eight marker-registered structs can.
         //
         // THE FILE IS GENERATED AND NEVER HAND-EDITED (L28). It lands
         // HERE, after every mirrored struct is declared, because offsetof
@@ -2805,11 +2816,14 @@ namespace t7 {
             }
 
             // Partial writes for the anchor law (ONE_ANCHOR_1). The
-            // toggle writes only the follow_pawn sentinel (the kernel
-            // captures/releases from the true present); the corral
-            // writes only the glide target (the kernel walks the live
-            // param toward it). No CPU hand ever moves anchor or
-            // offset directly.
+            // banner here described TWO of them — the toggle's
+            // follow_pawn sentinel and the corral's glide target — and
+            // the toggle went with the kite at STAGE_0 U4 (its own
+            // tombstone is twenty lines below; this sentence was missed).
+            // ONE PARTIAL WRITE IS LEFT and it is the wheel's: the CPU
+            // writes only the glide TARGET, and the kernel walks the live
+            // param toward it. No CPU hand ever moves the anchor
+            // directly, which is the half of the law that never moved.
             // ── FIELD_4: the authored table's hot writer ── the CPU
             // stage is SOVEREIGN; the GPU buffer is the derived copy.
             // 144 B WriteBuffer per frame — lean, no dirty gate.
@@ -2826,7 +2840,7 @@ namespace t7 {
             void upload_cube_glide_target(wgpu::Queue& queue, uint32_t slot, float tx, float tz) {
                 size_t base = (Dim::CUBE_SLOT_OFFSET + slot) * sizeof(GPUFloatingEntityState);
                 size_t off = offsetof(GPUFloatingEntityState, target_x);
-                float t[2] = { tx, tz };   // target_z rides target_x — pinned adjacent (200/204)
+                float t[2] = { tx, tz };   // target_z rides target_x — pinned adjacent (184/188 since STAGE_0 U4; the pair is asserted above and now in both rooms)
                 queue.WriteBuffer(floatingEntityBuffer_, base + off, t, sizeof(t));
             }
             void upload_cube_color(wgpu::Queue& queue, uint32_t slot, float r, float g, float b) {

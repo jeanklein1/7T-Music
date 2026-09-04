@@ -1061,7 +1061,26 @@ struct CameraState {
 // --- [STATE:floating_entity] FloatingEntityState
 // Replaces SphereState. Supports spheres, monoliths, future geometry.
 // Motion type (orbit vs hover-bob) and geometry type are per-instance.
-
+//
+// Mirrors GPUFloatingEntityState in state.hpp BYTE-FOR-BYTE (192 B).
+//
+// THE MARKER IS NEW AND THE STRUCT IS NOT (STAGE_0 R2). This is the
+// buffer EVERY floater family shares, and its stride moved 208 -> 192 at
+// STAGE_0 U4 with no witness watching: docs/OPEN.md flagged it as F1 the
+// day it happened — "the stride moved on a struct the witness does not
+// cover" — and the flag is what this line closes. mirror_offsets.py now
+// asserts all 33 members' offsets against the C++ room, and
+// binding_ledger's 0b-4 checks the 192 against its own layout
+// calculator, so the two rooms prove each other instead of each proving
+// itself.
+//
+// AND THE MARKER'S FIRST ACT WAS TO CATCH SOMETHING. The per-member
+// comments below `behavior_id` carried the PRE-U4 numbers — 188 / 196 /
+// 200 / 204 and a `208 total` — for three campaigns. The LAYOUT was
+// always right (both rooms lay this struct out identically; the C++
+// static_asserts prove 192/184/188/176); only the RECORD lied. They read
+// 176 / 180 / 184 / 188 and `192 total` now, which is what the generated
+// asserts say and what the compiler checks.
 struct FloatingEntityState {
     pos: vec3<f32>,            //   0: world position (computed by GPU)
     body_radius: f32,          //  12: bounding/visual radius
@@ -1104,14 +1123,14 @@ struct FloatingEntityState {
     // Formations anchor in the world.
     // (The two lines below are what survives of that comment block.)
     // see state.hpp for the C++ ordering and rationale.
-    behavior_phase: u32,       // 188: per-slot phase hash for behavior diversity
-    plasticity: f32,           // 196: CONTACT_2 λ (0=elastic; drift→anchor leak rate). Was _pad0.
+    behavior_phase: u32,       // 176: per-slot phase hash for behavior diversity
+    plasticity: f32,           // 180: CONTACT_2 λ. Its last consumer (the leak) left at STAGE_0 U5.
     // The anchor law (ONE_ANCHOR_1): goals may leap; values only walk.
-    // update_cube walks the live param (anchor.xz / pawn_offset.xz)
+    // update_cube walks the live param (anchor.xz — the one mode left)
     // toward these each frame. At rest target == param, glide term 0.
-    target_x: f32,             // 200: glide target x. Was _pad1.
-    target_z: f32,             // 204: glide target z. Was _pad2.
-}                              // 208 total
+    target_x: f32,             // 184: glide target x. Was _pad1.
+    target_z: f32,             // 188: glide target z. Was _pad2.
+}                              // 192 total (12 x 16)
 
 struct FloatingEntityArray {
     entities: array<FloatingEntityState, 264>,

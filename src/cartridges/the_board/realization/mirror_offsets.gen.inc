@@ -24,6 +24,74 @@ static_assert(offsetof(GPUSceneConstants, figure_profiles) == 192,
 static_assert(offsetof(GPUSceneConstants, ribbon) == 4224,
     "SceneConstants.ribbon is at 4224 in world.wgsl (RibbonState); the two rooms must agree field for field");
 
+// ── FloatingEntityState  ↔  GPUFloatingEntityState  (33 members asserted) ──
+static_assert(offsetof(GPUFloatingEntityState, pos) == 0,
+    "FloatingEntityState.pos is at 0 in world.wgsl (vec3<f32>); the two rooms must agree field for field");
+static_assert(offsetof(GPUFloatingEntityState, body_radius) == 12,
+    "FloatingEntityState.body_radius is at 12 in world.wgsl (f32); the two rooms must agree field for field");
+static_assert(offsetof(GPUFloatingEntityState, orientation) == 16,
+    "FloatingEntityState.orientation is at 16 in world.wgsl (vec4<f32>); the two rooms must agree field for field");
+static_assert(offsetof(GPUFloatingEntityState, influence_radius) == 32,
+    "FloatingEntityState.influence_radius is at 32 in world.wgsl (f32); the two rooms must agree field for field");
+static_assert(offsetof(GPUFloatingEntityState, t) == 36,
+    "FloatingEntityState.t is at 36 in world.wgsl (f32); the two rooms must agree field for field");
+static_assert(offsetof(GPUFloatingEntityState, orbit_radius) == 40,
+    "FloatingEntityState.orbit_radius is at 40 in world.wgsl (f32); the two rooms must agree field for field");
+static_assert(offsetof(GPUFloatingEntityState, orbit_speed) == 44,
+    "FloatingEntityState.orbit_speed is at 44 in world.wgsl (f32); the two rooms must agree field for field");
+static_assert(offsetof(GPUFloatingEntityState, color) == 48,
+    "FloatingEntityState.color is at 48 in world.wgsl (vec3<f32>); the two rooms must agree field for field");
+static_assert(offsetof(GPUFloatingEntityState, orbit_height) == 60,
+    "FloatingEntityState.orbit_height is at 60 in world.wgsl (f32); the two rooms must agree field for field");
+static_assert(offsetof(GPUFloatingEntityState, anchor) == 64,
+    "FloatingEntityState.anchor is at 64 in world.wgsl (vec3<f32>); the two rooms must agree field for field");
+static_assert(offsetof(GPUFloatingEntityState, face_variance) == 76,
+    "FloatingEntityState.face_variance is at 76 in world.wgsl (f32); the two rooms must agree field for field");
+static_assert(offsetof(GPUFloatingEntityState, base_color) == 80,
+    "FloatingEntityState.base_color is at 80 in world.wgsl (vec3<f32>); the two rooms must agree field for field");
+static_assert(offsetof(GPUFloatingEntityState, geometry_type) == 92,
+    "FloatingEntityState.geometry_type is at 92 in world.wgsl (u32); the two rooms must agree field for field");
+static_assert(offsetof(GPUFloatingEntityState, motion_type) == 96,
+    "FloatingEntityState.motion_type is at 96 in world.wgsl (u32); the two rooms must agree field for field");
+static_assert(offsetof(GPUFloatingEntityState, spin_speed) == 100,
+    "FloatingEntityState.spin_speed is at 100 in world.wgsl (f32); the two rooms must agree field for field");
+static_assert(offsetof(GPUFloatingEntityState, bob_amplitude) == 104,
+    "FloatingEntityState.bob_amplitude is at 104 in world.wgsl (f32); the two rooms must agree field for field");
+static_assert(offsetof(GPUFloatingEntityState, bob_period) == 108,
+    "FloatingEntityState.bob_period is at 108 in world.wgsl (f32); the two rooms must agree field for field");
+static_assert(offsetof(GPUFloatingEntityState, spin_tilt_x) == 112,
+    "FloatingEntityState.spin_tilt_x is at 112 in world.wgsl (f32); the two rooms must agree field for field");
+static_assert(offsetof(GPUFloatingEntityState, spin_tilt_z) == 116,
+    "FloatingEntityState.spin_tilt_z is at 116 in world.wgsl (f32); the two rooms must agree field for field");
+static_assert(offsetof(GPUFloatingEntityState, entity_seed) == 120,
+    "FloatingEntityState.entity_seed is at 120 in world.wgsl (u32); the two rooms must agree field for field");
+static_assert(offsetof(GPUFloatingEntityState, is_active) == 124,
+    "FloatingEntityState.is_active is at 124 in world.wgsl (u32); the two rooms must agree field for field");
+static_assert(offsetof(GPUFloatingEntityState, aspect_y) == 128,
+    "FloatingEntityState.aspect_y is at 128 in world.wgsl (f32); the two rooms must agree field for field");
+static_assert(offsetof(GPUFloatingEntityState, aspect_z) == 132,
+    "FloatingEntityState.aspect_z is at 132 in world.wgsl (f32); the two rooms must agree field for field");
+static_assert(offsetof(GPUFloatingEntityState, spring_stiffness) == 136,
+    "FloatingEntityState.spring_stiffness is at 136 in world.wgsl (f32); the two rooms must agree field for field");
+static_assert(offsetof(GPUFloatingEntityState, drag) == 140,
+    "FloatingEntityState.drag is at 140 in world.wgsl (f32); the two rooms must agree field for field");
+static_assert(offsetof(GPUFloatingEntityState, drift) == 144,
+    "FloatingEntityState.drift is at 144 in world.wgsl (vec3<f32>); the two rooms must agree field for field");
+static_assert(offsetof(GPUFloatingEntityState, tier_idx) == 156,
+    "FloatingEntityState.tier_idx is at 156 in world.wgsl (u32); the two rooms must agree field for field");
+static_assert(offsetof(GPUFloatingEntityState, drift_vel) == 160,
+    "FloatingEntityState.drift_vel is at 160 in world.wgsl (vec3<f32>); the two rooms must agree field for field");
+static_assert(offsetof(GPUFloatingEntityState, behavior_id) == 172,
+    "FloatingEntityState.behavior_id is at 172 in world.wgsl (u32); the two rooms must agree field for field");
+static_assert(offsetof(GPUFloatingEntityState, behavior_phase) == 176,
+    "FloatingEntityState.behavior_phase is at 176 in world.wgsl (u32); the two rooms must agree field for field");
+static_assert(offsetof(GPUFloatingEntityState, plasticity) == 180,
+    "FloatingEntityState.plasticity is at 180 in world.wgsl (f32); the two rooms must agree field for field");
+static_assert(offsetof(GPUFloatingEntityState, target_x) == 184,
+    "FloatingEntityState.target_x is at 184 in world.wgsl (f32); the two rooms must agree field for field");
+static_assert(offsetof(GPUFloatingEntityState, target_z) == 188,
+    "FloatingEntityState.target_z is at 188 in world.wgsl (f32); the two rooms must agree field for field");
+
 // ── RibbonState  ↔  GPURibbonState  (22 members asserted) ──
 static_assert(offsetof(GPURibbonState, anchor) == 0,
     "RibbonState.anchor is at 0 in world.wgsl (vec3<f32>); the two rooms must agree field for field");

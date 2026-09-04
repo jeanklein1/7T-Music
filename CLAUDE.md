@@ -107,7 +107,7 @@ because a real defect walked past the whole battery first.
 | organ gap | `python3 tools/organ_gap.py --gate` | no graduated pair kept a surviving runtime reader | PASS |
 | organ ledger | `python3 tools/organ_ledger.py --check` | every enrolled dial's field is named by a declared reader | PASS |
 | mirror census | `python3 tools/mirror_census.py` | the C++↔WGSL mirror and the binding idioms hold | GREEN |
-| mirror offsets | `python3 tools/mirror_offsets.py --check` | **the per-field witness**: every member of every struct world.wgsl registers with a `BYTE-FOR-BYTE (N B` marker is asserted at the offset THE WGSL ROOM puts it at, and the C++ compiler checks it. 128 members, 7 structs. It closes the one hole `sizeof` and `0b-4` share — a pad removed from ONE room, upstream of a 16-aligned member, where both sizes stay equal and every offset between sits apart | PASS |
+| mirror offsets | `python3 tools/mirror_offsets.py --check` | **the per-field witness**: every member of every struct world.wgsl registers with a `BYTE-FOR-BYTE (N B` marker is asserted at the offset THE WGSL ROOM puts it at, and the C++ compiler checks it. 161 members, 8 structs — `GPUFloatingEntityState`, the buffer every floater family shares, joined at STAGE_0 R2 after its stride moved unwitnessed. It closes the one hole `sizeof` and `0b-4` share — a pad removed from ONE room, upstream of a 16-aligned member, where both sizes stay equal and every offset between sits apart | PASS |
 
 **Every row green, and the room rebuilds.** Delete the five files in `audit/`
 and `mirror_offsets.gen.inc`, run the six tools above, and the tree is
