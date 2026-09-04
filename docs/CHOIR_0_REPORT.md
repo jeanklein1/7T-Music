@@ -499,13 +499,24 @@ carrying only MIRROR touches none of its own inputs. Verified by running the
 full six-tool regeneration three more times after U6d: the stamp held at
 `593622fb` on every pass, and `BINDING` never moved off `17cdc814`.
 
+**THE RULE IS NARROWER THAN THAT TABLE MAKES IT LOOK, and U6g is the case
+that proved it.** MIRROR's scanned inputs are `binding_registry.hpp`,
+`world.wgsl`, `state.hpp`, `binding_surface.gen.inc`, `renderer.hpp`,
+`tools/binding_ledger.py` and `audit/BINDING_LEDGER.md` — and
+**`COMMAND_LEDGER.md` is not among them**. So the chain bites *iff* a commit
+re-stamps `BINDING_LEDGER.md` alongside MIRROR, which is exactly what U6d
+did. U6g carried COMMAND + MIRROR together, touched none of MIRROR's inputs,
+and was a fixed point on the first pass — I predicted a second commit there
+and was wrong. **The rule to carry forward: MIRROR needs a follow-up commit
+IFF the commit before it moved `audit/BINDING_LEDGER.md`.**
+
 `mirror_census.py` makes the whole class easy to hit because **it is a gate
 and a generator in one file**: running it to read a verdict rewrites its
 artifact as a side effect, so running the battery *after* a commit dirties
 the tree. All of this is worth a successor's attention — **regenerate last,
-commit the ledgers alone, and expect MIRROR to need one commit more than
-BINDING.** The two ledgers that arrived stale at `be0eb28f` are the same
-mechanism, left unclosed.
+commit the ledgers alone, and give MIRROR one more commit only when
+`BINDING_LEDGER.md` moved with it.** The two ledgers that arrived stale at
+`be0eb28f` are the same mechanism, left unclosed.
 
 The witness that this is only a stamp and not structural drift: repeated full
 regenerations produce the identical file list, so nothing oscillates, and the
