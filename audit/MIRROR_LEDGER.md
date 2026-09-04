@@ -15,8 +15,8 @@ carry those facts, or leave them in place and patch around them.
 
 | field | value |
 |---|---|
-| source commit | `08b59cbebbd6285b167cf9132c0250c69ab2c82e` |
-| | STAGE_0 U1d — a stale number I wrote, corrected by naming the symbol instead |
+| source commit | `42c1ac603ee67d32d1b6fc8338ffc97933ba29f7` |
+| | STAGE_0 U1e — ledger settle, and the MIRROR follow-up in the same breath |
 | `src/cartridges/the_board/realization/binding_registry.hpp` | `sha256:79b70d3e7510cce71f5d67f85b994a781745d7c090efefd76ba7af165be17281` |
 | `src/cartridges/the_board/realization/world.wgsl` | `sha256:9bf6a83b750924fc9bb616a9837ea2ec6811b7d6918dd4a5f1083e7cb746220d` |
 | `src/cartridges/the_board/realization/state.hpp` | `sha256:0e93d283cccf122875e80f32f49640f1efa71496a75340a9475eb8ecc7f28125` |
