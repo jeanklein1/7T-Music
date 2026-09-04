@@ -15,8 +15,8 @@ carry those facts, or leave them in place and patch around them.
 
 | field | value |
 |---|---|
-| source commit | `1631172d551cfcd8ca1fa756cfa6007bccf0716d` |
-| | STAGE_0 R1 + R3 — the ring re-ruled on the record; the ordering, answered |
+| source commit | `90987c81123ab513f5a6b16d4e6128d3da840ccb` |
+| | STAGE_0 R-round — the ledger settle |
 | `src/cartridges/the_board/realization/binding_registry.hpp` | `sha256:79b70d3e7510cce71f5d67f85b994a781745d7c090efefd76ba7af165be17281` |
 | `src/cartridges/the_board/realization/world.wgsl` | `sha256:044e8696f11f8e08ba077760f6600656c6af08355874d94824ad66aad737737b` |
 | `src/cartridges/the_board/realization/state.hpp` | `sha256:b9aaa9ab1ec9800cf5d80510ca5e04f65cb581f6647957efef771c0816c6336e` |
