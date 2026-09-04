@@ -1162,9 +1162,12 @@ namespace t7 {
                 // service, the order the lattice's flush held.
                 choir_project(cube_behaviors_state_, gpuState_, c.queue,
                     world_state_.active_seed);
+                // The formation machine's own service — the reseat watch
+                // and the climb. It kept a musical clock and a world seed
+                // for the lattice and the flush; both left at U5, so it
+                // takes dt and the point mirror and nothing else.
                 zoetrope_service(cube_behaviors_state_, gpuState_, c.queue,
-                    world_state_.active_seed, signal.t_beats, signal.dt,
-                    point_.x, point_.z);   // the point mirror — the reseat watch (G4)
+                    signal.dt, point_.x, point_.z);   // the point mirror — the reseat watch (G4)
 
                 // ── THE BEACON (FIELD_4): row 0, rewritten hot each
                 // frame — the point moved. point y is DERIVED (the

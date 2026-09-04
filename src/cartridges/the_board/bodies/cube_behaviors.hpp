@@ -16,12 +16,15 @@
 // force functions and dispatch switch.
 // ──────────────────────────────────────────────────────────────────
 
-#include <cmath>      // std::cos, std::sin   // (impl, merged)
+#include <cmath>      // std::cos, std::sin, std::exp, std::fabs   // (impl, merged)
 #include <iostream>   // diagnostics feedback   // (impl, merged)
-#include <cstdio>     // std::fprintf — the [ZOETROPE] witness line
 #include <numeric>    // std::gcd — the helix coprimality witness
 #include <algorithm>  // std::min / std::max — the walk's clamps and settle norm
-#include "core/instruments.hpp"   // THE INSTRUMENTS DIAL: INSTRUMENTS.zoetrope_witness gates the [ZOETROPE] line
+// <cstdio> and core/instruments.hpp stood here (CHOIR_0 U5) for the
+// [ZOETROPE] strike witness. The witness went with the strike, and its
+// successor prints from the canvas, where the envelope it reports lives
+// — so the dial (INSTRUMENTS.zoetrope_witness, name unchanged, rename
+// PARKED) is read one tier down and this file needs neither.
 
 namespace t7 {
 namespace the_board {
@@ -67,21 +70,28 @@ inline constexpr float CUBE_DEFAULT_DRAG             = 1.5f;   // 1/s,  gentle d
 //     omega       = 1.5      1/s, temporal frequency
 //     amplitude   = 30.0     force magnitude (vertical)
 
-// ═══ ZOETROPE — THE CONSOLE ═══ four bands: THE LATTICE, THE
-// AUTOMATON, THE SCREEN, THE EXPRESSION. All Jean-tunable; beats units
-// unless a comment says otherwise.
+// ═══ ZOETROPE — THE CONSOLE ═══ four bands: THE LATTICE, THE CHOIR,
+// THE SCREEN, THE EXPRESSION. All Jean-tunable; beats units unless a
+// comment says otherwise. (THE AUTOMATON band was the fifth and left
+// with the lattice's substrate at CHOIR_0 U5; its tombstone stands
+// where it did.)
 //
 // NONE OF THESE IS MIRRORED TO WGSL. The zoetrope is CPU-resident by
 // construction (the GPU is a projector only), so every constant here is
 // safe to change live — no shader recompile, no struct, no binding, no
 // two-room handshake to keep. The only arithmetic that binds is stated
-// in its own band: the automaton's composite law and the screen's
-// spacing.
+// in its own band: the helix's coprimality and the screen's spacing.
 //
 // ─ THE LATTICE band ─────────────────────────────────────────────
+// THE FORMATION GEOMETRY OWNS THESE NOW. They were the automaton's
+// address space and the screen's shape at once; the automaton is gone,
+// so what is left is the SEATING — seven ranked rows of thirty-six
+// bearings, and the helix that walks a slot onto one of them
+// (zoetrope_station / station_scatter are the only readers). The
+// numbers do not move: the screen is the screen it was.
 inline constexpr uint32_t LATTICE_ROWS  = 7;   // the mode's degrees
 inline constexpr uint32_t LATTICE_COLS  = Dim::MAX_CUBE_INSTANCES / LATTICE_ROWS;          // 36
-inline constexpr uint32_t LATTICE_CELLS = LATTICE_ROWS * LATTICE_COLS;  // 252 — the LIVING ceiling; capacity stays 256
+inline constexpr uint32_t LATTICE_CELLS = LATTICE_ROWS * LATTICE_COLS;  // 252 seats; the LIVING ceiling is CUBE_CHOIR_N now, capacity stays 256
 inline constexpr uint32_t ZOETROPE_CELL_STRIDE   = LATTICE_COLS + 1;  // 37 — the helix
 inline constexpr uint32_t ZOETROPE_CELL_UNSTRIDE = 109;               // 37⁻¹ mod 252
 static_assert((ZOETROPE_CELL_STRIDE * ZOETROPE_CELL_UNSTRIDE) % LATTICE_CELLS == 1u,
@@ -112,30 +122,29 @@ inline constexpr uint32_t CUBE_CHOIR_RANKS = CUBE_CHOIR_N / 12u;
 // THE POKE GATE. The projector runs every frame now — the lattice's
 // tick is gone and there is nothing left to hide a flush behind — so
 // the flush is gated on the LIGHT instead of on a clock: a slot pokes
-// only when its light moved past this. Steady state pokes nothing;
-// a full attack spends ~1000 pokes over its plateau and a release the
-// same over its fall, both far under the tick sweep this replaces.
+// only when its light moved past this.
+//
+// THE ARITHMETIC, at 120 BPM / 60 fps (30 frames a beat, Δ = 1/30 beat).
+// ATTACK: ΔI = (1 − I)·(1 − e^(−Δ/τ)) ≈ 0.0165·(1 − I) at τ = 2, so a
+// key stops poking once (1 − I) falls under ~0.06 — about six sevenths
+// of the way up, roughly two thirds through the plateau. RELEASE: the
+// slope is 1/8 per beat = ~0.0042 a frame, four times this gate, so a
+// fall pokes every frame it lasts. Worst case is therefore ONE poke per
+// SOUNDING key per frame — 36 twelve-byte colour writes and 36 four-byte
+// variance writes with the whole choir in full release — against the
+// lattice's ≤252-slot sweep every quarter beat. Silence pokes NOTHING.
 inline constexpr float CHOIR_FLUSH_EPS = 1e-3f;
 
-// ─ THE AUTOMATON band ───────────────────────────────────────────
-// THE COMPOSITE LAW, so the flash is predictable rather than tuned by
-// feel: a cell keeps, per tick,
-//     retention = (1 − 4·DIFFUSE) · 2^(−TICK/HALF)
-// — the diffusion sheds four ways BEFORE the decay multiplies. At the
-// values below that is ≈ 0.894 per tick, so the flash half-life is
-// ≈ 1.5 beats: a strike reads for about a bar and then is gone.
-// Raising DIFFUSE spends the flash sideways; raising HALF holds it in
-// place. They are not interchangeable, and this line is why.
-inline constexpr float ZOETROPE_TICK_BEATS        = 0.25f;  // automaton heartbeat
-inline constexpr float ZOETROPE_REV_BEATS         = 16.0f;  // write-head revolution
-inline constexpr float ZOETROPE_EXCITE_DIFFUSE    = 0.02f;  // was 0.20 — per-tick neighbor share
-inline constexpr float ZOETROPE_ASYMMETRY         = 0.15f;  // seed-hashed weight skew
-inline constexpr float ZOETROPE_EXCITE_HALF_BEATS = 6.0f;   // was 1.0 — the flash lingers a bar
-inline constexpr float ZOETROPE_PIGMENT_GAIN      = 0.25f;  // was 0.35 — deposit rate
-inline constexpr float ZOETROPE_PIGMENT_HALF_BEATS = 48.0f; // long memory
-inline constexpr float ZOETROPE_STRIKE_SPREAD = 0.55f;  // × w into each column-neighbour — a note has width
-static_assert(4.0f * ZOETROPE_EXCITE_DIFFUSE * (1.0f + ZOETROPE_ASYMMETRY) < 1.0f,
-              "lattice diffusion unstable — lower DIFFUSE or ASYMMETRY");
+// ─ THE AUTOMATON band stood here (CHOIR_0 U5) ───────────────────
+// TICK_BEATS, REV_BEATS, EXCITE_DIFFUSE, ASYMMETRY, EXCITE_HALF_BEATS,
+// PIGMENT_GAIN, PIGMENT_HALF_BEATS, STRIKE_SPREAD, WEIGHT_SEED, the two
+// derived decays and the diffusion-stability static_assert: the whole
+// composite law of a lattice that no longer exists. The choir keeps no
+// field to diffuse and no flash to decay — THE ENVELOPE IS THE MEMORY,
+// and it lives one tier down, on the canvas, in beats
+// (canvas::CANVAS_LIVE.light_plateau / .light_release). The write head
+// went with them: a note lights the key it names, wherever that key
+// stands, so there is nothing left for a revolution to sweep.
 // ─ THE SCREEN band ──────────────────────────────────────────────
 // THE SPACING: 9 wu rows against 6.4 wu pixels is the first spacing
 // where the rows read as rows; the column arc at R=60 is 2πR/36 ≈
@@ -165,24 +174,25 @@ inline constexpr float ZOETROPE_SETTLE_EPS  = 0.05f;  // wu — snap-and-stop th
 inline constexpr float ZOETROPE_RESEAT_JUMP = 40.0f;  // wu/frame — no motion moves the point this far; only possess() does
 
 // ─ THE EXPRESSION band ──────────────────────────────────────────
-// One intensity, three expressions: the colour mix, the swell, the
-// splay. All read the same I, so a strike is one gesture.
-inline constexpr float ZOETROPE_PIGMENT_R = 0.55f;  // ethereal ice —
-inline constexpr float ZOETROPE_PIGMENT_G = 0.75f;  // ruled at the
-inline constexpr float ZOETROPE_PIGMENT_B = 1.00f;  // visual gate
-inline constexpr float ZOETROPE_PIGMENT_WEIGHT = 0.45f;  // pigment is a stain under the flash, not a rival
+// One light, three expressions: the colour mix, the swell, and the
+// CONVERGENCE of the face. All read the same I through choir_light's
+// one door, so a lit key is one gesture.
 inline constexpr float ZOETROPE_REST_DIM = 0.30f;  // SCREEN rest brightness — the instrument is dark until played
 inline constexpr float ZOETROPE_SWELL_GAIN = 0.60f;  // × pixel radius at full I
-// TUNE_2 B2: was 1.50f. TUNE_1 A1 gave each RGB channel its own hash; the
-// magnitude was calibrated for ONE delta pushed into three channels at
-// (1.0, 0.7, 0.5), where the excursion was correlated and read as brightness.
-// Independent excursion at that magnitude clips, and clipped RGB is primaries:
-// at 1.50 a full strike put delivered face_variance near 2.0, ~74% of draws
-// against the [0,1] clamp and only ~44% of the intended excursion surviving.
-// At 0.40 that is ~17% clipping and ~96% surviving. Scales linearly in the
-// delta — this is the STRIKE knob; CUBE_TIERS FACE_VARIANCE is the REST knob.
-inline constexpr float ZOETROPE_FACE_SPLAY = 0.40f;  // added face_variance at full I
-inline constexpr float ZOETROPE_FACE_REST  = 1.20f;  // × the spawn draw, in formation
+// PIGMENT_R/G/B/WEIGHT stood here (CHOIR_0 U5) — the ethereal ice the
+// mix aimed at, and the stain under the flash. Their successor is
+// DRIVER_LIVE.cube.light_color, which is a DRIVER's dial rather than a
+// module constant: a driven parameter wears no dial on its value, it
+// wears one on its driver (contracts/driver_surface.hpp).
+//
+// FACE_SPLAY and FACE_REST stood here too, with the calibration note
+// TUNE_2 B2 wrote for the splay's magnitude. Both retire with the law
+// they served: the strike SPLAYED the face (a struck cell is a cell
+// disturbed) over a rest MULTIPLIED up in formation. The light does the
+// opposite — GLOW UNIFIES, so the projector closes the spawn draw by
+// (1 − I) and needs neither a rest multiplier nor a splay knob. The
+// draw's own σ (CUBE_TIERS FACE_VARIANCE) is the whole rest now, and it
+// is self-restoring at I = 0, which is why no restore pass exists.
 
 // ═══ REGISTRY: TIER GAINS ════════════════════════════════════════
 
@@ -261,14 +271,11 @@ inline CubeBank CUBE_LIVE = CUBE_TABLE;
 
 // ═══ DIAGNOSTIC STATE (owned by the tools) ═══════════════════════
 
-// One lattice cell: fast excitation (the flash) and slow pigment (the
-// long memory). THE HELIX (G2): cell = slot·37 mod 252 — consecutive
-// spawns land one column over, one row up; the screen densifies with
-// the population.
-struct ZoetropeCell {
-    float excite  = 0.0f;
-    float pigment = 0.0f;
-};
+// `ZoetropeCell` stood here (CHOIR_0 U5) — one lattice cell, a fast
+// excitation and a slow pigment. The choir keeps no field: a key's light
+// is its own state, indexed by the key, and the cube reads it where it
+// stands. THE HELIX survives as FORMATION geometry (cell_of_slot, below)
+// and nothing else; it is a seating law now, not an addressing one.
 
 struct CubeBehaviorsState {
     uint32_t   behavior_override  = CUBE_BEHAVIOR_STATIONARY;
@@ -285,9 +292,11 @@ struct CubeBehaviorsState {
     bool  stations_sent = false;
     // The dim changes with the formation, not with the music, so the
     // projector must repaint once at the transition — otherwise the new
-    // rest waits for a strike that may never come (V1 E3). reveal_
-    // zoetrope cannot reach the world seed the projector needs, so it
-    // raises this and the service spends it on its next pass.
+    // rest waits for a note that may never come (V1 E3). reveal_zoetrope
+    // cannot reach the world seed the projector needs, so it raises this
+    // and choir_project spends it as a FORCE on its next pass — the one
+    // thing that has to outrank the poke gate, because it changes what a
+    // cube looks like without moving its light.
     bool  repaint_all   = false;
     // The stage frame: a kite sentinel is in flight and will EAT any
     // target written before it is consumed (V1), so the seat pass waits
@@ -322,13 +331,11 @@ struct CubeBehaviorsState {
     float choir_I[CUBE_CHOIR_N]{};
     float choir_flushed[CUBE_CHOIR_N]{};
 
-    // ── The zoetrope lattice (C4) ── zero-init is the law: boot is a
-    // transition from nothing — the lattice wakes silent, never replayed.
-    ZoetropeCell cells[LATTICE_CELLS]{};
-    float        cell_scratch[LATTICE_CELLS]{};   // diffusion inflow accumulator
-    float        wdir[LATTICE_CELLS][4]{};        // fixed-seed asymmetric weights, built at prime
-    float        last_tick_beat = 0.0f;           // the automaton's tick anchor
-    bool         primed         = false;          // weights built + clock anchored
+    // `cells[]`, `cell_scratch[]`, `wdir[][]`, `last_tick_beat` and
+    // `primed` stood here (CHOIR_0 U5) — the lattice's own memory, its
+    // diffusion scratch, its fixed-seed weight table and the clock they
+    // ran on. The choir's state is choir_I above: 36 floats against
+    // 252 cells + 252 scratch + 1008 weights, and no clock at all.
 };
 
 // ═══ MODULE FUNCTIONS — DECLARATIONS ═════════════════════════════
@@ -354,25 +361,24 @@ uint32_t set_cube_kite(CubeBehaviorsState& cbs, GPUState& gpu, wgpu::Queue& queu
 void toggle_cube_kite_mode(CubeBehaviorsState& cbs, CubeDeps* c, wgpu::Queue& queue);
 // Per-frame
 void reconcile_cube_mirror(CubeBehaviorsState& cs, CubeDeps* c, const GPUFloatingEntityState* data);
-// The zoetrope (the lattice substrate — spine-wired at U4; the C5
-// projector pokes ride the same calls, so they carry the GPU wire)
-void zoetrope_strike(CubeBehaviorsState& cbs, GPUState& gpu, wgpu::Queue& queue,
-    uint32_t active_seed, const float rows[7], float t_beats);
+// The zoetrope — the FORMATION machine's per-frame service. `zoetrope_
+// strike` stood beside it (CHOIR_0 U5) and went with the lattice it fed;
+// the service survives lighter, carrying the reseat watch and the climb
+// and nothing else, so it no longer needs a musical clock or a world
+// seed to do either.
 void zoetrope_service(CubeBehaviorsState& cbs, GPUState& gpu, wgpu::Queue& queue,
-    uint32_t active_seed, float t_beats, float dt, float point_x, float point_z);
-// The projector (C5): one home — cells reach pixels here and nowhere else
-uint32_t zoetrope_slot_seed(const CubeBehaviorsState& cbs, uint32_t active_seed, uint32_t slot);
-// THE CHOIR'S PROJECTOR — the successor home: the light reaches pixels
-// here and nowhere else. choir_light is I's ONE computation (the G6
-// door, inherited whole from the intensity it replaces).
+    float dt, float point_x, float point_z);
+// THE PROJECTOR — one home: the light reaches pixels here and nowhere
+// else. `zoetrope_cell_intensity`, `project_cell_color` and `zoetrope_
+// project_slot` stood here and are superseded by these; the seed
+// recompute survives the rename intact as choir_slot_seed. choir_light
+// is I's ONE computation (the G6 door, inherited whole).
+uint32_t choir_slot_seed(const CubeBehaviorsState& cbs, uint32_t active_seed, uint32_t slot);
 float choir_light(const CubeBehaviorsState& cbs, uint32_t slot);
 void choir_project_color(const CubeBehaviorsState& cbs, uint32_t active_seed, uint32_t slot,
     float& out_r, float& out_g, float& out_b);
 void choir_project(CubeBehaviorsState& cbs, GPUState& gpu, wgpu::Queue& queue,
     uint32_t active_seed);
-float zoetrope_cell_intensity(const CubeBehaviorsState& cbs, uint32_t slot);  // I — ONE computation (G6)
-void project_cell_color(const CubeBehaviorsState& cbs, uint32_t active_seed, uint32_t slot,
-    float& out_r, float& out_g, float& out_b);
 
 // ═══ IMPL:
 // rows deref cube_state(own) + time/world via MachineCtx; corral/kite
@@ -472,7 +478,13 @@ inline void cycle_cube_behavior_override(CubeBehaviorsState& cbs, CubeDeps* c, w
 // The stride is coprime to the lattice, so slot↔cell is a bijection
 // (UNSTRIDE is its inverse); every row is reachable at any count.
 inline uint32_t cell_of_slot(uint32_t s) { return (s * ZOETROPE_CELL_STRIDE)   % LATTICE_CELLS; }
-inline uint32_t slot_of_cell(uint32_t c) { return (c * ZOETROPE_CELL_UNSTRIDE) % LATTICE_CELLS; }
+// `slot_of_cell` — the inverse crossing — stood here (CHOIR_0 U5). The
+// strike was its only caller: a lattice cell had to name the slot it
+// pokes, so it needed the map read backwards. Nothing reads a cell now,
+// so the crossing is one-way and only the SEATING direction survives.
+// BOTH CONSTANTS STAY, and so does the inverse static_assert above — the
+// helix is still a bijection and that assert is still what proves it;
+// it is simply not walked backwards at runtime any more.
 
 // ── THE TWO STATIONS, side by side (H1b) ────────────────────────
 // SCATTER is the flock drawn in: own bodies, own altitudes, deep
@@ -967,116 +979,30 @@ inline void dispatch_commit_cube_generic(MachineCtx* self, PlacementEntry& pe, w
 }
 
 
-// ═══ THE ZOETROPE — the lattice substrate (C4) ════════════════════
+// ═══ THE ZOETROPE'S LATTICE SUBSTRATE STOOD HERE (CHOIR_0 U5) ═════
 //
-// A 7×36 cylinder automaton over the cube slots. THE HELIX (G2):
-// cell = slot·37 mod 252 — consecutive spawns land one column over, one
-// row up; the screen densifies with the population (cell_of_slot /
-// slot_of_cell are the only border crossings; cells stay cells).
-// Columns wrap (the cylinder); rows clamp — the pitch edges are OPEN,
-// top/bottom outflow is lost. Two fields per cell: fast excitation
-// (diffuses one cell per tick, fixed-seed asymmetric weights) and slow
-// pigment (integrates excitation, long half-life). Ticks ride t_beats —
-// the musical clock; the write head is stateless, a pure function of
-// t_beats. The automaton never stops, including during transit.
-
-// Per-tick decay factors, derived from the panel (inline const, not
-// constexpr — std::exp2 is runtime at this standard; computed once).
-inline const float ZOETROPE_EXCITE_DECAY  = std::exp2(-ZOETROPE_TICK_BEATS / ZOETROPE_EXCITE_HALF_BEATS);
-inline const float ZOETROPE_PIGMENT_DECAY = std::exp2(-ZOETROPE_TICK_BEATS / ZOETROPE_PIGMENT_HALF_BEATS);
-
-// The weight table's seed grammar (primitives/seed_utils.hpp cpu_hash_f):
-// one FIXED seed, property = cell·4 + dir — per-(cell,dir) skew,
-// world-seed-independent (same MIDI, same screen).
-inline constexpr uint32_t ZOETROPE_WEIGHT_SEED = 0x20E7A0DEu;
-
-// ── The projector (C5) ──────────────────────────────────────────
+// A 7×36 cylinder automaton over the cube slots: two fields per cell
+// (fast excitation diffusing one cell per tick on fixed-seed asymmetric
+// weights, slow pigment integrating it on a long half-life), a stateless
+// write head sweeping a column per revolution of the musical clock, and
+// a strike that landed a note on its own cell and bled SPREAD into both
+// column-neighbours because a note has width. The per-tick decay pair
+// (`ZOETROPE_EXCITE_DECAY` / `ZOETROPE_PIGMENT_DECAY`, derived from the
+// panel), the weight table's seed grammar (`ZOETROPE_WEIGHT_SEED`),
+// `zoetrope_cell_intensity` — I's one computation, min(1, excite +
+// WEIGHT·pigment) — `project_cell_color` and `zoetrope_project_slot` all
+// lived here, and all of them are gone.
 //
-// One home, one function: cells reach pixels HERE and nowhere else.
-// base is RECOMPUTED through the seed fn (cube_compute_colors — base
-// color's one home) from the slot's TRUE spawn seed, never cached:
-// the gate drew tile_seed(active world seed, trigger patch)
-// (machine/spawn_engine.hpp evaluate_spawn_gate), and the mirror
-// keeps the trigger patch, so the seed reconstructs bit-exactly.
-// I = min(1, excite + pigment); out = mix(base, PIGMENT, I). At
-// I = 0 the mix returns base bit-exactly — silence projects today's
-// tree unchanged, spawn included.
-
-inline uint32_t zoetrope_slot_seed(const CubeBehaviorsState& cbs, uint32_t active_seed, uint32_t slot) {
-    const ActiveCube& ac = cbs.activeCubes_[slot];
-    return tile_seed(active_seed, ac.patch_gx, ac.patch_gz);
-}
-
-// The intensity — I's ONE computation (G6): both the color mix and the
-// face splay read the cell through this door and no other. Carries the
-// helix crossing (G2) with it.
-inline float zoetrope_cell_intensity(const CubeBehaviorsState& cbs, uint32_t slot) {
-    const ZoetropeCell& cell = cbs.cells[cell_of_slot(slot)];
-    // Pigment is a STAIN UNDER THE FLASH, not a rival (K3 A2): weighted
-    // down, the screen keeps its long memory without every cell flooding
-    // to uniform bright once the pigment saturates.
-    return std::min(1.0f, cell.excite + ZOETROPE_PIGMENT_WEIGHT * cell.pigment);
-}
-
-inline void project_cell_color(const CubeBehaviorsState& cbs, uint32_t active_seed, uint32_t slot,
-    float& out_r, float& out_g, float& out_b) {
-    const float I = zoetrope_cell_intensity(cbs, slot);
-    EntityInstance tmp{};
-    tmp.seed = zoetrope_slot_seed(cbs, active_seed, slot);
-    // The seed fn's exact signature takes traits + tier; it reads neither
-    // (both unnamed) — the call adapts, the law does not. G5 V2 verdict:
-    // profile-INVARIANT — no profile field is consulted (and CUBE_TIERS'
-    // color_var column is 0.0 in every row), so profile(0) is bit-exact
-    // for every tier.
-    cube_compute_colors(tmp, CUBE_TRAITS, cube_get_tier_profile(0));
-    // THE DARK REST (V1): the instrument is dark until played. The base
-    // dims in the SCREEN states ONLY — a lit rock face spends the whole
-    // of I on a tint nobody can see, so the screen makes room for the
-    // music first. ROAM and the gathering keep the world's own swarm at
-    // full brightness; dimming those would darken the world, not an
-    // instrument. At I = 1 the destination is the pigment either way, so
-    // the dim costs the gesture nothing — it only lowers the floor.
-    using Formation = CubeBehaviorsState::Formation;
-    const bool screen = (cbs.formation == Formation::SCREEN
-                      || cbs.formation == Formation::TO_SCREEN);
-    const float dim = screen ? ZOETROPE_REST_DIM : 1.0f;
-    const float br = tmp.colors[0] * dim;
-    const float bg = tmp.colors[1] * dim;
-    const float bb = tmp.colors[2] * dim;
-    out_r = br + (ZOETROPE_PIGMENT_R - br) * I;
-    out_g = bg + (ZOETROPE_PIGMENT_G - bg) * I;
-    out_b = bb + (ZOETROPE_PIGMENT_B - bb) * I;
-}
-
-// THE ONE POKE HOME: every projector write for a slot goes through here
-// — the immediate strike poke, the tick sweep, and the transition
-// repaint — so no two paths can disagree about what a cell looks like.
-inline void zoetrope_project_slot(const CubeBehaviorsState& cbs, GPUState& gpu,
-    wgpu::Queue& queue, uint32_t active_seed, uint32_t slot) {
-    float cr, cg, cb;
-    project_cell_color(cbs, active_seed, slot, cr, cg, cb);
-    gpu.upload_cube_color(queue, slot, cr, cg, cb);
-
-    // THE STRIKE IS A GESTURE (V2): one intensity, three expressions —
-    // brightness above, then swell and splay, all read from the SAME I
-    // through its one home, so they can never disagree about how hard a
-    // cell was struck. ROAM pokes neither: the world's swarm keeps its
-    // own body and face, and the zoetrope only ever borrows a cube that
-    // has joined a formation.
-    using Formation = CubeBehaviorsState::Formation;
-    if (cbs.formation == Formation::ROAM) return;
-
-    const float I = zoetrope_cell_intensity(cbs, slot);
-    gpu.upload_cube_face_variance(queue, slot,
-        cbs.activeCubes_[slot].face_variance * ZOETROPE_FACE_REST + ZOETROPE_FACE_SPLAY * I);
-
-    // THE WALK OWNS RADIUS during every TO_* state (it is walking the
-    // body toward its seat), so the swell speaks only when the screen
-    // STANDS — the two never write the same scalar in the same frame.
-    if (cbs.formation == Formation::SCREEN)
-        gpu.upload_cube_body_radius(queue, slot,
-            ZOETROPE_PIXEL_RADIUS * (1.0f + ZOETROPE_SWELL_GAIN * I));
-}
+// WHAT REPLACED IT IS NOT A SMALLER AUTOMATON — it is no automaton. The
+// lattice existed to turn seven row IMPULSES into a field that could
+// spread and fade, because an impulse carries no duration. The choir
+// reads PRESENCE instead of onsets, so duration arrives already in the
+// signal and the only thing left to author is an envelope on it. The
+// width the spread gave a note goes with it: a note lights the key it
+// names and no other, which is what a keyboard is.
+//
+// `zoetrope_slot_seed` is the one thing that crossed over intact — the
+// seed recompute, renamed choir_slot_seed and standing below.
 
 // ═══ THE CHOIR'S PROJECTOR — ONE HOME ════════════════════════════
 //
@@ -1105,11 +1031,21 @@ inline float choir_light(const CubeBehaviorsState& cbs, uint32_t slot) {
     return (slot < CUBE_CHOIR_N) ? cbs.choir_I[slot] : 0.0f;
 }
 
+// THE SEED RECOMPUTE, inherited whole (only the name changed). The base
+// is never cached: the gate drew tile_seed(active world seed, trigger
+// patch) (machine/spawn_engine.hpp evaluate_spawn_gate) and the mirror
+// keeps the trigger patch, so the seed reconstructs bit-exactly from
+// what the slot already carries.
+inline uint32_t choir_slot_seed(const CubeBehaviorsState& cbs, uint32_t active_seed, uint32_t slot) {
+    const ActiveCube& ac = cbs.activeCubes_[slot];
+    return tile_seed(active_seed, ac.patch_gx, ac.patch_gz);
+}
+
 inline void choir_project_color(const CubeBehaviorsState& cbs, uint32_t active_seed, uint32_t slot,
     float& out_r, float& out_g, float& out_b) {
     const float I = choir_light(cbs, slot);
     EntityInstance tmp{};
-    tmp.seed = zoetrope_slot_seed(cbs, active_seed, slot);
+    tmp.seed = choir_slot_seed(cbs, active_seed, slot);
     // The seed fn's exact signature takes traits + tier; it reads neither
     // (both unnamed) — the call adapts, the law does not. G5 V2 verdict:
     // profile-INVARIANT — no profile field is consulted (and CUBE_TIERS'
@@ -1187,51 +1123,16 @@ inline void choir_project(CubeBehaviorsState& cbs, GPUState& gpu, wgpu::Queue& q
     cbs.repaint_all = false;
 }
 
-inline void zoetrope_strike(CubeBehaviorsState& cbs, GPUState& gpu, wgpu::Queue& queue,
-    uint32_t active_seed, const float rows[7], float t_beats) {
-    // The write head: col = the sweep's phase of revolution — stateless.
-    const float phase = t_beats / ZOETROPE_REV_BEATS;
-    const float fract = phase - std::floor(phase);
-    const uint32_t col = uint32_t(fract * float(LATTICE_COLS)) % LATTICE_COLS;
-    for (uint32_t r = 0; r < LATTICE_ROWS; ++r)
-        if (rows[r] > 0.0f) {
-            // A NOTE HAS WIDTH (K3 A3): the strike lands on its own cell
-            // and bleeds SPREAD into both column-neighbours, columns
-            // wrapping. At partial population most single cells are
-            // ghosts, so width is what makes a note visible at all — and
-            // it is musically true: a struck string moves its neighbours.
-            const uint32_t row_base = r * LATTICE_COLS;
-            const uint32_t west = (col + LATTICE_COLS - 1) % LATTICE_COLS;
-            const uint32_t east = (col + 1) % LATTICE_COLS;
-            const uint32_t hit[3] = { row_base + col, row_base + west, row_base + east };
-            const float    amt[3] = { rows[r], rows[r] * ZOETROPE_STRIKE_SPREAD,
-                                               rows[r] * ZOETROPE_STRIKE_SPREAD };
-            for (uint32_t n = 0; n < 3; ++n) {
-                cbs.cells[hit[n]].excite += amt[n];
-                // The attack never waits for a tick: every struck cell
-                // pokes its slot — through the helix — immediately
-                // (mirror-active only; ghosts stay unseen).
-                const uint32_t slot = slot_of_cell(hit[n]);
-                if (!cbs.activeCubes_[slot].active) continue;
-                zoetrope_project_slot(cbs, gpu, queue, active_seed, slot);
-            }
-        }
-    // Strike witness (the [CHECKER] form): one line per strike-frame,
-    // on the dial. If the ears bound but this never prints, the fault
-    // is upstream — routing, transport, or the extractor.
-    if constexpr (INSTRUMENTS.zoetrope_witness) {
-        bool struck = false;
-        for (uint32_t r = 0; r < LATTICE_ROWS; ++r)
-            if (rows[r] > 0.0f) { struck = true; break; }
-        if (struck)
-            std::fprintf(stderr,
-                "[ZOETROPE] strike col=%02u rows= %.2f %.2f %.2f %.2f %.2f %.2f %.2f\n",
-                col, rows[0], rows[1], rows[2], rows[3], rows[4], rows[5], rows[6]);
-    }
-}
+// `zoetrope_strike` stood here (CHOIR_0 U5) — the write head, the
+// three-cell hit set with its column-wrapping spread, the immediate
+// per-struck-slot poke, and the [ZOETROPE] strike witness. Its successor
+// is not a function: the canvas's envelope IS the strike now, and the
+// witness moved with it — [CHOIR] key=NN I=X.XX, on the ACTIVATION EDGE,
+// still behind INSTRUMENTS.zoetrope_witness (the dial's rename is PARKED
+// to keep this campaign's churn down).
 
 inline void zoetrope_service(CubeBehaviorsState& cbs, GPUState& gpu, wgpu::Queue& queue,
-    uint32_t active_seed, float t_beats, float dt, float point_x, float point_z) {
+    float dt, float point_x, float point_z) {
     // ── The reseat watch (G4) ── possession moves the point in one
     // frame farther than any motion can; a standing formation answers by
     // re-using the capture two-step at the seam — recapture from the
@@ -1264,78 +1165,19 @@ inline void zoetrope_service(CubeBehaviorsState& cbs, GPUState& gpu, wgpu::Queue
         cbs.last_px = point_x; cbs.last_pz = point_z;
     }
 
-    if (!cbs.primed) {
-        // First service: build the fixed-seed asymmetric weight table —
-        // per (cell, dir) a skew in [-ASYMMETRY, +ASYMMETRY] around
-        // DIFFUSE — and anchor the tick clock. Cells stay zero: the
-        // lattice wakes silent.
-        cbs.primed = true;
-        for (uint32_t cell = 0; cell < LATTICE_CELLS; ++cell)
-            for (uint32_t dir = 0; dir < 4; ++dir) {
-                const float skew = (cpu_hash_f(ZOETROPE_WEIGHT_SEED, cell * 4u + dir) - 0.5f)
-                                 * 2.0f * ZOETROPE_ASYMMETRY;
-                cbs.wdir[cell][dir] = ZOETROPE_EXCITE_DIFFUSE * (1.0f + skew);
-            }
-        cbs.last_tick_beat = std::floor(t_beats / ZOETROPE_TICK_BEATS) * ZOETROPE_TICK_BEATS;
-        return;
-    }
-
-    // The checker/ears backward-jump rule (visual_canvas.hpp CADENCE
-    // precedent — threshold one span below the next scheduled event,
-    // which for a stored last-anchor is the anchor itself): a looping
-    // clip re-anchors the clock; the cells PERSIST — the screen keeps
-    // its memory across the loop seam.
-    if (t_beats < cbs.last_tick_beat)
-        cbs.last_tick_beat = std::floor(t_beats / ZOETROPE_TICK_BEATS) * ZOETROPE_TICK_BEATS;
-
-    // Transport-leap guard: more than 64 pending ticks means the clock
-    // leapt (a seek, a stall) — re-prime the anchor at the current beat.
-    // The cells persist: the automaton never replays.
-    if (t_beats - cbs.last_tick_beat > 64.0f * ZOETROPE_TICK_BEATS)
-        cbs.last_tick_beat = std::floor(t_beats / ZOETROPE_TICK_BEATS) * ZOETROPE_TICK_BEATS;
-
-    bool ticked = false;
-    while (cbs.last_tick_beat + ZOETROPE_TICK_BEATS <= t_beats) {
-        ticked = true;
-        // One tick. Explicit 4-neighbor diffusion on the cylinder —
-        // dir order: 0 = +col (east), 1 = −col (west), 2 = +row (up),
-        // 3 = −row (down). Outflow toward a missing row is still shed
-        // (open edges); scratch gathers inflows from the OLD field.
-        for (uint32_t i = 0; i < LATTICE_CELLS; ++i) cbs.cell_scratch[i] = 0.0f;
-        for (uint32_t cell = 0; cell < LATTICE_CELLS; ++cell) {
-            const float e = cbs.cells[cell].excite;
-            if (e <= 0.0f) continue;
-            const uint32_t row = cell / LATTICE_COLS;
-            const uint32_t col = cell % LATTICE_COLS;
-            cbs.cell_scratch[row * LATTICE_COLS + (col + 1) % LATTICE_COLS]                += e * cbs.wdir[cell][0];
-            cbs.cell_scratch[row * LATTICE_COLS + (col + LATTICE_COLS - 1) % LATTICE_COLS] += e * cbs.wdir[cell][1];
-            if (row + 1 < LATTICE_ROWS) cbs.cell_scratch[cell + LATTICE_COLS] += e * cbs.wdir[cell][2];
-            if (row > 0)                cbs.cell_scratch[cell - LATTICE_COLS] += e * cbs.wdir[cell][3];
-        }
-        for (uint32_t cell = 0; cell < LATTICE_CELLS; ++cell) {
-            ZoetropeCell& c = cbs.cells[cell];
-            const float shed = cbs.wdir[cell][0] + cbs.wdir[cell][1]
-                             + cbs.wdir[cell][2] + cbs.wdir[cell][3];
-            c.excite  = (c.excite - c.excite * shed + cbs.cell_scratch[cell]) * ZOETROPE_EXCITE_DECAY;
-            c.pigment = std::min(1.0f, c.pigment * ZOETROPE_PIGMENT_DECAY
-                                     + c.excite * ZOETROPE_PIGMENT_GAIN);
-        }
-        cbs.last_tick_beat += ZOETROPE_TICK_BEATS;
-    }
-
-    // The projector's flush (C5): when a tick ran, every mirror-active
-    // slot wears its cell — ≤252 12-byte pokes per tick, beneath the
-    // spawn-commit idiom. Ghost cells (inactive slots) evolve unseen.
-    // The repaint edge (V1 E3) rides the same loop: a formation change
-    // that moves the dim spends one unconditional pass here, so the new
-    // rest lands without waiting for a strike.
-    if (ticked || cbs.repaint_all) {
-        for (uint32_t slot = 0; slot < LATTICE_CELLS; ++slot) {
-            if (!cbs.activeCubes_[slot].active) continue;
-            zoetrope_project_slot(cbs, gpu, queue, active_seed, slot);
-        }
-        cbs.repaint_all = false;
-    }
+    // THE PRIME PASS, THE CLOCK GUARDS, THE TICK AND THE PROJECTOR'S
+    // FLUSH stood here (CHOIR_0 U5). The prime built `wdir` from the
+    // fixed weight seed and anchored `last_tick_beat`; the two guards
+    // re-anchored that clock across a loop seam and a transport leap;
+    // the while-loop ran the diffusion + decay pass; and the flush spent
+    // one ≤252-slot sweep per tick, plus the repaint edge.
+    //
+    // The choir needs no clock of its own — the canvas advances the
+    // envelope on the beat it is already handed — and its flush is
+    // poke-on-change rather than per-tick, so it lives at the seam
+    // (choir_project) beside the mirror that feeds it. WHAT SURVIVES
+    // HERE IS THE FORMATION MACHINE ALONE: the reseat watch above and
+    // the climb below.
 
     // ── THE CLIMB (C6R): the formation walk — a CPU flush-walk on the
     // height scalar, the glide law's grammar; steady state pokes NOTHING.

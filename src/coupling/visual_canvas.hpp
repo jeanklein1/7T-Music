@@ -625,10 +625,18 @@ namespace t7 {
                 const float dch  = beat - last_beat_;
                 const float dbe  = (dch > 0.0f) ? dch : 0.0f;   // a backward jump costs no time
                 const float tau  = canvas::CANVAS_LIVE.light_plateau * 0.25f;
-                const float rise = (tau > 0.0f && dbe > 0.0f)
-                    ? 1.0f - std::exp(-dbe / tau) : 0.0f;
-                const float fall = (canvas::CANVAS_LIVE.light_release > 0.0f)
-                    ? dbe / canvas::CANVAS_LIVE.light_release : 1.0f;
+                // THE TWO DEGENERATES, taken at their own limits rather
+                // than left to the arithmetic: a zero plateau is τ → 0,
+                // which the law itself answers with an instant climb to
+                // 1; a zero release is an infinite slope, which is an
+                // instant fall to dark. A frozen clock (dbe = 0) moves
+                // neither — a stopped transport holds the light where it
+                // stands, which is the loop seam's rule at zero length.
+                const float rise = (dbe <= 0.0f) ? 0.0f
+                    : (tau > 0.0f ? 1.0f - std::exp(-dbe / tau) : 1.0f);
+                const float fall = (dbe <= 0.0f) ? 0.0f
+                    : (canvas::CANVAS_LIVE.light_release > 0.0f
+                        ? dbe / canvas::CANVAS_LIVE.light_release : 1.0f);
                 const int lanes = (choir_target_.count < CHOIR_LANES)
                     ? choir_target_.count : CHOIR_LANES;
                 for (int k = 0; k < lanes; ++k) {
