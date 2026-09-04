@@ -1434,6 +1434,13 @@ ledger over a campaign that moved nothing glaw2 tracks. The tombstone for
 
 ## CHOIR_0 — THE LIGHT INSIDE THE CUBES (landed; one divergence, three flags)
 
+> **THIS SECTION RECORDS CHOIR_0 AS IT LANDED.** CHOIR_1 has since moved
+> three of its numbers — the choir is **24** keys in **two** ranks, τ is
+> **`light_plateau/6`**, and the tier table's radii and heights are
+> retuned. The MECHANISM below is unchanged and still the live
+> description; where a NUMBER below disagrees with the tree, CHOIR_1
+> below is the authority and `docs/COUPLING_ATLAS.md` is the live map.
+
 Landed on `master`. **Working name — naming is Jean's gate.** The function
 that lights the cubes with the music is rewritten from the ground up. `ch6`
 is cast as the cube voice; its `present_count` — twelve lanes, the count of
@@ -1563,6 +1570,96 @@ visual desk are Jean's: the light colour triple, the attack's shape at
 cubes seated through the helix across a 7×36 geometry is a much emptier
 screen than 252 was, and that is the cap's intended consequence, not a bug.
 
+## CHOIR_1 — TWO RANKS, LOWER, SMALLER, SNAPPIER (landed; no divergence, two flags)
+
+Landed on `master`. **Working name — naming is Jean's gate.** Three tunings
+on the standing instrument for the current test. **No new mechanism
+anywhere**: every edit is a number in a table that already existed, plus the
+comments that state what those numbers mean. `world.wgsl` is byte-identical,
+nothing was enrolled, no name retired.
+
+**THE TOKEN, SPENT.** `CUBE_CHOIR_N` 36 → **24**. CHOIR_0 §4 banked this as
+the single token and it cost exactly that: the asserts already admitted 24,
+and the seam's `static_assert` reads `≤` rather than `==`, so **the pipe does
+not narrow with the keyboard** — `CHOIR_LANES` is still 36 and lanes 24–35
+sit dark at their rest. Two ranks: rank 0 on one sounding note per pitch
+class, rank 1 on a doubling, and a third voice of the same class now has no
+key left to light.
+
+**LOWER AND SMALLER.** Only `BODY_RADIUS`, `ORBIT_HEIGHT` and the Monolith's
+`ASPECT_Y` moved; every other pair stands, bob rows included (TEMPO_0's
+asymmetry law). Radii: Med 4.0 → 3.0, Large 8.0 → 5.0, Monolith 3.0 → 2.2,
+Small unmoved — it was already the scale the others were being brought
+toward. Heights: 25/45/75/12 → **12/16/22/10**. The Monolith stays the tall
+one at ≈ 7.7 wu of slab, down from ≈ 15, and its thinness stands.
+
+**SCALE_0's LAW IS KEPT AT THE NEW MEANS, NOT INHERITED.** σ moved with μ, so
+the two rows that carried CV 0.20 still carry it exactly (Med 0.60/3.0, Large
+1.00/5.0 — tightened from 0.209) and the Monolith sits at 0.182. A retune
+that moved μ alone would have widened every silhouette in relative terms,
+which is the compounding trap SCALE_0's own paragraph names.
+
+**THE HEIGHTS ARE A NEW AUTHORED CHOICE**, named in the tier banner beside
+SCALE_0's and TEMPO_0's: CV comes **0.60–0.80 → ≈ 0.50**, because the ruling
+is a CALMER band and not just a lower one. Side effect worth having: every
+tier now clears the 3.0 wu `CUBE_PARAM_DEFS` floor by more than it did, so
+the low tail clips LESS than before (Small 13.6% → 6.7%, Monolith 13.0% →
+8.1%) and the drawn distribution sits closer to the authored one.
+
+**SNAPPIER.** `τ = light_plateau * 0.25f` → **`light_plateau / 6.0f`**, in
+its one home. Switch-on slope 1/τ goes 0.50 → **0.75 per beat**, +50%; the
+8-beat point sharpens 98.2% → **99.75%**, so the row is *more* literally
+"plateaus at 8", not less. The release law does not move.
+
+**1 · FLAG — THE SNAP IS CHEAPER, WHICH IS NOT OBVIOUS.** The counted table
+was RE-COUNTED at the new τ rather than scaled: **158 pokes** across the
+plateau's 240 frames where τ = 2 spent 199, the ε-gate closing at frame 129 /
+I = 0.960 instead of 169 / 0.940, and ~2 more over the next ten plateaus
+where the old τ spent 17. A steeper climb reaches the flat part sooner, and
+the flat part is where the gate stops paying. **The release is now the
+expensive half by a wide margin** — 240 pokes of 240, unchanged — and at 24
+keys the worst-case frame is 480 B against 720.
+
+**2 · FLAG — THE GATHERING WILL READ FLATTER, AND THAT IS THE HEIGHTS'
+DOING.** `station_scatter` seats a cube at `max(ZOETROPE_H_BASE 8,
+orbit_height + jh·28)`, and the jitter did not shrink with the means. So the
+fraction of cubes landing **exactly on the 8 wu floor** in the SCATTERED
+state rises sharply: Small 24% → **43%**, Med 12% → **36%**, Large 7% →
+**26%**, Monolith 42% → **46%**. The flock keeps its bearing scatter and its
+size-biased depth, but a lot more of it now sits on one plane. **Reported,
+not acted on** — §3 forbids growing a unit's scope, and the fix is a taste
+call on `ZOETROPE_SCATTER_JITTER_H` (28 wu was chosen against means of
+25–75) that belongs on Jean's desk with the rest of the visual gate.
+
+**3 · THE WITNESS U1 FALSIFIED, FIXED.** The `[CHOIR]` boot line printed
+"36 keys, 3 rank(s)" from `CHOIR_LANES`. With the choir narrower than the
+pipe that is false about the instrument. **There are three widths now** — the
+ear's 12 pc lanes, the pipe's 36 envelope lanes, and the keyboard's
+`CUBE_CHOIR_N` — and the canvas may only claim the two it owns, so its line
+reports lanes and leaves keys to the seam's own witness, which already prints
+them. The per-key line reports a LANE and now says so: a lane at or above the
+choir's width prints and lights no cube. Fixed rather than flagged because it
+is U1's own consequence, not an adjacency.
+
+**4 · NOT THIS CAMPAIGN'S, AND NAMED.** The boot-born permanent choir is a
+strategy fork awaiting Jean's gate — this campaign made no spawn-path edit,
+and determinism for the test comes from a pinned `--seed=` over the existing
+seed-derived draws. The pawn's presence-push column will reach these lower
+cubes more often; accepted for the test, with the pawn-dynamics layer under a
+deprioritization ruling in flight. Twelve envelope lanes are computed and
+never read (the pipe is wider than the choir by design) — real, cheap, and
+the price of the one-token promise.
+
+**5 · THE LEDGERS DID NOT MOVE, AND THAT IS THE RULE WORKING.** All six
+tools were re-run and every artifact came back byte-identical: the three
+files this campaign touched are scanned inputs for none of BINDING, COMMAND
+or MIRROR, so CHOIR_0 §10's settle chain had nothing to bite on. Verified by
+running the regeneration, not by reasoning about it.
+
+**6 · OPEN — THE PROBE.** Every gate CC can run is green. Jean's desk: the
+new heights and radii, the attack's shape at τ = 8/6, the two-rank keyboard,
+and the flatter gathering (flag 2).
+
 ## THE HANDOVER LIST (THE_PANEL's close — the coupling campaign's table)
 
 **THE WRAP ORDER §2.3 asks that the next campaign's handoff be authorable
@@ -1574,7 +1671,7 @@ outlives a chat.
 
 | what | where | what it carries |
 |---|---|---|
-| **THE COUPLING ATLAS** | `docs/COUPLING_ATLAS.md` | five tables by symbol — SOURCES (55 published, **6 heard, 49 unheard** since CHOIR_0; it was 12/43), PIPES (PARAM_LAYOUT's **nine**), THE CHOIR (one voice, 36 keys — the table that was EARS, the zoetrope's seven), THE UNCOUPLED NEW WORLD (every candidate dial **with its cadence**), THE ORPHANED |
+| **THE COUPLING ATLAS** | `docs/COUPLING_ATLAS.md` | five tables by symbol — SOURCES (55 published, **6 heard, 49 unheard** since CHOIR_0; it was 12/43), PIPES (PARAM_LAYOUT's **nine**), THE CHOIR (one voice, **24 keys since CHOIR_1**, 36 pipe lanes — the table that was EARS, the zoetrope's seven), THE UNCOUPLED NEW WORLD (every candidate dial **with its cadence**), THE ORPHANED |
 | **THE SEAM SCOUT** | the atlas's own appendix | the native analysis side as it stands — the clock end to end, the loopMIDI lane, `StatLayoutView`'s publish/bind seam, `AnalysisSignal`'s shape — and the three transports with costs. **No transport chosen: that is Jean's.** |
 
 ### 2 · THE LIVE DIAL INVENTORY, WITH CADENCES
@@ -2134,6 +2231,7 @@ written out here.
 | THE_PANEL II — THE HAND | `--scene=`, the watcher, the stdin REPL, the shell gate | LANDED |
 | SUNRISE_0 · KEEL_0 · HELM_0 | the fork, the build constitution, the preset surface | LANDED |
 | CHOIR_0 | the cube lattice out; `ch6` cast, 36 keys, one enveloped light per key | LANDED — **Jean's probe + visual desk open** (see CHOIR_0 above) |
+| CHOIR_1 | two ranks (24), the flock lower and smaller, the attack snappier | LANDED — **Jean's probe + visual desk open** (see CHOIR_1 above) |
 | EMBER_0 | the D3D12 lanes | **OPEN — on Jean's button** (see EMBER_0 above) |
 
 Roster: PYRAMID, SPHERE, RIBBON, CUBE. The ground: one automaton, ~3.1%
