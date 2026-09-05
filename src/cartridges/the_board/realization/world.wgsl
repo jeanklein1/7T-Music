@@ -1708,7 +1708,11 @@ struct DesignConfig {
     // TENSE_0 (U1 struck the query, U2b pads the switch), in place, same
     // offset.
     _pad_mute_signal_retired: u32,
-    mute_couplings: u32,
+    // `mute_couplings` stood here — the word the mute registry read.
+    // Boot-NONE, writer-less, row-less; cut at STRIKE_0 U1 with
+    // `coupling_active` and the eight COUPLING_* bits. Padded in place,
+    // same offset, both rooms.
+    _pad_mute_couplings_retired: u32,
     pawn_speed: f32,
     freeze_sphere: u32,
     fpv_mode: u32,
@@ -2869,22 +2873,10 @@ fn occupier_contact(self_p: vec3<f32>, body_radius: f32, dt: f32) -> vec2<f32> {
 
 // §2.3 MUTING CONTROL
 
-// --- Coupling bit flags
-
-const COUPLING_TERRAIN_TO_PAWN_Y:            u32 = 1u << 1u;
-const COUPLING_TERRAIN_TO_PAWN_TILT:         u32 = 1u << 2u;
-const COUPLING_PAWN_TO_CAMERA_TARGET:        u32 = 1u << 3u;
-const COUPLING_INPUT_MOVES_PLAYER:           u32 = 1u << 4u;
-const COUPLING_INPUT_ORBITS_CAMERA:          u32 = 1u << 5u;
-const COUPLING_INPUT_ZOOMS_CAMERA:           u32 = 1u << 6u;
-const COUPLING_TERRAIN_TO_SPHERE_HEIGHT:     u32 = 1u << 14u;
-const COUPLING_PAWN_TO_SUN_VP:               u32 = 1u << 16u;
-
-// --- Muting query functions
-
-fn coupling_active(bit: u32) -> bool {
-    return (config.mute_couplings & bit) == 0u;
-}
+// §2.3's mute registry stood here — a switch panel nothing could turn
+// (no row, no writer, boot NONE). Cut at STRIKE_0 U1; the eight
+// couplings are unconditional facts now. `mute_dynamics_0d` survives —
+// it is enrolled.
 
 fn dynamics_0d_active() -> bool {
     return config.mute_dynamics_0d == 0u;
@@ -3723,10 +3715,6 @@ fn manifold_resolve(query_pos: vec3<f32>, policy: u32, qi: QueryInputs) -> Surfa
 // --- [COUPLING:terrain→sphere:orbit_height]
 
 fn coupling_terrain_to_sphere_orbit_height(sphere_xz: vec2<f32>, base_height: f32) -> f32 {
-    if (!coupling_active(COUPLING_TERRAIN_TO_SPHERE_HEIGHT)) {
-        return base_height;
-    }
-
     // POLICY_FLYER — sphere rides static base + pyramids + the automaton +
     // terrain waves + radial pulses + pawn aura. No gol_suppression
     // (flyers don't flatten GoL at their own position).
@@ -7410,7 +7398,7 @@ fn behavior_player_controlled(agent_in: AgentState) -> AgentState {
     // The intent channel routes to the point's HOST —
     // when the camera hosts (free-fly) the body idles (the else arm
     // zeroes velocity; the pawn stands, snapped where it is).
-    if (coupling_active(COUPLING_INPUT_MOVES_PLAYER) && !point_camera_hosted()) {
+    if (!point_camera_hosted()) {
         let input_dir = vec2(signal.move_x, signal.move_z);
         var world_vel = coupling_input_to_pawn_velocity(input_dir, camera_state.azimuth);
 
@@ -7505,57 +7493,53 @@ fn behavior_player_controlled(agent_in: AgentState) -> AgentState {
     // (centered on the agent's start-of-frame position via qi.consumer_pos).
     let qi = QueryInputs(vec3(prev_xz.x, prev_y, prev_xz.y), signal.t_seconds);
 
-    if (coupling_active(COUPLING_TERRAIN_TO_PAWN_Y)) {
-        let resolved = pawn_ground_resolve(vec2(agent.pos_x, agent.pos_z), prev_xz, prev_y, qi);
-        agent.pos_x = resolved.x;
-        agent.pos_y = resolved.y;
-        agent.pos_z = resolved.z;
-        if (resolved.w < 0.5) {
-            agent.vel_x = 0.0;
-            agent.vel_z = 0.0;
-        }
+    let resolved = pawn_ground_resolve(vec2(agent.pos_x, agent.pos_z), prev_xz, prev_y, qi);
+    agent.pos_x = resolved.x;
+    agent.pos_y = resolved.y;
+    agent.pos_z = resolved.z;
+    if (resolved.w < 0.5) {
+        agent.vel_x = 0.0;
+        agent.vel_z = 0.0;
     }
 
     // --- Orientation: heading + walker-policy terrain tilt
-    if (coupling_active(COUPLING_TERRAIN_TO_PAWN_TILT)) {
-        let normal = terrain_normal_at(vec2(agent.pos_x, agent.pos_z), qi);
+    let normal = terrain_normal_at(vec2(agent.pos_x, agent.pos_z), qi);
 
-        let world_up = vec3(0.0, 1.0, 0.0);
-        let d = dot(world_up, normal);
-        var tilt_quat: vec4<f32>;
-        if (d < 0.9999) {
-            let axis = normalize(cross(world_up, normal));
-            let angle = acos(clamp(d, -1.0, 1.0));
-            tilt_quat = quat_from_axis_angle(axis, angle);
-        } else {
-            tilt_quat = vec4(0.0, 0.0, 0.0, 1.0);
-        }
-
-        let heading_quat = quat_from_axis_angle(vec3(0.0, 1.0, 0.0), agent.heading);
-        // (orient_target, not target: `target` is a WGSL RESERVED WORD — naga
-        //  and Tint both reject it as an identifier.)
-        let orient_target = quat_multiply(tilt_quat, heading_quat);
-
-        // Per-figure tilt lag (CLOSURE_PAWN [6]). The stored orientation is the
-        // state this walks from — see the AgentState comment on why orientation
-        // is stored rather than derived. tau = 0 collapses to the previous hard
-        // assignment, so the regular pawn is byte-identical. CPU authors tau
-        // from the possessed body's figure (config.pawn_tilt_tau).
-        var orient = orient_target;
-        let tau = config.pawn_tilt_tau;
-        if (tau > 0.0001) {
-            let cur = vec4(agent.orient_x, agent.orient_y, agent.orient_z, agent.orient_w);
-            // Shortest arc: q and -q are the same rotation; pick the near twin.
-            let c = select(cur, -cur, dot(cur, orient_target) < 0.0);
-            // Frame-rate independent: same settle time at any dt.
-            let a = 1.0 - exp(-dt / tau);
-            orient = normalize(mix(c, orient_target, a));
-        }
-        agent.orient_x = orient.x;
-        agent.orient_y = orient.y;
-        agent.orient_z = orient.z;
-        agent.orient_w = orient.w;
+    let world_up = vec3(0.0, 1.0, 0.0);
+    let d = dot(world_up, normal);
+    var tilt_quat: vec4<f32>;
+    if (d < 0.9999) {
+        let axis = normalize(cross(world_up, normal));
+        let angle = acos(clamp(d, -1.0, 1.0));
+        tilt_quat = quat_from_axis_angle(axis, angle);
+    } else {
+        tilt_quat = vec4(0.0, 0.0, 0.0, 1.0);
     }
+
+    let heading_quat = quat_from_axis_angle(vec3(0.0, 1.0, 0.0), agent.heading);
+    // (orient_target, not target: `target` is a WGSL RESERVED WORD — naga
+    //  and Tint both reject it as an identifier.)
+    let orient_target = quat_multiply(tilt_quat, heading_quat);
+
+    // Per-figure tilt lag (CLOSURE_PAWN [6]). The stored orientation is the
+    // state this walks from — see the AgentState comment on why orientation
+    // is stored rather than derived. tau = 0 collapses to the previous hard
+    // assignment, so the regular pawn is byte-identical. CPU authors tau
+    // from the possessed body's figure (config.pawn_tilt_tau).
+    var orient = orient_target;
+    let tau = config.pawn_tilt_tau;
+    if (tau > 0.0001) {
+        let cur = vec4(agent.orient_x, agent.orient_y, agent.orient_z, agent.orient_w);
+        // Shortest arc: q and -q are the same rotation; pick the near twin.
+        let c = select(cur, -cur, dot(cur, orient_target) < 0.0);
+        // Frame-rate independent: same settle time at any dt.
+        let a = 1.0 - exp(-dt / tau);
+        orient = normalize(mix(c, orient_target, a));
+    }
+    agent.orient_x = orient.x;
+    agent.orient_y = orient.y;
+    agent.orient_z = orient.z;
+    agent.orient_w = orient.w;
 
     // LANDING (no-teleportation): after a dismount the body eases from the
     // saddle it left (signal.mount_from) onto the walked pose computed above.
@@ -8715,19 +8699,17 @@ fn update_camera_vp() {
             return;
         }
 
-        if (coupling_active(COUPLING_INPUT_ORBITS_CAMERA)) {
-            camera.azimuth += signal.look_az_delta;
+        camera.azimuth += signal.look_az_delta;
 
-            let min_el = select(CAMERA_MIN_ELEVATION, FPV_MIN_ELEVATION, fpv_mode_active());
-            let max_el = select(CAMERA_MAX_ELEVATION, FPV_MAX_ELEVATION, fpv_mode_active());
-            camera.elevation = clamp(camera.elevation + signal.look_el_delta, min_el, max_el);
+        let min_el = select(CAMERA_MIN_ELEVATION, FPV_MIN_ELEVATION, fpv_mode_active());
+        let max_el = select(CAMERA_MAX_ELEVATION, FPV_MAX_ELEVATION, fpv_mode_active());
+        camera.elevation = clamp(camera.elevation + signal.look_el_delta, min_el, max_el);
 
-            if (!fpv_mode_active()) {
-                camera = coupling_input_to_camera_pan(vec2(signal.pan_x_delta, signal.pan_y_delta), camera);
-            }
+        if (!fpv_mode_active()) {
+            camera = coupling_input_to_camera_pan(vec2(signal.pan_x_delta, signal.pan_y_delta), camera);
         }
 
-        if (coupling_active(COUPLING_INPUT_ZOOMS_CAMERA) && !fpv_mode_active()) {
+        if (!fpv_mode_active()) {
             camera = coupling_input_to_camera_distance(signal.zoom_delta, camera);
         }
 
@@ -8803,7 +8785,7 @@ fn update_camera_vp() {
 
         if (fpv_mode_active()) {
             camera.pos = pawn_pos + vec3(0.0, config.fpv_eye_height, 0.0);
-        } else if (coupling_active(COUPLING_PAWN_TO_CAMERA_TARGET)) {
+        } else {
             camera.pos = coupling_pawn_to_camera_target(camera.aim_point, camera);
         }
 
@@ -8854,12 +8836,10 @@ fn update_camera_vp() {
     // offset (was the pawn; the shadow box must cover
     // what the eye sees, so it follows the point's host — identical
     // when the pawn hosts, tracks the camera in free-fly).
-    if (coupling_active(COUPLING_PAWN_TO_SUN_VP)) {
-        vp_data.light_vp = coupling_pawn_to_sun_vp(
-            point_pos(),
-            config.sun_direction
-        );
-    }
+    vp_data.light_vp = coupling_pawn_to_sun_vp(
+        point_pos(),
+        config.sun_direction
+    );
 }
 
 @compute @workgroup_size(1)

@@ -143,8 +143,8 @@ static_assert(offsetof(GPUDesignConfig, mute_dynamics_0d) == 0,
     "DesignConfig.mute_dynamics_0d is at 0 in world.wgsl (u32); the two rooms must agree field for field");
 static_assert(offsetof(GPUDesignConfig, _pad_mute_signal_retired) == 4,
     "DesignConfig._pad_mute_signal_retired is at 4 in world.wgsl (u32); the two rooms must agree field for field");
-static_assert(offsetof(GPUDesignConfig, mute_couplings) == 8,
-    "DesignConfig.mute_couplings is at 8 in world.wgsl (u32); the two rooms must agree field for field");
+static_assert(offsetof(GPUDesignConfig, _pad_mute_couplings_retired) == 8,
+    "DesignConfig._pad_mute_couplings_retired is at 8 in world.wgsl (u32); the two rooms must agree field for field");
 static_assert(offsetof(GPUDesignConfig, pawn_speed) == 12,
     "DesignConfig.pawn_speed is at 12 in world.wgsl (f32); the two rooms must agree field for field");
 static_assert(offsetof(GPUDesignConfig, freeze_sphere) == 16,

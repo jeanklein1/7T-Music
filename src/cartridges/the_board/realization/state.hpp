@@ -10,7 +10,7 @@
 //
 // ─── INTERIOR MAP (grep the names; no line anchors) ───────────────
 //   Dim::                world dimensions & capacities (veil-chain law)
-//   Idle:: / Coupling::  boot-rest values / the mute-bit registry
+//   Idle::               boot-rest values
 //   GPUFrameSignal       the per-frame hot uniform (sky tail: E-3)
 //   GPUDesignConfig      the design mirror — paneled by ─── system
 //                        groups; grown per L5/L4 (docs/LAWS.md)
@@ -495,26 +495,11 @@ namespace t7 {
         // live reader is the gaze bearing in bodies/agents.hpp.
         constexpr float heading_to_bearing(float h) { return 1.57079633f - h; }
 
-        // Mirrors world.wgsl's COUPLING_* bit-flag block. MUST match those
-        // bit values 1:1 — semantic drift here would corrupt every GPU-side
-        // coupling read silently.
-        namespace Coupling {
-            constexpr uint32_t TERRAIN_TO_PAWN_Y         = 1u << 1;
-            constexpr uint32_t TERRAIN_TO_PAWN_TILT      = 1u << 2;
-            constexpr uint32_t PAWN_TO_CAMERA_TARGET     = 1u << 3;
-            constexpr uint32_t INPUT_MOVES_PAWN          = 1u << 4;
-            constexpr uint32_t INPUT_ORBITS_CAMERA       = 1u << 5;
-            constexpr uint32_t INPUT_ZOOMS_CAMERA        = 1u << 6;
-            constexpr uint32_t TERRAIN_TO_SPHERE_HEIGHT  = 1u << 14;
-            constexpr uint32_t PAWN_TO_SUN_VP            = 1u << 16;
-            constexpr uint32_t ALL = 0x1FFFFFu;
-            constexpr uint32_t NONE = 0u;
-            constexpr uint32_t DERIVED = TERRAIN_TO_PAWN_Y | TERRAIN_TO_PAWN_TILT | PAWN_TO_CAMERA_TARGET | TERRAIN_TO_SPHERE_HEIGHT | PAWN_TO_SUN_VP;
-            constexpr uint32_t ACCUMULATED = INPUT_MOVES_PAWN | INPUT_ORBITS_CAMERA | INPUT_ZOOMS_CAMERA;
-            constexpr uint32_t TERRAIN = TERRAIN_TO_PAWN_Y | TERRAIN_TO_PAWN_TILT | TERRAIN_TO_SPHERE_HEIGHT;
-            constexpr uint32_t INPUT = INPUT_MOVES_PAWN | INPUT_ORBITS_CAMERA | INPUT_ZOOMS_CAMERA;
-            constexpr uint32_t CAMERA = PAWN_TO_CAMERA_TARGET | INPUT_ORBITS_CAMERA | INPUT_ZOOMS_CAMERA;
-        }
+        // `namespace Coupling` stood here — the C++ mirror of world.wgsl's
+        // COUPLING_* bit-flag block. Cut at STRIKE_0 U1 with the registry
+        // it mirrored: the mute word was boot-NONE, writer-less and
+        // row-less, so the eight couplings are unconditional facts now
+        // (world.wgsl §2.3 tombstone).
 
         // =====================================================================
         // S4 GPU STRUCTURES — Byte-aligned data contracts (must match WGSL)
@@ -591,7 +576,10 @@ namespace t7 {
             // muted nothing sat in the panel's Debug section; that row is
             // gone with it.
             uint32_t _pad_mute_signal_retired;
-            uint32_t mute_couplings;
+            // `mute_couplings` stood here — boot-NONE, writer-less,
+            // row-less. Cut at STRIKE_0 U1 with WGSL's mute registry;
+            // padded in place, same offset, both rooms.
+            uint32_t _pad_mute_couplings_retired;
 
             // ─── Interaction ────────────────────────────────────────
             float pawn_speed;
@@ -4660,7 +4648,7 @@ namespace t7 {
 
                 config_.mute_dynamics_0d = 0;
                 config_._pad_mute_signal_retired = 0u;
-                config_.mute_couplings = Coupling::NONE;
+                config_._pad_mute_couplings_retired = 0u;  // the mute registry died at STRIKE_0 U1 (world.wgsl §2.3 tombstone)
                 config_.pawn_speed = Idle::PAWN_SPEED;
                 config_.point_host = 0;             // the pawn hosts (the kite)
                 config_.point_fly_speed = 0.0f;     // 0 → WGSL PAWN_SPEED fallback (the panel authors it)

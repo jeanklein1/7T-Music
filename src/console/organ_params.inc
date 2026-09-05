@@ -729,7 +729,8 @@ ORGAN_PARAM(CONFIG, GPUDesignConfig, camera_push_radius, F32, 0.0f, 80.0f, 0.5f,
 
 // ─── Debug ──────────────────────────────────────────────────────────
 // Config's uint32_t toggle words enroll as BOOL directly; fpv_mode is
-// KEY-SHARED, the keyboard writes it too. mute_couplings: docs/ORGAN.md.
+// KEY-SHARED, the keyboard writes it too. mute_couplings died at
+// STRIKE_0 U1 (world.wgsl §2.3 tombstone).
 ORGAN_PARAM(CONFIG, GPUDesignConfig, mute_dynamics_0d, BOOL, 0.0f, 1.0f, 1.0f, "Debug", "mute dynamics (0D)")
 // `mute_signal`'s row stood here — retired at TENSE_0 U2b
 // (docs/ORGAN_RETIRED.md).
