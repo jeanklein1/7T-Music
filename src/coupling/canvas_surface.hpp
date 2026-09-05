@@ -67,6 +67,7 @@ struct CanvasSurface {
     // difference is not pedantry: this one has an asymptote at 1 and a
     // true logarithm does not. The release is a FIXED SLOPE, not a
     // span: a dimmer key falls proportionally sooner than a bright one.
+    float ink_release;          // beats — the ink's linear release to clear; 0 = instant (INK_0)
     float light_plateau;        // beats — attack plateau; τ = plateau/6 ⇒ I(plateau) ≈ 0.9975 (CHOIR_1: was /4, 0.982)
     float light_release;        // beats — FULL-SCALE linear fall to dark (the slope is 1/this)
 };
@@ -89,12 +90,13 @@ inline constexpr CanvasSurface CANVAS_TABLE = {
     0.5f,      // tint_mix_attack
     3.0f,      // tint_mix_release
     2.0f,      // tint_hue_span
+    0.5f,      // ink_release — half a beat from black to clear (INK_0)
     8.0f,      // light_plateau — the choir's attack plateau (beats)
     8.0f,      // light_release — full brightness to dark in 8 beats
 };
 
 inline CanvasSurface CANVAS_LIVE = CANVAS_TABLE;
-static_assert(sizeof(CanvasSurface) == 14 * sizeof(float),
+static_assert(sizeof(CanvasSurface) == 15 * sizeof(float),
     "CANVAS_LIVE is a whole-struct copy of the design row: a field added "
     "to one is added to the other by construction");
 

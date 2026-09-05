@@ -118,12 +118,14 @@ namespace t7 {
     // what a cast voice IS, so the set collapses to a name.
     inline constexpr const char* CHOIR_VOICE = "ch6";   // chN = wire = Ableton − 1
     inline constexpr const char* RELIEF_VOICE = "ch5";   // the ground's keyboard; chN = wire = Ableton − 1
+    inline constexpr const char* INK_VOICE = "ch4";      // the floor's colour keyboard (INK_0); same wire convention
     // RELIEF_0 — the presence fraction's denominator. canvas_1 declares
     // every voice's window through default_spec(v, /*window*/ 4.0f)
     // (analysis/canvas_1/canvas.hpp) — a literal there, so the beat count
     // is named HERE rather than reaching for a constant that does not
-    // exist. Two literals, one fact: flagged F-WINDOW for a later tidy.
-    inline constexpr float RELIEF_WINDOW_BEATS = 4.0f;
+    // exist. Two literals, one fact: flagged F-WINDOW for a later tidy
+    // (carried at INK_0 — the constant now serves both keyboards).
+    inline constexpr float KEYBOARD_WINDOW_BEATS = 4.0f;   // shared by both keyboards since INK_0
 
     // THE KEYBOARD'S WIDTH, canvas-side. The PIPE is this wide; the
     // POPULATION cap that reads it is the cartridge's own
@@ -257,6 +259,14 @@ namespace t7 {
         // like the ground's two; the seam applies the depth and the
         // automaton's tick gate latches it.
         { "ground.relief", 65, 12, 0.0f },
+        // ── the floor's colour keyboard (INK_0) ── ch4 on RELIEF's
+        // mosaic. stain: the Wagon's presence fraction per class, 0..1
+        // (the seam applies the gain, the shader the turn). ink: the
+        // Playhead's black per class — 1 the instant the class is
+        // present, linear release over ink_release beats; the seam
+        // applies the gain.
+        { "ground.stain", 77, 12, 0.0f },
+        { "ground.ink",   89, 12, 0.0f },
     };
     inline constexpr uint32_t PARAM_LAYOUT_COUNT =
         sizeof(PARAM_LAYOUT) / sizeof(PARAM_LAYOUT[0]);
@@ -322,6 +332,10 @@ namespace t7 {
 
             relief_ear_ = signal_layout_.resolve((std::string(RELIEF_VOICE) + ".window_length").c_str());
             relief_target_ = param_layout_.resolve("ground.relief");
+            ink_len_ = signal_layout_.resolve((std::string(INK_VOICE) + ".window_length").c_str());
+            ink_present_ = signal_layout_.resolve((std::string(INK_VOICE) + ".present_count").c_str());
+            stain_target_ = param_layout_.resolve("ground.stain");
+            ink_target_ = param_layout_.resolve("ground.ink");
 
             // THE CHOIR'S ONE EAR (the casting sheet): the cube voice's
             // PRESENT COUNT — twelve lanes, the count of sounding notes
@@ -612,7 +626,37 @@ namespace t7 {
                     const float beats = signal.stat(relief_ear_.channel,
                         relief_ear_.base + dressed_of_pc(pc));
                     params_.set(relief_target_.base + pc,
-                                std::clamp(beats / RELIEF_WINDOW_BEATS, 0.0f, 1.0f));
+                                std::clamp(beats / KEYBOARD_WINDOW_BEATS, 0.0f, 1.0f));
+                }
+            }
+
+            // ── THE FLOOR'S COLOUR KEYBOARD (INK_0) ──────────────────
+            // ch4 on the same mosaic, two readings: the Wagon's presence
+            // per class (the stain) and the Playhead's live notes (the
+            // ink — snaps to black, releases linearly over ink_release
+            // beats; the choir's loop-seam rule for Δbeats). Both ears
+            // publish DRESSED; the lanes are RAW pc, the fold as ever.
+            if (ink_len_.valid && stain_target_.valid) {
+                for (int pc = 0; pc < 12; ++pc) {
+                    const float beats = signal.stat(ink_len_.channel,
+                        ink_len_.base + dressed_of_pc(pc));
+                    params_.set(stain_target_.base + pc,
+                                std::clamp(beats / KEYBOARD_WINDOW_BEATS, 0.0f, 1.0f));
+                }
+            }
+            if (ink_present_.valid && ink_target_.valid) {
+                const float dch = beat - last_beat_;            // the choir's loop-seam rule
+                const float dbe = (dch > 0.0f) ? dch : 0.0f;
+                const float rel = canvas::CANVAS_LIVE.ink_release;
+                const float fall = (dbe <= 0.0f) ? 0.0f : (rel > 0.0f ? dbe / rel : 1.0f);
+                for (int pc = 0; pc < 12; ++pc) {
+                    const bool on = signal.stat(ink_present_.channel,
+                        ink_present_.base + dressed_of_pc(pc)) > 0.0f;
+                    float B = ink_B_[pc];
+                    if (on) B = 1.0f;                                   // snaps on
+                    else    B = (B > fall) ? B - fall : 0.0f;           // linear release
+                    ink_B_[pc] = B;
+                    params_.set(ink_target_.base + pc, B);
                 }
             }
 
@@ -665,6 +709,11 @@ namespace t7 {
         // ── ground coupling state (RELIEF_0's ear and pipe) ──────────────
         SourceBinding relief_ear_{};        // "<RELIEF_VOICE>.window_length" — the Wagon's 12-pc beat lengths
         TargetBinding relief_target_{};     // "ground.relief" — presence fractions, RAW pc order (RELIEF_0)
+        SourceBinding ink_len_{};           // "<INK_VOICE>.window_length" — the stain's Wagon (INK_0)
+        SourceBinding ink_present_{};       // "<INK_VOICE>.present_count" — the ink's Playhead (INK_0)
+        TargetBinding stain_target_{};      // "ground.stain" — presence fractions, RAW pc order
+        TargetBinding ink_target_{};        // "ground.ink" — the black envelope, RAW pc order
+        float ink_B_[12] = {};              // the ink's per-class state: snaps to 1, releases linearly
 
         // ── choir coupling state (one ear, one envelope per key) ─────────
         SourceBinding choir_ear_{};              // "<CHOIR_VOICE>.present_count" — the sounding count per pc
