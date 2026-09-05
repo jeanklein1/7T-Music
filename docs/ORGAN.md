@@ -439,8 +439,9 @@ is the DRIVERS block; no other strip is owed.
 enrolled home that the panel does not name, and why the record says so.
 A row here is a REASON on file, not a parking ticket — when a reason
 dies, its row must die with it (the mute's row above is the cautionary
-tale). Standing at the R-round's close: **40 absent, 40 reasoned, 0
-unexplained.**
+tale). Standing after INK_0: **42 absent, 42 reasoned, 0 unexplained**
+(40 at the R-round's close; the keyboard's two driven seats joined with
+their reason below).
 
 | home · field | reason |
 |---|---|
@@ -451,6 +452,7 @@ unexplained.**
 | `GPUDesignConfig` · `sun_direction` | the transported value of `ATMOS.sun_direction` — the dial exists upstream; this is the wire |
 | `GPUDesignConfig` · `world_bound_min`, `world_bound_max`, `placement_patch_count` | world geometry the seed and radius author at birth — facts of the world, not knobs on it |
 | `GPUDesignConfig` · `pulse_count`, `pulse_data` | the ring's seat — DRIVEN by the strike writer since STRIKE_0; the hand's dial is `ground.ring_gain` |
+| `GPUDesignConfig` · `stain`, `ink` | the keyboard's seats — DRIVEN by the colour seam since INK_0 (real time, no latch); the hands' dials are `stain_turn`, the two gains and `ink_release` |
 | `GPUDesignConfig` · `possessed_slot`, `point_host`, `cull_point_x`, `cull_point_z` | the program's own hands — possession and camera state, authored per frame, never a dial |
 | `GPUDesignConfig` · `draw_ring`, `cube_plasticity` | dark by ruling (STRIKE_0 U3f): rows retired, fields await a relayout campaign |
 | `OrbConfig` · `motion_rule` | dead column — the applier ignores it: `configure_orbs` seeds Brownian hardcoded and the rule is player-owned after (`current_motion_rule`, the door's fact); excision or a reader is a future ruling |
