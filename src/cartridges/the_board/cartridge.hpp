@@ -257,9 +257,6 @@ namespace t7 {
             TargetBinding ribbon_tint_stim_dst_{};
             TargetBinding ribbon_tint_mix_dst_{};
             TargetBinding fog_color_dst_{};      // resolved "fog.color" pipe (3 wide)
-            // Checker pipes (CHECKER-1) — resolved once at bind.
-            TargetBinding checker_mean_dst_{};
-            TargetBinding checker_var_dst_{};
             // The choir's pipe (CHOIR_0) — CHOIR_LANES wide, resolved once.
             TargetBinding cube_light_dst_{};
             // The ground's two SOURCE pipes (GROUND_VOICE_0) — the law that
@@ -598,9 +595,6 @@ namespace t7 {
                     gpuState_.set_mode_palette_drift(terrain_looks::REST_MODE_PALETTE_DRIFT_TARGET,
                         terrain_looks::REST_MODE_PALETTE_DRIFT_INTENSITY,
                         terrain_looks::REST_MODE_PALETTE_DRIFT_TIER);
-                    gpuState_.set_checker_color_field(terrain_looks::REST_CHECKER_RESULTANT,
-                        terrain_looks::REST_CHECKER_AMOUNT,
-                        terrain_looks::REST_CHECKER_VARIANCE);
                     gpuState_.set_mode_gol_scales(1.0f, 1.0f);   // GoL's jurisdiction — stays inline (ROW 9 pointer)
                     // Pulse ring rest — the count is a ROW 2 pin; the
                     // zeroed ring is the rest (Phase 1, C4-F1).
@@ -816,8 +810,6 @@ namespace t7 {
                 ribbon_amp_vert_dst_ = visual_canvas_.layout().resolve("ribbon.amp_vertical_mult");
                 ribbon_tint_stim_dst_ = visual_canvas_.layout().resolve("ribbon.color_stim");
                 ribbon_tint_mix_dst_ = visual_canvas_.layout().resolve("ribbon.color_mix");
-                checker_mean_dst_ = visual_canvas_.layout().resolve("terrain.checker_mean");
-                checker_var_dst_ = visual_canvas_.layout().resolve("terrain.checker_var");
                 cube_light_dst_ = visual_canvas_.layout().resolve("cube.light");
                 ground_relief_dst_ = visual_canvas_.layout().resolve("ground.relief");
                 ground_strike_dst_ = visual_canvas_.layout().resolve("ground.strike");
@@ -825,10 +817,6 @@ namespace t7 {
                     "[the_board] fog.density base=%d valid=%d | fog.color base=%d count=%d valid=%d\n",
                     fog_density_dst_.base, (int)fog_density_dst_.valid,
                     fog_color_dst_.base, fog_color_dst_.count, (int)fog_color_dst_.valid);
-                std::fprintf(stderr,
-                    "[the_board] terrain.checker_mean base=%d count=%d valid=%d | terrain.checker_var base=%d valid=%d\n",
-                    checker_mean_dst_.base, checker_mean_dst_.count, (int)checker_mean_dst_.valid,
-                    checker_var_dst_.base, (int)checker_var_dst_.valid);
                 std::fprintf(stderr,
                     "[the_board] cube.light base=%d count=%d valid=%d | choir %u key(s), %u rank(s)\n",
                     cube_light_dst_.base, cube_light_dst_.count, (int)cube_light_dst_.valid,
@@ -1106,54 +1094,8 @@ namespace t7 {
                                           ms.fog_rest_color[1], ms.fog_rest_color[2]);
                     }
                 }
-                // CHECKER-REBUILD: the pc-color field's flush — one setter,
-                // the fan (resultant rgb + music amount + music variance).
-                // ORGAN — the drivers' room sits at this seam too:
-                // out = rest + gain·(driven − rest), the fog recipe verbatim.
-                // Gain 1 is the coupling byte-for-byte; gain 0 is the rest,
-                // which terrain_looks calls law — amount 0 returns each cell
-                // to its SEED colour, not to gray. With no bindings the rest
-                // alone speaks, so the dial works headless.
-                //
-                // The resultant is a run of three, so it blends per lane
-                // against rest_resultant[] rather than against one scalar.
-                if (checker_mean_dst_.valid && checker_var_dst_.valid) {
-                    const VisualParams& cp = visual_canvas_.params();
-                    const auto& ck = DRIVER_LIVE.checker;
-                    const float* mean = cp.run(checker_mean_dst_.base);
-                    const float blended[3] = {
-                        ck.rest_resultant[0] + ck.gain * (mean[0] - ck.rest_resultant[0]),
-                        ck.rest_resultant[1] + ck.gain * (mean[1] - ck.rest_resultant[1]),
-                        ck.rest_resultant[2] + ck.gain * (mean[2] - ck.rest_resultant[2]),
-                    };
-                    gpuState_.set_checker_color_field(blended,
-                        ck.rest_amount   + ck.gain * (cp.get(checker_var_dst_.base)     - ck.rest_amount),
-                        ck.rest_variance + ck.gain * (cp.get(checker_var_dst_.base + 1) - ck.rest_variance));
-                    // [FLUSH] one-shot: fires the first time a live resultant
-                    // crosses the CPU->GPU seam. If [CHECKER] is singing in the
-                    // console and this line never prints, the bindings above are
-                    // invalid or the two params_ objects disagree — name it.
-                    static bool checker_flush_seen = false;
-                    if (!checker_flush_seen
-                        && cp.get(checker_var_dst_.base) > 0.05f) {   // music_amount up
-                        std::fprintf(stderr,
-                            "[FLUSH] checker -> config: resultant=(%.2f %.2f %.2f) amount=%.2f var=%.2f\n",
-                            cp.get(checker_mean_dst_.base),
-                            cp.get(checker_mean_dst_.base + 1),
-                            cp.get(checker_mean_dst_.base + 2),
-                            cp.get(checker_var_dst_.base),
-                            cp.get(checker_var_dst_.base + 1));
-                        checker_flush_seen = true;
-                    }
-                } else {
-                    // No bindings: the rest alone speaks, so the dials still
-                    // reach the picture with the music silent — the fog
-                    // seam's headless arm again.
-                    // set_checker_color_field guards, so this costs no dirty.
-                    const auto& ck = DRIVER_LIVE.checker;
-                    gpuState_.set_checker_color_field(ck.rest_resultant,
-                                                      ck.rest_amount, ck.rest_variance);
-                }
+                // THE CHECKER SEAM stood here (CHECKER-REBUILD → INK_0);
+                // see the keyboard's seam below.
 
                 // THE GROUND'S VOICE stood here (GROUND_VOICE_0 U2 →
                 // RELIEF_1): energy lifted the ground, density quickened

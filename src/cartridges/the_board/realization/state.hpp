@@ -769,21 +769,13 @@ namespace t7 {
             float palette_light[4][4];    // [palette] = {r,g,b,pad}
             float palette_weight[4];      // selection probabilities
 
-            // ─── CHECKER-REBUILD: the pitch-class color field ───────
-            // Re-semanticized AND resized (Jean OK'd the witness move).
-            // The checker voice's window pc-length vector becomes a
-            // weighted-average COLOR (resultant), enveloped 2-beat attack
-            // / 8-beat release. The GPU pulls each discrete cell toward
-            // the resultant, wanders each region around it (re-rolled per
-            // 4-beat window), and widens each region's own spread by the
-            // distinct-pc count. REST = amount 0 (the GPU maps that to the
-            // cell's seed color) + variance 0 — identity by construction;
-            // the bake passes amount 0 (seam-proof). Mirrors world.wgsl
-            // DesignConfig: vec3 + f32 + f32 + f32 (two 16-byte slots, 8 B tail
-            // pad — CONTACT_2 added point_bubble_radius). Driver: the visual canvas, flushed at U4.
-            float checker_resultant[3];    // the music color (weighted pc-average), enveloped
-            float checker_music_amount;    // enveloped presence [0,1] — S1 pull + S2 wander scale
-            float checker_music_variance;  // enveloped distinct-pc count — S3 within-patch spread
+            // ─── THE CHECKER'S SEATS stood here (CHECKER-REBUILD → INK_0) ──
+            // ch1's resultant pull was a second global author on the same
+            // cells' colour; excised — one music author per fact, the
+            // keyboard (INK_0). Padded in place, same offsets, both rooms.
+            float _pad_checker_resultant_retired[3];
+            float _pad_checker_music_amount_retired;
+            float _pad_checker_music_variance_retired;
             float point_bubble_radius;     // CONTACT_2 C3a: the point's bounded awareness (rest 80; boot-pinned from contracts/point.hpp POINT_BUBBLE_RADIUS). Fills the checker tail pad — sizeof unchanged.
             float cube_plasticity;         // CONTACT_3 K2c: global λ master (rest 1.0 — raised from 0.6 at CONTACT_5 P2b; boot-pinned from Idle::CUBE_PLASTICITY_DEFAULT). Also fills the checker tail pad — sizeof unchanged.
             // CLOSURE_PAWN [6] — possessed body's terrain-tilt lag, seconds.
@@ -1941,11 +1933,11 @@ namespace t7 {
             "boundary. THE_PANEL I U2: 704 -> 688, the four pads above.");
         // THE ALIGNMENT LAW (L4, docs/LAWS.md). These four are the only
         // offsets where the two rooms can disagree, and no witness here fires
-        // when they do — grow at the TAIL (after checker_resultant's group) or
+        // when they do — grow at the TAIL (after the retired checker group) or
         // pad. The trailing 4-byte pad is spent, so the next knob meets this.
         static_assert(offsetof(GPUDesignConfig, sun_direction)     % 16 == 0
                    && offsetof(GPUDesignConfig, fog_color)         % 16 == 0
-                   && offsetof(GPUDesignConfig, checker_resultant) % 16 == 0,
+                   && offsetof(GPUDesignConfig, _pad_checker_resultant_retired) % 16 == 0,
             "every float[3] whose WGSL twin is vec3<f32> must sit on a 16-byte "
             "boundary — WGSL rounds vec3 up to align 16 and C++ does not, so an "
             "off-boundary one silently shifts the whole mirror (see GROWTH LAW)");
@@ -3081,20 +3073,6 @@ namespace t7 {
             // CHECKER-REBUILD: the pc-color field — one call carries the
             // fan (resultant rgb + music amount + music variance travel on
             // one span). Enveloping lives in the coupling decode, never here.
-            void set_checker_color_field(const float resultant[3], float amount, float variance) {
-                if (config_.checker_resultant[0] != resultant[0]
-                    || config_.checker_resultant[1] != resultant[1]
-                    || config_.checker_resultant[2] != resultant[2]
-                    || config_.checker_music_amount != amount
-                    || config_.checker_music_variance != variance) {
-                    config_.checker_resultant[0] = resultant[0];
-                    config_.checker_resultant[1] = resultant[1];
-                    config_.checker_resultant[2] = resultant[2];
-                    config_.checker_music_amount = amount;
-                    config_.checker_music_variance = variance;
-                    configDirty_ = true;
-                }
-            }
             void set_mode_gol_scales(float tick_scale, float height_scale) {
                 if (config_.mode_gol_tick_scale != tick_scale || config_.mode_gol_height_scale != height_scale) {
                     config_.mode_gol_tick_scale = tick_scale;

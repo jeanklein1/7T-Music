@@ -33,54 +33,10 @@
 // params() to set_fog as the world's rest + gain · deviation. Fog has one driver:
 // the field.
 //
-// CHECKER-REBUILD — THE PITCH-CLASS COLOR FIELD (the terrain's checker
-// voice). The voice's WINDOW pc-LENGTH vector — pc_length(playhead,
-// wagon(0)): the Playhead + Wagon compound, duration-weighted, dressed
-// to D — is read every canvas::CANVAS_LIVE.checker_read_span beats. NO DFT, no interval
-// math: each ABSOLUTE pitch class (index 0 = D) has an authored RGB
-// (PC_COLOR), and the decode is the length-weighted average color,
-// resultant = (Σ length_i · PC_COLOR[i]) / Σ length_i. Two enveloped
-// scalars ride with it: music_amount (presence [0,1]) and music_variance
-// (distinct-pc count). The ENVELOPE is Jean's: LINEAR 2-beat attack to
-// the new 4-beat target, LINEAR 8-beat release to rest — a return to
-// SEED (music_amount → 0, which the GPU maps to the cell's own seed
-// color), not to gray. The cartridge flushes terrain.checker_* through
-// set_checker_color_field in U4; the GPU (discrete_cell_color) pulls
-// each discrete cell toward the resultant, wanders each region around
-// it (re-rolled per window), and widens each region's own spread by the
-// count — applied DIRECTLY to the checker cells. Console witness:
-// [CHECKER] per read.
-//
-// THE CUBE CHOIR — THE LIGHT INSIDE THE CUBES. Channel 6 is cast as the
-// cube voice, and its PRESENT COUNT (twelve lanes, sounding notes per
-// pitch class) plays a keyboard of CHOIR_LANES keys read as stacked
-// pianos: key k is rank k/12 of raw pitch class k%12, and key k IS cube
-// slot k BY ASSIGNMENT — the cartridge's boot-born choir writes the
-// identity (it was a consequence of the lowest-free-slot reservation
-// until the spawn law was repealed at STAGE_0 R5; the reservation and
-// the eviction it answered are both gone). ACTIVATION AND DEACTIVATION
-// ONLY — no held-length book is kept;
-// the envelope is the memory. While a key sounds its light climbs the
-// house's saturating-approach curve, 1 − e^(−t/τ) with τ =
-// light_plateau/6, so ≈ 99.75% at the plateau — steepest at switch-on,
-// which IS the fast attack the commission asked for; when
-// it falls silent the light falls on a FIXED SLOPE, full brightness to
-// dark in light_release beats. Fast attack, slow decay, simple. The run
-// leaves through "cube.light"; the cartridge's motion-drivers phase
-// composes it against the drivers' room and mirrors it to the cubes.
-// Console witness: [CHOIR] on the activation edge.
-//
-// USAGE
-//   visual_canvas_.bind(analysis_layout);          // startup
-//   visual_canvas_.tick(signal);                   // per frame, after analysis
-//   ...
-//   auto d = visual_canvas_.layout().resolve("fog.density");   // entity, once
-//   auto k = visual_canvas_.layout().resolve("fog.color");     // base..base+2
-//   float density = visual_canvas_.params().get(d.base);       // entity flush
-//
-// Depends on: coupling/visual_params.hpp, coupling/trajectory.hpp,
-//             musical/signal_layout.hpp, analysis/analysis_signal.hpp,
-//             <string>, <cmath>, <algorithm>.
+// THE CHECKER'S DECODE stood here (CHECKER-REBUILD → INK_0):
+// ch1's window vector over PC_COLOR became one resultant, flushed
+// through terrain.checker_* to pull every chromatic cell. Excised —
+// the floor's colour keyboard (INK_0) is the one music author now.
 
 #include "coupling/visual_params.hpp"
 #include "coupling/trajectory.hpp"
@@ -234,23 +190,9 @@ namespace t7 {
     inline constexpr float RAIN_SCATTER_MIN = -0.80f;  // countryside extinct (densest clusters linger)
     inline constexpr float RAIN_SCATTER_MAX =  0.25f;  // storm saturation
 
-    // ── CHECKER-REBUILD — the pitch-class color field (the checker voice) ──
-    // Source: the voice's WINDOW pc-LENGTH vector (window_length, 12-wide,
-    // duration-weighted, dressed to D — the Playhead + Wagon compound,
-    // pc_length(playhead, wagon(0))). NO DFT, no interval math: each PITCH
-    // CLASS (ABSOLUTE, index 0 = D after the dress) has an authored RGB, and
-    // the decode is the length-weighted average color —
-    //     resultant = ( Σ_i length_i · PC_COLOR[i] ) / max(Σ length_i, eps)
-    // Read every canvas::CANVAS_LIVE.checker_read_span beats. ENVELOPE (per Jean): LINEAR 2-beat
-    // attack to the new target; LINEAR 8-beat release to rest (music_amount →
-    // 0, which the GPU maps to each cell's OWN seed color — a return to seed,
-    // not to gray). Two enveloped scalars ride alongside the resultant:
-    //   music_amount  = presence [0,1] — the GPU's S1 pull + S2 wander scale;
-    //   music_variance = distinct-pc count — the GPU's S3 within-patch spread.
-    // The GPU (world.wgsl discrete_cell_color) owns pull / wander / spread;
-    // this side ships the resultant + the two scalars through terrain.checker_*.
-    // PC_COLOR is JEAN'S — twelve hues, one per pitch class. Tune it here.
-    inline constexpr const char* CHECKER_VOICE = "ch1";   // the chordal piano; chN = wire = Ableton − 1
+    // Jean's authored pitch-class → colour table. Its reader (the
+    // checker's resultant decode) left at INK_0; the table is kept as
+    // authored art, on the record as shelf.
     //                          pc (dressed, 0 = D)      R      G      B    — Jean's twelve hues
     inline constexpr float PC_COLOR[12][3] = {
         /*  0  D  */ { 0.85f, 0.20f, 0.20f },   // red
@@ -290,13 +232,9 @@ namespace t7 {
         { "ribbon.amp_vertical_mult", 5, 1, 1.0f },
         { "ribbon.color_stim", 6, 3, 0.0f },
         { "ribbon.color_mix",  9, 1, 0.0f },
-        // ── terrain (CHECKER-REBUILD, the pc-color field) ── checker_mean
-        // now carries the resultant COLOR (rgb); checker_var widens to TWO —
-        // [0] = music_amount (presence), [1] = music_variance (distinct-pc
-        // count). All rest at 0 (amount 0 → the GPU shows each cell's seed
-        // color; the_board's authored rests: terrain_looks ROW 2 REST_CHECKER_*).
-        { "terrain.checker_mean", 10, 3, 0.0f },
-        { "terrain.checker_var",  13, 2, 0.0f },
+        // ── (slots 10–14 stood here: terrain.checker_mean / _var, the
+        // pc-colour field's pipes — CHECKER-REBUILD → INK_0, excised by
+        // ruling; the void stays, the bases below are cited in books.)
         // ── the cube choir ── one lane per key, the ENVELOPED light the
         // cartridge mirrors into the cubes. Rest 0 is DARK, and dark is
         // the seed draw exactly: the projector's silent path composes
@@ -381,24 +319,6 @@ namespace t7 {
                 tint_stim_seg_[c2] = Segment{ 0.0f, 0.0f, 0.0f, 0.0f };
             tint_mix_seg_ = Segment{ 0.0f, 0.0f, 0.0f, 0.0f };
 
-            // CHECKER-REBUILD source + targets (the terrain's checker voice):
-            // the voice's WINDOW pc-length vector becomes the resultant color;
-            // presence + distinct-pc count envelope the pull and the spread.
-            {
-                std::string v(CHECKER_VOICE);
-                checker_win_ = signal_layout_.resolve((v + ".window_length").c_str());
-            }
-            checker_mean_ = param_layout_.resolve("terrain.checker_mean");   // 3: resultant rgb
-            checker_var_  = param_layout_.resolve("terrain.checker_var");    // 2: amount, variance
-            for (int c2 = 0; c2 < 3; ++c2) {
-                checker_res_goal_[c2] = 0.0f;                     // resultant color, held between reads
-                checker_res_seg_[c2] = Segment{ 0.0f, 0.0f, 0.0f, 0.0f };
-            }
-            checker_amount_goal_ = 0.0f;                          // presence (rest 0 → seed)
-            checker_amount_seg_  = Segment{ 0.0f, 0.0f, 0.0f, 0.0f };
-            checker_var_goal_ = 0.0f;                             // distinct-pc spread (rest 0)
-            checker_var_seg_  = Segment{ 0.0f, 0.0f, 0.0f, 0.0f };
-            checker_next_read_ = 0.0f;   // first frame reads, then grid-locks
 
             relief_ear_ = signal_layout_.resolve((std::string(RELIEF_VOICE) + ".window_length").c_str());
             relief_target_ = param_layout_.resolve("ground.relief");
@@ -572,77 +492,8 @@ namespace t7 {
                         (mix_goal == 0.0f ? canvas::CANVAS_LIVE.tint_mix_release : canvas::CANVAS_LIVE.tint_mix_attack)));
             }
 
-            // ── CHECKER-REBUILD (the window pc-lengths → a resultant color) ──
-            // SAMPLE-AND-HOLD on the absolute beat grid: at each crossing,
-            // read the voice's 12-pc WINDOW LENGTH vector, form the length-
-            // weighted average color over Jean's PC_COLOR table (NO DFT, no
-            // interval math — absolute pitch class → hue). Presence sets the
-            // pull; distinct-pc count sets the spread. The ENVELOPE is on the
-            // OUTPUT (below): each component glides LINEAR 2-beat attack to the
-            // new target, and amount/variance release LINEAR over 8 beats to
-            // rest — which the GPU maps to each cell's seed color. [CHECKER]
-            // prints one witness line per read.
-            if (checker_win_.valid && checker_mean_.valid && checker_var_.valid) {
-                // CADENCE: re-anchor on a BACKWARD beat jump (a transport loop
-                // back below next_read would otherwise freeze the reader).
-                if (beat < checker_next_read_ - canvas::CANVAS_LIVE.checker_read_span)
-                    checker_next_read_ = std::floor(beat / canvas::CANVAS_LIVE.checker_read_span) * canvas::CANVAS_LIVE.checker_read_span;
-                if (beat >= checker_next_read_) {
-                    float acc[3] = { 0.0f, 0.0f, 0.0f };
-                    float total = 0.0f;
-                    int   n = 0;
-                    for (int i = 0; i < 12; ++i) {
-                        const float w = signal.stat(checker_win_.channel,
-                            checker_win_.base + i);
-                        if (w <= 0.0f) continue;
-                        acc[0] += w * PC_COLOR[i][0];
-                        acc[1] += w * PC_COLOR[i][1];
-                        acc[2] += w * PC_COLOR[i][2];
-                        total += w;
-                        ++n;
-                    }
-                    const bool present = (total > 1e-6f);
-                    if (present) {
-                        // The length-weighted average color. On silence we hold
-                        // the last resultant (amount fades it to seed anyway).
-                        checker_res_goal_[0] = acc[0] / total;
-                        checker_res_goal_[1] = acc[1] / total;
-                        checker_res_goal_[2] = acc[2] / total;
-                    }
-                    // Presence drives the pull; distinct-pc count surplus the
-                    // spread (raw — the GPU scales + clamps it, hot-reloadable).
-                    // 0 or 1 distinct → 0 (a lone note keeps the seed spread).
-                    checker_amount_goal_ = present ? 1.0f : 0.0f;
-                    checker_var_goal_ = present ? (float)std::max(0, n - 1) : 0.0f;
-                    // THE WITNESS: one line per read, upstream of the GPU.
-                    // On the instruments dial (core/instruments.hpp): a read
-                    // lands every canvas::CANVAS_LIVE.checker_read_span beats — at 120 BPM that
-                    // is an UNBUFFERED stderr write every two seconds, on the
-                    // beat, which is exactly where a hitch is most visible.
-                    if constexpr (INSTRUMENTS.checker_witness) {
-                        std::fprintf(stderr,
-                            "[CHECKER] n=%d total=%.2f resultant=(%.2f %.2f %.2f) distinct-1=%.0f\n",
-                            n, total,
-                            checker_res_goal_[0], checker_res_goal_[1], checker_res_goal_[2],
-                            checker_var_goal_);
-                    }
-                    checker_next_read_ =
-                        (std::floor(beat / canvas::CANVAS_LIVE.checker_read_span) + 1.0f) * canvas::CANVAS_LIVE.checker_read_span;
-                }
-                // ENVELOPE. Resultant glides on the 2-beat attack span (its goal
-                // holds through silence, so no re-aim there). Amount + variance
-                // rise on 2 beats and release to rest on 8 — the return-to-seed.
-                for (int c2 = 0; c2 < 3; ++c2)
-                    params_.set(checker_mean_.base + c2,
-                        trajectory_release(checker_res_seg_[c2],
-                            checker_res_goal_[c2], beat, canvas::CANVAS_LIVE.checker_attack));
-                params_.set(checker_var_.base,
-                    trajectory_release(checker_amount_seg_, checker_amount_goal_, beat,
-                        (checker_amount_goal_ > 0.0f ? canvas::CANVAS_LIVE.checker_attack : canvas::CANVAS_LIVE.checker_release)));
-                params_.set(checker_var_.base + 1,
-                    trajectory_release(checker_var_seg_, checker_var_goal_, beat,
-                        (checker_var_goal_ > 0.0f ? canvas::CANVAS_LIVE.checker_attack : canvas::CANVAS_LIVE.checker_release)));
-            }
+            // The checker's decode and flush stood here (CHECKER-REBUILD →
+            // INK_0); the floor's colour keyboard writes below instead.
 
             // ── THE CUBE CHOIR (the light inside the cubes) ─────────────
             // The keyboard: key k is rank k/12 of raw pitch class k%12,
@@ -810,17 +661,6 @@ namespace t7 {
         Segment       tint_stim_seg_[3]{};
         Segment       tint_mix_seg_{};
 
-        // ── checker coupling state (CHECKER-REBUILD: the pc-color field) ─
-        SourceBinding checker_win_{};         // "<CHECKER_VOICE>.window_length" — the 12-pc length vector
-        float    checker_next_read_ = 0.0f;   // next absolute grid beat (sample-and-hold cursor)
-        float    checker_res_goal_[3] = {};   // resultant color goal, held between reads
-        float    checker_amount_goal_ = 0.0f; // presence goal [0,1]
-        float    checker_var_goal_ = 0.0f;    // distinct-pc spread goal
-        TargetBinding checker_mean_{};        // "terrain.checker_mean" (3): resultant rgb
-        TargetBinding checker_var_{};         // "terrain.checker_var"  (2): [0]=amount [1]=variance
-        Segment       checker_res_seg_[3]{};
-        Segment       checker_amount_seg_{};
-        Segment       checker_var_seg_{};
 
         // ── ground coupling state (RELIEF_0's ear and pipe) ──────────────
         SourceBinding relief_ear_{};        // "<RELIEF_VOICE>.window_length" — the Wagon's 12-pc beat lengths

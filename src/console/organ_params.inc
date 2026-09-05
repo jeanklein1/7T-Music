@@ -242,13 +242,10 @@ ORGAN_PARAM_RO(CONFIG, GPUDesignConfig, fog_color,    VEC3, "Atmosphere · Fog",
 // ─── Atmosphere · Checker ─────────────────────────────────────────
 // Dials on the driver's seam (out = rest + gain·(driven − rest)); the driven
 // values are witnesses. Rests are law: amount 0, variance 0 returns the seed colours.
-ORGAN_PARAM(DRIVERS, DriverSurface, checker.rest_resultant, VEC3, 0.0f, 1.0f, 0.01f,  "Atmosphere · Checker", "rest colour")
-ORGAN_PARAM(DRIVERS, DriverSurface, checker.rest_amount,    F32,  0.0f, 1.0f, 0.005f, "Atmosphere · Checker", "rest amount")
-ORGAN_PARAM(DRIVERS, DriverSurface, checker.rest_variance,  F32,  0.0f, 8.0f, 0.04f,  "Atmosphere · Checker", "rest variance")
-ORGAN_PARAM(DRIVERS, DriverSurface, checker.gain,           F32,  0.0f, 1.0f, 0.01f,  "Atmosphere · Checker", "drive gain")
-ORGAN_PARAM_RO(CONFIG, GPUDesignConfig, checker_resultant,      VEC3, "Atmosphere · Checker", "colour (driven)")
-ORGAN_PARAM_RO(CONFIG, GPUDesignConfig, checker_music_amount,   F32,  "Atmosphere · Checker", "amount (driven)")
-ORGAN_PARAM_RO(CONFIG, GPUDesignConfig, checker_music_variance, F32,  "Atmosphere · Checker", "variance (driven)")
+// The checker's seven rows stood here (CHECKER-REBUILD → INK_0):
+// DRIVERS.checker.* and the three driven meters, excised with the
+// coupling they voiced. The keyboard's rows live at Terrain · Ground
+// keyboard.
 
 
 // ─── Atmosphere · Fog envelope ──────────────────────────────────
@@ -259,9 +256,8 @@ ORGAN_PARAM_NS(canvas, CANVAS, CanvasSurface, fog_span, F32, 0.0f, 8.0f, 0.04f, 
 // ─── Atmosphere · Checker cadence ───────────────────────────────
 // CANVAS_LIVE. The pc-colour field's READ cadence and envelope — how often
 // the voice is read, and how fast the resultant chases it.
-ORGAN_PARAM_NS(canvas, CANVAS, CanvasSurface, checker_read_span, F32, 0.25f, 32.0f, 0.25f, "Atmosphere · Checker cadence", "read span (beats)")
-ORGAN_PARAM_NS(canvas, CANVAS, CanvasSurface, checker_attack,    F32, 0.25f, 32.0f, 0.25f, "Atmosphere · Checker cadence", "attack (beats)")
-ORGAN_PARAM_NS(canvas, CANVAS, CanvasSurface, checker_release,   F32, 0.25f, 32.0f, 0.25f, "Atmosphere · Checker cadence", "release (beats)")
+// The checker cadence trio stood here (CHECKER-REBUILD → INK_0),
+// excised with its field.
 
 // ─── Terrain · Palette N ────────────────────────────────────────
 // GPUDesignConfig, boot-pinned from surface/terrain_looks.hpp row 1. The

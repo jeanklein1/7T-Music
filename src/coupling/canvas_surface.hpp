@@ -50,10 +50,8 @@ struct CanvasSurface {
     float tint_mix_release;     // beats
     float tint_hue_span;        // beats — the hue's own glide
 
-    // ── The checker field's cadence ──────────────────────────────
-    float checker_read_span;    // beats — the read cadence
-    float checker_attack;       // beats — LINEAR rise to the new target
-    float checker_release;      // beats — LINEAR fall to rest (→ seed color)
+    // (The checker field's cadence trio stood here — CHECKER-REBUILD →
+    // INK_0, excised with its field.)
 
     // ── The cube choir's light ────────────────────────────────────
     // ACTIVATION AND DEACTIVATION ONLY — no held-length book is kept;
@@ -91,15 +89,12 @@ inline constexpr CanvasSurface CANVAS_TABLE = {
     0.5f,      // tint_mix_attack
     3.0f,      // tint_mix_release
     2.0f,      // tint_hue_span
-    3.25f,     // checker_read_span — tuned on the desk (was 4.0)
-    2.0f,      // checker_attack
-    8.0f,      // checker_release
     8.0f,      // light_plateau — the choir's attack plateau (beats)
     8.0f,      // light_release — full brightness to dark in 8 beats
 };
 
 inline CanvasSurface CANVAS_LIVE = CANVAS_TABLE;
-static_assert(sizeof(CanvasSurface) == 17 * sizeof(float),
+static_assert(sizeof(CanvasSurface) == 14 * sizeof(float),
     "CANVAS_LIVE is a whole-struct copy of the design row: a field added "
     "to one is added to the other by construction");
 

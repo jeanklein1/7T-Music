@@ -92,7 +92,7 @@ inline constexpr float PALETTE_WEIGHT_REST[4] = {
 //   intensity [0,1], discrete tier id).
 // CONSUMER: cartridge.hpp boot-pin → set_band_motion / set_terrain_time
 //   / set_mode_color_shift / set_mode_checker_scatter /
-//   set_mode_palette_drift / set_checker_color_field → config uniform
+//   set_mode_palette_drift → config uniform
 //   → WGSL rows 3/5/7 readers.
 inline constexpr float REST_TERRAIN_TIME = 0.0f;                    // frozen clock
 inline constexpr float REST_BAND_BLEND[6] =                        // all bands inactive
@@ -103,24 +103,11 @@ inline constexpr float REST_MODE_CHECKER_SCATTER = 0.0f;           // no sparse 
 inline constexpr float REST_MODE_PALETTE_DRIFT_TARGET = 0.0f;      // (unread while
 inline constexpr float REST_MODE_PALETTE_DRIFT_INTENSITY = 0.0f;   //  intensity 0)
 inline constexpr float REST_MODE_PALETTE_DRIFT_TIER = 0.0f;
-// CHECKER-REBUILD (THE PITCH-CLASS COLOR FIELD): the checker vocabulary's
-// live response — the voice's WINDOW pc-LENGTH vector (Playhead + Wagon
-// compound) over Jean's authored PC_COLOR table (absolute pitch class →
-// RGB) gives a length-weighted RESULTANT color; presence + distinct-pc
-// count ride alongside, enveloped (2-beat attack, 8-beat release). The GPU
-// pulls each discrete cell toward the resultant, wanders each region
-// around it by a STATIC per-region offset, and widens each region's spread
-// by the count; the mode field's own gating decides which cells (between
-// smooth sections) show it (world.wgsl discrete_cell_color / _at_tier;
-// dials §2.2 ROW 5: CHECKER_WANDER / CHECKER_VAR_PER_NOTE / CHECKER_VAR_MAX
-// / DEBUG_VIEW). RESTS are law: amount 0 (the GPU
-// maps that to each cell's seed color) and variance 0 — a return to seed,
-// not gray. WIRE: <voice>.window_length → PC_COLOR (coupling/visual_
-// canvas.hpp, the tunable home) → terrain.checker_* bank pipes →
-// set_checker_color_field (U4) → config → WGSL. Read every 4 beats.
-inline constexpr float REST_CHECKER_RESULTANT[3] = { 0.0f, 0.0f, 0.0f };
-inline constexpr float REST_CHECKER_AMOUNT = 0.0f;
-inline constexpr float REST_CHECKER_VARIANCE = 0.0f;
+// THE CHECKER'S RESTS stood here (CHECKER-REBUILD → INK_0): the
+// pitch-class colour field's REST_CHECKER_* pins. Excised with the
+// checker — the floor's colour keyboard (INK_0) rests at zeroed lanes
+// in the config boot pins, and PC_COLOR stays in the canvas as
+// authored art, on the record as shelf.
 // Pulse ring rest: count 0 with a zeroed ring IS the rest (the boot
 // pin sources it from here).
 inline constexpr std::uint32_t REST_PULSE_COUNT = 0;

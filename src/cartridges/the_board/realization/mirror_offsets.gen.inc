@@ -239,12 +239,12 @@ static_assert(offsetof(GPUDesignConfig, palette_light) == 416,
     "DesignConfig.palette_light is at 416 in world.wgsl (array<vec4<f32>, 4>); the two rooms must agree field for field");
 static_assert(offsetof(GPUDesignConfig, palette_weight) == 480,
     "DesignConfig.palette_weight is at 480 in world.wgsl (vec4<f32>); the two rooms must agree field for field");
-static_assert(offsetof(GPUDesignConfig, checker_resultant) == 496,
-    "DesignConfig.checker_resultant is at 496 in world.wgsl (vec3<f32>); the two rooms must agree field for field");
-static_assert(offsetof(GPUDesignConfig, checker_music_amount) == 508,
-    "DesignConfig.checker_music_amount is at 508 in world.wgsl (f32); the two rooms must agree field for field");
-static_assert(offsetof(GPUDesignConfig, checker_music_variance) == 512,
-    "DesignConfig.checker_music_variance is at 512 in world.wgsl (f32); the two rooms must agree field for field");
+static_assert(offsetof(GPUDesignConfig, _pad_checker_resultant_retired) == 496,
+    "DesignConfig._pad_checker_resultant_retired is at 496 in world.wgsl (vec3<f32>); the two rooms must agree field for field");
+static_assert(offsetof(GPUDesignConfig, _pad_checker_music_amount_retired) == 508,
+    "DesignConfig._pad_checker_music_amount_retired is at 508 in world.wgsl (f32); the two rooms must agree field for field");
+static_assert(offsetof(GPUDesignConfig, _pad_checker_music_variance_retired) == 512,
+    "DesignConfig._pad_checker_music_variance_retired is at 512 in world.wgsl (f32); the two rooms must agree field for field");
 static_assert(offsetof(GPUDesignConfig, point_bubble_radius) == 516,
     "DesignConfig.point_bubble_radius is at 516 in world.wgsl (f32); the two rooms must agree field for field");
 static_assert(offsetof(GPUDesignConfig, cube_plasticity) == 520,

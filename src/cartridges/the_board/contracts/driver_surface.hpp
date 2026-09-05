@@ -29,17 +29,9 @@ struct DriverSurface {
         float    release;         // 1/s — presence fall rate
         float    height_gain;     // × profile.height_scale at the tick
     } aura;
-    // THE CHECKER FIELD'S SEAM. phase_motion_drivers flushes the
-    // pitch-class colour field through set_checker_color_field every
-    // frame; same shape as fog, same recipe. The rests are law: "amount 0
-    // (the GPU maps that to each cell's seed color) and variance 0 — a
-    // return to seed, not gray" (surface/terrain_looks.hpp).
-    struct Checker {
-        float rest_resultant[3];  // the music colour at gain 0
-        float rest_amount;        // enveloped presence at gain 0
-        float rest_variance;      // enveloped distinct-pc count at gain 0
-        float gain;               // 0 manual … 1 coupling verbatim
-    } checker;
+    // THE CHECKER'S ROOM stood here (CHECKER-REBUILD → INK_0): four
+    // rests and a gain for the resultant pull. Excised with the checker;
+    // the floor's colour couplings are the ground's stain and ink now.
     // THE RIBBON'S FOUR PIPES. ribbon_frame_tick reads four seams every
     // frame, and the rests are that seam's own fallbacks. color_stim's
     // fallback is a NULL POINTER: downstream is
@@ -87,7 +79,6 @@ inline constexpr DriverSurface DRIVER_TABLE = {
     { 0u, 1.0f, 1.5f, 1.0f },   // aura: intent off, the authored rates.
                                 // (It rested ON for one commit, d3b1f6d;
                                 // the next desk export put it back off.)
-    { { 0.0f, 0.0f, 0.0f }, 0.0f, 0.0f, 1.0f },   // checker: a return to seed
     { 1.0f, 1.0f, { 0.0f, 0.0f, 0.0f }, 0.0f, 1.0f },   // ribbon: the seam's own fallbacks
     { { 1.0f, 0.92f, 0.72f }, 1.0f },   // cube: warm incandescent against
                                         // seed-cool bodies (Jean's desk)
@@ -97,10 +88,10 @@ inline constexpr DriverSurface DRIVER_TABLE = {
 
 // The live surface — the panel's fourth block and the seams' read.
 inline DriverSurface DRIVER_LIVE = DRIVER_TABLE;
-static_assert(sizeof(DriverSurface) == 24 * sizeof(float),
+static_assert(sizeof(DriverSurface) == 18 * sizeof(float),
     "DRIVER_LIVE is a whole-struct copy of the design row: a field added "
-    "to one is added to the other by construction. 24 words — fog 1, "
-    "aura 4, checker 6, ribbon 7, cube 4, ground 2");
+    "to one is added to the other by construction. 18 words — fog 1, "
+    "aura 4, ribbon 7, cube 4, ground 2");
 
 } // namespace the_board
 } // namespace t7
