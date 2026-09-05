@@ -63,6 +63,11 @@ namespace the_board {
         bool     born = false;           // has the seed dispatch run for this world
         float    tick_period = 1.0f;     // beats — drawn, mirrored here for the gate
         int32_t  last_tick_index = -1;   // the tick cursor (was per zone)
+        // RELIEF_0 — the seam writes pending every frame; the tick gate
+        // copies it to latched and uploads it, so a bar's relief lands
+        // with the step that follows it and never between.
+        float relief_pending[12] = {};
+        float relief_latched[12] = {};
     };
 
     // ═══ THE DRAW — ONCE PER WORLD ═══════════════════════════════════
@@ -154,6 +159,12 @@ namespace the_board {
 
         as.tick_period = as.cfg.tick_period;
         as.last_tick_index = -1;
+        // stale relief does not cross worlds (RELIEF_0): birth zeroes both
+        // halves of the latch; the GPU seat rests zeroed with the config.
+        for (int i = 0; i < 12; ++i) {
+            as.relief_pending[i] = 0.0f;
+            as.relief_latched[i] = 0.0f;
+        }
         as.born = false;
     }
 
@@ -218,6 +229,13 @@ namespace the_board {
         const int32_t current_tick = (int32_t)std::floor(c->time_state_.beats / effective_period);
         const bool should_tick = (current_tick != as.last_tick_index);
         if (should_tick) as.last_tick_index = current_tick;
+        // RELIEF_0 — the latch: a bar's relief lands with the step that
+        // follows it and never between. The seam wrote pending; the tick
+        // copies and uploads, so the GPU only ever sees tick-aligned lanes.
+        if (should_tick) {
+            for (int i = 0; i < 12; ++i) as.relief_latched[i] = as.relief_pending[i];
+            c->gpuState_.upload_automaton_relief(queue, as.relief_latched);
+        }
 
         c->gpuState_.upload_automaton_header(
             queue, c->time_state_.beats, c->time_state_.dt, should_tick);

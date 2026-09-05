@@ -266,6 +266,7 @@ namespace t7 {
             // turns them into the automaton's two multipliers is at the seam.
             TargetBinding ground_energy_dst_{};
             TargetBinding ground_density_dst_{};
+            TargetBinding ground_relief_dst_{};  // "ground.relief" — ch5's presence fractions (RELIEF_0)
             // The strike's pipe (STRIKE_0) — twelve one-frame impulse
             // lanes; the seam maps pc → wheel station and stamps the
             // radial-pulse ring.
@@ -822,6 +823,7 @@ namespace t7 {
                 cube_light_dst_ = visual_canvas_.layout().resolve("cube.light");
                 ground_energy_dst_  = visual_canvas_.layout().resolve("ground.energy");
                 ground_density_dst_ = visual_canvas_.layout().resolve("ground.density");
+                ground_relief_dst_ = visual_canvas_.layout().resolve("ground.relief");
                 ground_strike_dst_ = visual_canvas_.layout().resolve("ground.strike");
                 std::fprintf(stderr,
                     "[the_board] fog.density base=%d valid=%d | fog.color base=%d count=%d valid=%d\n",
@@ -842,6 +844,10 @@ namespace t7 {
                     ground_density_dst_.base, (int)ground_density_dst_.valid,
                     (double)DRIVER_LIVE.ground.height_gain,
                     (double)DRIVER_LIVE.ground.tick_gain);
+                std::fprintf(stderr,
+                    "[the_board] ground.relief base=%d valid=%d | voice %s | depth %.2f\n",
+                    ground_relief_dst_.base, (int)ground_relief_dst_.valid,
+                    RELIEF_VOICE, (double)DRIVER_LIVE.ground.relief_depth);
             }
 
             // ═══════════════════════════════════════════════════════════════
@@ -1248,6 +1254,23 @@ namespace t7 {
                         }
                         if (stamped) gpuState_.set_pulse_data(pulse_live_, pulse_ring_);
                     }
+                }
+
+                // ── THE GROUND'S KEYBOARD (RELIEF_0) ────────────────────
+                // The canvas publishes ch5's presence fraction per pitch
+                // class; this seam applies the depth and hands the
+                // automaton its PENDING relief. The tick gate latches it
+                // (surface/automaton.hpp) — nothing here reaches the GPU,
+                // which is what makes "next update, not real time" a fact
+                // rather than a wish. Depth 0 writes the rest (no relief).
+                {
+                    const float d = DRIVER_LIVE.ground.relief_depth;
+                    const VisualParams& rp = visual_canvas_.params();
+                    for (int pc = 0; pc < 12; ++pc)
+                        automaton_state_.relief_pending[pc] =
+                            (d > 0.0f && ground_relief_dst_.valid)
+                                ? std::clamp(d * rp.get(ground_relief_dst_.base + pc), 0.0f, 1.0f)
+                                : 0.0f;
                 }
 
                 // THE CHOIR (CHOIR_0 U4): the canvas envelopes one light

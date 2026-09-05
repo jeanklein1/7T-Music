@@ -171,7 +171,7 @@ namespace the_board {
         AutomatonBoundary::REFLECT,       // Conway's, transcribed — see below
 
         0.12f,  0.03f,                    // density,             ±
-        8.0f,   2.0f,                     // tick_period (beats), ±
+        4.0f,   0.0f,                     // tick_period (beats), ± — RELIEF_0: the tick IS the bar, on the bar line
         0.08f,  0.02f,                    // transition_fraction, ±
         24.0f,  7.5f,                     // alive_height,        ±
 
