@@ -430,6 +430,7 @@ ORGAN_PARAM_GEN(AUTOMATON, AutomatonBank, height_factor_hi,    F32, 0.0f, 3.0f, 
 ORGAN_PARAM(DRIVERS, DriverSurface, ground.height_gain, F32, 0.0f, 4.0f, 0.01f, "Terrain · Ground voice", "lift gain")
 ORGAN_PARAM(DRIVERS, DriverSurface, ground.tick_gain,   F32, 0.0f, 4.0f, 0.01f, "Terrain · Ground voice", "quicken gain")
 ORGAN_PARAM(DRIVERS, DriverSurface, ground.ring_gain,   F32, 0.0f, 24.0f, 0.1f, "Terrain · Ground voice", "strike ring (wu)")
+ORGAN_PARAM(DRIVERS, DriverSurface, ground.relief_depth, F32, 0.0f, 1.0f, 0.01f, "Terrain · Ground voice", "relief depth (1 = flat)")
 
 // ─── Pawn · Aura (the drivers' room + its witnesses) ─────────────────
 // The intent is the presence ramp's rest TARGET; key 3 and the aura policy

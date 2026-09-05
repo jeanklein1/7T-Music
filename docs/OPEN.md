@@ -2357,6 +2357,44 @@ prescription: list the helper, widen the match. Widening only — more
 handles can match, never fewer. Jean kept it; the STOP state it replaced
 is one revert away and no longer wanted.
 
+## THE GROUND'S KEYBOARD (RELIEF_0 — closed on landing; the probe is the close)
+
+Every automaton cell is born a key of one pitch class (a per-world
+mosaic); once a bar, the ground latches channel 5's Wagon — how many
+beats each pitch class sounded in the last bar — and at that tick the
+alive cells of the played classes stand lower, linearly from full
+height at silence down to 20 % of their height at a full bar's
+presence. The cubes light up when their key sounds; the ground carves
+down. Jean's rulings, 2026-09-05:
+
+- **The tick IS the bar**: `tick_period` 4.0 ± 0.0 (both stay gen
+  dials; 16 buys the four-bar breath with last-bar-wins semantics for
+  free, since the window stays four beats).
+- **A linear gradient to a 20 % floor**: factor = 1 − depth · presence,
+  presence = beats/4; `relief_depth` rests at 0.8; 0 is hands off.
+- **GROUND_VOICE stacks**: energy lifts, density quickens, RELIEF
+  carves — three multipliers on one extrusion, each silence-able.
+- **The mosaic is the seed's**: `gol_cell_pc` hashes the cell address
+  with `config.world_seed` (property 9500); REBIRTH redraws the
+  keyboard; the jitter hash keeps its seedless law.
+- **Voice ch5** (chN = wire = Ableton − 1); the pipe's lanes are RAW
+  pitch class, read through the dressed fold — `window_length` ships
+  DRESSED like every published vector, so the ear walks
+  `dressed_of_pc` exactly as the choir's does.
+- **The latch law**: the seam writes PENDING every frame; the tick
+  gate copies to LATCHED and uploads, so a bar's relief lands with the
+  step that follows it and never between.
+- **Only height**: the FS tint, the life planes, the rule and the step
+  untouched; `AUTO_CELL_RETRACT` (the cubes' carve) composed beside,
+  never through.
+
+Flags: **F-TALL** — `alive_height` stays a desk number (24 ± 7.5, the
+live gen dial; the campaign changed no number Jean can turn at the
+desk). **F-WINDOW** — `RELIEF_WINDOW_BEATS` (visual_canvas.hpp) and
+canvas_1's `default_spec` window literal are two literals of one fact;
+a named window constant is a later tidy. **F-FOUR** — the four-bar
+breath is `tick_period 16`, one dial turn, not a second mechanism.
+
 ## THE HANDOVER LIST (THE_PANEL's close — the coupling campaign's table)
 
 **THE WRAP ORDER §2.3 asks that the next campaign's handoff be authorable
