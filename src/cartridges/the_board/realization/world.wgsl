@@ -1648,7 +1648,7 @@ fn discrete_cell_color_at_tier(
 // the ROW blocks (§2.2) or the CPU boot pins — never as kernel
 // literals.
 //
-// Mirrors GPUDesignConfig in state.hpp BYTE-FOR-BYTE (672 B).
+// Mirrors GPUDesignConfig in state.hpp BYTE-FOR-BYTE (784 B).
 //
 // AND THE MARKER EARNED ITS KEEP ONE UNIT AFTER IT WAS WRITTEN. U2 added
 // it and pinned 688; U5 retired the mosaic from this room and the ledger's
@@ -1959,6 +1959,19 @@ struct DesignConfig {
     shadow_pcf_taps: u32,
     _pad720_1: f32,
     _pad720_2: f32,
+    // ─── INK_0 — the floor's colour keyboard ─────────────────────────
+    // stain: per pitch class, gain × presence fraction (0..1) from ch4's
+    //   Wagon. ink: per pitch class, gain × the Playhead's black envelope
+    //   (0..1). Uniform f32 arrays stride 16, so both are three vec4s;
+    //   lane pc lives at [pc >> 2u][pc & 3u]. stain_turn: turns of the
+    //   hue wheel at full presence (hand dial, rest 1/3). (This room's
+    //   668→672 tail pad is implicit; the C++ twin spells it.)
+    stain: array<vec4<f32>, 3>,
+    ink: array<vec4<f32>, 3>,
+    stain_turn: f32,
+    _pad784_0: f32,
+    _pad784_1: f32,
+    _pad784_2: f32,
 }
 
 // §2.2 — THE TERRAIN_LOOKS PANEL (WGSL room)
@@ -3126,7 +3139,7 @@ fn contrib_automaton_at(world_xz: vec2<f32>) -> f32 {
     let idx = u32(cy) * auto_config.grid_size + u32(cx);
     let visual = auto_life[AUTO_CELL_VISUAL + idx];
     let height_factor = auto_life[AUTO_CELL_HEIGHT_FACTOR + idx];
-    return visual * auto_config.alive_height * height_factor * config.mode_gol_height_scale * gol_cell_relief(u32(cx), u32(cy));
+    return visual * auto_config.alive_height * height_factor * config.mode_gol_height_scale * gol_cell_relief(addr.x, addr.y);
 }
 
 
@@ -6636,14 +6649,18 @@ fn gol_cell_variation(h: u32) -> f32 {
 // pitch class, drawn from the cell's address AND the world seed, so the
 // mosaic is the seed's and REBIRTH redraws it. (The jitter hash beside
 // this deliberately takes no seed; that is its standing law, untouched.)
+// GLOBAL cell address (INK_0): every consumer — the automaton's
+// contributor, the colour function, the fragment shader — computes the
+// key from the address it already has, with no origin knowledge. The
+// relief's keys redrew once at this landing (F-ADDR).
 const AUTO_CELL_PC_PROP: u32 = 9500u;
-fn gol_cell_pc(cx: u32, cy: u32) -> u32 {
-    let v = hash_property(gol_cell_hash(cx, cy) ^ config.world_seed, AUTO_CELL_PC_PROP);
+fn gol_cell_pc(gx: i32, gz: i32) -> u32 {
+    let v = hash_property(gol_cell_hash(bitcast<u32>(gx), bitcast<u32>(gz)) ^ config.world_seed, AUTO_CELL_PC_PROP);
     return min(u32(v * 12.0), 11u);
 }
 // The cell's relief factor, 1 at rest: 1 − the latched lane of its class.
-fn gol_cell_relief(cx: u32, cy: u32) -> f32 {
-    let pc = gol_cell_pc(cx, cy);
+fn gol_cell_relief(gx: i32, gz: i32) -> f32 {
+    let pc = gol_cell_pc(gx, gz);
     let lane = auto_config.relief[pc >> 2u][pc & 3u];
     return 1.0 - clamp(lane, 0.0, 1.0);
 }

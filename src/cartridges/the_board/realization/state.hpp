@@ -978,6 +978,14 @@ namespace t7 {
             // checker_resultant; one fresh pad carries 668 back to the
             // 16-byte boundary at 672.
             float _pad672_0;
+
+            // ─── INK_0 — the floor's colour keyboard ─────────────────
+            float stain[12];   // INK_0 — per pitch class, gain × presence fraction (0..1) from ch4's Wagon
+            float ink[12];     // INK_0 — per pitch class, gain × the Playhead's black envelope (0..1)
+            float stain_turn;  // INK_0 — turns of the hue wheel at full presence (hand dial, rest 1/3)
+            float _pad784_0;
+            float _pad784_1;
+            float _pad784_2;
         };
 
         struct alignas(16) GPUTileGridEntry {
@@ -1882,8 +1890,9 @@ namespace t7 {
         // RIBBON_2's 688 while the message ran on through KITE_1,
         // PANORAMA_1 and ONE_WORLD-I. One home now, and it is the message
         // a failing build prints.
-        static_assert(sizeof(GPUDesignConfig) == 672,
-            "GPUDesignConfig is 672 bytes, and this witness is the L3 "
+        static_assert(sizeof(GPUDesignConfig) == 784,
+            "GPUDesignConfig is 784 bytes (INK_0: 672 -> 784 — the keyboard's "
+            "two lane arrays + stain_turn + three tail pads), and this witness is the L3 "
             "handshake with world.wgsl's DesignConfig — the two rooms grow "
             "and shrink in one commit or not at all.\n"
             "\n"
@@ -1937,7 +1946,9 @@ namespace t7 {
         // pad. The trailing 4-byte pad is spent, so the next knob meets this.
         static_assert(offsetof(GPUDesignConfig, sun_direction)     % 16 == 0
                    && offsetof(GPUDesignConfig, fog_color)         % 16 == 0
-                   && offsetof(GPUDesignConfig, _pad_checker_resultant_retired) % 16 == 0,
+                   && offsetof(GPUDesignConfig, _pad_checker_resultant_retired) % 16 == 0
+                   && offsetof(GPUDesignConfig, stain) == 672
+                   && offsetof(GPUDesignConfig, stain_turn) == 768,
             "every float[3] whose WGSL twin is vec3<f32> must sit on a 16-byte "
             "boundary — WGSL rounds vec3 up to align 16 and C++ does not, so an "
             "off-boundary one silently shifts the whole mirror (see GROWTH LAW)");
@@ -3073,6 +3084,28 @@ namespace t7 {
             // CHECKER-REBUILD: the pc-color field — one call carries the
             // fan (resultant rgb + music amount + music variance travel on
             // one span). Enveloping lives in the coupling decode, never here.
+            // INK_0 — the keyboard's three seats. Dirty only when a lane
+            // (or the turn) actually moved, the house inequality gate.
+            void set_ground_stain(const float lanes[12]) {
+                bool moved = false;
+                for (int i = 0; i < 12; ++i) moved = moved || (config_.stain[i] != lanes[i]);
+                if (moved) {
+                    for (int i = 0; i < 12; ++i) config_.stain[i] = lanes[i];
+                    configDirty_ = true;
+                }
+            }
+            void set_ground_ink(const float lanes[12]) {
+                bool moved = false;
+                for (int i = 0; i < 12; ++i) moved = moved || (config_.ink[i] != lanes[i]);
+                if (moved) {
+                    for (int i = 0; i < 12; ++i) config_.ink[i] = lanes[i];
+                    configDirty_ = true;
+                }
+            }
+            void set_stain_turn(float v) {
+                if (config_.stain_turn != v) { config_.stain_turn = v; configDirty_ = true; }
+            }
+
             void set_mode_gol_scales(float tick_scale, float height_scale) {
                 if (config_.mode_gol_tick_scale != tick_scale || config_.mode_gol_height_scale != height_scale) {
                     config_.mode_gol_tick_scale = tick_scale;
@@ -4756,6 +4789,10 @@ namespace t7 {
                 // its guard tested a varying no vertex entry ever wrote.
                 // Retired at THE_PANEL I U5 on Jean's standing default.
                 config_._pad672_0 = 0.0f;
+                // INK_0 — the keyboard rests silent: both lane arrays zero
+                // (value-init writes them; stated here with the other rests)
+                // and the turn at a third of the wheel, Jean's amplitude.
+                config_.stain_turn = terrain_looks::REST_STAIN_TURN;
                 config_.fog_density = 0.003f;
                 config_.fog_color[0] = 0.85f;
                 config_.fog_color[1] = 0.78f;

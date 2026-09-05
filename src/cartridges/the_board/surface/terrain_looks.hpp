@@ -111,6 +111,9 @@ inline constexpr float REST_MODE_PALETTE_DRIFT_TIER = 0.0f;
 // Pulse ring rest: count 0 with a zeroed ring IS the rest (the boot
 // pin sources it from here).
 inline constexpr std::uint32_t REST_PULSE_COUNT = 0;
+// INK_0 — the stain's amplitude at rest: a third of the hue wheel at a
+// full bar's presence (Jean's ruling; the boot pin sources it here).
+inline constexpr float REST_STAIN_TURN = 1.0f / 3.0f;
 
 // ── ROWS 3-8 — see the WGSL room (world.wgsl §2.2 TERRAIN_LOOKS) ────
 //   ROW 3 PALETTE COMPOSITION: PALETTE_DOMINANT_WEIGHT / _MINOR_WEIGHT

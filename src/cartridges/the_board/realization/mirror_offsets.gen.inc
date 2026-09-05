@@ -138,7 +138,7 @@ static_assert(offsetof(GPURibbonState, color_b) == 96,
 static_assert(offsetof(GPURibbonState, hue_spread) == 108,
     "RibbonState.hue_spread is at 108 in world.wgsl (f32); the two rooms must agree field for field");
 
-// ── DesignConfig  ↔  GPUDesignConfig  (91 members asserted) ──
+// ── DesignConfig  ↔  GPUDesignConfig  (97 members asserted) ──
 static_assert(offsetof(GPUDesignConfig, mute_dynamics_0d) == 0,
     "DesignConfig.mute_dynamics_0d is at 0 in world.wgsl (u32); the two rooms must agree field for field");
 static_assert(offsetof(GPUDesignConfig, _pad_mute_signal_retired) == 4,
@@ -321,6 +321,18 @@ static_assert(offsetof(GPUDesignConfig, _pad720_1) == 660,
     "DesignConfig._pad720_1 is at 660 in world.wgsl (f32); the two rooms must agree field for field");
 static_assert(offsetof(GPUDesignConfig, _pad720_2) == 664,
     "DesignConfig._pad720_2 is at 664 in world.wgsl (f32); the two rooms must agree field for field");
+static_assert(offsetof(GPUDesignConfig, stain) == 672,
+    "DesignConfig.stain is at 672 in world.wgsl (array<vec4<f32>, 3>); the two rooms must agree field for field");
+static_assert(offsetof(GPUDesignConfig, ink) == 720,
+    "DesignConfig.ink is at 720 in world.wgsl (array<vec4<f32>, 3>); the two rooms must agree field for field");
+static_assert(offsetof(GPUDesignConfig, stain_turn) == 768,
+    "DesignConfig.stain_turn is at 768 in world.wgsl (f32); the two rooms must agree field for field");
+static_assert(offsetof(GPUDesignConfig, _pad784_0) == 772,
+    "DesignConfig._pad784_0 is at 772 in world.wgsl (f32); the two rooms must agree field for field");
+static_assert(offsetof(GPUDesignConfig, _pad784_1) == 776,
+    "DesignConfig._pad784_1 is at 776 in world.wgsl (f32); the two rooms must agree field for field");
+static_assert(offsetof(GPUDesignConfig, _pad784_2) == 780,
+    "DesignConfig._pad784_2 is at 780 in world.wgsl (f32); the two rooms must agree field for field");
 
 // ── FieldAuthored  ↔  GPUFieldAuthored  (3 members asserted) ──
 static_assert(offsetof(GPUFieldAuthored, count) == 0,
