@@ -434,9 +434,8 @@ is.
 enrolled home that the panel does not name, and why the record says so.
 A row here is a REASON on file, not a parking ticket — when a reason
 dies, its row must die with it (the mute's row above is the cautionary
-tale). Standing at STRIKE_0 R: **40 absent, 35 reasoned, 5 stopped to
-the report** — the two `OrbConfig` lines failed their own recon guard
-and their reasons are the round report's to carry until re-authored.
+tale). Standing at the R-round's close: **40 absent, 40 reasoned, 0
+unexplained.**
 
 | home · field | reason |
 |---|---|
@@ -449,6 +448,10 @@ and their reasons are the round report's to carry until re-authored.
 | `GPUDesignConfig` · `pulse_count`, `pulse_data` | the ring's seat — DRIVEN by the strike writer since STRIKE_0; the hand's dial is `ground.ring_gain` |
 | `GPUDesignConfig` · `possessed_slot`, `point_host`, `cull_point_x`, `cull_point_z` | the program's own hands — possession and camera state, authored per frame, never a dial |
 | `GPUDesignConfig` · `draw_ring`, `cube_plasticity` | dark by ruling (STRIKE_0 U3f): rows retired, fields await a relayout campaign |
+| `OrbConfig` · `motion_rule` | dead column — the applier ignores it: `configure_orbs` seeds Brownian hardcoded and the rule is player-owned after (`current_motion_rule`, the door's fact); excision or a reader is a future ruling |
+| `OrbConfig` · `flock_gesture_default` | a first-run SEED — "the world seeds once, player wins after": read once in `apply_first_run_defaults_`, then the ORB_GESTURE door owns the fact; a dial would be a second hand after the first frame |
+| `OrbConfig` · `base_hue`, `hue_variance` | dead columns — faithfully copied into the legacy single-hue arm the palette law made unreachable ("the enrollment stated a belief, the reader refused it" — the applier's own banner); excision or a reachable arm is a future ruling |
+| `OrbConfig` · `hue_converge_target` | a live per-world read at the convergence walk — the seed's character, the automaton-spread precedent |
 | `OrbConfig` · `tierset_id` | (standing row above — the sentinel a 0…1 slider cannot say; kept there, referenced here) |
 | `PawnAuraProfile` · `effect_mask` | a bitmask, mirrored and unread (STATUS: INTENT) — the checkbox-grid class, unbuilt; a reader or an excision is a future ruling |
 | `RibbonSurface` · sixteen movement fields | MOVEMENT, whole — the headline gap, parked by ruling for the movement campaign (ORGAN_REST, reaffirmed at the STRIKE_0 freeze-lift) |
