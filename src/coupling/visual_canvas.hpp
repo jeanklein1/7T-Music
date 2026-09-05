@@ -313,6 +313,11 @@ namespace t7 {
         // one, so no rest constant has to promise it.
         { "ground.energy",  51, 1, 0.0f },   // all.field — the room's held energy
         { "ground.density", 52, 1, 0.0f },   // Σ all.current_pc — voices sounding
+        // ── the strike ── twelve one-frame impulse lanes, one per pitch
+        // class: 1.0 on any rank's activation edge, else 0. A
+        // SOURCE-shaped pipe like the ground's two; the cartridge maps
+        // pc → wheel station and stamps the terrain ring (STRIKE_0).
+        { "ground.strike", 53, 12, 0.0f },
     };
     inline constexpr uint32_t PARAM_LAYOUT_COUNT =
         sizeof(PARAM_LAYOUT) / sizeof(PARAM_LAYOUT[0]);
@@ -415,6 +420,7 @@ namespace t7 {
             for (int k = 0; k < CHOIR_LANES; ++k) choir_I_[k] = 0.0f;
             choir_sounding_ = 0ull;
             choir_target_ = param_layout_.resolve("cube.light");
+            strike_target_ = param_layout_.resolve("ground.strike");
             // Boot witness — doctrine, not measurement (P6): one line,
             // always, so a deaf choir names its fault at the seam.
             // THREE WIDTHS NOW, AND THIS LINE MAY ONLY CLAIM THE TWO IT
@@ -705,6 +711,12 @@ namespace t7 {
                         ? dbe / canvas::CANVAS_LIVE.light_release : 1.0f);
                 const int lanes = (choir_target_.count < CHOIR_LANES)
                     ? choir_target_.count : CHOIR_LANES;
+                // ── the strike (STRIKE_0) ── the pipe rests at 0 every
+                // tick; an activation edge below raises its pc lane for
+                // exactly this frame.
+                if (strike_target_.valid)
+                    for (int pc = 0; pc < 12; ++pc)
+                        params_.set(strike_target_.base + pc, 0.0f);
                 for (int k = 0; k < lanes; ++k) {
                     const int   rank  = k / 12;
                     const int   pc    = k % 12;
@@ -726,8 +738,15 @@ namespace t7 {
                     // it against the seam's boot line, which names how
                     // many of these lanes are keys.
                     const unsigned long long bit = 1ull << k;
+                    // The edge, hoisted (STRIKE_0): one home for the
+                    // strike fact — the witness prints it, the strike
+                    // pipe publishes it. Any rank's edge fires its pc
+                    // lane; a second rank of one pc re-writes the same 1.0.
+                    const bool struck = on && !(choir_sounding_ & bit);
+                    if (struck && strike_target_.valid)
+                        params_.set(strike_target_.base + pc, 1.0f);
                     if constexpr (INSTRUMENTS.zoetrope_witness) {
-                        if (on && !(choir_sounding_ & bit))
+                        if (struck)
                             std::fprintf(stderr, "[CHOIR] key=%02d I=%.2f\n", k, I);
                     }
                     if (on) choir_sounding_ |=  bit;
@@ -847,6 +866,7 @@ namespace t7 {
         // ── choir coupling state (one ear, one envelope per key) ─────────
         SourceBinding choir_ear_{};              // "<CHOIR_VOICE>.present_count" — the sounding count per pc
         TargetBinding choir_target_{};           // "cube.light" — CHOIR_LANES wide
+        TargetBinding strike_target_{};          // "ground.strike" — 12 one-frame impulse lanes (STRIKE_0)
         float         choir_I_[CHOIR_LANES] = {};  // the enveloped light, one per key; state, not an impulse
         unsigned long long choir_sounding_ = 0ull; // the activation edge's memory — one bit per key (36 ≤ 64)
         static_assert(CHOIR_LANES <= 64,

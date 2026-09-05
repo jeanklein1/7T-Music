@@ -266,6 +266,16 @@ namespace t7 {
             // turns them into the automaton's two multipliers is at the seam.
             TargetBinding ground_energy_dst_{};
             TargetBinding ground_density_dst_{};
+            // The strike's pipe (STRIKE_0) — twelve one-frame impulse
+            // lanes; the seam maps pc → wheel station and stamps the
+            // radial-pulse ring.
+            TargetBinding ground_strike_dst_{};
+            // The 8-slot pulse ring's CPU shadow — (x, z, onset, amp) × 8,
+            // the seat set_pulse_data uploads. Rebirth zeroes it: stale
+            // rings do not cross worlds.
+            float pulse_ring_[32] = {};
+            uint32_t pulse_next_ = 0;
+            uint32_t pulse_live_ = 0;
 
             // Sun + atmosphere — authored solely by stage_world_birth, at boot
             // and at every rebirth. No boot literals: ATMOS_LIVE is the one
@@ -812,6 +822,7 @@ namespace t7 {
                 cube_light_dst_ = visual_canvas_.layout().resolve("cube.light");
                 ground_energy_dst_  = visual_canvas_.layout().resolve("ground.energy");
                 ground_density_dst_ = visual_canvas_.layout().resolve("ground.density");
+                ground_strike_dst_ = visual_canvas_.layout().resolve("ground.strike");
                 std::fprintf(stderr,
                     "[the_board] fog.density base=%d valid=%d | fog.color base=%d count=%d valid=%d\n",
                     fog_density_dst_.base, (int)fog_density_dst_.valid,
@@ -1212,6 +1223,33 @@ namespace t7 {
                     gpuState_.set_mode_gol_scales(tick_mul, height_mul);
                 }
 
+                // ── THE STRIKE'S RING (STRIKE_0 U2) ─────────────────────
+                // The canvas raises a pc lane for one frame on any rank's
+                // activation edge; this seam gives the strike a PLACE —
+                // the pc's rank-0 station on the LIVE wheel — and stamps
+                // the dormant radial-pulse ring through the seat that has
+                // waited since gen-1. Amplitude is the gain verbatim (wu
+                // against alive_height's 24); gain 0 is hands off: no new
+                // rings, standing ones age out inside PULSE_MAX_AGE.
+                {
+                    const float rg = DRIVER_LIVE.ground.ring_gain;
+                    if (rg > 0.0f && ground_strike_dst_.valid) {
+                        const VisualParams& sp = visual_canvas_.params();
+                        bool stamped = false;
+                        for (uint32_t pc = 0; pc < 12u; ++pc) {
+                            if (sp.get(ground_strike_dst_.base + (int)pc) <= 0.5f) continue;
+                            const WheelStation s = wheel_station(PANEL_LIVE.wheel, pc);
+                            float* p = &pulse_ring_[(pulse_next_ % 8u) * 4u];
+                            p[0] = s.off_x; p[1] = s.off_z;
+                            p[2] = time_state_.seconds; p[3] = rg;
+                            ++pulse_next_;
+                            if (pulse_live_ < 8u) ++pulse_live_;
+                            stamped = true;
+                        }
+                        if (stamped) gpuState_.set_pulse_data(pulse_live_, pulse_ring_);
+                    }
+                }
+
                 // THE CHOIR (CHOIR_0 U4): the canvas envelopes one light
                 // per key; this seam composes it against the drivers' room
                 // and MIRRORS the result into the cube body's own state.
@@ -1558,6 +1596,13 @@ namespace t7 {
                 // Sky orbs: stage_world_birth re-enables + re-seeds as needed
                 if constexpr (ROSTER.orbs)  // ROSTER-GATE orbs (c) — teardown one-shot skipped when disabled
                     teardown_orbs(orbs_state_, &orbs_deps_);
+
+                // stale rings do not cross worlds (STRIKE_0 U2c): zero the
+                // CPU shadow and pin the GPU seat back to rest.
+                pulse_next_ = 0;
+                pulse_live_ = 0;
+                for (float& pv : pulse_ring_) pv = 0.0f;
+                gpuState_.set_pulse_data(terrain_looks::REST_PULSE_COUNT, pulse_ring_);
 
                 // THE AUTHORED PRESENT (POINT_1): at a rebirth the
                 // CPU is the author of the new present — the same

@@ -3216,7 +3216,8 @@ fn ground_formed_with_complexity(world_xz: vec2<f32>) -> vec2<f32> {
 
 // ─── Radial pulses: expanding ring wavefronts from note onsets ──────────
 //
-// Each pulse is an expanding ring centered on the pawn's position at onset.
+// Each pulse is an expanding ring centered on the struck key's wheel
+// station at onset (STRIKE_0; gen-1 centered it on the pawn).
 // The wavefront radius grows with time; a gaussian envelope makes the ring
 // thin. Distance damping and age decay give natural falloff.
 //
@@ -3235,8 +3236,10 @@ const PULSE_AGE_DECAY: f32 = 0.4;      // age damping (1/seconds — half amplit
 // Notes: t_seconds is an explicit parameter so the contributor works in
 //   both render stages and compute stages
 //   (signal.t_seconds). 8-slot ring buffer; dead entries early-exit.
-// DRIVERLESS since gen-1 retirement — held at neutral by the boot
-// block; revive via a gen-2 coupling or delete on the next pass here.
+// DRIVEN since STRIKE_0 (gen-2): the `ground.strike` pipe →
+// `phase_motion_drivers` stamps the 8-slot ring; origin = the struck
+// pc's rank-0 wheel station, amplitude = DRIVER ring_gain. Rest =
+// count 0 (boot pin) and after every rebirth.
 fn contrib_radial_pulses_at(world_xz: vec2<f32>, t_seconds: f32) -> f32 {
     if (config.pulse_count == 0u) { return 0.0; }
 
