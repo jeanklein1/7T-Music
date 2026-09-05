@@ -3156,7 +3156,8 @@ fn contrib_pyramids_at(world_xz: vec2<f32>) -> f32 {
 }
 
 // CONTRIB_AUTOMATON — slow_dynamic, global.
-// Contributes: raw GoL cell extrusion (visual × alive_height × per-cell factor).
+// Contributes: raw GoL cell extrusion (visual × alive_height × per-cell factor)
+//   × the class's latched relief (RELIEF_0 — the ground's keyboard).
 // Dependencies (via DAG): none — composes onto the static stack additively.
 // Notes: no consumer-local suppression here; that is contrib_gol_suppression_at.
 // A LOOP OVER EIGHT ISLANDS BECAME ONE LOOKUP (ONE_SURFACE-II U1).
@@ -3177,7 +3178,7 @@ fn contrib_automaton_at(world_xz: vec2<f32>) -> f32 {
     let idx = u32(cy) * auto_config.grid_size + u32(cx);
     let visual = auto_life[AUTO_CELL_VISUAL + idx];
     let height_factor = auto_life[AUTO_CELL_HEIGHT_FACTOR + idx];
-    return visual * auto_config.alive_height * height_factor * config.mode_gol_height_scale;
+    return visual * auto_config.alive_height * height_factor * config.mode_gol_height_scale * gol_cell_relief(u32(cx), u32(cy));
 }
 
 
@@ -4583,6 +4584,8 @@ fn patch_terrain_vs(
     // RETRACT_1 — the cubes' carve, world-anchored (life texel G; written
     // by automaton_evolve's gather). Composed multiplicatively with the
     // consumer-local carves: three independent flattenings, one product.
+    // (A fourth, RELIEF, rides inside the card's gol channel — it is part
+    // of the extrusion, not a suppression, so walkers stand on it too.)
     // Fetched at this vertex's OWN cell centre, which is the FS tint's
     // addr_used for the same cell — one texel, two routes.
     let cell_center = ug_cell_center(pi.origin, pi.extent, d.cellx, d.cellz);
@@ -6615,10 +6618,16 @@ struct AutomatonConfig {
 
     // UNIFORM LAYOUT: 25 scalars is 100 B and a uniform struct rounds to
     // 16, so three words are spelled rather than inferred. The C++ twin
-    // carries them and a static_assert holds the 112.
+    // carries them and a static_assert holds the 160.
     _pad0: f32,
     _pad1: f32,
     _pad2: f32,
+
+    // RELIEF_0 — the ground's keyboard: twelve lanes, one per pitch class,
+    // each the LATCHED relief for that class (depth · presence, 0..1) as of
+    // the last tick. Three vec4 because a uniform array of f32 strides 16;
+    // lane pc lives at relief[pc >> 2u][pc & 3u]. Rest 0 = full height.
+    relief: array<vec4<f32>, 3>,
 }
 
 // The automaton's own seed band and property indices. The zones drew
@@ -6676,6 +6685,22 @@ fn gol_cell_hash(cx: u32, cy: u32) -> u32 {
 
 fn gol_cell_variation(h: u32) -> f32 {
     return f32(h & 0xFFFFu) / 65535.0;
+}
+
+// RELIEF_0 — THE GROUND'S KEYBOARD. Every cell is born a key of one
+// pitch class, drawn from the cell's address AND the world seed, so the
+// mosaic is the seed's and REBIRTH redraws it. (The jitter hash beside
+// this deliberately takes no seed; that is its standing law, untouched.)
+const AUTO_CELL_PC_PROP: u32 = 9500u;
+fn gol_cell_pc(cx: u32, cy: u32) -> u32 {
+    let v = hash_property(gol_cell_hash(cx, cy) ^ config.world_seed, AUTO_CELL_PC_PROP);
+    return min(u32(v * 12.0), 11u);
+}
+// The cell's relief factor, 1 at rest: 1 − the latched lane of its class.
+fn gol_cell_relief(cx: u32, cy: u32) -> f32 {
+    let pc = gol_cell_pc(cx, cy);
+    let lane = auto_config.relief[pc >> 2u][pc & 3u];
+    return 1.0 - clamp(lane, 0.0, 1.0);
 }
 
 // --- Boundary mode functions for Pulse algorithm

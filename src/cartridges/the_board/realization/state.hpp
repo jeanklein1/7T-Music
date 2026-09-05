@@ -1476,13 +1476,18 @@ namespace t7 {
             float    _pad0;
             float    _pad1;
             float    _pad2;
+
+            float relief[12];   // RELIEF_0 — pc lanes, latched at the tick (mirror of WGSL relief[3])
         };
         // 25 scalars is 100 B; a uniform struct rounds to 16, so the three
-        // pad words are SPELLED rather than inferred and this is the
-        // witness that both rooms agree on 112.
-        static_assert(sizeof(GPUAutomatonConfig) == 112,
-            "GPUAutomatonConfig must be 112 bytes — mirror of WGSL AutomatonConfig, "
-            "uniform-legal (25 scalars + 3 explicit pad words)");
+        // pad words are SPELLED rather than inferred, and the twelve
+        // relief lanes follow at the first 16-aligned word (RELIEF_0).
+        // This is the witness that both rooms agree on 160.
+        static_assert(sizeof(GPUAutomatonConfig) == 160,
+            "GPUAutomatonConfig must be 160 bytes — mirror of WGSL AutomatonConfig, "
+            "uniform-legal (25 scalars + 3 explicit pad words + 12 relief lanes)");
+        static_assert(offsetof(GPUAutomatonConfig, relief) == 112,
+            "the relief lanes follow the pads at the first 16-aligned word");
         static_assert(offsetof(GPUAutomatonConfig, cell_origin_x) == 16,
             "the per-frame header is the first four words; the world's corner follows it");
         static_assert(offsetof(GPUAutomatonConfig, density) == 80,
@@ -3563,6 +3568,14 @@ namespace t7 {
                     "the header is the struct's first three words and this write "
                     "addresses them positionally");
                 queue.WriteBuffer(automatonConfigBuffer_, 0, &header, sizeof(header));
+            }
+
+            // RELIEF_0 — the twelve lanes, written ONLY on a tick (the latch is the
+            // caller's; this is the seat). Positional like the header's own write.
+            void upload_automaton_relief(wgpu::Queue& queue, const float lanes[12]) {
+                static_assert(offsetof(GPUAutomatonConfig, relief) == 112,
+                    "the relief write addresses the lanes positionally");
+                queue.WriteBuffer(automatonConfigBuffer_, 112, lanes, 12 * sizeof(float));
             }
 
             // THE LIFE BUFFER HAS NO CPU UPLOAD, and that is the change.
