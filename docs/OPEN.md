@@ -1307,7 +1307,13 @@ choir envelope pair, the six driver gains, and the two dark rows'
 retirement (STAGE_0 F3). The wider gap census — RibbonSurface's 16
 movement dials et al. — stays parked for the seam campaign.
 `mode_threshold` was in the ruled set and STOPPED at recon (F-MODE,
-recorded at the STRIKE_0 rulings entry).
+recorded at the STRIKE_0 rulings entry). **RESOLVED (Jean, 2026-09-05):
+blessed as LAW.** The threshold is the automaton's compile-time doctrine
+— a hardware mirror (`AUTO_MODE_THRESHOLD`, world.wgsl), skipped by the
+transport on purpose, said so in three places. It stops reading as debt:
+the absence roll (docs/ORGAN.md) carries the reason. Transporting it
+into config remains possible if a performance ever wants that cut
+performable; nothing musical points there today.
 
 ## HEM_1 — THE HEM REACHES THE WALKERS (landed; two deferrals, one ruling)
 
@@ -2302,7 +2308,7 @@ Each key's colour is now a permanent identity across all worlds, which
 invites an **authored per-pitch-class palette** — twelve colours, one per pc,
 rank as a shade. **Invited, not built; Jean's.**
 
-## STRIKE_0 — THREE RULINGS ON THE RECORD (Jean's, 2026-09-05)
+## STRIKE_0 — FOUR RULINGS ON THE RECORD (Jean's, 2026-09-05)
 
 **THE MUTE CUT.** `mute_couplings` excised at U1; the eight couplings
 are unconditional facts; behavior-identical (the field was boot-NONE,
@@ -2324,6 +2330,20 @@ mirror — its other half is world.wgsl's `AUTO_MODE_THRESHOLD` const,
 `tag_cell_behavior` its only reader, the transport skips it by design —
 so a dial would be the two-home shape L46 forbids, and the enrollment
 file's own NOT-ENROLLED note stands as the tree's answer.
+**RESOLVED (Jean, 2026-09-05): blessed as LAW.** The threshold is the
+automaton's compile-time doctrine — a hardware mirror
+(`AUTO_MODE_THRESHOLD`, world.wgsl), skipped by the transport on
+purpose, said so in three places. It stops reading as debt: the absence
+roll (docs/ORGAN.md) carries the reason. Transporting it into config
+remains possible if a performance ever wants that cut performable;
+nothing musical points there today.
+
+**THE CENSUS WIDENING KEPT (F-CENSUS resolved).** The reader proof's
+`PARAM` matcher learns qualified parameter types (`PanelSurface::Wheel`)
+— blind spot 1's shape one level down, cured by the tool's own
+prescription: list the helper, widen the match. Widening only — more
+handles can match, never fewer. Jean kept it; the STOP state it replaced
+is one revert away and no longer wanted.
 
 ## THE HANDOVER LIST (THE_PANEL's close — the coupling campaign's table)
 
@@ -2933,9 +2953,9 @@ state, and filing it here would be the second home L46 forbids.
 | a coupling that drives a WRITABLE dial is hands-off at gain 0 | *THE HANDS-OFF-REST SEAM*, above (STAGE_0 R6) |
 | everything computed is visible | *THE STAGE LAW*, above (STAGE_0) |
 | GoL cell colour goes through the tint funnel | *THE GoL COLOUR RULING*, above (GROUND_VOICE_0) |
-| the mute registry is cut; eight couplings are unconditional facts | *STRIKE_0 — THREE RULINGS ON THE RECORD*, above |
-| the choir's identity stands across worlds | *STRIKE_0 — THREE RULINGS ON THE RECORD*, above |
-| the enrollment freeze is lifted for STRIKE_0's rows only | *STRIKE_0 — THREE RULINGS ON THE RECORD*, above; ORGAN_REST's tail |
+| the mute registry is cut; eight couplings are unconditional facts | *STRIKE_0 — FOUR RULINGS ON THE RECORD*, above |
+| the choir's identity stands across worlds | *STRIKE_0 — FOUR RULINGS ON THE RECORD*, above |
+| the enrollment freeze is lifted for STRIKE_0's rows only | *STRIKE_0 — FOUR RULINGS ON THE RECORD*, above; ORGAN_REST's tail |
 
 ### Jean's open gates
 

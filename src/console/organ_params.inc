@@ -421,6 +421,7 @@ ORGAN_PARAM_GEN(AUTOMATON, AutomatonBank, height_factor_hi,    F32, 0.0f, 3.0f, 
 // nothing until the shader was edited and reloaded. So the field stays
 // the bank's ONE unenrolled row — not because anything is missing, but
 // because the panel is not where this fact lives.
+// Blessed as LAW at STRIKE_0 R (Jean) — see docs/ORGAN.md's absence roll.
 
 // `Terrain · Mosaic`'s five dials stood here — the section retired at
 // THE_PANEL I U5 (docs/ORGAN_RETIRED.md).
