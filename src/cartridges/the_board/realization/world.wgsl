@@ -1612,31 +1612,43 @@ fn discrete_cell_color_at_tier(
     let bw_roll = hash_property(cell_seed, 830u);
     let parity = (cell_gx + cell_gz) & 1;
 
+    var c: vec3<f32>;
     switch (tier) {
         case 4u: {
             let chess = chess_field_at(world_xz);
-            return select(chess.color_a, chess.color_b, parity == 1);
+            c = select(chess.color_a, chess.color_b, parity == 1);
         }
         case 3u: {
-            return select(vec3(0.03), vec3(0.95), parity == 1);
+            c = select(vec3(0.03), vec3(0.95), parity == 1);
         }
         case 2u: {
-            return select(vec3(0.02), vec3(0.95), bw_roll > 0.5);
+            c = select(vec3(0.02), vec3(0.95), bw_roll > 0.5);
         }
         case 1u: {
             let region = discrete_region_at(world_xz);
             let base_grey = select(0.12, 0.85, bw_roll > 0.5);
-            return mix(vec3(base_grey), region.mean, DISCRETE_TINT_STRENGTH);
+            c = mix(vec3(base_grey), region.mean, DISCRETE_TINT_STRENGTH);
         }
         default: {
             let region = discrete_region_at(world_xz);
             let nr = (hash_property(cell_seed, 840u) - 0.5) * 2.0;
             let ng = (hash_property(cell_seed, 841u) - 0.5) * 2.0;
             let nb = (hash_property(cell_seed, 842u) - 0.5) * 2.0;
-            return clamp(region.mean + vec3(nr, ng, nb) * region.variance,
-                         vec3(0.0), vec3(1.0));
+            c = clamp(region.mean + vec3(nr, ng, nb) * region.variance,
+                      vec3(0.0), vec3(1.0));
         }
     }
+
+    // INK_0 — THE STAIN. The Wagon's presence of this cell's class turns
+    // its hue (a fraction of stain_turn), or on the achromatic tiers flips
+    // its lightness toward the opposite pole. Real time — no latch; the
+    // memory is the Wagon's own four-beat window. (hue_rotate takes
+    // RADIANS; stain_turn is TURNS, hence the 2π.)
+    let pc = gol_cell_pc(cell_gx, cell_gz);
+    let s = key_stain(pc);
+    if (tier >= 2u) { c = mix(c, vec3(1.0) - c, s); }
+    else            { c = hue_rotate(c, s * config.stain_turn * 6.28318530718); }
+    return c;
 }
 
 // --- [STATE:config] DesignConfig
@@ -4767,6 +4779,11 @@ fn patch_terrain_fs(in: PatchTerrainVarying) -> @location(0) vec4<f32> {
         }
     }
 
+    // INK_0 — THE INK. The Playhead's live notes black out their keys;
+    // black wins over the alive tint and the stain, and releases on the
+    // canvas's envelope (ink_release) into whatever the cell then wears.
+    base_color = mix(base_color, vec3(0.0), key_ink(gol_cell_pc(addr_used.x, addr_used.y)));
+
     // THE GEOMETRIC NORMAL, held before the aura touches it (PENUMBRA_1 P4).
     // Everything above this line is the real surface: a bilinear heightfield
     // gradient plus the live card's. The aura below is a SHADING fiction —
@@ -6664,6 +6681,10 @@ fn gol_cell_relief(gx: i32, gz: i32) -> f32 {
     let lane = auto_config.relief[pc >> 2u][pc & 3u];
     return 1.0 - clamp(lane, 0.0, 1.0);
 }
+
+// INK_0 — the keyboard's two lanes for a cell's key.
+fn key_stain(pc: u32) -> f32 { return clamp(config.stain[pc >> 2u][pc & 3u], 0.0, 1.0); }
+fn key_ink(pc: u32)   -> f32 { return clamp(config.ink[pc >> 2u][pc & 3u],   0.0, 1.0); }
 
 // --- Boundary mode functions for Pulse algorithm
 fn reflect01(x: f32) -> f32 {
