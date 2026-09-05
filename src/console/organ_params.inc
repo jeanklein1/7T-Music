@@ -232,7 +232,9 @@ ORGAN_PARAM_RO(CONFIG, GPUDesignConfig, fog_color,    VEC3, "Atmosphere · Fog",
 // SECTION KEEPS THE NAME, because "Ring & grain" is what the pair of
 // facts WAS and the group's history is worth one word of prose. Ask the
 // next campaign for a better name than a section of one.
-ORGAN_PARAM(CONFIG, GPUDesignConfig, draw_ring,   F32, 265.0f, 349.0f, 0.5f,  "Atmosphere · Ring & grain", "draw ring (the authority)")
+// `draw_ring`'s row retired STRIKE_0 U3 (STAGE_0 F3): the dial's
+// authority left with the ring; the FIELD stays, dark and boot-pinned —
+// field excision is a relayout and not this campaign's.
 // `lod0_radius` stood here — the terrain full/half-mesh split. Every patch
 // draws full mesh since ONE_SURFACE-I U5, so the dial named a boundary with
 // nothing on either side of it.
@@ -423,6 +425,11 @@ ORGAN_PARAM_GEN(AUTOMATON, AutomatonBank, height_factor_hi,    F32, 0.0f, 3.0f, 
 // `Terrain · Mosaic`'s five dials stood here — the section retired at
 // THE_PANEL I U5 (docs/ORGAN_RETIRED.md).
 
+// ─── Terrain · Ground voice (STRIKE_0 U3 — GROUND_VOICE's gains + the ring) ─
+ORGAN_PARAM(DRIVERS, DriverSurface, ground.height_gain, F32, 0.0f, 4.0f, 0.01f, "Terrain · Ground voice", "lift gain")
+ORGAN_PARAM(DRIVERS, DriverSurface, ground.tick_gain,   F32, 0.0f, 4.0f, 0.01f, "Terrain · Ground voice", "quicken gain")
+ORGAN_PARAM(DRIVERS, DriverSurface, ground.ring_gain,   F32, 0.0f, 24.0f, 0.1f, "Terrain · Ground voice", "strike ring (wu)")
+
 // ─── Pawn · Aura (the drivers' room + its witnesses) ─────────────────
 // The intent is the presence ramp's rest TARGET; key 3 and the aura policy
 // door write it here too. The two driven outputs witness below.
@@ -542,6 +549,21 @@ ORGAN_PARAM_GEN(RIBBON_SPAWN, RibbonSpawnSurface, smooth_var_g_scale,  F32,  0.0
 ORGAN_PARAM_GEN(RIBBON_SPAWN, RibbonSpawnSurface, smooth_var_b_scale,  F32,  0.0f, 2.0f,  0.01f,  "Ribbon · Colour", "smooth var × blue")
 ORGAN_PARAM_GEN(RIBBON_SPAWN, RibbonSpawnSurface, tinted_range[0],     VEC3, 0.0f, 1.0f,  0.01f,  "Ribbon · Colour", "tinted range")
 ORGAN_PARAM_GEN(RIBBON_SPAWN, RibbonSpawnSurface, tinted_base[0],      VEC3, 0.0f, 1.0f,  0.01f,  "Ribbon · Colour", "tinted base")
+
+// ─── Choir · Wheel (STRIKE_0 U3 — the five axes, WHEEL_0's sockets) ──
+ORGAN_PARAM(PANEL, PanelSurface, wheel.step,     F32, -12.0f, 12.0f, 0.01f, "Choir · Wheel", "step (1 chromatic … 7 fifths)")
+ORGAN_PARAM(PANEL, PanelSurface, wheel.radius,   F32,  10.0f, 200.0f, 0.5f, "Choir · Wheel", "inner radius (wu)")
+ORGAN_PARAM(PANEL, PanelSurface, wheel.rank_sep, F32,   0.0f,  60.0f, 0.5f, "Choir · Wheel", "rank separation (wu)")
+ORGAN_PARAM(PANEL, PanelSurface, wheel.twist,    F32, -3.1416f, 3.1416f, 0.01f, "Choir · Wheel", "twist per rank (rad)")
+ORGAN_PARAM(PANEL, PanelSurface, wheel.phase,    F32, -6.2832f, 6.2832f, 0.01f, "Choir · Wheel", "phase (rad)")
+
+// ─── Choir · Light envelope (STRIKE_0 U3 — CHOIR_0's two beats-dials) ─
+ORGAN_PARAM_NS(canvas, CANVAS, CanvasSurface, light_plateau, F32, 0.0f, 32.0f, 0.25f, "Choir · Light envelope", "attack plateau (beats)")
+ORGAN_PARAM_NS(canvas, CANVAS, CanvasSurface, light_release, F32, 0.0f, 32.0f, 0.25f, "Choir · Light envelope", "release (beats)")
+
+// ─── Choir · Light drive (STRIKE_0 U3 — the cube seam's room) ────────
+ORGAN_PARAM(DRIVERS, DriverSurface, cube.light_color, VEC3, 0.0f, 1.0f, 0.01f, "Choir · Light drive", "incandescence")
+ORGAN_PARAM(DRIVERS, DriverSurface, cube.gain,        F32,  0.0f, 1.0f, 0.01f, "Choir · Light drive", "drive gain")
 
 // ─── THE TIERS ───────────────────────────────────────────────────────
 // The home is agentRoomStage_.tier_gains, and organ_flush writes both
@@ -676,7 +698,9 @@ ORGAN_PARAM(CONFIG, GPUDesignConfig, field_gain_agent,    F32, 0.0f, 16.0f,   0.
 ORGAN_PARAM(CONFIG, GPUDesignConfig, point_bubble_radius, F32, 0.0f, 80.0f,  0.5f,   "Interaction · Point",  "bubble radius")
 ORGAN_PARAM(CONFIG, GPUDesignConfig, pawn_speed,          F32, 0.0f, 60.0f,  0.5f,   "Interaction · Pawn",   "walk speed")
 ORGAN_PARAM(CONFIG, GPUDesignConfig, point_fly_speed,     F32, 0.0f, 120.0f, 0.5f,   "Interaction · Camera", "fly speed")
-ORGAN_PARAM(CONFIG, GPUDesignConfig, cube_plasticity,     F32, 0.0f, 1.0f,   0.005f, "Interaction · Cubes",  "plasticity λ")
+// `cube_plasticity`'s row retired STRIKE_0 U3 (STAGE_0 F3): the dial's
+// authority left with the plasticity leak; the FIELD stays, dark and
+// boot-pinned — field excision is a relayout and not this campaign's.
 
 // ─── Interaction · Cubes — the floater synchrony knob ───────
 // ONE AUTHOR: this dial. The cycler that shared the home retired

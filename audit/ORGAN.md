@@ -71,7 +71,6 @@ generator, so the book and the manifest cannot disagree. `driven` is an
 | Atmosphere · Fog | drive gain | `DRIVERS.fog.gain` | DRIVERS | F32 | 0 … 1 | 0.01 | live | none |  |
 | Atmosphere · Fog | density (driven) | `CONFIG.fog_density` | CONFIG | F32 | — | — | driven | none | • |
 | Atmosphere · Fog | colour (driven) | `CONFIG.fog_color` | CONFIG | VEC3 | — | — | driven | none | • |
-| Atmosphere · Ring & grain | draw ring (the authority) | `CONFIG.draw_ring` | CONFIG | F32 | 265 … 349 | 0.5 | live | none |  |
 | Atmosphere · Checker | rest colour | `DRIVERS.checker.rest_resultant` | DRIVERS | VEC3 | 0 … 1 | 0.01 | live | none |  |
 | Atmosphere · Checker | rest amount | `DRIVERS.checker.rest_amount` | DRIVERS | F32 | 0 … 1 | 0.005 | live | none |  |
 | Atmosphere · Checker | rest variance | `DRIVERS.checker.rest_variance` | DRIVERS | F32 | 0 … 8 | 0.04 | live | none |  |
@@ -137,6 +136,9 @@ generator, so the book and the manifest cannot disagree. `driven` is an
 | Terrain · Automaton grain | per-cell height factor, sigma (authored) | `AUTOMATON.height_factor_sigma` | AUTOMATON | F32 | 0 … 0.5 | 0.01 | gen | none |  |
 | Terrain · Automaton grain | per-cell height factor, clamp low (authored) | `AUTOMATON.height_factor_lo` | AUTOMATON | F32 | 0 … 3 | 0.01 | gen | none |  |
 | Terrain · Automaton grain | per-cell height factor, clamp high (authored) | `AUTOMATON.height_factor_hi` | AUTOMATON | F32 | 0 … 3 | 0.01 | gen | none |  |
+| Terrain · Ground voice | lift gain | `DRIVERS.ground.height_gain` | DRIVERS | F32 | 0 … 4 | 0.01 | live | none |  |
+| Terrain · Ground voice | quicken gain | `DRIVERS.ground.tick_gain` | DRIVERS | F32 | 0 … 4 | 0.01 | live | none |  |
+| Terrain · Ground voice | strike ring (wu) | `DRIVERS.ground.ring_gain` | DRIVERS | F32 | 0 … 24 | 0.1 | live | none |  |
 | Pawn · Aura | intent | `DRIVERS.aura.intent` | DRIVERS | BOOL | 0 … 1 | 1 | live | none |  |
 | Pawn · Aura | attack (1/s) | `DRIVERS.aura.attack` | DRIVERS | F32 | 0.05 … 8 | 0.05 | live | none |  |
 | Pawn · Aura | release (1/s) | `DRIVERS.aura.release` | DRIVERS | F32 | 0.05 … 8 | 0.05 | live | none |  |
@@ -210,6 +212,15 @@ generator, so the book and the manifest cannot disagree. `driven` is an
 | Ribbon · Colour | smooth var × blue | `RIBBON_SPAWN.smooth_var_b_scale` | RIBBON_SPAWN | F32 | 0 … 2 | 0.01 | gen | none |  |
 | Ribbon · Colour | tinted range | `RIBBON_SPAWN.tinted_range[0]` | RIBBON_SPAWN | VEC3 | 0 … 1 | 0.01 | gen | none |  |
 | Ribbon · Colour | tinted base | `RIBBON_SPAWN.tinted_base[0]` | RIBBON_SPAWN | VEC3 | 0 … 1 | 0.01 | gen | none |  |
+| Choir · Wheel | step (1 chromatic … 7 fifths) | `PANEL.wheel.step` | PANEL | F32 | -12 … 12 | 0.01 | live | none |  |
+| Choir · Wheel | inner radius (wu) | `PANEL.wheel.radius` | PANEL | F32 | 10 … 200 | 0.5 | live | none |  |
+| Choir · Wheel | rank separation (wu) | `PANEL.wheel.rank_sep` | PANEL | F32 | 0 … 60 | 0.5 | live | none |  |
+| Choir · Wheel | twist per rank (rad) | `PANEL.wheel.twist` | PANEL | F32 | -3.1416 … 3.1416 | 0.01 | live | none |  |
+| Choir · Wheel | phase (rad) | `PANEL.wheel.phase` | PANEL | F32 | -6.2832 … 6.2832 | 0.01 | live | none |  |
+| Choir · Light envelope | attack plateau (beats) | `CANVAS.light_plateau` | CANVAS | F32 | 0 … 32 | 0.25 | live | none |  |
+| Choir · Light envelope | release (beats) | `CANVAS.light_release` | CANVAS | F32 | 0 … 32 | 0.25 | live | none |  |
+| Choir · Light drive | incandescence | `DRIVERS.cube.light_color` | DRIVERS | VEC3 | 0 … 1 | 0.01 | live | none |  |
+| Choir · Light drive | drive gain | `DRIVERS.cube.gain` | DRIVERS | F32 | 0 … 1 | 0.01 | live | none |  |
 | Agents · Tier 0 | colour | `AGENT_ROOM.tier_gains[0].color_r` | AGENT_ROOM | VEC3 | 0 … 1 | 0.01 | boundary | tier |  |
 | Agents · Tier 0 | speed gain | `AGENT_ROOM.tier_gains[0].speed_gain` | AGENT_ROOM | F32 | 0 … 4 | 0.01 | boundary | tier |  |
 | Agents · Tier 1 | colour | `AGENT_ROOM.tier_gains[1].color_r` | AGENT_ROOM | VEC3 | 0 … 1 | 0.01 | boundary | tier |  |
@@ -322,7 +333,6 @@ generator, so the book and the manifest cannot disagree. `driven` is an
 | Interaction · Point | bubble radius | `CONFIG.point_bubble_radius` | CONFIG | F32 | 0 … 80 | 0.5 | live | none |  |
 | Interaction · Pawn | walk speed | `CONFIG.pawn_speed` | CONFIG | F32 | 0 … 60 | 0.5 | live | none |  |
 | Interaction · Camera | fly speed | `CONFIG.point_fly_speed` | CONFIG | F32 | 0 … 120 | 0.5 | live | none |  |
-| Interaction · Cubes | plasticity λ | `CONFIG.cube_plasticity` | CONFIG | F32 | 0 … 1 | 0.005 | live | none |  |
 | Interaction · Cubes | floater coordination | `CONFIG.floater_coordination` | CONFIG | F32 | 0 … 1 | 0.005 | live | none |  |
 | Interaction · Beacon | inner radius | `PANEL.beacon.r0` | PANEL | F32 | 0 … 100 | 0.5 | live | none |  |
 | Interaction · Beacon | outer radius | `PANEL.beacon.r` | PANEL | F32 | 0 … 480 | 2 | live | none |  |
@@ -352,14 +362,14 @@ generator, so the book and the manifest cannot disagree. `driven` is an
 
 | | |
 | --- | --- |
-| entries | **324** |
-| by section | Agents 102 · Ribbon 55 · Terrain 54 · Sky & Light 30 · Atmosphere 27 · Interaction 21 · Pawn 18 · Population 5 · World 3 · Camera 3 · Debug 3 · Measure 3 |
-| by cadence | boundary 106 · driven 14 · gen 50 · live 154 |
-| by macro form | PARAM 158 · PARAM_DEF 102 · PARAM_GEN 50 · PARAM_RO 14 |
-| definition kinds | BEHAVIOR 70 · NONE 222 · TIER 32 |
+| entries | **334** |
+| by section | Agents 102 · Terrain 57 · Ribbon 55 · Sky & Light 30 · Atmosphere 26 · Interaction 20 · Pawn 18 · Choir 9 · Population 5 · World 3 · Camera 3 · Debug 3 · Measure 3 |
+| by cadence | boundary 106 · driven 14 · gen 50 · live 164 |
+| by macro form | PARAM 168 · PARAM_DEF 102 · PARAM_GEN 50 · PARAM_RO 14 |
+| definition kinds | BEHAVIOR 70 · NONE 232 · TIER 32 |
 | witnesses (`ro`) | 14 |
 | blocks and sentinels used | AGENTS, AGENT_ROOM, ATMOS, AUTOMATON, CANVAS, CONFIG, DRIVERS, LIGHTING, ORBS, ORB_BANK, PANEL, PAWN, RIBBON, RIBBON_SPAWN, WORLD |
-| namespaces | canvas 15 · the_board 309 |
+| namespaces | canvas 17 · the_board 317 |
 
 ### Doors
 
@@ -429,10 +439,10 @@ verbatim:
 
 THE ANSWER, ROW BY ROW
 ------------------------------------------------------------------------
-  proved    240   a declared reader names the field
+  proved    252   a declared reader names the field
   SUSPECT     0   no declared reader names it
   witness    14   an _RO meter: the question is inverted (blind spot 5)
-  scope      70   GPU-side or whole-struct (blind spots 2, 3)
+  scope      68   GPU-side or whole-struct (blind spots 2, 3)
 
 NO SUSPECTS. Every enrolled dial's field is named in the body of
 a function this tool can read.

@@ -111,8 +111,11 @@ READERS = {
         # configure_orbs.
         ("src/cartridges/the_board/organ_boundary.inc", "organ_flush"),
     ]),
-    "PANEL": ("PANEL_LIVE", "PanelSurface", [
+    "PANEL": ("PANEL_LIVE", ("PanelSurface", "PanelSurface::Wheel"), [
         ("src/cartridges/the_board/cartridge.hpp", "phase_motion_drivers"),
+        # The wheel's five axes (STRIKE_0 U3): wheel_station IS the theta/
+        # radius law — its body names step, radius, rank_sep, twist, phase.
+        ("src/cartridges/the_board/bodies/cube_behaviors.hpp", "wheel_station"),
         ("src/cartridges/the_board/direction/input.hpp", "nudge_look_sensitivity"),
         ("src/cartridges/the_board/direction/input.hpp", "on_scroll"),
         ("src/cartridges/the_board/bodies/agents.hpp", "try_possess_nearest"),
@@ -368,7 +371,10 @@ def owners_of(symbol, cache):
 # reference alias bound to either (const auto& S = RIBBON_SPAWN_LIVE),
 # resolved to a fixed point because aliases chain.
 ALIAS = re.compile(r"(?:const\s+)?auto\s*&\s*(\w+)\s*=\s*([A-Za-z_]\w*)")
-PARAM = re.compile(r"[(,]\s*(?:const\s+)?(\w+)\s*[&*]?\s*&?\s*(\w+)\s*(?=[,)])")
+# STRIKE_0 U3g: the type may be QUALIFIED — wheel_station takes
+# `const PanelSurface::Wheel& w`, blind spot 1's shape one level
+# down. Widening only: more handles can match, never fewer.
+PARAM = re.compile(r"[(,]\s*(?:const\s+)?(\w+(?:::\w+)*)\s*[&*]?\s*&?\s*(\w+)\s*(?=[,)])")
 
 
 def handles_in(sig_and_body, live, struct):
