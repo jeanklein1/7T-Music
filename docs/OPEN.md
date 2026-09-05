@@ -1087,7 +1087,7 @@ change and a stub deletion, nothing more.
 **Not closed by it:** Jean's acceptance run. Observables are listed in
 `docs/LIGATURE_1_REPORT.md` (U2.5).
 
-## THE RADIAL PULSE RING (open — gen-1 retired, decision unmade)
+## THE RADIAL PULSE RING (CLOSED at STRIKE_0 — the gen-2 driver landed)
 
 `pulse_count` and `pulse_data[8]` exist in `world.wgsl`'s config struct and
 behind `GPUState::set_pulse_data` in `state.hpp`, and the only caller in the
@@ -1108,6 +1108,14 @@ the wiring; CHOIR_0 retired both, so the seven `chN.onset` publications are
 now unread capability on the shelf and the pulse would take them from
 there. The readback half is unchanged and is still what makes this a
 decision rather than a wiring job.)
+
+**CLOSED at STRIKE_0 (289ab18c).** The gen-2 driver exists: the canvas's
+activation edge raises a `ground.strike` lane, `phase_motion_drivers`
+maps pc → rank-0 wheel station and stamps the ring through
+`set_pulse_data`. The readback that made this "a decision" dissolved at
+WHEEL_0 — a pitch class has a CPU-authored address now. Velocity is
+parked (F-VEL, note-domain reading, beside octave-true ranking);
+beat-riding ring speed parked (F-BEATS). Rebirth clears standing rings.
 
 ## CUT_1c LEFTOVERS NOT RESTORED (open, low)
 
@@ -1292,6 +1300,14 @@ And `organ_registry.hpp` says "The five forwards below are the price" above
 four forwards.
 
 **The name is provisional.** ORGAN_REST is a proposal; naming is Jean's gate.
+
+**5 · THE ENROLLMENT FREEZE — LIFTED, SCOPED (STRIKE_0, 2026-09-05).**
+Jean's word, for STRIKE_0's row set only: the wheel's five axes, the
+choir envelope pair, the six driver gains, and the two dark rows'
+retirement (STAGE_0 F3). The wider gap census — RibbonSurface's 16
+movement dials et al. — stays parked for the seam campaign.
+`mode_threshold` was in the ruled set and STOPPED at recon (F-MODE,
+recorded at the STRIKE_0 rulings entry).
 
 ## HEM_1 — THE HEM REACHES THE WALKERS (landed; two deferrals, one ruling)
 
@@ -1541,7 +1557,9 @@ until the Ableton seam campaign. Four `ORGAN_PARAM` lines when it lifts:
 two `ORGAN_PARAM_NS(canvas, CANVAS, …)` beside the checker cadence rows,
 and two `ORGAN_PARAM(DRIVERS, …)` beside the checker's gain. `organ_gap
 --gate` and `organ_ledger --check` are both PASS with them unenrolled — an
-unenrolled field is not a suspect, it is simply not a dial yet.
+unenrolled field is not a suspect, it is simply not a dial yet. **The
+four rows LANDED at STRIKE_0 U3 (the freeze-lift, scoped): Choir · Light
+envelope, Choir · Light drive.**
 
 **5 · THE RECORD RITUAL, PER SKIRT_WELD_1's PRECEDENT.** The handoff asks
 for `glaw2 --record`. **Every retired name here is C++**, which glaw2 does
@@ -1894,6 +1912,8 @@ what the hand-back is giving back.
 **F3 · TWO ENROLLED DIALS STAND DARK**, per §0(d): `config.draw_ring` and
 `config.cube_plasticity`. No gate notices — `organ_readers.py` declares the whole
 CONFIG family out of scope. Row retirement is parked for the freeze-lift.
+**RESOLVED at STRIKE_0 U3f — both rows retired; the fields stand dark by
+ruling.**
 
 **F4 · AN IDENTITY OUTLIVED ITS NAME.** `CUBE_REACH_CEILING` was 30.0, which is
 also exactly `2.0 * ZONE_SUPPRESS_OUTER` — so "a floater carves iff it is
@@ -2059,7 +2079,8 @@ MOVING `step` braids twenty-four cubes past each other across the floor.
 **U1 · THE AXES.** `PanelSurface::Wheel { step, radius, rank_sep, twist,
 phase }`, table rest `{ 1.0, 60.0, 14.0, 0.0, 0.0 }`, two static_asserts.
 Five organ rows PARKED under the ORGAN_REST freeze; the paste-ready lines
-are in `docs/WHEEL_0_REPORT.md`.
+are in `docs/WHEEL_0_REPORT.md`. **ENROLLED at STRIKE_0 U3
+(Choir · Wheel).**
 
 **U2 · THE SERVE.** One pass per frame in `zoetrope_service`, gated on the
 station having moved past `WHEEL_SERVE_EPS = 0.05` wu **since the last
@@ -2280,6 +2301,29 @@ not exist.
 Each key's colour is now a permanent identity across all worlds, which
 invites an **authored per-pitch-class palette** — twelve colours, one per pc,
 rank as a shade. **Invited, not built; Jean's.**
+
+## STRIKE_0 — THREE RULINGS ON THE RECORD (Jean's, 2026-09-05)
+
+**THE MUTE CUT.** `mute_couplings` excised at U1; the eight couplings
+are unconditional facts; behavior-identical (the field was boot-NONE,
+unwritten, row-less). The registry, its query and its C++ mirror all
+retire to tombstones; the field pads in place in both rooms, same
+offset, mirror-witnessed.
+
+**THE CHOIR'S IDENTITY STANDS.** World-independence confirmed as
+intended: keys keep their bodies across worlds and rebirths; a
+per-world palette remains a one-function swap if ever wanted.
+
+**THE FREEZE-LIFT, SCOPED.** ORGAN_REST's enrollment freeze lifted by
+Jean for STRIKE_0's row set only — the wheel's five axes, the choir
+envelope pair, the six driver gains (the ring's included), and the two
+dark rows' retirement (STAGE_0 F3); the wider gap (RibbonSurface's 16
+et al.) stays parked for the seam campaign. One row of the ruled set
+STOPPED at recon (CC's flag, F-MODE): `mode_threshold` is a hardware
+mirror — its other half is world.wgsl's `AUTO_MODE_THRESHOLD` const,
+`tag_cell_behavior` its only reader, the transport skips it by design —
+so a dial would be the two-home shape L46 forbids, and the enrollment
+file's own NOT-ENROLLED note stands as the tree's answer.
 
 ## THE HANDOVER LIST (THE_PANEL's close — the coupling campaign's table)
 
@@ -2889,6 +2933,9 @@ state, and filing it here would be the second home L46 forbids.
 | a coupling that drives a WRITABLE dial is hands-off at gain 0 | *THE HANDS-OFF-REST SEAM*, above (STAGE_0 R6) |
 | everything computed is visible | *THE STAGE LAW*, above (STAGE_0) |
 | GoL cell colour goes through the tint funnel | *THE GoL COLOUR RULING*, above (GROUND_VOICE_0) |
+| the mute registry is cut; eight couplings are unconditional facts | *STRIKE_0 — THREE RULINGS ON THE RECORD*, above |
+| the choir's identity stands across worlds | *STRIKE_0 — THREE RULINGS ON THE RECORD*, above |
+| the enrollment freeze is lifted for STRIKE_0's rows only | *STRIKE_0 — THREE RULINGS ON THE RECORD*, above; ORGAN_REST's tail |
 
 ### Jean's open gates
 

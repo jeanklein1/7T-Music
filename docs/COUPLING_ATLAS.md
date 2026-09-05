@@ -71,6 +71,10 @@ retired with the lattice they fed, and one new source — `ch6.present_count`
 deeper*: one voice, read for what it is holding rather than for what it
 just struck.)
 
+**STRIKE_0 adds no ear:** the strike pipe derives from
+`ch6.present_count`'s activation edge, already heard, so the heard set
+stays seven.
+
 That is the real shape of the uncoupled analysis side — not misses, but
 **unheard publications**. Every one is a source a coupling could take
 today with no analysis work at all.
@@ -122,7 +126,7 @@ calls it "the pc-DFT capability"; it is capability with no consumer.
 
 ---
 
-## §2 — PIPES: `PARAM_LAYOUT`'s nine
+## §2 — PIPES: `PARAM_LAYOUT`'s twelve
 
 The register map is hand-laid and compile-time-checked: a `static_assert`
 lambda proves no pipe leaves the bank and no two overlap. Rests are the
@@ -141,14 +145,16 @@ canvas's own; the WORLD's rest is composed in at the seam.
 | 9 | `cube.light` | 15 / 36 | `0.0` (DARK) | `cartridge.hpp`, `phase_motion_drivers`: `gain · I` per lane, mirrored into `CubeBehaviorsState::choir_I` | `choir_project` → `upload_cube_color` / `upload_cube_face_variance` / `upload_cube_body_radius` | **LIVE** (CHOIR_0). 36 LANES, of which `CUBE_CHOIR_N` are keys — 24 since CHOIR_1, and the rest sit dark. Rest 0 is the seed draw bit-exactly — and since STAGE_0 R4 that draw is AUTHORED: `choir_slot_seed(k) = cpu_hash(CHOIR_SEED, k)`, so a key wears the same colour in every world, and the compiler proves the 24 distinct |
 | 10 | `ground.energy` | 51 / 1 | `0.0` | `cartridge.hpp`, `phase_motion_drivers`: `clamp(1 + height_gain · energy, …)` | `set_mode_gol_scales` → `config.mode_gol_height_scale` | **LIVE** (GROUND_VOICE_0). Carries `all.field` — the fog's own binding, read a second time. **Gain 0.5 since STAGE_0 R6** (0.8 saturated the top half of the range). Its seam is a SWITCH, not a blend — see *THE HANDS-OFF-REST SEAM* in `docs/OPEN.md` |
 | 11 | `ground.density` | 52 / 1 | `0.0` | same seam: `clamp(1 / (1 + tick_gain · density), …)` | `set_mode_gol_scales` → `config.mode_gol_tick_scale` → `upload_automaton_header`'s step gate | **LIVE** (GROUND_VOICE_0). Carries Σ `all.current_pc` — the room's voices |
+| 12 | `ground.strike` | 53 / 12 | `0.0` (one-frame impulse) | `cartridge.hpp`, `phase_motion_drivers`: pc → `wheel_station(PANEL_LIVE.wheel, pc)`, stamps the 8-slot pulse ring at `DRIVER_LIVE.ground.ring_gain` | `GPUState::set_pulse_data` → `contrib_radial_pulses_at` | **LIVE** (STRIKE_0). Twelve one-frame impulse lanes, one per pitch class, raised on any rank's activation edge in the choir loop; `ring_gain` 0 is hands off — no new rings, standing ones age out |
 
-**All eleven are live and all eleven have a reader.** They occupy slots
-0–52 of a **256-slot** bank (`VISUAL_PARAM_SLOTS`), so the register map is
-**21% allocated** — it was 6% before CHOIR_0, and the jump is one pipe:
-`cube.light` alone is 36 of the 53.
+**All twelve are live and all twelve have a reader.** They occupy slots
+0–64 of a **256-slot** bank (`VISUAL_PARAM_SLOTS`), so the register map is
+**25% allocated** — it was 6% before CHOIR_0, and the jump is one pipe:
+`cube.light` alone is 36 of the 65.
 
-**TWO OF THE ELEVEN CARRY SOURCES RATHER THAN TARGETS**, and they are the
-ground's. Every other pipe carries a decoded, target-shaped value that the
+**THREE OF THE TWELVE CARRY SOURCES RATHER THAN TARGETS**, and they are
+the ground's — the two multiplier feeds below and, since STRIKE_0, the
+strike's twelve impulse lanes. Every other pipe carries a decoded, target-shaped value that the
 seam composes LINEARLY (`rest + gain·(driven − rest)`); the ground's law is
 not linear in its gain — the gain sits INSIDE the expression (`1 + g·field`,
 `1/(1 + g·dens)`) — so splitting it canvas-side would change what the gain
@@ -196,7 +202,7 @@ beats; only the shape is not a line.
 | the rank law | `active(k) ⇔ count[dressed(k%12)] > k/12` — **the doubling lights the next rank**: one sounding D lights rank 0's D, a second D in another octave lights rank 1's. At two ranks a THIRD D has no key left to light. Octave-true ranking is PARKED (it would need a note-domain reading; `present_count` is a pitch-class vector by construction) |
 | the un-dressing | published vectors ship DRESSED to D (index 0 = D, the contract `PC_COLOR` also binds). The keyboard is authored in RAW pitch class, so it needs the ears' `(i + 2) % 12` fold INVERTED: `dressed_of_pc(p) = (p + 10) % 12`. The two are `static_assert`ed against each other rather than trusted |
 | shape | **enveloped state, not an impulse** — `choir_I_[CHOIR_LANES]`, activation and deactivation only, no held-length book. ATTACK: `I += (1−I)·(1−e^(−Δ/τ))`, **`τ = light_plateau/6` since CHOIR_1** (≈ 0.9975 at the plateau, steepest at switch-on; it was `/4` and 0.982, and the sharper τ makes the row *more* literally "plateaus at 8"). RELEASE: a FIXED SLOPE, `Δ/light_release` per beat, full brightness to dark in `light_release` beats and a dimmer key proportionally sooner |
-| the envelope's home | `canvas::CANVAS_LIVE.light_plateau` / `.light_release`, both 8 beats — envelope AUTHORITIES, so they live in the canvas surface, PARKED for enrolment under the registry freeze |
+| the envelope's home | `canvas::CANVAS_LIVE.light_plateau` / `.light_release`, both 8 beats — envelope AUTHORITIES, so they live in the canvas surface, ENROLLED at STRIKE_0 U3 (Choir · Light envelope) |
 | accessor | **none — the BANK is the accessor.** The run leaves through the pipe `cube.light` and nowhere else. `zoetrope_rows()` existed because the strike took the run as an argument; the choir's has to be composed against the drivers' room before anything sees it, so a second door onto the same floats would have no caller |
 | **its ONE consumer** | `cartridge.hpp`, `phase_motion_drivers` — composes `gain · I` against `DRIVER_LIVE.cube` and mirrors it into `CubeBehaviorsState::choir_I`, ONE author per frame. `choir_project` then pokes only the keys whose light MOVED |
 | witness | boot: `[CHOIR] ear bound: ch6.present_count (12 pc lanes) -> 36 envelope lane(s); keys are the seam's` — doctrine, printed always, so a deaf choir names its fault. **THREE WIDTHS, and the canvas may only claim the two it owns**: the ear's twelve, the pipe's thirty-six, and the KEYBOARD's `CUBE_CHOIR_N`, which is the cartridge's fact and is printed by the seam's own line (`[the_board] cube.light … | choir N key(s), R rank(s)`). Live: `[CHOIR] key=NN I=X.XX` on the ACTIVATION EDGE, behind `INSTRUMENTS.zoetrope_witness` (rename PARKED) — it reports a LANE, so with the choir narrower than the pipe a lane ≥ `CUBE_CHOIR_N` prints and lights no cube |
@@ -225,8 +231,8 @@ U3. What the door presses now is **the mode**, and there are two of them:
 | **`WHEEL`** (rest) | the key's station on THE INTERVAL WHEEL, recomputed every frame off `PANEL_LIVE.wheel` |
 | `ROAM` | the key's recorded BIRTH ANCHOR — the wheel stops being read at all and drift owns the picture |
 
-**The wheel is `PanelSurface::Wheel`, five axes, all live, all PARKED for
-enrolment under the registry freeze:** `step`, `radius`, `rank_sep`,
+**The wheel is `PanelSurface::Wheel`, five axes, all live, all ENROLLED
+at STRIKE_0 U3 (Choir · Wheel):** `step`, `radius`, `rank_sep`,
 `twist`, `phase`, resting at `{ 1.0, 60.0, 14.0, 0.0, 0.0 }`. Key `k` is
 already pitch class `k%12` and rank `k/12` (§3's keyboard row), so the
 wheel is what makes the FORMATION say what the KEYBOARD already knows:
