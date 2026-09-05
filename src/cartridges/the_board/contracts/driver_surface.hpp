@@ -67,6 +67,8 @@ struct DriverSurface {
     struct Ground {
         float ring_gain;          // wu per strike — the ring's crest against alive_height's 24; 0 = hands off
         float relief_depth;       // 0..1 — full-bar presence carves a class's cells to (1 − depth) of height; 0.8 = Jean's 20 % floor; 0 = hands off
+        float stain_gain;         // 0..1 × the Wagon's presence into the stain (the turn is config.stain_turn's); 0 = hands off
+        float ink_gain;           // 0..1 × the Playhead's black; 0 = hands off
     } ground;
 };
 
@@ -82,16 +84,17 @@ inline constexpr DriverSurface DRIVER_TABLE = {
     { 1.0f, 1.0f, { 0.0f, 0.0f, 0.0f }, 0.0f, 1.0f },   // ribbon: the seam's own fallbacks
     { { 1.0f, 0.92f, 0.72f }, 1.0f },   // cube: warm incandescent against
                                         // seed-cool bodies (Jean's desk)
-    { 4.0f, 0.8f },                     // ground: the strike ring and the relief
+    { 4.0f, 0.8f, 1.0f, 1.0f },         // ground: the ring, the relief, and the
+                                        // keyboard's two colour gains (INK_0)
 };
 
 
 // The live surface — the panel's fourth block and the seams' read.
 inline DriverSurface DRIVER_LIVE = DRIVER_TABLE;
-static_assert(sizeof(DriverSurface) == 18 * sizeof(float),
+static_assert(sizeof(DriverSurface) == 20 * sizeof(float),
     "DRIVER_LIVE is a whole-struct copy of the design row: a field added "
-    "to one is added to the other by construction. 18 words — fog 1, "
-    "aura 4, ribbon 7, cube 4, ground 2");
+    "to one is added to the other by construction. 20 words — fog 1, "
+    "aura 4, ribbon 7, cube 4, ground 4");
 
 } // namespace the_board
 } // namespace t7

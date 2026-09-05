@@ -262,6 +262,8 @@ namespace t7 {
             // The ground's two SOURCE pipes (GROUND_VOICE_0) — the law that
             // turns them into the automaton's two multipliers is at the seam.
             TargetBinding ground_relief_dst_{};  // "ground.relief" — ch5's presence fractions (RELIEF_0)
+            TargetBinding ground_stain_dst_{};   // "ground.stain" — ch4's presence fractions (INK_0)
+            TargetBinding ground_ink_dst_{};     // "ground.ink" — ch4's black envelope (INK_0)
             // The strike's pipe (STRIKE_0) — twelve one-frame impulse
             // lanes; the seam maps pc → wheel station and stamps the
             // radial-pulse ring.
@@ -812,6 +814,8 @@ namespace t7 {
                 ribbon_tint_mix_dst_ = visual_canvas_.layout().resolve("ribbon.color_mix");
                 cube_light_dst_ = visual_canvas_.layout().resolve("cube.light");
                 ground_relief_dst_ = visual_canvas_.layout().resolve("ground.relief");
+                ground_stain_dst_ = visual_canvas_.layout().resolve("ground.stain");
+                ground_ink_dst_ = visual_canvas_.layout().resolve("ground.ink");
                 ground_strike_dst_ = visual_canvas_.layout().resolve("ground.strike");
                 std::fprintf(stderr,
                     "[the_board] fog.density base=%d valid=%d | fog.color base=%d count=%d valid=%d\n",
@@ -825,6 +829,10 @@ namespace t7 {
                     "[the_board] ground.relief base=%d valid=%d | voice %s | depth %.2f\n",
                     ground_relief_dst_.base, (int)ground_relief_dst_.valid,
                     RELIEF_VOICE, (double)DRIVER_LIVE.ground.relief_depth);
+                std::fprintf(stderr,
+                    "[the_board] ground.stain base=%d valid=%d | ground.ink base=%d valid=%d | voice %s\n",
+                    ground_stain_dst_.base, (int)ground_stain_dst_.valid,
+                    ground_ink_dst_.base, (int)ground_ink_dst_.valid, INK_VOICE);
             }
 
             // ═══════════════════════════════════════════════════════════════
@@ -1147,6 +1155,26 @@ namespace t7 {
                             (d > 0.0f && ground_relief_dst_.valid)
                                 ? std::clamp(d * rp.get(ground_relief_dst_.base + pc), 0.0f, 1.0f)
                                 : 0.0f;
+                }
+
+                // ── THE FLOOR'S COLOUR KEYBOARD (INK_0) ─────────────────
+                // Real time, no latch: the canvas publishes ch4's presence
+                // fraction (stain) and the Playhead's black envelope (ink)
+                // per pitch class; this seam applies the two gains and the
+                // setters dirty the config only when a lane moved. The turn
+                // amplitude is the hand's (config.stain_turn), so the shader
+                // owns the geometry of the colour wheel and the seam owns
+                // nothing but volume.
+                {
+                    const auto& g = DRIVER_LIVE.ground;
+                    const VisualParams& kp = visual_canvas_.params();
+                    float st[12] = {}, ik[12] = {};
+                    if (ground_stain_dst_.valid)
+                        for (int pc = 0; pc < 12; ++pc) st[pc] = std::clamp(g.stain_gain * kp.get(ground_stain_dst_.base + pc), 0.0f, 1.0f);
+                    if (ground_ink_dst_.valid)
+                        for (int pc = 0; pc < 12; ++pc) ik[pc] = std::clamp(g.ink_gain * kp.get(ground_ink_dst_.base + pc), 0.0f, 1.0f);
+                    gpuState_.set_ground_stain(st);
+                    gpuState_.set_ground_ink(ik);
                 }
 
                 // THE CHOIR (CHOIR_0 U4): the canvas envelopes one light

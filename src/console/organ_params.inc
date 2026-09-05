@@ -429,6 +429,12 @@ ORGAN_PARAM_GEN(AUTOMATON, AutomatonBank, height_factor_hi,    F32, 0.0f, 3.0f, 
 ORGAN_PARAM(DRIVERS, DriverSurface, ground.ring_gain,   F32, 0.0f, 24.0f, 0.1f, "Terrain · Ground voice", "strike ring (wu)")
 ORGAN_PARAM(DRIVERS, DriverSurface, ground.relief_depth, F32, 0.0f, 1.0f, 0.01f, "Terrain · Ground voice", "relief depth (1 = flat)")
 
+// ─── Terrain · Ground keyboard (INK_0 — ch4 on the floor's mosaic) ──
+ORGAN_PARAM(CONFIG,  GPUDesignConfig, stain_turn,       F32, 0.0f, 1.0f, 0.005f, "Terrain · Ground keyboard", "stain (turns at full bar)")
+ORGAN_PARAM(DRIVERS, DriverSurface,   ground.stain_gain, F32, 0.0f, 1.0f, 0.01f,  "Terrain · Ground keyboard", "stain gain")
+ORGAN_PARAM(DRIVERS, DriverSurface,   ground.ink_gain,   F32, 0.0f, 1.0f, 0.01f,  "Terrain · Ground keyboard", "ink gain")
+ORGAN_PARAM_NS(canvas, CANVAS, CanvasSurface, ink_release, F32, 0.0f, 8.0f, 0.05f, "Terrain · Ground keyboard", "ink release (beats)")
+
 // ─── Pawn · Aura (the drivers' room + its witnesses) ─────────────────
 // The intent is the presence ramp's rest TARGET; key 3 and the aura policy
 // door write it here too. The two driven outputs witness below.

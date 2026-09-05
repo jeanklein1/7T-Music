@@ -71,17 +71,7 @@ generator, so the book and the manifest cannot disagree. `driven` is an
 | Atmosphere · Fog | drive gain | `DRIVERS.fog.gain` | DRIVERS | F32 | 0 … 1 | 0.01 | live | none |  |
 | Atmosphere · Fog | density (driven) | `CONFIG.fog_density` | CONFIG | F32 | — | — | driven | none | • |
 | Atmosphere · Fog | colour (driven) | `CONFIG.fog_color` | CONFIG | VEC3 | — | — | driven | none | • |
-| Atmosphere · Checker | rest colour | `DRIVERS.checker.rest_resultant` | DRIVERS | VEC3 | 0 … 1 | 0.01 | live | none |  |
-| Atmosphere · Checker | rest amount | `DRIVERS.checker.rest_amount` | DRIVERS | F32 | 0 … 1 | 0.005 | live | none |  |
-| Atmosphere · Checker | rest variance | `DRIVERS.checker.rest_variance` | DRIVERS | F32 | 0 … 8 | 0.04 | live | none |  |
-| Atmosphere · Checker | drive gain | `DRIVERS.checker.gain` | DRIVERS | F32 | 0 … 1 | 0.01 | live | none |  |
-| Atmosphere · Checker | colour (driven) | `CONFIG.checker_resultant` | CONFIG | VEC3 | — | — | driven | none | • |
-| Atmosphere · Checker | amount (driven) | `CONFIG.checker_music_amount` | CONFIG | F32 | — | — | driven | none | • |
-| Atmosphere · Checker | variance (driven) | `CONFIG.checker_music_variance` | CONFIG | F32 | — | — | driven | none | • |
 | Atmosphere · Fog envelope | field glide (beats) | `CANVAS.fog_span` | CANVAS | F32 | 0 … 8 | 0.04 | live | none |  |
-| Atmosphere · Checker cadence | read span (beats) | `CANVAS.checker_read_span` | CANVAS | F32 | 0.25 … 32 | 0.25 | live | none |  |
-| Atmosphere · Checker cadence | attack (beats) | `CANVAS.checker_attack` | CANVAS | F32 | 0.25 … 32 | 0.25 | live | none |  |
-| Atmosphere · Checker cadence | release (beats) | `CANVAS.checker_release` | CANVAS | F32 | 0.25 … 32 | 0.25 | live | none |  |
 | Terrain · Palette 0 sand | centre | `CONFIG.palette_center[0][0]` | CONFIG | VEC3 | 0 … 1 | 0.01 | live | none |  |
 | Terrain · Palette 0 sand | light | `CONFIG.palette_light[0][0]` | CONFIG | VEC3 | 0 … 1 | 0.01 | live | none |  |
 | Terrain · Palette 1 salmon | centre | `CONFIG.palette_center[1][0]` | CONFIG | VEC3 | 0 … 1 | 0.01 | live | none |  |
@@ -138,6 +128,10 @@ generator, so the book and the manifest cannot disagree. `driven` is an
 | Terrain · Automaton grain | per-cell height factor, clamp high (authored) | `AUTOMATON.height_factor_hi` | AUTOMATON | F32 | 0 … 3 | 0.01 | gen | none |  |
 | Terrain · Ground voice | strike ring (wu) | `DRIVERS.ground.ring_gain` | DRIVERS | F32 | 0 … 24 | 0.1 | live | none |  |
 | Terrain · Ground voice | relief depth (1 = flat) | `DRIVERS.ground.relief_depth` | DRIVERS | F32 | 0 … 1 | 0.01 | live | none |  |
+| Terrain · Ground keyboard | stain (turns at full bar) | `CONFIG.stain_turn` | CONFIG | F32 | 0 … 1 | 0.005 | live | none |  |
+| Terrain · Ground keyboard | stain gain | `DRIVERS.ground.stain_gain` | DRIVERS | F32 | 0 … 1 | 0.01 | live | none |  |
+| Terrain · Ground keyboard | ink gain | `DRIVERS.ground.ink_gain` | DRIVERS | F32 | 0 … 1 | 0.01 | live | none |  |
+| Terrain · Ground keyboard | ink release (beats) | `CANVAS.ink_release` | CANVAS | F32 | 0 … 8 | 0.05 | live | none |  |
 | Pawn · Aura | intent | `DRIVERS.aura.intent` | DRIVERS | BOOL | 0 … 1 | 1 | live | none |  |
 | Pawn · Aura | attack (1/s) | `DRIVERS.aura.attack` | DRIVERS | F32 | 0.05 … 8 | 0.05 | live | none |  |
 | Pawn · Aura | release (1/s) | `DRIVERS.aura.release` | DRIVERS | F32 | 0.05 … 8 | 0.05 | live | none |  |
@@ -361,14 +355,14 @@ generator, so the book and the manifest cannot disagree. `driven` is an
 
 | | |
 | --- | --- |
-| entries | **333** |
-| by section | Agents 102 · Terrain 56 · Ribbon 55 · Sky & Light 30 · Atmosphere 26 · Interaction 20 · Pawn 18 · Choir 9 · Population 5 · World 3 · Camera 3 · Debug 3 · Measure 3 |
-| by cadence | boundary 106 · driven 14 · gen 50 · live 163 |
-| by macro form | PARAM 167 · PARAM_DEF 102 · PARAM_GEN 50 · PARAM_RO 14 |
-| definition kinds | BEHAVIOR 70 · NONE 231 · TIER 32 |
-| witnesses (`ro`) | 14 |
+| entries | **327** |
+| by section | Agents 102 · Terrain 60 · Ribbon 55 · Sky & Light 30 · Interaction 20 · Pawn 18 · Atmosphere 16 · Choir 9 · Population 5 · World 3 · Camera 3 · Debug 3 · Measure 3 |
+| by cadence | boundary 106 · driven 11 · gen 50 · live 160 |
+| by macro form | PARAM 164 · PARAM_DEF 102 · PARAM_GEN 50 · PARAM_RO 11 |
+| definition kinds | BEHAVIOR 70 · NONE 225 · TIER 32 |
+| witnesses (`ro`) | 11 |
 | blocks and sentinels used | AGENTS, AGENT_ROOM, ATMOS, AUTOMATON, CANVAS, CONFIG, DRIVERS, LIGHTING, ORBS, ORB_BANK, PANEL, PAWN, RIBBON, RIBBON_SPAWN, WORLD |
-| namespaces | canvas 17 · the_board 316 |
+| namespaces | canvas 15 · the_board 312 |
 
 ### Doors
 
@@ -438,10 +432,10 @@ verbatim:
 
 THE ANSWER, ROW BY ROW
 ------------------------------------------------------------------------
-  proved    251   a declared reader names the field
+  proved    247   a declared reader names the field
   SUSPECT     0   no declared reader names it
-  witness    14   an _RO meter: the question is inverted (blind spot 5)
-  scope      68   GPU-side or whole-struct (blind spots 2, 3)
+  witness    11   an _RO meter: the question is inverted (blind spot 5)
+  scope      69   GPU-side or whole-struct (blind spots 2, 3)
 
 NO SUSPECTS. Every enrolled dial's field is named in the body of
 a function this tool can read.
