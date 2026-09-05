@@ -2404,6 +2404,51 @@ canvas_1's `default_spec` window literal are two literals of one fact;
 a named window constant is a later tidy. **F-FOUR** — the four-bar
 breath is `tick_period 16`, one dial turn, not a second mechanism.
 
+## THE FLOOR'S COLOUR KEYBOARD (INK_0 — closed on landing; the probe is the close)
+
+Every cell on the floor is a key of one pitch class, drawn at random
+from the world seed — the mosaic RELIEF_0 already draws, made GLOBAL at
+this landing. Channel 4 plays it in real time: the Wagon's presence per
+class STAINS its cells (hue rotated in proportion to how long the class
+sounded in the window; on achromatic tiers, flipped toward the opposite
+pole), and the Playhead's live notes INK their cells black, snapping on
+and releasing over half a beat. No latch. Jean's rulings, 2026-09-05:
+
+- **THE CHECKER YIELDS (Jean, by delegation — one author per fact, the
+  RELIEF_1 rule).** ch1's resultant pull was a second global author on
+  the same cells' colour; excised whole — canvas run, seam, driver
+  room, config seats (padded), shader pull law, ten rows — and ch1
+  returns to the shelf. (No CHECKER-REBUILD entry existed in this
+  register to carry a SUPERSEDED header — the campaign predates the
+  fork's register; this entry is the record.)
+- **One mosaic**: the keys are RELIEF's cells — a D is a D in height
+  and in colour. The address law is GLOBAL (every consumer computes the
+  key from the address it already has); **F-ADDR** — the relief's keys
+  redrew once at this landing.
+- **Random, never a line**: `gol_cell_pc` feeds `hash_property`, a real
+  integer mixer, so neighbouring cells draw independent classes.
+- **Amplitude**: a third of the wheel at a full bar (`stain_turn`, rest
+  1/3, hand dial); **ink release** half a beat (`ink_release`, canvas
+  dial); both couplings carry a gain resting 1.0, 0 hands off.
+- **Achromatic tiers flip lightness** (tier >= 2 as ruled — flagged:
+  the tree's tier 4 is chess COLOURFUL, so there the flip is a
+  complement; Jean's eye decides if tier 4 belongs to the rotation arm).
+- **STAIN and INK**, two verbs for two readings; not "tint", not
+  "carve".
+
+Flags: **F-ADDR** (above). **F-SCENE** — baseline.json's seven checker
+lines stripped (the shell gate refuses unknown keys); Jean may
+re-export the desk for a fresh baseline. **F-WINDOW** (carried) — the
+window constant renamed KEYBOARD_WINDOW_BEATS, two keyboards one
+window, still two literals of one fact with canvas_1's spec line.
+
+## JEAN'S PC_COLOR TABLE (shelf)
+
+Authored art: twelve hues, one per pitch class, in
+`coupling/visual_canvas.hpp`. Its reader (the checker's resultant
+decode) left at INK_0; the table stays in the tree, unread, a future
+keyboard voice's to claim.
+
 ## THE HANDOVER LIST (THE_PANEL's close — the coupling campaign's table)
 
 **THE WRAP ORDER §2.3 asks that the next campaign's handoff be authorable
@@ -3016,6 +3061,7 @@ state, and filing it here would be the second home L46 forbids.
 | the choir's identity stands across worlds | *STRIKE_0 — FOUR RULINGS ON THE RECORD*, above |
 | the enrollment freeze is lifted for STRIKE_0's rows only | *STRIKE_0 — FOUR RULINGS ON THE RECORD*, above; ORGAN_REST's tail |
 | RELIEF_1 — GROUND_VOICE yields: one author per fact (Jean, 2026-09-05) | *GROUND_VOICE_0 — THE GROUND HEARS*, above (the SUPERSEDED header); THE GROUND'S KEYBOARD's reversed ruling |
+| the checker yields — one music author for the floor's colour (INK_0, Jean by delegation, 2026-09-05) | *THE FLOOR'S COLOUR KEYBOARD*, above |
 
 ### Jean's open gates
 
