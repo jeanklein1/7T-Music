@@ -15,8 +15,8 @@ carry those facts, or leave them in place and patch around them.
 
 | field | value |
 |---|---|
-| source commit | `9d3795e44e451e95b091ae7f1ffc20fadc48e3ef` |
-| | STRIKE_0 R U2 — the prose sweep: five stale sites say what the tree does |
+| source commit | `cc185d7256f5eaef4b0c6e191790d79325b49c34` |
+| | RELIEF_0 U1 — the mosaic and the relief: the room grows in both rooms |
 | `src/cartridges/the_board/realization/binding_registry.hpp` | `sha256:79b70d3e7510cce71f5d67f85b994a781745d7c090efefd76ba7af165be17281` |
 | `src/cartridges/the_board/realization/world.wgsl` | `sha256:35fff63fe5b9e8c7b3cd3597f3c2d22bd205d9718b4e2e3d05491ed6841d3ba7` |
 | `src/cartridges/the_board/realization/state.hpp` | `sha256:73f880e147108e06aab5c06b74ebb208ded3b619ef4462ee6416763d4c64e96e` |
@@ -850,8 +850,8 @@ wrapper, 18 wrapper calls) and are not recounted here.
 
 | site (line hint) | enclosing function | idx | group member(s) | dynamic offsets |
 |---|---|---|---|---|
-| `cartridge.hpp:2295` | `phase_entity_mesh_gen` | 0 | `worldGroup_` | — |
-| `cartridge.hpp:2296` | `phase_entity_mesh_gen` | 1 | `frameCGroup_` | — |
+| `cartridge.hpp:2318` | `phase_entity_mesh_gen` | 0 | `worldGroup_` | — |
+| `cartridge.hpp:2319` | `phase_entity_mesh_gen` | 1 | `frameCGroup_` | — |
 | `orbs.hpp:743` | `dispatch_orb_init` | 0 | `worldGroup_` | — |
 | `orbs.hpp:744` | `dispatch_orb_init` | 1 | `frameCGroup_` | — |
 | `orbs.hpp:764` | `dispatch_orb_recolor` | 0 | `worldGroup_` | — |
@@ -913,12 +913,12 @@ wrapper, 18 wrapper calls) and are not recounted here.
 | `renderer.hpp:619` | `dispatch_automaton_seed` | 2 | `automatonStateGroup_` | — |
 | `renderer.hpp:620` | `dispatch_automaton_seed` | 3 | `automatonTexturesGroup_` | — |
 | `renderer.hpp:657` | `draw_patch_terrain_plan_slot` | 2 | `sceneStateGroup_` | — |
-| `automaton.hpp:174` | `birth_automaton` | 0 | `worldGroup_` | — |
-| `automaton.hpp:175` | `birth_automaton` | 1 | `frameCGroup_` | — |
-| `automaton.hpp:240` | `dispatch_automaton_sync` | 0 | `worldGroup_` | — |
-| `automaton.hpp:241` | `dispatch_automaton_sync` | 1 | `frameCGroup_` | — |
-| `automaton.hpp:252` | `dispatch_automaton_evolve` | 0 | `worldGroup_` | — |
-| `automaton.hpp:253` | `dispatch_automaton_evolve` | 1 | `frameCGroup_` | — |
+| `automaton.hpp:185` | `birth_automaton` | 0 | `worldGroup_` | — |
+| `automaton.hpp:186` | `birth_automaton` | 1 | `frameCGroup_` | — |
+| `automaton.hpp:258` | `dispatch_automaton_sync` | 0 | `worldGroup_` | — |
+| `automaton.hpp:259` | `dispatch_automaton_sync` | 1 | `frameCGroup_` | — |
+| `automaton.hpp:270` | `dispatch_automaton_evolve` | 0 | `worldGroup_` | — |
+| `automaton.hpp:271` | `dispatch_automaton_evolve` | 1 | `frameCGroup_` | — |
 | `patch_system.hpp:161` | `generate_patch_batch` | 0 | `worldGroup_` | — |
 | `patch_system.hpp:162` | `generate_patch_batch` | 1 | `frameCGroup_` | — |
 
