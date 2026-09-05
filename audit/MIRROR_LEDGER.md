@@ -15,8 +15,8 @@ carry those facts, or leave them in place and patch around them.
 
 | field | value |
 |---|---|
-| source commit | `3a4d5c519fa950eb576dc4a4f5c8eccd891e8d9c` |
-| | STRIKE_0 U1 — the mute unwrap: eight couplings become unconditional facts |
+| source commit | `289ab18cd274e197374ab7719d6bea112b2408a1` |
+| | STRIKE_0 U2 — the strike pipe and the ring writer: the ground answers the choir |
 | `src/cartridges/the_board/realization/binding_registry.hpp` | `sha256:79b70d3e7510cce71f5d67f85b994a781745d7c090efefd76ba7af165be17281` |
 | `src/cartridges/the_board/realization/world.wgsl` | `sha256:968ca756a34c0e89c688c4ea6c065c2b36695b9c8c65fba0382c36ca05f39b43` |
 | `src/cartridges/the_board/realization/state.hpp` | `sha256:9990fcdee10361a1bbe193fcaf95bf257782afeaca8cab807cac7cb6adf5253d` |
