@@ -161,6 +161,13 @@ namespace t7 {
     // the narrowing to {ch6} that band already named as the ruling is
     // what a cast voice IS, so the set collapses to a name.
     inline constexpr const char* CHOIR_VOICE = "ch6";   // chN = wire = Ableton − 1
+    inline constexpr const char* RELIEF_VOICE = "ch5";   // the ground's keyboard; chN = wire = Ableton − 1
+    // RELIEF_0 — the presence fraction's denominator. canvas_1 declares
+    // every voice's window through default_spec(v, /*window*/ 4.0f)
+    // (analysis/canvas_1/canvas.hpp) — a literal there, so the beat count
+    // is named HERE rather than reaching for a constant that does not
+    // exist. Two literals, one fact: flagged F-WINDOW for a later tidy.
+    inline constexpr float RELIEF_WINDOW_BEATS = 4.0f;
 
     // THE KEYBOARD'S WIDTH, canvas-side. The PIPE is this wide; the
     // POPULATION cap that reads it is the cartridge's own
@@ -318,6 +325,12 @@ namespace t7 {
         // SOURCE-shaped pipe like the ground's two; the cartridge maps
         // pc → wheel station and stamps the terrain ring (STRIKE_0).
         { "ground.strike", 53, 12, 0.0f },
+        // ── the ground's keyboard (RELIEF_0) ── twelve lanes, one per
+        // pitch class: the voice's Wagon length over the window,
+        // NORMALISED to a presence fraction 0..1. A SOURCE-shaped pipe
+        // like the ground's two; the seam applies the depth and the
+        // automaton's tick gate latches it.
+        { "ground.relief", 65, 12, 0.0f },
     };
     inline constexpr uint32_t PARAM_LAYOUT_COUNT =
         sizeof(PARAM_LAYOUT) / sizeof(PARAM_LAYOUT[0]);
@@ -408,6 +421,8 @@ namespace t7 {
             room_current_pc_ = signal_layout_.resolve("all.current_pc");
             ground_energy_  = param_layout_.resolve("ground.energy");
             ground_density_ = param_layout_.resolve("ground.density");
+            relief_ear_ = signal_layout_.resolve((std::string(RELIEF_VOICE) + ".window_length").c_str());
+            relief_target_ = param_layout_.resolve("ground.relief");
 
             // THE CHOIR'S ONE EAR (the casting sheet): the cube voice's
             // PRESENT COUNT — twelve lanes, the count of sounding notes
@@ -801,6 +816,20 @@ namespace t7 {
                 params_.set(ground_density_.base, dens);
             }
 
+            // ── THE GROUND'S KEYBOARD (RELIEF_0) ─────────────────────
+            // ch5's Wagon, normalised to a presence fraction 0..1.
+            // Published vectors ship DRESSED to D and the pipe's lanes
+            // are RAW pitch class (the mosaic's own order), so the read
+            // walks the same fold the choir's ear does.
+            if (relief_ear_.valid && relief_target_.valid) {
+                for (int pc = 0; pc < 12; ++pc) {
+                    const float beats = signal.stat(relief_ear_.channel,
+                        relief_ear_.base + dressed_of_pc(pc));
+                    params_.set(relief_target_.base + pc,
+                                std::clamp(beats / RELIEF_WINDOW_BEATS, 0.0f, 1.0f));
+                }
+            }
+
             last_beat_ = beat;   // single write, shared by the swell's hold clock
         }
 
@@ -862,6 +891,8 @@ namespace t7 {
         SourceBinding room_current_pc_{};   // "all.current_pc" — the room's voices, summed to a density
         TargetBinding ground_energy_{};     // "ground.energy"  — carries all.field, read through fog_field_
         TargetBinding ground_density_{};    // "ground.density" — carries the summed polyphony
+        SourceBinding relief_ear_{};        // "<RELIEF_VOICE>.window_length" — the Wagon's 12-pc beat lengths
+        TargetBinding relief_target_{};     // "ground.relief" — presence fractions, RAW pc order (RELIEF_0)
 
         // ── choir coupling state (one ear, one envelope per key) ─────────
         SourceBinding choir_ear_{};              // "<CHOIR_VOICE>.present_count" — the sounding count per pc
