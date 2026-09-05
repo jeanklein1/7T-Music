@@ -426,9 +426,10 @@ ORGAN_PARAM_GEN(AUTOMATON, AutomatonBank, height_factor_hi,    F32, 0.0f, 3.0f, 
 // `Terrain · Mosaic`'s five dials stood here — the section retired at
 // THE_PANEL I U5 (docs/ORGAN_RETIRED.md).
 
-// ─── Terrain · Ground voice (STRIKE_0 U3 — GROUND_VOICE's gains + the ring) ─
-ORGAN_PARAM(DRIVERS, DriverSurface, ground.height_gain, F32, 0.0f, 4.0f, 0.01f, "Terrain · Ground voice", "lift gain")
-ORGAN_PARAM(DRIVERS, DriverSurface, ground.tick_gain,   F32, 0.0f, 4.0f, 0.01f, "Terrain · Ground voice", "quicken gain")
+// ─── Terrain · Ground voice (STRIKE_0 U3 → RELIEF_1: the ring and the relief) ─
+// ground.height_gain / ground.tick_gain stood here (STRIKE_0 U3 →
+// RELIEF_1): the lift and the quicken, excised by ruling with the
+// coupling they voiced.
 ORGAN_PARAM(DRIVERS, DriverSurface, ground.ring_gain,   F32, 0.0f, 24.0f, 0.1f, "Terrain · Ground voice", "strike ring (wu)")
 ORGAN_PARAM(DRIVERS, DriverSurface, ground.relief_depth, F32, 0.0f, 1.0f, 0.01f, "Terrain · Ground voice", "relief depth (1 = flat)")
 

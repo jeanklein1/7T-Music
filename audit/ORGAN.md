@@ -136,8 +136,6 @@ generator, so the book and the manifest cannot disagree. `driven` is an
 | Terrain · Automaton grain | per-cell height factor, sigma (authored) | `AUTOMATON.height_factor_sigma` | AUTOMATON | F32 | 0 … 0.5 | 0.01 | gen | none |  |
 | Terrain · Automaton grain | per-cell height factor, clamp low (authored) | `AUTOMATON.height_factor_lo` | AUTOMATON | F32 | 0 … 3 | 0.01 | gen | none |  |
 | Terrain · Automaton grain | per-cell height factor, clamp high (authored) | `AUTOMATON.height_factor_hi` | AUTOMATON | F32 | 0 … 3 | 0.01 | gen | none |  |
-| Terrain · Ground voice | lift gain | `DRIVERS.ground.height_gain` | DRIVERS | F32 | 0 … 4 | 0.01 | live | none |  |
-| Terrain · Ground voice | quicken gain | `DRIVERS.ground.tick_gain` | DRIVERS | F32 | 0 … 4 | 0.01 | live | none |  |
 | Terrain · Ground voice | strike ring (wu) | `DRIVERS.ground.ring_gain` | DRIVERS | F32 | 0 … 24 | 0.1 | live | none |  |
 | Terrain · Ground voice | relief depth (1 = flat) | `DRIVERS.ground.relief_depth` | DRIVERS | F32 | 0 … 1 | 0.01 | live | none |  |
 | Pawn · Aura | intent | `DRIVERS.aura.intent` | DRIVERS | BOOL | 0 … 1 | 1 | live | none |  |
@@ -363,14 +361,14 @@ generator, so the book and the manifest cannot disagree. `driven` is an
 
 | | |
 | --- | --- |
-| entries | **335** |
-| by section | Agents 102 · Terrain 58 · Ribbon 55 · Sky & Light 30 · Atmosphere 26 · Interaction 20 · Pawn 18 · Choir 9 · Population 5 · World 3 · Camera 3 · Debug 3 · Measure 3 |
-| by cadence | boundary 106 · driven 14 · gen 50 · live 165 |
-| by macro form | PARAM 169 · PARAM_DEF 102 · PARAM_GEN 50 · PARAM_RO 14 |
-| definition kinds | BEHAVIOR 70 · NONE 233 · TIER 32 |
+| entries | **333** |
+| by section | Agents 102 · Terrain 56 · Ribbon 55 · Sky & Light 30 · Atmosphere 26 · Interaction 20 · Pawn 18 · Choir 9 · Population 5 · World 3 · Camera 3 · Debug 3 · Measure 3 |
+| by cadence | boundary 106 · driven 14 · gen 50 · live 163 |
+| by macro form | PARAM 167 · PARAM_DEF 102 · PARAM_GEN 50 · PARAM_RO 14 |
+| definition kinds | BEHAVIOR 70 · NONE 231 · TIER 32 |
 | witnesses (`ro`) | 14 |
 | blocks and sentinels used | AGENTS, AGENT_ROOM, ATMOS, AUTOMATON, CANVAS, CONFIG, DRIVERS, LIGHTING, ORBS, ORB_BANK, PANEL, PAWN, RIBBON, RIBBON_SPAWN, WORLD |
-| namespaces | canvas 17 · the_board 318 |
+| namespaces | canvas 17 · the_board 316 |
 
 ### Doors
 
@@ -407,7 +405,7 @@ reader — the class of defect this witness exists to catch.
   AGENTS_TABLE         definition=1 seed=1 comment=1              
   AGENT_TIER_GAINS     definition=1 seed=4 static_assert=2 comment=6 
   ATMOS_TABLE          definition=1 seed=1 static_assert=8 comment=8 
-  AUTO_TABLE           definition=1 seed=1 static_assert=3 comment=5 
+  AUTO_TABLE           definition=1 seed=1 static_assert=3 comment=4 
   CANVAS_TABLE         definition=1 seed=1 comment=1              
   CUBE_TABLE           definition=1 seed=1 static_assert=3 comment=1 
   DRIVER_TABLE         definition=1 seed=1 comment=1              
@@ -440,7 +438,7 @@ verbatim:
 
 THE ANSWER, ROW BY ROW
 ------------------------------------------------------------------------
-  proved    253   a declared reader names the field
+  proved    251   a declared reader names the field
   SUSPECT     0   no declared reader names it
   witness    14   an _RO meter: the question is inverted (blind spot 5)
   scope      68   GPU-side or whole-struct (blind spots 2, 3)

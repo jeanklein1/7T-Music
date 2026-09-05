@@ -428,8 +428,9 @@ halves have since answered. The program couplings became unconditional
 facts (STRIKE_0 U1 — a mute nothing could turn came out, and what cannot
 be turned off needs no strip). The music vocabulary now exists and
 carries its own mutes: the drivers' room's gains, where 0 is hands off
-by law — fog, checker, ribbon, the cube light, the ground's three — with
-the aura's `intent` as the one literal switch. The strip is built and it
+by law — fog, checker, ribbon, the cube light, the ground's two (the
+strike ring and the relief) — with the aura's `intent` as the one
+literal switch. The strip is built and it
 is the DRIVERS block; no other strip is owed.
 
 ## The absence roll — every gap, its reason

@@ -63,14 +63,16 @@ of the rule). The census: **boundary 106 · driven 14 · gen 25 · live 162**.
 `canvas_1::initialize` publishes **55 names**: seven readings over each of
 seven voices (49) plus six group readings over `Source::group({0..6})`.
 
-**Eight are heard. Forty-seven are published into silence.** (Six and
+**Seven are heard. Forty-eight are published into silence.** (Six and
 forty-nine until GROUND_VOICE_0 took `all.current_pc` off the shelf; and it
 was twelve and forty-three until CHOIR_0: the zoetrope's seven onset ears
 retired with the lattice they fed, and one new source — `ch6.present_count`
 — took their place. Net, the heard set halved and got *narrower and
 deeper*: one voice, read for what it is holding rather than for what it
 just struck. Seven and forty-eight until RELIEF_0 took
-`ch5.window_length` off the shelf for the ground's keyboard.)
+`ch5.window_length` off the shelf for the ground's keyboard; eight and
+forty-seven until RELIEF_1 handed `all.current_pc` back — its one
+consumer was the density quicken, excised by ruling.)
 
 **STRIKE_0 adds no ear:** the strike pipe derives from
 `ch6.present_count`'s activation edge, already heard, so the heard set
@@ -80,18 +82,17 @@ That is the real shape of the uncoupled analysis side — not misses, but
 **unheard publications**. Every one is a source a coupling could take
 today with no analysis work at all.
 
-### The eight that are read
+### The seven that are read
 
 | # | source name | reading | resolved in | drives |
 |---|---|---|---|---|
-| 1 | `all.field` | `Reading::Field` | `fog_field_` | fog density + fog colour (a table index into `FOG_BY_FIELD`) — **and, since GROUND_VOICE_0, the ground's lift. TWO READERS, ONE BINDING**: the ground does not re-resolve it |
+| 1 | `all.field` | `Reading::Field` | `fog_field_` | fog density + fog colour (a table index into `FOG_BY_FIELD`). (The ground's lift read this binding too, GROUND_VOICE_0 → RELIEF_1 — the second reader is gone, the fog's ear stays) |
 | 2 | `ch1.present_count` | `Reading::PresentCount` | `voice_playhead_` | the sustain swell's hold clock (`RIBBON_VOICE`) |
 | 3 | `all.window_length` | `Reading::WindowLength` | `room_wagon_` | the room tint's HUE (pitch-class centre of mass) |
 | 4 | `all.present_count` | `Reading::PresentCount` | `room_playhead_` | the room tint's MIX gate (sounding vs silent) |
 | 5 | `ch1.window_length` | `Reading::WindowLength` | `checker_win_` | the checker resultant colour (`CHECKER_VOICE`) |
 | 6 | `ch6.present_count` | `Reading::PresentCount` | `choir_ear_` | the cube choir's 24 keys — one enveloped light per key (`CHOIR_VOICE`). It was 36 until CHOIR_1 |
-| 7 | `all.current_pc` | `Reading::CurrentPC` | `room_current_pc_` | summed over its twelve lanes into the room's POLYPHONIC DENSITY, which quickens the ground's automaton (GROUND_VOICE_0) |
-| 8 | `ch5.window_length` | `Reading::WindowLength` | `relief_ear_` | the ground's keyboard (RELIEF_0): normalised to a presence fraction per pitch class, depth-scaled at the seam, latched by the automaton's tick into the relief lanes |
+| 7 | `ch5.window_length` | `Reading::WindowLength` | `relief_ear_` | the ground's keyboard (RELIEF_0): normalised to a presence fraction per pitch class, depth-scaled at the seam, latched by the automaton's tick into the relief lanes |
 
 `RIBBON_VOICE` and `CHECKER_VOICE` are the same wire, `ch1`, the chordal
 piano: **one voice carries two of the couplings**. `CHOIR_VOICE` is the
@@ -119,6 +120,7 @@ anything wants it.
 | `all.dft_mag` + `all.dft_phase` | the room's interval families | consonance / dissonance as a scalar the world could wear |
 | `chN.present_count` (5 of 7) | the Playhead per voice | `ch1` (the ribbon's hold clock) and `ch6` (the choir) are heard |
 | `chN.window_length` (5 of 7) | the Wagon per voice | `ch1` and `ch5` are heard |
+| `all.current_pc` | the room's per-pc voice count (one-hot per voice, summed) | returned to the shelf at RELIEF_1 — its one consumer was the density quicken, excised by ruling |
 | `chN.onset` (7) | the velocity-weighted note-on impulses per voice | **unheard since CHOIR_0** — the lattice was their only reader. The one reading published on ALL SEVEN voices, and now the largest single block of capability on the shelf |
 
 **The DFT is the headline.** Fourteen published names (`dft_mag` /
@@ -128,7 +130,7 @@ calls it "the pc-DFT capability"; it is capability with no consumer.
 
 ---
 
-## §2 — PIPES: `PARAM_LAYOUT`'s thirteen
+## §2 — PIPES: `PARAM_LAYOUT`'s eleven
 
 The register map is hand-laid and compile-time-checked: a `static_assert`
 lambda proves no pipe leaves the bank and no two overlap. Rests are the
@@ -145,20 +147,18 @@ canvas's own; the WORLD's rest is composed in at the seam.
 | 7 | `terrain.checker_mean` | 10 / 3 | `0.0` | `cartridge.hpp`: per lane against `ck.rest_resultant[]` | `set_checker_color_field` | **LIVE.** Sample-and-hold on the beat grid |
 | 8 | `terrain.checker_var` | 13 / 2 | `0.0` | same seam: `[0]` amount, `[1]` variance | `set_checker_color_field` | **LIVE.** Amount 0 → each cell's SEED colour, not gray |
 | 9 | `cube.light` | 15 / 36 | `0.0` (DARK) | `cartridge.hpp`, `phase_motion_drivers`: `gain · I` per lane, mirrored into `CubeBehaviorsState::choir_I` | `choir_project` → `upload_cube_color` / `upload_cube_face_variance` / `upload_cube_body_radius` | **LIVE** (CHOIR_0). 36 LANES, of which `CUBE_CHOIR_N` are keys — 24 since CHOIR_1, and the rest sit dark. Rest 0 is the seed draw bit-exactly — and since STAGE_0 R4 that draw is AUTHORED: `choir_slot_seed(k) = cpu_hash(CHOIR_SEED, k)`, so a key wears the same colour in every world, and the compiler proves the 24 distinct |
-| 10 | `ground.energy` | 51 / 1 | `0.0` | `cartridge.hpp`, `phase_motion_drivers`: `clamp(1 + height_gain · energy, …)` | `set_mode_gol_scales` → `config.mode_gol_height_scale` | **LIVE** (GROUND_VOICE_0). Carries `all.field` — the fog's own binding, read a second time. **Gain 0.5 since STAGE_0 R6** (0.8 saturated the top half of the range). Its seam is a SWITCH, not a blend — see *THE HANDS-OFF-REST SEAM* in `docs/OPEN.md` |
-| 11 | `ground.density` | 52 / 1 | `0.0` | same seam: `clamp(1 / (1 + tick_gain · density), …)` | `set_mode_gol_scales` → `config.mode_gol_tick_scale` → `upload_automaton_header`'s step gate | **LIVE** (GROUND_VOICE_0). Carries Σ `all.current_pc` — the room's voices |
-| 12 | `ground.strike` | 53 / 12 | `0.0` (one-frame impulse) | `cartridge.hpp`, `phase_motion_drivers`: pc → `wheel_station(PANEL_LIVE.wheel, pc)`, stamps the 8-slot pulse ring at `DRIVER_LIVE.ground.ring_gain` | `GPUState::set_pulse_data` → `contrib_radial_pulses_at` | **LIVE** (STRIKE_0). Twelve one-frame impulse lanes, one per pitch class, raised on any rank's activation edge in the choir loop; `ring_gain` 0 is hands off — no new rings, standing ones age out |
-| 13 | `ground.relief` | 65 / 12 | `0.0` | `cartridge.hpp`, `phase_motion_drivers`: depth × presence → the automaton's PENDING lanes; the tick gate latches and uploads (`surface/automaton.hpp`) | `upload_automaton_relief` → `gol_cell_relief` in `contrib_automaton_at` | **LIVE** (RELIEF_0). Twelve presence fractions, one per pitch class, RAW pc order; `relief_depth` 0 is hands off, and the GPU only ever sees tick-aligned lanes |
+| 10 | `ground.strike` | 53 / 12 | `0.0` (one-frame impulse) | `cartridge.hpp`, `phase_motion_drivers`: pc → `wheel_station(PANEL_LIVE.wheel, pc)`, stamps the 8-slot pulse ring at `DRIVER_LIVE.ground.ring_gain` | `GPUState::set_pulse_data` → `contrib_radial_pulses_at` | **LIVE** (STRIKE_0). Twelve one-frame impulse lanes, one per pitch class, raised on any rank's activation edge in the choir loop; `ring_gain` 0 is hands off — no new rings, standing ones age out |
+| 11 | `ground.relief` | 65 / 12 | `0.0` | `cartridge.hpp`, `phase_motion_drivers`: depth × presence → the automaton's PENDING lanes; the tick gate latches and uploads (`surface/automaton.hpp`) | `upload_automaton_relief` → `gol_cell_relief` in `contrib_automaton_at` | **LIVE** (RELIEF_0). Twelve presence fractions, one per pitch class, RAW pc order; `relief_depth` 0 is hands off, and the GPU only ever sees tick-aligned lanes |
 
-**All thirteen are live and all thirteen have a reader.** They occupy
-slots 0–76 of a **256-slot** bank (`VISUAL_PARAM_SLOTS`), so the register
-map is **30% allocated** — it was 6% before CHOIR_0, and the jump is one
-pipe: `cube.light` alone is 36 of the 77.
+**All eleven are live and all eleven have a reader.** They occupy
+slots 0–50 and 53–76 of a **256-slot** bank (`VISUAL_PARAM_SLOTS`) — a
+two-slot void at 51–52, the ground's voice, left by ruling (RELIEF_1) —
+so the register map is **29% allocated**, and the largest single pipe is
+still `cube.light` at 36 of the 75.
 
-**FOUR OF THE THIRTEEN CARRY SOURCES RATHER THAN TARGETS**, and they
-are the ground's — the two multiplier feeds below, the strike's twelve
-impulse lanes (STRIKE_0), and the relief's twelve presence fractions
-(RELIEF_0). Every other pipe carries a decoded, target-shaped value that the
+**TWO OF THE ELEVEN CARRY SOURCES RATHER THAN TARGETS**, and they are
+the ground's — the strike's twelve impulse lanes (STRIKE_0) and the
+relief's twelve presence fractions (RELIEF_0). Every other pipe carries a decoded, target-shaped value that the
 seam composes LINEARLY (`rest + gain·(driven − rest)`); the ground's law is
 not linear in its gain — the gain sits INSIDE the expression (`1 + g·field`,
 `1/(1 + g·dens)`) — so splitting it canvas-side would change what the gain
@@ -337,7 +337,7 @@ takes no position.
 | `Reading::Polyphony` | `canvas.hpp` enum | **PUBLISHED BY NOTHING.** The enumerator exists; no `publish_reading` call names it |
 | `Reading::PresentLength` | same | **PUBLISHED BY NOTHING** |
 | `Reading::WindowCount` | same | **PUBLISHED BY NOTHING** |
-| the 49 unheard names | §1 | published, computed, **read by nothing** — capability, not orphans. It was 43; CHOIR_0 handed back the seven `chN.onset` names when the lattice that read them died, and took `ch6.present_count` in exchange |
+| the 48 unheard names | §1 | published, computed, **read by nothing** — capability, not orphans. It was 43; CHOIR_0 handed back the seven `chN.onset` names when the lattice that read them died, and took `ch6.present_count` in exchange; RELIEF_1 handed back `all.current_pc` with the quicken |
 | `DRIVER_LIVE.aura` | `driver_surface.hpp` | authored with `intent = 0`. Its four words are live, dialable, and currently inert BY THE DIAL, not by a broken wire — the honest state, and its comment says so |
 | `reveal_zoetrope` | `cube_behaviors.hpp` | **NO LONGER AN ORPHAN.** It graduated to Door 5 (`ZOETROPE`) with the other two cube verbs, and CHOIR_0 left it and the whole formation machine untouched (§3) |
 

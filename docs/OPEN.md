@@ -1708,7 +1708,13 @@ running the regeneration, not by reasoning about it.
 new heights and radii, the attack's shape at τ = 8/6, the two-rank keyboard,
 and the flatter gathering (flag 2).
 
-## GROUND_VOICE_0 — THE GROUND HEARS (landed; one campaign-level finding, three corrections, three flags)
+## GROUND_VOICE_0 — THE GROUND HEARS (landed; SUPERSEDED at RELIEF_1)
+
+**SUPERSEDED at RELIEF_1 (a38c15e1) — Jean's ruling "excise both."** One
+author per fact: the tick is the bar's, the height is RELIEF's. The
+lift and the quicken, their pipes, ear, bounds and rows are gone; the
+two config scales remain hand dials. The subdivision ladder
+(bar/half/quarter) is the named honest form if density ever returns.
 
 Landed on `master`. **Working name — naming is Jean's gate.** The GoL cells'
 heights and speed of update are coupled to the music. The room's held ENERGY
@@ -2334,7 +2340,8 @@ per-world palette remains a one-function swap if ever wanted.
 
 **THE FREEZE-LIFT, SCOPED.** ORGAN_REST's enrollment freeze lifted by
 Jean for STRIKE_0's row set only — the wheel's five axes, the choir
-envelope pair, the six driver gains (the ring's included), and the two
+envelope pair, the six driver gains (the ring's included; two of the
+six retired at RELIEF_1), and the two
 dark rows' retirement (STAGE_0 F3); the wider gap (RibbonSurface's 16
 et al.) stays parked for the seam campaign. One row of the ruled set
 STOPPED at recon (CC's flag, F-MODE): `mode_threshold` is a hardware
@@ -2374,6 +2381,8 @@ down. Jean's rulings, 2026-09-05:
   presence = beats/4; `relief_depth` rests at 0.8; 0 is hands off.
 - **GROUND_VOICE stacks**: energy lifts, density quickens, RELIEF
   carves — three multipliers on one extrusion, each silence-able.
+  **REVERSED at RELIEF_1** — the quicken broke the bar law and the lift
+  opposed "subtract instead of add"; both excised.
 - **The mosaic is the seed's**: `gol_cell_pc` hashes the cell address
   with `config.world_seed` (property 9500); REBIRTH redraws the
   keyboard; the jitter hash keeps its seedless law.
@@ -3006,6 +3015,7 @@ state, and filing it here would be the second home L46 forbids.
 | the mute registry is cut; eight couplings are unconditional facts | *STRIKE_0 — FOUR RULINGS ON THE RECORD*, above |
 | the choir's identity stands across worlds | *STRIKE_0 — FOUR RULINGS ON THE RECORD*, above |
 | the enrollment freeze is lifted for STRIKE_0's rows only | *STRIKE_0 — FOUR RULINGS ON THE RECORD*, above; ORGAN_REST's tail |
+| RELIEF_1 — GROUND_VOICE yields: one author per fact (Jean, 2026-09-05) | *GROUND_VOICE_0 — THE GROUND HEARS*, above (the SUPERSEDED header); THE GROUND'S KEYBOARD's reversed ruling |
 
 ### Jean's open gates
 
