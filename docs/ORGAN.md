@@ -421,12 +421,16 @@ None is externally blocked, which is why none of them is in `docs/OPEN.md`:
 OPEN is the register of open STATE, and a deferral any sitting can lift by
 reading a module is unfinished survey, not open state.
 
-**And one thing the next sitting should settle before it builds the strip.**
-`Coupling::` masks the PROGRAM's couplings — terrain→pawn (y, tilt),
-pawn→camera, the three input couplings, terrain→sphere-height and pawn→sun-VP.
-There is no fog bit. The music campaign's couplings are a different vocabulary
-that does not exist yet, and which one the strip is for changes what the strip
-is.
+**The strip question, settled by the tree's own walk.** A sitting once
+had to choose which couplings a mute strip would be for — `Coupling::`'s
+program couplings, or a music vocabulary that did not yet exist. Both
+halves have since answered. The program couplings became unconditional
+facts (STRIKE_0 U1 — a mute nothing could turn came out, and what cannot
+be turned off needs no strip). The music vocabulary now exists and
+carries its own mutes: the drivers' room's gains, where 0 is hands off
+by law — fog, checker, ribbon, the cube light, the ground's three — with
+the aura's `intent` as the one literal switch. The strip is built and it
+is the DRIVERS block; no other strip is owed.
 
 ## The absence roll — every gap, its reason
 
