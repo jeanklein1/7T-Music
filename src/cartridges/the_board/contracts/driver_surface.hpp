@@ -66,28 +66,13 @@ struct DriverSurface {
         float light_color[3];     // the incandescence the mix aims at
         float gain;               // 0 manual … 1 coupling verbatim
     } cube;
-    // THE GROUND'S VOICE. phase_motion_drivers reads two SOURCE pipes —
-    // the room's held energy and its polyphonic density — and composes
-    // them into the two multipliers config carries for the automaton:
-    //   height_mul = clamp(1 + height_gain · energy,      0.25, 4.0)
-    //   tick_mul   = clamp(1 / (1 + tick_gain · density), 0.25, 4.0)
-    // TWO GAINS, NOT ONE, because these are two gestures and not one:
-    // the room's energy LIFTS the ground, and its density QUICKENS it.
-    // The fog and the ribbon share a gain because each is one gesture in
-    // several lanes; this is the other case.
-    //
-    // NO REST TRIPLE HERE, and the reason is unusual enough to state.
-    // The rest of a driven parameter normally lives somewhere else — the
-    // world's for the fog, the terrain panel's for the checker. These
-    // two rests live in the DRIVEN FIELDS THEMSELVES: config's
-    // mode_gol_*_scale are boot-pinned to 1.0 and are still WRITABLE
-    // organ dials. So gain 0 does not mean "compose against a rest", it
-    // means HANDS OFF — the seam passes the dial's own value back, and
-    // the dial is the author again. That is what "0 manual" has always
-    // said; here it is literally true.
+    // THE GROUND'S VOICE stood here (GROUND_VOICE_0 → RELIEF_1): two
+    // gains, the lift and the quickening, whose rests lived in the
+    // driven fields themselves (config's two gol scales, boot-pinned
+    // 1.0 and still hand dials). Excised by ruling — one author per
+    // fact; the ground's two remaining gains are the strike ring's and
+    // the relief's.
     struct Ground {
-        float height_gain;        // × the room's energy, into the lift
-        float tick_gain;          // × the room's density, into the period
         float ring_gain;          // wu per strike — the ring's crest against alive_height's 24; 0 = hands off
         float relief_depth;       // 0..1 — full-bar presence carves a class's cells to (1 − depth) of height; 0.8 = Jean's 20 % floor; 0 = hands off
     } ground;
@@ -106,42 +91,16 @@ inline constexpr DriverSurface DRIVER_TABLE = {
     { 1.0f, 1.0f, { 0.0f, 0.0f, 0.0f }, 0.0f, 1.0f },   // ribbon: the seam's own fallbacks
     { { 1.0f, 0.92f, 0.72f }, 1.0f },   // cube: warm incandescent against
                                         // seed-cool bodies (Jean's desk)
-    { 0.5f, 0.15f, 4.0f, 0.8f },        // ground: the lift, the quickening, the
-                                        // strike ring, and the relief depth —
-                                        // lands sounding (Jean's desk — see the
-                                        // two notes below)
+    { 4.0f, 0.8f },                     // ground: the strike ring and the relief
 };
 
-// THE TWO DESK NUMBERS, WITH WHAT THEY ACTUALLY DO — counted, because a
-// gain whose effect saturates reads as a broken dial rather than a
-// strong one.
-//
-// height_gain 0.5 against a field of 0..6 gives 1.0 / 1.5 / 2.0 / 2.5 /
-// 3.0 / 3.5 / 4.0, and GROUND_SCALE_MAX is 4.0 — so the full field range
-// maps onto the full clamp, field 6 landing on the ceiling EXACTLY and
-// every field below it landing on its own height. It is the unique gain
-// with that property: 1 + g*6 = 4 has one solution.
-//
-// IT WAS 0.8, AND THE COUNT IS WHY IT MOVED (GROUND_VOICE_0's F2,
-// ruled at STAGE_0 R6). At 0.8 the sequence is 1.0 / 1.8 / 2.6 / 3.4 /
-// 4.2 / 5.0 / 5.8, and fields 4, 5 and 6 ALL CLAMP TO 4.0 — the top half
-// of the driver's range was one height. That might have been right (a
-// loud room is a loud room), but it was a choice nobody had made, and
-// what a saturating gain actually reads as is a broken dial.
-//
-// WHAT THE MOVE COSTS: the quiet end is gentler. Field 1 lifts 1.5x
-// where it lifted 1.8x. The loud end is what was bought.
-//
-// tick_gain 0.15 against voices 0..12 gives period × 1.0 / 0.87 / 0.77 /
-// 0.69 / 0.63 / 0.53 / 0.45 / 0.36 — the whole useful range well clear
-// of GROUND_SCALE_MIN, and monotone. This one wants no note.
 
 // The live surface — the panel's fourth block and the seams' read.
 inline DriverSurface DRIVER_LIVE = DRIVER_TABLE;
-static_assert(sizeof(DriverSurface) == 26 * sizeof(float),
+static_assert(sizeof(DriverSurface) == 24 * sizeof(float),
     "DRIVER_LIVE is a whole-struct copy of the design row: a field added "
-    "to one is added to the other by construction. 26 words — fog 1, "
-    "aura 4, checker 6, ribbon 7, cube 4, ground 4");
+    "to one is added to the other by construction. 24 words — fog 1, "
+    "aura 4, checker 6, ribbon 7, cube 4, ground 2");
 
 } // namespace the_board
 } // namespace t7
