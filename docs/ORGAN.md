@@ -428,6 +428,31 @@ There is no fog bit. The music campaign's couplings are a different vocabulary
 that does not exist yet, and which one the strip is for changes what the strip
 is.
 
+## The absence roll — every gap, its reason
+
+`organ_gap.py` is a map and this is its legend: every member of an
+enrolled home that the panel does not name, and why the record says so.
+A row here is a REASON on file, not a parking ticket — when a reason
+dies, its row must die with it (the mute's row above is the cautionary
+tale). Standing at STRIKE_0 R: **40 absent, 35 reasoned, 5 stopped to
+the report** — the two `OrbConfig` lines failed their own recon guard
+and their reasons are the round report's to carry until re-authored.
+
+| home · field | reason |
+|---|---|
+| `AgentPopulationBank` · `behavior_weights`, `tier_weights` | weight VECTORS — one slider cannot say one; the composite editor (D5) is the future, priced at `tierset_id`'s row |
+| `CubeBank` · `behavior_weights` | same class: a weight vector awaiting D5 |
+| `AutomatonBank` · `mode_threshold` | LAW, not a dial — hardware mirror of `AUTO_MODE_THRESHOLD` (world.wgsl), transport skips it by design; blessed by Jean at STRIKE_0 R |
+| `GPUDesignConfig` · `world_seed` | the seed the world IS; its dial is `WORLD.next_seed` + the REBIRTH door (the seed door), its witness the boot line |
+| `GPUDesignConfig` · `sun_direction` | the transported value of `ATMOS.sun_direction` — the dial exists upstream; this is the wire |
+| `GPUDesignConfig` · `world_bound_min`, `world_bound_max`, `placement_patch_count` | world geometry the seed and radius author at birth — facts of the world, not knobs on it |
+| `GPUDesignConfig` · `pulse_count`, `pulse_data` | the ring's seat — DRIVEN by the strike writer since STRIKE_0; the hand's dial is `ground.ring_gain` |
+| `GPUDesignConfig` · `possessed_slot`, `point_host`, `cull_point_x`, `cull_point_z` | the program's own hands — possession and camera state, authored per frame, never a dial |
+| `GPUDesignConfig` · `draw_ring`, `cube_plasticity` | dark by ruling (STRIKE_0 U3f): rows retired, fields await a relayout campaign |
+| `OrbConfig` · `tierset_id` | (standing row above — the sentinel a 0…1 slider cannot say; kept there, referenced here) |
+| `PawnAuraProfile` · `effect_mask` | a bitmask, mirrored and unread (STATUS: INTENT) — the checkbox-grid class, unbuilt; a reader or an excision is a future ruling |
+| `RibbonSurface` · sixteen movement fields | MOVEMENT, whole — the headline gap, parked by ruling for the movement campaign (ORGAN_REST, reaffirmed at the STRIKE_0 freeze-lift) |
+
 ## The tally
 
 **THE HAND-WRITTEN TALLY IS GONE (THE_PANEL I U5), and that is the fix.**
