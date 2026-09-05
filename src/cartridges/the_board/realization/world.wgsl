@@ -2310,9 +2310,10 @@ const SPHERE_MIN_TERRAIN_CLEARANCE: f32 = 5.0;
 // RESIDUE_2 [3b]: the sphere's floor over the LIVE ground (flyer
 // policy — raw GoL, one card fetch). update_sphere walks pos.y toward
 // max(authored orbit y, floor + SPHERE_CLEARANCE) — the walk, not this
-// floor, is the operative change while COUPLING_TERRAIN_TO_SPHERE_HEIGHT
-// (its snapped +5 sibling above) is unmuted; this floor binds when that
-// coupling is muted. Jean's dial, panel-legible.
+// floor, is the operative change; the terrain→sphere coupling is an
+// unconditional fact since STRIKE_0 U1 (the mute registry died there),
+// so this floor is the walk's standing lower bound, not a muted-arm
+// fallback. Jean's dial, panel-legible.
 const SPHERE_CLEARANCE: f32 = 2.0;
 
 // Cubes bob and now drift via Phase-3 behaviors; the drift integrator
@@ -5135,9 +5136,9 @@ fn pawn_vs(@builtin(vertex_index) vid: u32,
            @builtin(instance_index) inst: u32) -> EntityVarying {
     let agent = render_agents[inst];
 
-    // THE RING (draw authority): agents exist to 350 but DRAW only inside the
-    // ring; the pawn is NOT exempt (ruled). Inactive/out-of-ring slots collapse
-    // to a degenerate point at the agent's pos (local geometry * active_f = 0).
+    // DRAW AUTHORITY: an agent is visible iff it is ACTIVE — no ring, no
+    // radius (STAGE_0 U2). Inactive slots collapse to a degenerate point
+    // at the agent's pos (local geometry * active_f = 0).
     // `agent_in_ring` stood here (STAGE_0 U2) — centre-distance minus a
     // hardcoded 5 wu body half-extent, folded into active_f so an
     // out-of-ring agent collapsed to a degenerate point. An agent is

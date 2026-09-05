@@ -74,9 +74,6 @@ struct PlayerState {
 
     // ── Aura presence (closes SEAM[spine:P8]) ──
     float aura_presence = 0.0f;                  // pawn aura ramp (was pawn_state_.aura_presence)
-
-    // Future (deferred):
-    //   uint32_t active_couplings;         // COUPLING_* bitmask owned by player
 };
 
 // ═══ INPUT STATE — THE DRIVER'S INTENT ORGAN ══════════════════════

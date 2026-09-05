@@ -3172,8 +3172,9 @@ namespace t7 {
             // and the organ writes config_ at an offset — so the setters
             // were a second, unused road to a field the panel already
             // reaches. set_mute_coupling wrote `mute_couplings`, which no
-            // organ row names and nothing else writes: that field is its
-            // boot value and now says so.
+            // organ row named and nothing else wrote — the accessor died
+            // here, and the field followed at STRIKE_0 U1 (padded in
+            // place, both rooms).
             //
             // THE MEMBERS BEHIND THEM STAY. An accessor is a road; the
             // state it reached is still written and still read by the

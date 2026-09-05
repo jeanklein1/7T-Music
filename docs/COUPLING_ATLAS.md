@@ -341,7 +341,8 @@ takes no position.
 here**, and it is small. The coupling layer's problem is not rot; it is
 **reach**: 49 of 55 published names and 15 of 15 GROUND-automaton dials
 (`AUTO_LIVE`, §4 — a different automaton from the zoetrope's, and the one
-still standing) have no voice, while all nine pipes and all six bindings
+still standing) have no voice, while every pipe in the PIPES table
+(twelve at STRIKE_0) and all six bindings
 work. **CHOIR_0 demonstrated the other honest answer to a dial with no
 voice**: the zoetrope lattice's own console band — TICK_BEATS, REV_BEATS,
 the diffusion and pigment law, STRIKE_SPREAD — was not coupled, it was
