@@ -303,23 +303,11 @@ namespace t7 {
         // nothing at I = 0. Base 15 is the first free slot after the
         // terrain run; the bank goes 15/256 → 51/256 allocated.
         { "cube.light", 15, CHOIR_LANES, 0.0f },
-        // ── the ground's voice ── TWO PIPES THAT CARRY SOURCES, not
-        // targets, and they are the only two in this table that do.
-        // Every other pipe carries a decoded, target-shaped value and
-        // the seam composes it LINEARLY (`rest + gain·(driven − rest)`).
-        // The ground's law is not linear in its gain: the gain sits
-        // INSIDE the expression (`1 + g·field`, `1/(1 + g·dens)`), so
-        // splitting it canvas-side would change what the gain MEANS —
-        // at the authored tick gain the linear form could only ever
-        // shorten the period by 15%, where the ruled form reaches the
-        // clamp on a dense chord. The law and its desk numbers were
-        // authored together, so the law stays whole at the seam and
-        // these two carry what it needs.
-        // REST 0 IS THE NEUTRALITY, and it is the fog's convention: the
-        // `1 +` in the law is what makes silence a multiplier of exactly
-        // one, so no rest constant has to promise it.
-        { "ground.energy",  51, 1, 0.0f },   // all.field — the room's held energy
-        { "ground.density", 52, 1, 0.0f },   // Σ all.current_pc — voices sounding
+        // ── (slots 51–52 stood here: ground.energy / ground.density,
+        // the ground's voice — GROUND_VOICE_0 → RELIEF_1, excised by
+        // ruling.) The SOURCE-shaped pipes in this bank are now
+        // ground.strike and ground.relief below; the seam applies each
+        // law, the canvas decodes nothing for them.
         // ── the strike ── twelve one-frame impulse lanes, one per pitch
         // class: 1.0 on any rank's activation edge, else 0. A
         // SOURCE-shaped pipe like the ground's two; the cartridge maps
@@ -412,15 +400,6 @@ namespace t7 {
             checker_var_seg_  = Segment{ 0.0f, 0.0f, 0.0f, 0.0f };
             checker_next_read_ = 0.0f;   // first frame reads, then grid-locks
 
-            // THE GROUND'S EARS. `all.field` is NOT re-resolved: the fog
-            // already binds it as fog_field_, and one home means one
-            // resolve — the ground is its SECOND READER, not a second
-            // binding. `all.current_pc` is new: the room's per-pc voice
-            // count, one of the atlas's unheard names, summed in the
-            // decode into a polyphonic density.
-            room_current_pc_ = signal_layout_.resolve("all.current_pc");
-            ground_energy_  = param_layout_.resolve("ground.energy");
-            ground_density_ = param_layout_.resolve("ground.density");
             relief_ear_ = signal_layout_.resolve((std::string(RELIEF_VOICE) + ".window_length").c_str());
             relief_target_ = param_layout_.resolve("ground.relief");
 
@@ -769,52 +748,8 @@ namespace t7 {
                 }
             }
 
-            // ── THE GROUND'S VOICE ───────────────────────────────────
-            // TWO SOURCES, NO ENVELOPE, NO SEGMENT — as ruled, and the
-            // ruling's reason is HALF TRUE, which is worth writing down
-            // rather than repeating. The commission says the smoothing
-            // question does not arise because `field` is already EMA'd
-            // analysis-side. IT IS NOT: canvas_1 publishes it as
-            // `field_index(p.field)`, a discrete held ELECTION, so it
-            // steps. The fog reads the same source and answers exactly
-            // that by carrying its table lookup on a Segment over
-            // fog_span — "so density and color drift across a modulation
-            // instead of snapping", in its own band's words. Without one
-            // here, the WHOLE GROUND changes height in a single frame
-            // when the field elects.
-            //
-            // BUILT AS RULED ANYWAY, and flagged rather than fixed. A
-            // ground that jumps on a modulation may be exactly the
-            // percept — the harmony moves and the world moves with it —
-            // and that is a desk question, not a correctness one. The
-            // one-idiom fix is one line per pipe, the fog's own:
-            //   trajectory_release(ground_energy_seg_, v, beat, span)
-            // with a span on CANVAS_LIVE beside fog_span. Same for the
-            // density if the tick reads twitchy, which the commission
-            // already flagged.
-            //
-            // NEITHER PIPE IS DECODED HERE. The law that turns energy
-            // into a lift and density into a tick lives at the seam,
-            // with the gains — see the PARAM_LAYOUT rows above for why
-            // that split falls here and not in the usual place.
-            if (fog_field_.valid && ground_energy_.valid) {
-                // The fog's own binding, read a second time. A held rank
-                // 0..6: 0 is "no field yet", 1 is the anchor, and the
-                // ground rises with the rest exactly as the fog thickens.
-                params_.set(ground_energy_.base,
-                    signal.stat(fog_field_.channel, fog_field_.base));
-            }
-            if (room_current_pc_.valid && ground_density_.valid) {
-                // The room's current notes are a ONE-HOT PER VOICE summed
-                // per pitch class, so the sum over the twelve lanes is the
-                // count of voices sounding a note right now — 0 in silence,
-                // and the room's polyphony otherwise.
-                float dens = 0.0f;
-                for (int i = 0; i < 12; ++i)
-                    dens += signal.stat(room_current_pc_.channel,
-                        room_current_pc_.base + i);
-                params_.set(ground_density_.base, dens);
-            }
+            // The ground's-voice writes stood here (RELIEF_1 tombstone in
+            // cartridge.hpp's seam says why).
 
             // ── THE GROUND'S KEYBOARD (RELIEF_0) ─────────────────────
             // ch5's Wagon, normalised to a presence fraction 0..1.
@@ -887,10 +822,7 @@ namespace t7 {
         Segment       checker_amount_seg_{};
         Segment       checker_var_seg_{};
 
-        // ── ground coupling state (two sources, no envelope) ─────────────
-        SourceBinding room_current_pc_{};   // "all.current_pc" — the room's voices, summed to a density
-        TargetBinding ground_energy_{};     // "ground.energy"  — carries all.field, read through fog_field_
-        TargetBinding ground_density_{};    // "ground.density" — carries the summed polyphony
+        // ── ground coupling state (RELIEF_0's ear and pipe) ──────────────
         SourceBinding relief_ear_{};        // "<RELIEF_VOICE>.window_length" — the Wagon's 12-pc beat lengths
         TargetBinding relief_target_{};     // "ground.relief" — presence fractions, RAW pc order (RELIEF_0)
 
