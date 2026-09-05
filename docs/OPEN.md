@@ -1129,6 +1129,18 @@ beat-riding ring speed parked (F-BEATS). Rebirth clears standing rings.
 
 Restore only if the lab returns. Recovery is `git show 1a52f2db^:<path>`.
 
+## THE PYRAMID'S UNREAD COLOUR COLUMNS (open, low)
+
+`PyramidTierRow.color_override` / `color_variance` are authored and
+unread: `pyramid_compute_colors` is sandstone-only and its override
+check is dead code — both branches identical, and the tree says so at
+the function (`machine/entity_pipeline.hpp`). Not enrolled anywhere, so
+not a dark dial — dead columns. The pyramid's realization is the
+heightfield bake (its colour IS the terrain's), so the honest futures
+are an excision of the two columns or a colour voice for the bake;
+either is a design ruling, neither is a sweep's. On the record so the
+debt stops living only in session chat.
+
 ## THE TIME SOURCE AFTER THE SPLICE (open — Jean-observed)
 
 `AnalysisSignal::t_beats` now advances from the DAW transport
