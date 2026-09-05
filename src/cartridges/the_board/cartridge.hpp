@@ -264,8 +264,6 @@ namespace t7 {
             TargetBinding cube_light_dst_{};
             // The ground's two SOURCE pipes (GROUND_VOICE_0) — the law that
             // turns them into the automaton's two multipliers is at the seam.
-            TargetBinding ground_energy_dst_{};
-            TargetBinding ground_density_dst_{};
             TargetBinding ground_relief_dst_{};  // "ground.relief" — ch5's presence fractions (RELIEF_0)
             // The strike's pipe (STRIKE_0) — twelve one-frame impulse
             // lanes; the seam maps pc → wheel station and stamps the
@@ -821,8 +819,6 @@ namespace t7 {
                 checker_mean_dst_ = visual_canvas_.layout().resolve("terrain.checker_mean");
                 checker_var_dst_ = visual_canvas_.layout().resolve("terrain.checker_var");
                 cube_light_dst_ = visual_canvas_.layout().resolve("cube.light");
-                ground_energy_dst_  = visual_canvas_.layout().resolve("ground.energy");
-                ground_density_dst_ = visual_canvas_.layout().resolve("ground.density");
                 ground_relief_dst_ = visual_canvas_.layout().resolve("ground.relief");
                 ground_strike_dst_ = visual_canvas_.layout().resolve("ground.strike");
                 std::fprintf(stderr,
@@ -837,13 +833,6 @@ namespace t7 {
                     "[the_board] cube.light base=%d count=%d valid=%d | choir %u key(s), %u rank(s)\n",
                     cube_light_dst_.base, cube_light_dst_.count, (int)cube_light_dst_.valid,
                     CUBE_CHOIR_N, CUBE_CHOIR_RANKS);
-                std::fprintf(stderr,
-                    "[the_board] ground.energy base=%d valid=%d | ground.density base=%d valid=%d"
-                    " | gains %.2f lift, %.2f quicken\n",
-                    ground_energy_dst_.base,  (int)ground_energy_dst_.valid,
-                    ground_density_dst_.base, (int)ground_density_dst_.valid,
-                    (double)DRIVER_LIVE.ground.height_gain,
-                    (double)DRIVER_LIVE.ground.tick_gain);
                 std::fprintf(stderr,
                     "[the_board] ground.relief base=%d valid=%d | voice %s | depth %.2f\n",
                     ground_relief_dst_.base, (int)ground_relief_dst_.valid,
@@ -1166,68 +1155,13 @@ namespace t7 {
                                                       ck.rest_amount, ck.rest_variance);
                 }
 
-                // ── THE GROUND'S VOICE (GROUND_VOICE_0 U2) ──────────────
-                // The automaton already carried two multipliers on config
-                // and both were PINNED NEUTRAL at boot, at one call site,
-                // waiting for a driver. This is that driver, and it adds
-                // no mechanism: two ruled expressions and the setter that
-                // was already there.
-                //
-                //   height_mul = clamp(1 + height_gain · energy,   0.25, 4)
-                //   tick_mul   = clamp(1 / (1 + tick_gain · dens), 0.25, 4)
-                //
-                // THE RECIPROCAL IS THE POINT of the second: tick_scale
-                // multiplies the automaton's tick PERIOD, so SMALLER IS
-                // FASTER — denser music, faster life. Getting that
-                // backwards would be legal C++, legal WGSL, and visible
-                // only on the device.
-                //
-                // THE FIELD HAS THREE READERS AND ONLY ONE OF THEM RUNS
-                // ON THIS GROUND. Two are in world.wgsl's
-                // `pulse_cell_target` (the PULSE field's per-cell target,
-                // with divisor floors of 0.01 and 0.1 — deliberately not
-                // the same number, and neither is this seam's clamp); the
-                // bank boots CONWAY, so both are dormant. The one that
-                // runs is `upload_automaton_header` in surface/
-                // automaton.hpp, the CPU's own step gate, which
-                // GROUND_VOICE_0 taught to read it — see that site for
-                // why the coupling would otherwise have been inert.
-                //
-                // GAIN 0 IS HANDS OFF, PER TERM. Every other seam composes
-                // a driven value against a rest that lives somewhere else,
-                // so it can write unconditionally at any gain. These two
-                // rests ARE the driven fields — config's mode_gol_*_scale
-                // are boot-pinned to 1.0 and are still WRITABLE organ
-                // dials — so writing unconditionally would overwrite the
-                // dial every frame and quietly kill it. At gain 0 the term
-                // therefore passes the dial's own value straight back, the
-                // setter's inequality gate sees no change, and the dial is
-                // the author again. "0 manual … 1 coupling verbatim",
-                // meant literally.
-                //
-                // The setter gates on inequality (state.hpp
-                // set_mode_gol_scales), so this runs every frame and a
-                // still room costs no dirty. NOTE THE ARGUMENT ORDER:
-                // (tick, height) — the two are same-typed and both rest at
-                // 1.0, so a swap compiles and only the device sees it.
-                {
-                    const auto& g   = DRIVER_LIVE.ground;
-                    const auto& cfg = gpuState_.config();
-                    const VisualParams& gp = visual_canvas_.params();
-                    float tick_mul   = cfg.mode_gol_tick_scale;
-                    float height_mul = cfg.mode_gol_height_scale;
-                    if (g.height_gain != 0.0f && ground_energy_dst_.valid) {
-                        const float energy = gp.get(ground_energy_dst_.base);
-                        height_mul = std::clamp(1.0f + g.height_gain * energy,
-                                                GROUND_SCALE_MIN, GROUND_SCALE_MAX);
-                    }
-                    if (g.tick_gain != 0.0f && ground_density_dst_.valid) {
-                        const float dens = gp.get(ground_density_dst_.base);
-                        tick_mul = std::clamp(1.0f / (1.0f + g.tick_gain * dens),
-                                              GROUND_SCALE_MIN, GROUND_SCALE_MAX);
-                    }
-                    gpuState_.set_mode_gol_scales(tick_mul, height_mul);
-                }
+                // THE GROUND'S VOICE stood here (GROUND_VOICE_0 U2 →
+                // RELIEF_1): energy lifted the ground, density quickened
+                // its tick. Excised by ruling — one author per fact. The
+                // tick is the bar's (RELIEF_0's latch law) and the height
+                // is RELIEF's to subtract; config's two scales are hand
+                // dials now, rest 1.0 at the boot pin, written by nothing
+                // here.
 
                 // ── THE STRIKE'S RING (STRIKE_0 U2) ─────────────────────
                 // The canvas raises a pc lane for one frame on any rank's
