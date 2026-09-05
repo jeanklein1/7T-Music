@@ -850,8 +850,8 @@ wrapper, 18 wrapper calls) and are not recounted here.
 
 | site (line hint) | enclosing function | idx | group member(s) | dynamic offsets |
 |---|---|---|---|---|
-| `cartridge.hpp:2318` | `phase_entity_mesh_gen` | 0 | `worldGroup_` | — |
-| `cartridge.hpp:2319` | `phase_entity_mesh_gen` | 1 | `frameCGroup_` | — |
+| `cartridge.hpp:2252` | `phase_entity_mesh_gen` | 0 | `worldGroup_` | — |
+| `cartridge.hpp:2253` | `phase_entity_mesh_gen` | 1 | `frameCGroup_` | — |
 | `orbs.hpp:743` | `dispatch_orb_init` | 0 | `worldGroup_` | — |
 | `orbs.hpp:744` | `dispatch_orb_init` | 1 | `frameCGroup_` | — |
 | `orbs.hpp:764` | `dispatch_orb_recolor` | 0 | `worldGroup_` | — |
@@ -915,10 +915,10 @@ wrapper, 18 wrapper calls) and are not recounted here.
 | `renderer.hpp:657` | `draw_patch_terrain_plan_slot` | 2 | `sceneStateGroup_` | — |
 | `automaton.hpp:185` | `birth_automaton` | 0 | `worldGroup_` | — |
 | `automaton.hpp:186` | `birth_automaton` | 1 | `frameCGroup_` | — |
-| `automaton.hpp:258` | `dispatch_automaton_sync` | 0 | `worldGroup_` | — |
-| `automaton.hpp:259` | `dispatch_automaton_sync` | 1 | `frameCGroup_` | — |
-| `automaton.hpp:270` | `dispatch_automaton_evolve` | 0 | `worldGroup_` | — |
-| `automaton.hpp:271` | `dispatch_automaton_evolve` | 1 | `frameCGroup_` | — |
+| `automaton.hpp:248` | `dispatch_automaton_sync` | 0 | `worldGroup_` | — |
+| `automaton.hpp:249` | `dispatch_automaton_sync` | 1 | `frameCGroup_` | — |
+| `automaton.hpp:260` | `dispatch_automaton_evolve` | 0 | `worldGroup_` | — |
+| `automaton.hpp:261` | `dispatch_automaton_evolve` | 1 | `frameCGroup_` | — |
 | `patch_system.hpp:161` | `generate_patch_batch` | 0 | `worldGroup_` | — |
 | `patch_system.hpp:162` | `generate_patch_batch` | 1 | `frameCGroup_` | — |
 
